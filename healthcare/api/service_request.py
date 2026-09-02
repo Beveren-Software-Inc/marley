@@ -804,6 +804,8 @@ def get_service_requests(
 	from healthcare.healthcare.lab_request_items import (
 		lab_request_items_summary,
 		parse_lab_request_items,
+		resolve_group_child_templates,
+		sort_lab_request_display_items,
 	)
 	from healthcare.api.common import _by_nurse_lab_test_template_names
 
@@ -820,7 +822,7 @@ def get_service_requests(
 		if sr.template_dt == 'Lab Test Template':
 			sr['virtual_status'] = _compute_lab_request_virtual_status(sr)
 
-		items = parse_lab_request_items(sr)
+		items = sort_lab_request_display_items(parse_lab_request_items(sr))
 		if sr.template_dt == 'Lab Test Template':
 			tpl_names = _lab_request_template_names(sr, items)
 			sr['by_nurse'] = 1 if any(n in nurse_templates for n in tpl_names) else 0
@@ -837,18 +839,7 @@ def get_service_requests(
 					frappe.db.get_value("Lab Test Template", parent, "lab_test_name")
 					or parent
 				)
-				child_templates = [child for child in (item.get("children") or []) if child]
-				if not child_templates:
-					# Legacy group requests may omit the selected child list; in
-					# that case the booking flow treats all active group children
-					# as selected, so the visit panel should display the same set.
-					child_templates = frappe.get_all(
-						"Lab Test Template",
-						filters={"lab_group": parent, "disabled": 0},
-						pluck="name",
-						order_by="lab_test_name asc",
-						ignore_permissions=True,
-					)
+				child_templates = resolve_group_child_templates(parent, item.get("children"))
 				children = []
 				for child in child_templates:
 					children.append(
@@ -961,6 +952,42 @@ def _lab_result_type_label(template_type=None, is_multiple=0):
 	return tt or "Single"
 
 
+def _resolve_multiple_use_status_flag(template, result_value, patient_sex=None):
+	"""Compute Deficiency/Toxicity (or High/Low) from Multiple Results.use_status for a result."""
+	if not template or not result_value or not frappe.db.exists("Lab Test Template", template):
+		return ""
+	from healthcare.api.lab_test import (
+		_calculate_result_flag,
+		_multiple_result_status_options,
+		_suggest_multiple_result_status,
+	)
+
+	is_multiple = cint(frappe.db.get_value("Lab Test Template", template, "is_multiple"))
+	if not is_multiple:
+		return ""
+	doc = frappe.get_doc("Lab Test Template", template)
+	rows = list(doc.get("multiple_result_type") or [])
+	if not rows:
+		return ""
+	use_status_rows = [r for r in rows if cint(getattr(r, "use_status", 0))]
+	if use_status_rows:
+		return _suggest_multiple_result_status(result_value, _multiple_result_status_options()) or ""
+	mr0 = rows[0]
+	return (
+		_calculate_result_flag(
+			result_value,
+			patient_sex,
+			getattr(mr0, "female_min_range", None),
+			getattr(mr0, "female_max_range", None),
+			getattr(mr0, "male_min_range", None),
+			getattr(mr0, "male_max_range", None),
+			None,
+			None,
+		)
+		or ""
+	)
+
+
 def _template_review_fields(template_names, patient_sex=None, patient_care_type=None):
 	"""Map template name → display fields for lab request review modal."""
 	names = [n for n in {(n or "").strip() for n in (template_names or [])} if n]
@@ -1039,6 +1066,8 @@ def get_lab_request_review(name):
 		expand_lab_test_specs,
 		lab_request_items_summary,
 		parse_lab_request_items,
+		resolve_group_child_templates,
+		sort_lab_request_display_items,
 	)
 
 	if not name:
@@ -1052,7 +1081,7 @@ def get_lab_request_review(name):
 	if not cint(doc.booked):
 		frappe.throw(_("Only booked Lab Requests can be reviewed here"))
 
-	items = parse_lab_request_items(doc)
+	items = sort_lab_request_display_items(parse_lab_request_items(doc))
 	patient_care_type = _resolve_patient_care_type(
 		getattr(doc, "patient_care_type", None),
 		getattr(doc, "patient_visit", None),
@@ -1070,15 +1099,7 @@ def get_lab_request_review(name):
 			parent = (item.get("parent") or "").strip()
 			if not parent:
 				continue
-			child_templates = [c for c in (item.get("children") or []) if c]
-			if not child_templates:
-				child_templates = frappe.get_all(
-					"Lab Test Template",
-					filters={"lab_group": parent, "disabled": 0},
-					pluck="name",
-					order_by="lab_test_name asc",
-					ignore_permissions=True,
-				)
+			child_templates = resolve_group_child_templates(parent, item.get("children"))
 			all_child_names.extend(child_templates)
 			all_child_names.append(parent)
 			groups.append({"kind": "group", "template": parent, "children": child_templates})
@@ -1196,6 +1217,7 @@ def get_lab_request_review(name):
 			"lab_test_group",
 			"result_date",
 			"custom_result",
+			"result_flag",
 			"patient",
 			"patient_name",
 			"practitioner",
@@ -1221,6 +1243,13 @@ def get_lab_request_review(name):
 			test["lab_test_docstatus"] = cint(lt.get("docstatus")) if lt else None
 			test["sample_collection"] = None
 			test["custom_result"] = (lt.get("custom_result") or "") if lt else ""
+			flag = ((lt.get("result_flag") or "") if lt else "").strip()
+			# Backfill Use Status marks when result exists but flag was never set (older saves / unit mismatch).
+			if not flag and lt and (test.get("custom_result") or "").strip():
+				flag = _resolve_multiple_use_status_flag(
+					lt.get("template"), test.get("custom_result"), patient_sex
+				) or ""
+			test["result_flag"] = flag
 
 	return {
 		"name": doc.name,
@@ -1424,6 +1453,42 @@ def create_lab_test_from_service_request(service_request):
 			"count": 1,
 		}
 	return {"is_group": True, "lab_tests": lab_tests, "count": len(lab_tests)}
+
+
+def _ip_lab_auto_book_enabled() -> bool:
+	return bool(
+		cint(
+			frappe.db.get_single_value(
+				"Healthcare Settings", "automatically_create_lab_test_for_ip"
+			)
+		)
+	)
+
+
+def _auto_confirm_and_book_ip_lab(service_request_name: str) -> dict:
+	"""Confirm payment (Sales Order) and book lab tests for an IP lab request."""
+	from healthcare.healthcare.doctype.service_request.service_request import book_lab_and_forward
+
+	confirm_payment(service_request_name)
+	booking = book_lab_and_forward(service_request_name)
+	out = {
+		"auto_booked": True,
+		"patient_accepted_cost": 1,
+		"booked": 1,
+		"sales_order": frappe.db.get_value(
+			"Service Request", service_request_name, "reference_document_name"
+		),
+	}
+	if booking.get("count"):
+		out["lab_tests_count"] = booking["count"]
+		out["lab_tests"] = booking.get("lab_tests") or []
+	elif booking.get("lab_test"):
+		out["lab_tests_count"] = 1
+		out["lab_tests"] = [booking["lab_test"]]
+	else:
+		out["lab_tests_count"] = 0
+		out["lab_tests"] = []
+	return out
 
 
 @frappe.whitelist()
@@ -1668,7 +1733,7 @@ def create_service_request(data):
 			template_name = service_request.template_dn
 	
 	# Return the created service request
-	return {
+	result = {
 		'name': service_request.name,
 		'patient': service_request.patient,
 		'patient_name': service_request.patient_name or frappe.db.get_value('Patient', service_request.patient, 'patient_name'),
@@ -1678,8 +1743,33 @@ def create_service_request(data):
 		'practitioner': service_request.practitioner,
 		'practitioner_name': _practitioner_display_name(service_request.practitioner),
 		'status': service_request.status,
-		'order_date': service_request.order_date
+		'order_date': service_request.order_date,
+		'inpatient_record': service_request.inpatient_record,
 	}
+
+	if (
+		service_request.template_dt == "Lab Test Template"
+		and service_request.inpatient_record
+		and _ip_lab_auto_book_enabled()
+	):
+		try:
+			result.update(_auto_confirm_and_book_ip_lab(service_request.name))
+			sr = frappe.get_doc("Service Request", service_request.name)
+			result["status"] = sr.status
+			result["booked"] = sr.booked
+			result["patient_accepted_cost"] = sr.patient_accepted_cost
+		except Exception:
+			frappe.log_error(
+				title=f"Auto IP lab booking failed for {service_request.name}",
+				message=frappe.get_traceback(),
+			)
+			result["auto_booked"] = False
+			result["auto_book_error"] = _(
+				"Lab request was saved but automatic payment confirmation and booking failed. "
+				"Confirm payment and book manually."
+			)
+
+	return result
 
 
 def _get_general_lab_discount(doc, request_items=None):

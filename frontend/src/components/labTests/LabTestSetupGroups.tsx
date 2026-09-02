@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Pencil } from 'lucide-react'
+import { Download, Pencil } from 'lucide-react'
 import {
   bulkUpdateLabTestTemplatesQuick,
   fetchLabTestTemplateList,
@@ -7,8 +7,10 @@ import {
   type LabTestTemplateListRow,
   type LinkFieldOption,
 } from '../../services/common'
+import { fetchLabMasterListHtml } from '../../services/labTests'
 import { DashboardCard } from '../ui/DashboardCard'
 import { toast } from '../../hooks/useToast'
+import { useCareContext } from '../../providers/CareContextProvider'
 
 interface LabTestSetupGroupsProps {
   refreshKey?: number
@@ -124,6 +126,7 @@ const cellInputClass =
  * parent in a details card below (inline-editable + Save).
  */
 export const LabTestSetupGroups = ({ refreshKey = 0, onEditClick }: LabTestSetupGroupsProps) => {
+  const { userCostCenter } = useCareContext()
   const [allRows, setAllRows] = useState<LabTestTemplateListRow[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -131,6 +134,7 @@ export const LabTestSetupGroups = ({ refreshKey = 0, onEditClick }: LabTestSetup
   const [parentSearch, setParentSearch] = useState('')
   const [drafts, setDrafts] = useState<Record<string, ChildDraft>>({})
   const [saving, setSaving] = useState(false)
+  const [exportingMasterList, setExportingMasterList] = useState(false)
   const [uomOptions, setUomOptions] = useState<LinkFieldOption[]>([])
 
   const load = useCallback(async () => {
@@ -343,6 +347,41 @@ export const LabTestSetupGroups = ({ refreshKey = 0, onEditClick }: LabTestSetup
     </button>
   )
 
+  const downloadMasterList = async () => {
+    setExportingMasterList(true)
+    try {
+      const html = await fetchLabMasterListHtml({
+        costCenter: userCostCenter || undefined,
+      })
+      const win = window.open('', '_blank', 'width=1200,height=900')
+      if (!win) {
+        toast.error('Pop-up blocked. Allow pop-ups to download the PDF.')
+        return
+      }
+      win.document.open()
+      win.document.write(html)
+      win.document.close()
+      win.focus()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to download lab master list')
+    } finally {
+      setExportingMasterList(false)
+    }
+  }
+
+  const masterListButton = (
+    <button
+      type="button"
+      onClick={() => void downloadMasterList()}
+      disabled={loading || exportingMasterList}
+      className="inline-flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-md border border-slate-300 bg-white text-slate-600 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+      title="Download Lab Test Price List"
+      aria-label="Download Lab Test Price List"
+    >
+      <Download className="h-3.5 w-3.5" strokeWidth={2.25} />
+    </button>
+  )
+
   return (
     <div className="flex flex-col gap-3 min-h-0 flex-1">
       <DashboardCard
@@ -350,6 +389,7 @@ export const LabTestSetupGroups = ({ refreshKey = 0, onEditClick }: LabTestSetup
         filterable={false}
         noHeightLimit
         className="shrink-0"
+        headerExtra={masterListButton}
       >
         <div className="flex flex-col gap-2 p-1">
           <input

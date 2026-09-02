@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
-from calendar import monthrange
-from datetime import datetime
-
 import frappe
-from frappe.utils import get_first_day, getdate, nowdate
+
+from healthcare.api.lab_reports_common import (
+	lab_test_list_filters,
+	letter_head_seed,
+	range_header_html,
+	resolve_report_dates,
+)
 
 from healthcare.api.nursing_print import (
 	MAROON,
@@ -21,13 +24,6 @@ from healthcare.api.nursing_print import (
 
 _TITLE = "Lab Result Assessment Report"
 _BLUE = "#1E4E8C"
-
-
-def _month_bounds(value=None):
-	d = parse_date(value) or getdate(nowdate())
-	start = get_first_day(d)
-	end = getdate(datetime(d.year, d.month, monthrange(d.year, d.month)[1]).date())
-	return start, end
 
 
 def _fmt_dt(value) -> str:
@@ -88,28 +84,9 @@ def _sample_info(sample_name) -> tuple[str, str]:
 
 
 def _rows(date_from, date_to, cost_center=None):
-	from healthcare.api.common import get_permitted_cost_centers
-
-	filters = {"docstatus": ["!=", 2]}
-	start = parse_date(date_from)
-	end = parse_date(date_to)
-	if not start and not end:
-		start, end = _month_bounds()
-	if start or end:
-		from_d = str(start or "1900-01-01")
-		to_d = str(end or nowdate())
-		filters["date"] = ["between", [from_d, to_d]]
-
-	permitted = get_permitted_cost_centers()
-	if permitted is not None:
-		if not permitted:
-			return []
-		if cost_center and cost_center in permitted:
-			filters["cost_center"] = cost_center
-		else:
-			filters["cost_center"] = ["in", permitted]
-	elif cost_center:
-		filters["cost_center"] = cost_center
+	filters = lab_test_list_filters(date_from, date_to, cost_center)
+	if filters is None:
+		return []
 
 	rows = frappe.get_all(
 		"Lab Test",
@@ -252,32 +229,15 @@ _CSS = f"""
 @frappe.whitelist()
 def get_lab_result_assessment_html(date_from=None, date_to=None, cost_center=None):
 	assert_nursing_print_permission("Lab Test")
-	date_from = (date_from or "").strip() or None
-	date_to = (date_to or "").strip() or None
 	cost_center = (cost_center or "").strip() or None
-	if not date_from and not date_to:
-		start, end = _month_bounds()
-		date_from = str(start)
-		date_to = str(end)
+	date_from, date_to = resolve_report_dates(date_from, date_to)
 	rows = _rows(date_from, date_to, cost_center)
-	seed = {"cost_center": cost_center or ""}
-	if not seed.get("cost_center"):
-		try:
-			seed["cost_center"] = frappe.defaults.get_user_default("cost_center") or ""
-		except Exception:
-			pass
-	range_html = (
-		'<div class="lar-range">'
-		f'<span>From:</span> {esc(fmt_date(date_from, "%d-%m-%y"))}'
-		" &nbsp; "
-		f'<span>To:</span> {esc(fmt_date(date_to, "%d-%m-%y"))}'
-		"</div>"
-	)
+	range_html = range_header_html(date_from, date_to, cost_center)
 	body = f'<div class="lar-report">{range_html}{_table(rows)}</div>'
 	return wrap_print_document(
 		_TITLE,
 		body,
-		get_doc_letter_head(seed),
+		get_doc_letter_head(letter_head_seed(cost_center)),
 		extra_css=_CSS,
 		landscape=True,
 	)

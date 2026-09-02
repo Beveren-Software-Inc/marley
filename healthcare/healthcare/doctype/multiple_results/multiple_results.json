@@ -65,7 +65,7 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Status",
-   "options": "\nDeficiency  <10\nInsufficiency 10 - 30\nSufficiency  30 \u2013 100\nToxicity  >100"
+   "options": "\nDeficiency  <10\nInsufficiency 10 - 30\nSufficiency  30 \u2013 100\nToxicity  >100\nMildly Decreased\nMild-moderate Decrease\nModerate-severe Decrease\nKidney Failure\nNormal/High"
   },
   {
    "fieldname": "column_break_fjud",
@@ -82,7 +82,7 @@
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2026-07-26 13:53:33.939191",
+ "modified": "2026-09-02 18:14:50.262283",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Multiple Results",

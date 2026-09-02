@@ -1,5 +1,23 @@
 import type { LabTest, LabTestLine } from '../../services/labTests'
 
+/** LAB-001, LAB-002, LAB-010 — natural order by template id, not display name. */
+export function compareLabTestTemplateCode(a: string, b: string): number {
+  return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' })
+}
+
+export function sortLabRequestReviewGroups<
+  T extends { template: string; tests?: Array<{ template: string }> },
+>(groups: T[]): T[] {
+  return [...groups]
+    .sort((a, b) => compareLabTestTemplateCode(a.template, b.template))
+    .map((g) => ({
+      ...g,
+      tests: [...(g.tests || [])].sort((a, b) =>
+        compareLabTestTemplateCode(a.template, b.template),
+      ),
+    }))
+}
+
 /** Open the parent Lab Test document from a flattened legacy line row. */
 export function resolveLabTestDocName(lt: LabTest): string {
   return lt.legacy_parent_name || lt.name

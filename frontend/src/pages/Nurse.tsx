@@ -104,6 +104,7 @@ const SESSION_NAV_CARDS = [
 ]
 import { PatientList } from '../components/patients/PatientList'
 import { RxPage } from '../components/prescriptions/SinglePrescription'
+import { IpMedicationPlanPrintButton } from '../components/prescriptions/IpMedicationPlanPrintButton'
 import { NursingInventoryDashboard } from '../components/nursingInventory/NursingInventoryDashboard'
 import { PortalTopBar } from '../components/layout/PortalTopBar'
 
@@ -1946,7 +1947,12 @@ export const NursePage = () => {
           )}
         </DashboardCard>
 
-        <DashboardCard fixedHeight title="Prescription" listingScreen="rx">
+        <DashboardCard
+          fixedHeight
+          title="Current Prescription"
+          listingScreen="single-prescription"
+          headerExtra={<IpMedicationPlanPrintButton />}
+        >
           <PrescriptionList
             patient={selectedPatient || undefined}
             refreshKey={prescriptionRefreshKey}

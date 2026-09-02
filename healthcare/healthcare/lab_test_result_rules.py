@@ -28,6 +28,11 @@ _ALLOWED_UNARYOPS = {
 	ast.UAdd: operator.pos,
 	ast.USub: operator.neg,
 }
+_ALLOWED_CALLS = {
+	"min": min,
+	"max": max,
+}
+_PATIENT_FORMULA_TOKENS = ("@Age", "@Kappa", "@Alpha")
 
 
 def _norm_key(value: str | None) -> str:
@@ -138,6 +143,17 @@ def _eval_ast(node):
 		if op_type not in _ALLOWED_UNARYOPS:
 			raise ValueError(_("Unsupported unary operator in formula"))
 		return _ALLOWED_UNARYOPS[op_type](_eval_ast(node.operand))
+	if isinstance(node, ast.Call):
+		if not isinstance(node.func, ast.Name):
+			raise ValueError(_("Invalid expression in formula"))
+		func_name = (node.func.id or "").strip().lower()
+		if func_name not in _ALLOWED_CALLS:
+			raise ValueError(_("Unsupported function in formula"))
+		if node.keywords or len(node.args) != 2:
+			raise ValueError(_("Invalid function call in formula"))
+		left = _eval_ast(node.args[0])
+		right = _eval_ast(node.args[1])
+		return _ALLOWED_CALLS[func_name](left, right)
 	raise ValueError(_("Invalid expression in formula"))
 
 
@@ -427,10 +443,15 @@ def _find_lab_test_for_panel_child(
 	return None
 
 
-def _align_values_to_rule_event_names(values: dict[str, float], rules: dict[str, Any]) -> None:
+def _align_values_to_rule_event_names(
+	values: dict[str, float],
+	rules: dict[str, Any],
+	service_request: str | None = None,
+) -> None:
 	"""Copy numeric results onto rule event labels so formulas match (e.g. TOTAL PROTEIN)."""
 	by_norm = {_norm_key(k): v for k, v in values.items() if k}
 	by_loose = {_norm_key_loose(k): v for k, v in values.items() if k}
+	panel_template = (rules.get("lab_test_template") or "").strip()
 
 	def _copy_to_label(label: str):
 		if not label or label in values:
@@ -453,7 +474,7 @@ def _align_values_to_rule_event_names(values: dict[str, float], rules: dict[str,
 		):
 			_copy_to_label((nm or "").strip())
 		for part in _formula_terms_for_alignment(
-			line.get("formula") or "", (rules.get("lab_test_template") or "").strip()
+			line.get("formula") or "", panel_template, service_request
 		):
 			if part:
 				_copy_to_label(part)
@@ -647,8 +668,11 @@ def resolve_event_value(event_name: str, index: dict[str, Any], values: dict[str
 
 
 def _formula_name_boundary_pattern(name: str) -> str:
-	"""Regex for a whole formula operand (supports dots/hyphens/slashes in test names)."""
-	return r"(?<![\w./-])" + re.escape(name) + r"(?![\w./-])"
+	"""Regex for a whole formula operand (supports dots/hyphens in test names).
+
+	Slash may follow the name (e.g. ``S.creatinine/@Kappa``) — it is division, not part of the name.
+	"""
+	return r"(?<![\w./-])" + re.escape(name) + r"(?![\w.-])"
 
 
 def _formula_name_variants(name: str) -> list[str]:
@@ -692,20 +716,41 @@ def _is_numeric_formula_term(term: str) -> bool:
 		return False
 
 
-def _panel_formula_operand_candidates(panel_template: str) -> list[str]:
+def _panel_formula_operand_candidates(
+	panel_template: str, service_request: str | None = None
+) -> list[str]:
 	"""Known child test identifiers for a panel (longest names first)."""
 	candidates: list[str] = []
 	seen: set[str] = set()
+
+	def _add_name(nm: str | None):
+		key = _norm_key(nm)
+		if nm and key not in seen:
+			seen.add(key)
+			candidates.append(nm)
+
+	if service_request:
+		for row in frappe.get_all(
+			"Lab Test",
+			filters={"service_request": service_request, "docstatus": ["!=", 2]},
+			fields=["template", "lab_test_name"],
+		):
+			tpl = (row.get("template") or "").strip()
+			if tpl:
+				for nm in _event_names_from_rule_event(
+					{"lab_test_event": tpl, "aliases": ""}
+				):
+					_add_name(nm)
+			_add_name((row.get("lab_test_name") or "").strip())
+
 	if not panel_template:
-		return candidates
+		return sorted(candidates, key=len, reverse=True)
+
 	for child in get_group_child_templates(panel_template):
 		for nm in _event_names_from_rule_event(
 			{"lab_test_event": child["lab_test_event"], "aliases": ""}
 		):
-			key = _norm_key(nm)
-			if nm and key not in seen:
-				seen.add(key)
-				candidates.append(nm)
+			_add_name(nm)
 	# Rule may be attached to a child template — include its group siblings via lab_group.
 	meta = frappe.db.get_value(
 		"Lab Test Template",
@@ -720,25 +765,21 @@ def _panel_formula_operand_candidates(panel_template: str) -> list[str]:
 				for nm in _event_names_from_rule_event(
 					{"lab_test_event": child["lab_test_event"], "aliases": ""}
 				):
-					key = _norm_key(nm)
-					if nm and key not in seen:
-						seen.add(key)
-						candidates.append(nm)
+					_add_name(nm)
 		for nm in (meta.name, meta.lab_test_name):
-			key = _norm_key(nm)
-			if nm and key not in seen:
-				seen.add(key)
-				candidates.append(nm)
+			_add_name(nm)
 	return sorted(candidates, key=len, reverse=True)
 
 
-def _formula_terms_for_alignment(formula: str, panel_template: str) -> list[str]:
+def _formula_terms_for_alignment(
+	formula: str, panel_template: str, service_request: str | None = None
+) -> list[str]:
 	"""Operand labels referenced in a formula (match whole test names, not ``-`` inside names)."""
 	terms: list[str] = []
 	seen: set[str] = set()
 	formula_text = formula or ""
 
-	for nm in _panel_formula_operand_candidates(panel_template):
+	for nm in _panel_formula_operand_candidates(panel_template, service_request):
 		if _formula_name_in_formula(nm, formula_text):
 			key = _norm_key(nm)
 			if key not in seen:
@@ -770,11 +811,77 @@ def _missing_formula_operand_labels(
 	return missing
 
 
-def substitute_formula(formula: str, values: dict[str, float]) -> str | None:
+def _patient_age_years(patient: str | None) -> float | None:
+	if not patient or not frappe.db.exists("Patient", patient):
+		return None
+	dob = frappe.db.get_value("Patient", patient, "dob")
+	if not dob:
+		return None
+	try:
+		from dateutil.relativedelta import relativedelta
+
+		from frappe.utils import getdate
+
+		years = relativedelta(getdate(), getdate(dob)).years
+		return float(years)
+	except Exception:
+		return None
+
+
+def _patient_formula_context(patient: str | None) -> dict[str, float]:
+	"""Reserved formula variables derived from the patient record."""
+	if not patient or not frappe.db.exists("Patient", patient):
+		return {}
+	sex_field = "sex" if frappe.db.has_column("Patient", "sex") else None
+	if not sex_field and frappe.db.has_column("Patient", "gender"):
+		sex_field = "gender"
+	sex = (
+		(frappe.db.get_value("Patient", patient, sex_field) or "").strip().lower()
+		if sex_field
+		else ""
+	)
+	is_female = sex in ("female", "f")
+	ctx: dict[str, float] = {
+		"@Kappa": 0.7 if is_female else 0.9,
+		"@Alpha": -0.241 if is_female else -0.302,
+	}
+	age_years = _patient_age_years(patient)
+	if age_years is not None:
+		ctx["@Age"] = age_years
+	return ctx
+
+
+def _formula_has_unresolved_identifiers(text: str) -> bool:
+	"""True when non-numeric identifiers remain besides allowed min/max calls."""
+	scrubbed = re.sub(r"\bmin\b", "", text, flags=re.IGNORECASE)
+	scrubbed = re.sub(r"\bmax\b", "", scrubbed, flags=re.IGNORECASE)
+	return bool(re.search(r"[a-zA-Z_]", scrubbed))
+
+
+def _substitute_patient_formula_tokens(text: str, patient_context: dict[str, float]) -> str | None:
+	for token in _PATIENT_FORMULA_TOKENS:
+		if token not in text:
+			continue
+		val = patient_context.get(token)
+		if val is None:
+			return None
+		text = text.replace(token, f"({val})")
+	return text
+
+
+def substitute_formula(
+	formula: str,
+	values: dict[str, float],
+	patient_context: dict[str, float] | None = None,
+) -> str | None:
 	"""Replace event names with numeric literals; return None if a name is missing."""
 	text = (formula or "").strip()
 	if not text:
 		return None
+	if patient_context:
+		text = _substitute_patient_formula_tokens(text, patient_context)
+		if text is None:
+			return None
 	placeholders: dict[str, str] = {}
 	for i, name in enumerate(sorted(values.keys(), key=len, reverse=True)):
 		val = values.get(name)
@@ -798,13 +905,17 @@ def substitute_formula(formula: str, values: dict[str, float]) -> str | None:
 			continue
 	for ph, literal in placeholders.items():
 		text = text.replace(ph, literal)
-	if re.search(r"[a-zA-Z_]", text):
+	if _formula_has_unresolved_identifiers(text):
 		return None
 	return text
 
 
-def evaluate_formula(formula: str, values: dict[str, float]) -> float | None:
-	expr = substitute_formula(formula, values)
+def evaluate_formula(
+	formula: str,
+	values: dict[str, float],
+	patient_context: dict[str, float] | None = None,
+) -> float | None:
+	expr = substitute_formula(formula, values, patient_context=patient_context)
 	if not expr:
 		return None
 	try:
@@ -1022,7 +1133,8 @@ def apply_rules(
 		patient=patient,
 		current_doc=current_doc,
 	)
-	_align_values_to_rule_event_names(values, rules)
+	_align_values_to_rule_event_names(values, rules, service_request=service_request)
+	patient_ctx = _patient_formula_context(patient)
 
 	# Sum validation
 	sum_event_defs = rules.get("sum_events") or []
@@ -1115,7 +1227,7 @@ def apply_rules(
 				result_val = num / den
 		else:
 			formula = line.get("formula") or ""
-			result_val = evaluate_formula(formula, values)
+			result_val = evaluate_formula(formula, values, patient_context=patient_ctx)
 			# Incomplete formulas stay silent until all operands are entered
 			# (e.g. HDL saved before T.Cholesterol / Triglycerides for LDL).
 

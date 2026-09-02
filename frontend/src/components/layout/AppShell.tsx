@@ -135,6 +135,7 @@ const labScreens = [
   { id: 'l-out',       title: 'Outsourced Tests' },
   // Past Medical History not needed for lab technicians (use Patient History elsewhere if dual-roled).
   { id: 'l-inventory', title: 'Inventory Dashboard' },
+  { id: 'l-reports', title: 'Reports' },
   // { id: 'l-review',  title: 'Lab Test Review' },
 ]
 

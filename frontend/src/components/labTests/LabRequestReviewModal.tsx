@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type MouseEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
-import { ArrowDown, ArrowUp, Droplet, FlaskConical, Printer, X } from 'lucide-react'
+import { ArrowDown, ArrowUp, ChevronDown, ChevronUp, Droplet, FlaskConical, Printer, X } from 'lucide-react'
 import { fetchLabRequestReview,
   type LabRequestReview,
   type LabRequestReviewGroup,
@@ -28,10 +28,12 @@ import { LabTestEnterResultsModal } from './LabTestEnterResultsModal'
 import { openLabSampleBarcodePrint } from '../../utils/printLabSampleBarcodeLabel'
 import { showLabTestRuleFeedback } from '../../utils/labTestRuleFeedback'
 import {
+  buildPatientFormulaContext,
   evaluateLabResultFormula,
   formatLabResultFormulaValue,
   labResultNameKey,
 } from '../../utils/labResultFormula'
+import { sortLabRequestReviewGroups } from './labTestDisplayUtils'
 
 const LAB_LINE_STATUS_LABELS: Record<string, string> = {
   'Testing in progress': 'Test In-Progress',
@@ -109,18 +111,25 @@ function ResultFlagIndicator({
   resultValue,
   minValue,
   maxValue,
+  statusFlag,
 }: {
   resultValue: string
   minValue?: string | null
   maxValue?: string | null
+  /** Prefer saved Use Status / result_flag when present. */
+  statusFlag?: string | null
 }) {
+  const stored = (statusFlag || '').trim()
+  if (stored) {
+    return <StatusFlagBadge flag={stored} />
+  }
   const { flag, label } = highLowFromResult(resultValue, minValue, maxValue)
   if (!flag) {
-    return <span className="text-xs text-slate-300">—</span>
+    return <span className="text-[10px] text-slate-300">—</span>
   }
   if (flag === 'Normal') {
     return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
+      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700">
         Normal
       </span>
     )
@@ -130,11 +139,33 @@ function ResultFlagIndicator({
   const color = isLow ? 'text-amber-700 bg-amber-50' : 'text-orange-700 bg-orange-50'
   return (
     <span
-      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ${color}`}
+      className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${color}`}
       title={label}
     >
-      <Icon className="h-3.5 w-3.5" aria-hidden />
+      <Icon className="h-3 w-3" aria-hidden />
       {label}
+    </span>
+  )
+}
+
+function StatusFlagBadge({ flag }: { flag: string }) {
+  const s = flag.trim()
+  if (!s) return <span className="text-[10px] text-slate-300">—</span>
+  const key = s.toLowerCase()
+  let cls = 'bg-slate-50 text-slate-700 border-slate-200'
+  if (key === 'normal' || key === 'sufficiency') {
+    cls = 'bg-emerald-50 text-emerald-800 border-emerald-200'
+  } else if (key === 'low' || key === 'critically low' || key === 'deficiency' || key === 'insuficiency') {
+    cls = 'bg-amber-50 text-amber-900 border-amber-200'
+  } else if (key === 'high' || key === 'critically high' || key === 'toxicity') {
+    cls = 'bg-orange-50 text-orange-800 border-orange-200'
+  }
+  return (
+    <span
+      className={`inline-flex items-center rounded-full border px-1.5 py-0.5 text-[10px] font-semibold ${cls}`}
+      title={s}
+    >
+      {s}
     </span>
   )
 }
@@ -169,7 +200,7 @@ function getGroupResultProgress(group: LabRequestReviewGroup): {
 function ResultTypeCell({ value }: { value: string }) {
   const isMultiple = (value || '').toLowerCase().includes('multiple')
   return (
-    <div className="inline-flex items-center gap-3 text-xs text-slate-700">
+    <div className="inline-flex items-center gap-3 text-[11px] text-slate-700">
       <label className="inline-flex items-center gap-1.5">
         <span
           className={`h-3.5 w-3.5 rounded-full border ${
@@ -220,7 +251,7 @@ function ActionBtn({
         e.stopPropagation()
         onClick(e)
       }}
-      className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] font-medium disabled:cursor-not-allowed disabled:opacity-40 ${styles}`}
+      className={`inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[10px] font-medium disabled:cursor-not-allowed disabled:opacity-40 ${styles}`}
     >
       {children}
     </button>
@@ -271,6 +302,7 @@ export function LabRequestReviewModal({
   const [finishingGroup, setFinishingGroup] = useState(false)
   const [enterResultsLabTest, setEnterResultsLabTest] = useState<string | null>(null)
   const [panelRules, setPanelRules] = useState<LabTestResultRulesConfig | null>(null)
+  const [groupsPanelCollapsed, setGroupsPanelCollapsed] = useState(false)
 
   const reload = useCallback(() => setReloadToken((n) => n + 1), [])
 
@@ -326,7 +358,13 @@ export function LabRequestReviewModal({
     [review?.name, reload]
   )
 
-  const patchTestResult = useCallback((labTestName: string, customResult: string, status?: string) => {
+  const patchTestResult = useCallback(
+    (
+      labTestName: string,
+      customResult: string,
+      status?: string,
+      resultFlag?: string | null,
+    ) => {
     setReview((prev) => {
       if (!prev) return prev
       return {
@@ -339,6 +377,7 @@ export function LabRequestReviewModal({
                   ...t,
                   custom_result: customResult,
                   ...(status ? { lab_test_status: status } : {}),
+                  ...(resultFlag !== undefined ? { result_flag: resultFlag || '' } : {}),
                 }
               : t
           ),
@@ -353,7 +392,8 @@ export function LabRequestReviewModal({
       delete next[labTestName]
       return next
     })
-  }, [])
+  },
+  [])
 
   const rawResultValue = useCallback(
     (test: LabRequestReviewTest) => {
@@ -406,7 +446,7 @@ export function LabRequestReviewModal({
           custom_result: value,
           submit: false,
         })
-        patchTestResult(name, value, saved.status)
+        patchTestResult(name, value, saved.status, saved.result_flag)
         applyCalculatedUpdates(saved.calculated_updates)
         showLabTestRuleFeedback(saved)
         toast.success(`Result saved for ${test.test_name || test.test_code}`)
@@ -435,7 +475,7 @@ export function LabRequestReviewModal({
     fetchLabRequestReview(serviceRequestName)
       .then((data) => {
         if (cancelled) return
-        setReview(data)
+        setReview({ ...data, groups: sortLabRequestReviewGroups(data.groups || []) })
         setPendingResults({})
         setSelectedTemplate((prev) => prev || data.groups[0]?.template || null)
       })
@@ -456,14 +496,28 @@ export function LabRequestReviewModal({
     return review.groups.find((g) => g.template === selectedTemplate) || review.groups[0]
   }, [review, selectedTemplate])
 
+  const visibleGroups = useMemo(() => {
+    if (!review?.groups?.length) return []
+    if (!groupsPanelCollapsed) return review.groups
+    return selectedGroup ? [selectedGroup] : review.groups
+  }, [review?.groups, groupsPanelCollapsed, selectedGroup])
+
+  const toggleGroupsPanel = useCallback(() => {
+    setGroupsPanelCollapsed((collapsed) => !collapsed)
+  }, [])
+
+  useEffect(() => {
+    setGroupsPanelCollapsed(false)
+  }, [serviceRequestName])
+
   useEffect(() => {
     const tpl = selectedGroup?.template
-    if (!tpl) {
+    if (!tpl || !review?.name) {
       setPanelRules(null)
       return
     }
     let cancelled = false
-    fetchLabTestResultRules(tpl)
+    fetchLabTestResultRules(tpl, review.name)
       .then((rules) => {
         if (!cancelled) setPanelRules(rules)
       })
@@ -473,7 +527,12 @@ export function LabRequestReviewModal({
     return () => {
       cancelled = true
     }
-  }, [selectedGroup?.template])
+  }, [review?.name, selectedGroup?.template, reloadToken])
+
+  const allRequestTests = useMemo(
+    () => (review?.groups || []).flatMap((group) => group.tests || []),
+    [review?.groups],
+  )
 
   useEffect(() => {
     if (!review?.name || loading) return
@@ -499,7 +558,7 @@ export function LabRequestReviewModal({
 
   const formulaComputed = useMemo(() => {
     const byKey = new Map<string, string>()
-    const tests = selectedGroup?.tests || []
+    const tests = allRequestTests
     if (!formulaLines.length || !tests.length) return byKey
     const values: Record<string, number> = {}
     for (const test of tests) {
@@ -510,8 +569,9 @@ export function LabRequestReviewModal({
         if (key) values[key] = n
       }
     }
+    const patientContext = buildPatientFormulaContext(review?.sex, review?.age)
     for (const line of formulaLines) {
-      const n = evaluateLabResultFormula(line.formula || '', values)
+      const n = evaluateLabResultFormula(line.formula || '', values, patientContext)
       if (n == null) continue
       const formatted = formatLabResultFormulaValue(n)
       const target = line.target_event || ''
@@ -521,7 +581,7 @@ export function LabRequestReviewModal({
       if (match?.test_name) byKey.set(labResultNameKey(match.test_name), formatted)
     }
     return byKey
-  }, [formulaLines, selectedGroup?.tests, rawResultValue])
+  }, [formulaLines, allRequestTests, rawResultValue, review?.sex, review?.age])
 
   const formulaTargetForTest = useCallback(
     (test: LabRequestReviewTest) =>
@@ -743,19 +803,49 @@ export function LabRequestReviewModal({
             {!loading && !error && review && (
               <>
                 <div className="shrink-0 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
-                  <div className="max-h-44 overflow-auto sm:max-h-52">
-                    <table className="min-w-full text-sm">
-                      <thead className="sticky top-0 z-[1] bg-teal-600 text-left text-xs font-semibold uppercase tracking-wide text-white">
+                  <div
+                    className={
+                      groupsPanelCollapsed
+                        ? 'overflow-hidden'
+                        : 'max-h-[calc(2rem+3*2.125rem)] overflow-auto'
+                    }
+                  >
+                    <table className="min-w-full text-xs">
+                      <thead
+                        className="sticky top-0 z-[1] cursor-pointer select-none bg-teal-600 text-left text-[10px] font-semibold uppercase tracking-wide text-white hover:bg-teal-700"
+                        onClick={toggleGroupsPanel}
+                        title={
+                          groupsPanelCollapsed
+                            ? 'Show all test groups'
+                            : 'Show selected test group only'
+                        }
+                      >
                         <tr>
-                          <th className="px-3 py-2">Test Group Code</th>
-                          <th className="px-3 py-2">Test Group Description</th>
-                          <th className="px-3 py-2 text-right whitespace-nowrap">Tests</th>
-                          <th className="px-3 py-2 text-right whitespace-nowrap">Price</th>
-                          <th className="px-3 py-2 text-right whitespace-nowrap">Actions</th>
+                          <th className="px-2.5 py-1.5">
+                            <span className="inline-flex items-center gap-1.5">
+                              {groupsPanelCollapsed ? (
+                                <ChevronDown className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                              ) : (
+                                <ChevronUp className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                              )}
+                              Test Group Code
+                            </span>
+                          </th>
+                          <th className="px-2.5 py-1.5">
+                            Test Group Description
+                            {groupsPanelCollapsed && (review.groups.length > 1) ? (
+                              <span className="ml-1.5 font-normal normal-case text-teal-100/90">
+                                (1 of {review.groups.length})
+                              </span>
+                            ) : null}
+                          </th>
+                          <th className="px-2.5 py-1.5 text-right whitespace-nowrap">Tests</th>
+                          <th className="px-2.5 py-1.5 text-right whitespace-nowrap">Price</th>
+                          <th className="px-2.5 py-1.5 text-right whitespace-nowrap">Actions</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {review.groups.map((group) => {
+                        {visibleGroups.map((group) => {
                           const active = group.template === selectedGroup?.template
                           const isGroup = Number(group.is_group) === 1 || group.kind === 'group'
                           return (
@@ -766,26 +856,26 @@ export function LabRequestReviewModal({
                                 active ? 'bg-sky-100' : 'hover:bg-slate-50'
                               }`}
                             >
-                            <td className="px-3 py-2.5 font-medium text-slate-800">
+                            <td className="px-2.5 py-1.5 font-medium text-slate-800">
                               {group.group_code}
                             </td>
-                            <td className="px-3 py-2.5 text-slate-700">
+                            <td className="px-2.5 py-1.5 text-slate-700">
                               <span className="inline-flex items-center gap-2">
                                 <span>{group.group_name}</span>
                                 {isGroup ? (
-                                  <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-slate-100 px-1.5 text-[11px] font-semibold text-slate-600">
+                                  <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-slate-100 px-1 text-[10px] font-semibold text-slate-600">
                                     {group.test_count}
                                   </span>
                                 ) : null}
                               </span>
                             </td>
-                              <td className="px-3 py-2.5 text-right tabular-nums text-slate-600">
+                              <td className="px-2.5 py-1.5 text-right tabular-nums text-slate-600">
                                 {group.test_count}
                               </td>
-                              <td className="px-3 py-2.5 text-right tabular-nums font-medium text-slate-800">
+                              <td className="px-2.5 py-1.5 text-right tabular-nums font-medium text-slate-800">
                                 {formatMoney(Number(group.total_price) || 0)}
                               </td>
-                              <td className="px-3 py-2.5 text-right" onClick={(e) => e.stopPropagation()}>
+                              <td className="px-2.5 py-1.5 text-right" onClick={(e) => e.stopPropagation()}>
                                 {(() => {
                                   const progress = getGroupResultProgress(group)
                                   const needsSample = groupNeedsSample(group)
@@ -827,13 +917,13 @@ export function LabRequestReviewModal({
                                     // Keep Finished + Print visible on completed groups anytime.
                                     if (!groupFinished && !canPrint) {
                                       return (
-                                        <span className="text-[11px] text-slate-400">Select</span>
+                                        <span className="text-[10px] text-slate-400">Select</span>
                                       )
                                     }
                                     return (
                                       <div className="inline-flex flex-wrap items-center justify-end gap-1.5">
                                         {groupFinished ? (
-                                          <span className="text-[11px] font-medium text-slate-600">
+                                          <span className="text-[10px] font-medium text-slate-600">
                                             Finished
                                           </span>
                                         ) : (
@@ -908,7 +998,7 @@ export function LabRequestReviewModal({
                                         </ActionBtn>
                                       ) : null}
                                       {groupFinished ? (
-                                        <span className="text-[11px] font-medium text-slate-600">
+                                        <span className="text-[10px] font-medium text-slate-600">
                                           Finished
                                         </span>
                                       ) : null}
@@ -926,7 +1016,7 @@ export function LabRequestReviewModal({
                                       {!needsSample &&
                                       progress.status !== 'Complete' &&
                                       !groupFinished ? (
-                                        <span className="text-[11px] font-medium text-emerald-700">
+                                        <span className="text-[10px] font-medium text-emerald-700">
                                           Sample done
                                         </span>
                                       ) : null}
@@ -939,7 +1029,7 @@ export function LabRequestReviewModal({
                         })}
                         {!review.groups.length && (
                           <tr>
-                            <td colSpan={5} className="px-3 py-6 text-center text-slate-500">
+                            <td colSpan={5} className="px-2.5 py-5 text-center text-xs text-slate-500">
                               No tests on this Lab Request.
                             </td>
                           </tr>
@@ -951,19 +1041,19 @@ export function LabRequestReviewModal({
 
                 <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
                   <div className="min-h-0 flex-1 overflow-auto">
-                    <table className="min-w-full text-sm">
-                      <thead className="sticky top-0 z-[1] bg-teal-600 text-left text-xs font-semibold uppercase tracking-wide text-white">
+                    <table className="min-w-full text-xs">
+                      <thead className="sticky top-0 z-[1] bg-teal-600 text-left text-[10px] font-semibold uppercase tracking-wide text-white">
                         <tr>
-                          <th className="px-3 py-2 whitespace-nowrap">Test Code</th>
-                          <th className="px-3 py-2">Test Name</th>
-                          <th className="px-3 py-2 whitespace-nowrap bg-emerald-600/90">Price</th>
-                          <th className="px-3 py-2 whitespace-nowrap">Lab Result Type</th>
-                          <th className="px-3 py-2 whitespace-nowrap">Test Unit</th>
-                          <th className="px-3 py-2 whitespace-nowrap">Min.</th>
-                          <th className="px-3 py-2 whitespace-nowrap">Max.</th>
-                          <th className="px-3 py-2 whitespace-nowrap min-w-[11rem]">Sample / Result</th>
-                          <th className="px-3 py-2 whitespace-nowrap">Status</th>
-                          <th className="px-3 py-2 whitespace-nowrap text-right">Flag</th>
+                          <th className="px-2.5 py-1.5 whitespace-nowrap">Test Code</th>
+                          <th className="px-2.5 py-1.5">Test Name</th>
+                          <th className="px-2.5 py-1.5 whitespace-nowrap bg-emerald-600/90">Price</th>
+                          <th className="px-2.5 py-1.5 whitespace-nowrap">Lab Result Type</th>
+                          <th className="px-2.5 py-1.5 whitespace-nowrap">Test Unit</th>
+                          <th className="px-2.5 py-1.5 whitespace-nowrap">Min.</th>
+                          <th className="px-2.5 py-1.5 whitespace-nowrap">Max.</th>
+                          <th className="px-2.5 py-1.5 whitespace-nowrap min-w-[11rem]">Sample / Result</th>
+                          <th className="px-2.5 py-1.5 whitespace-nowrap">Status</th>
+                          <th className="px-2.5 py-1.5 whitespace-nowrap text-right">Flag</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -989,32 +1079,34 @@ export function LabRequestReviewModal({
                           const formulaLine = formulaTargetForTest(test)
                           const isFormulaReadonly = Boolean(formulaLine?.readonly)
                           const isSaving = savingResultFor === test.lab_test
-                          const singleLine = isSingleResultType(test.result_type)
+                          // Formula targets always show inline (calculated), even if template is Multiple.
+                          const singleLine =
+                            Boolean(formulaLine) || isSingleResultType(test.result_type)
                           return (
                             <tr key={test.template} className="border-b border-slate-100">
-                              <td className="px-3 py-2 font-medium text-slate-800">{test.test_code}</td>
-                              <td className="px-3 py-2 text-slate-700">{test.test_name}</td>
-                              <td className="px-3 py-2 bg-emerald-50/80 tabular-nums text-slate-800">
+                              <td className="px-2.5 py-1.5 font-medium text-slate-800">{test.test_code}</td>
+                              <td className="px-2.5 py-1.5 text-slate-700">{test.test_name}</td>
+                              <td className="px-2.5 py-1.5 bg-emerald-50/80 tabular-nums text-slate-800">
                                 {formatMoney(Number(test.price) || 0)}
                                 {test.price_included_in_group ? (
-                                  <span className="ml-1 text-[10px] text-slate-400">incl.</span>
+                                  <span className="ml-1 text-[9px] text-slate-400">incl.</span>
                                 ) : null}
                               </td>
-                              <td className="px-3 py-2">
+                              <td className="px-2.5 py-1.5">
                                 <ResultTypeCell value={test.result_type} />
                               </td>
-                              <td className="px-3 py-2 text-slate-600">{test.uom || '—'}</td>
-                              <td className="px-3 py-2 tabular-nums text-slate-600">
+                              <td className="px-2.5 py-1.5 text-slate-600">{test.uom || '—'}</td>
+                              <td className="px-2.5 py-1.5 tabular-nums text-slate-600">
                                 {test.min_value ?? '—'}
                               </td>
-                              <td className="px-3 py-2 tabular-nums text-slate-600">
+                              <td className="px-2.5 py-1.5 tabular-nums text-slate-600">
                                 {test.max_value ?? '—'}
                               </td>
-                              <td className="px-3 py-2">
+                              <td className="px-2.5 py-1.5">
                                 {!sampleDone ? (
                                   hideChildCollectSample ? (
                                     <span
-                                      className="text-xs text-slate-400"
+                                      className="text-[10px] text-slate-400"
                                       title="Collect sample from the group"
                                     >
                                       —
@@ -1066,35 +1158,40 @@ export function LabRequestReviewModal({
                                         ;(e.target as HTMLInputElement).blur()
                                       }
                                     }}
-                                    className="w-full min-w-[7rem] max-w-[12rem] rounded-md border border-dashed border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-800 placeholder:text-slate-400 focus:border-teal-400 focus:outline-none focus:ring-2 focus:ring-teal-500/20 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-500"
+                                    className="w-full min-w-[7rem] max-w-[12rem] rounded-md border border-dashed border-slate-300 bg-white px-2 py-1 text-xs text-slate-800 placeholder:text-slate-400 focus:border-teal-400 focus:outline-none focus:ring-2 focus:ring-teal-500/20 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-500"
                                   />
                                 ) : (
-                                  <span className="text-xs italic text-violet-600">— multiple —</span>
+                                  <span className="text-[10px] italic text-violet-600">— multiple —</span>
                                 )}
                               </td>
-                              <td className="px-3 py-2 whitespace-nowrap">
+                              <td className="px-2.5 py-1.5 whitespace-nowrap">
                                 {test.lab_test_status ? (
                                   <StatusPill
+                                    compact
                                     status={labLineStatusLabel(test.lab_test_status)}
                                     color={labLineStatusColors[test.lab_test_status] || 'default'}
                                   />
                                 ) : (
-                                  <span className="text-xs text-slate-300">—</span>
+                                  <span className="text-[10px] text-slate-300">—</span>
                                 )}
                               </td>
-                              <td className="px-3 py-2 text-right">
+                              <td className="px-2.5 py-1.5 text-right">
                                 {singleLine ? (
                                   sampleDone ? (
                                     <ResultFlagIndicator
                                       resultValue={resultValue}
                                       minValue={test.min_value}
                                       maxValue={test.max_value}
+                                      statusFlag={test.result_flag}
                                     />
                                   ) : (
-                                    <span className="text-xs text-slate-300">—</span>
+                                    <span className="text-[10px] text-slate-300">—</span>
                                   )
                                 ) : (
-                                  <div className="inline-flex items-center justify-end gap-1.5">
+                                  <div className="inline-flex flex-wrap items-center justify-end gap-1.5">
+                                    {sampleDone && test.result_flag ? (
+                                      <StatusFlagBadge flag={test.result_flag} />
+                                    ) : null}
                                     <ActionBtn
                                       variant="primary"
                                       disabled={!test.lab_test || !sampleDone}
@@ -1132,7 +1229,7 @@ export function LabRequestReviewModal({
                         })}
                         {!selectedGroup?.tests?.length && (
                           <tr>
-                            <td colSpan={10} className="px-3 py-8 text-center text-slate-500">
+                            <td colSpan={10} className="px-2.5 py-6 text-center text-xs text-slate-500">
                               Select a test group above.
                             </td>
                           </tr>
