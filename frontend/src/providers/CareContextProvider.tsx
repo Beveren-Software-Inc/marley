@@ -7,6 +7,7 @@ import { fetchHealthcarePortalSettings } from '../services/healthcareSettings'
 import {
   applyBranchFromIpMapper,
   getPortalBranch,
+  isAllBranchesSelected,
   setPortalBranch,
 } from '../services/costCenterPermission'
 import { setEditingLockState } from '../services/editingLockStore'
@@ -294,8 +295,9 @@ export const CareContextProvider = ({ children }: { children: ReactNode }) => {
       if (response.ok) {
         const data = await response.json()
         const msg = data.message || {}
-        // Keep portal branch as source of truth; only fill if portal empty and API has employee default.
-        if (!portal && msg.cost_center) {
+        // Keep portal branch as source of truth. Do not fill employee default when
+        // the user chose All Branches (empty is an explicit filter).
+        if (!portal && msg.cost_center && !isAllBranchesSelected()) {
           setUserCostCenterState(msg.cost_center)
         }
         setCostCenterCompany(
@@ -324,7 +326,9 @@ export const CareContextProvider = ({ children }: { children: ReactNode }) => {
           console.warn('IP Mapper branch resolve skipped:', err)
           return null
         })
-        if (ipResult?.matched && ipResult.cost_center && !ipResult.overridden) {
+        if (isAllBranchesSelected() || (ipResult?.overridden && !getPortalBranch())) {
+          setUserCostCenterState(undefined)
+        } else if (ipResult?.matched && ipResult.cost_center && !ipResult.overridden) {
           setUserCostCenterState(ipResult.cost_center)
         } else {
           setUserCostCenterState(getPortalBranch() || undefined)
