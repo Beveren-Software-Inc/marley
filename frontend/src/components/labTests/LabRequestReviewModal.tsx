@@ -1131,6 +1131,7 @@ export function LabRequestReviewModal({
                                 ) : singleLine ? (
                                   <input
                                     type="text"
+                                    data-lab-result-nav={test.lab_test || test.template}
                                     value={resultValue}
                                     disabled={!canEditResult || isSaving || isFormulaReadonly}
                                     placeholder={isFormulaReadonly ? 'Calculated…' : 'Enter result…'}
@@ -1138,7 +1139,7 @@ export function LabRequestReviewModal({
                                       isFormulaReadonly
                                         ? `Calculated: ${formulaLine?.formula || 'formula'}`
                                         : canEditResult
-                                          ? 'Enter result and press Enter or leave the field to save'
+                                          ? 'Enter result. ↑/↓ move between fields; Enter or leave field to save'
                                           : 'Result locked for this test'
                                     }
                                     onChange={(e) => {
@@ -1156,7 +1157,26 @@ export function LabRequestReviewModal({
                                       if (e.key === 'Enter') {
                                         e.preventDefault()
                                         ;(e.target as HTMLInputElement).blur()
+                                        return
                                       }
+                                      if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return
+                                      // Let caret move inside the value when text is partially selected only if...
+                                      // Always navigate rows — result fields are short single values.
+                                      e.preventDefault()
+                                      const table = (e.currentTarget as HTMLElement).closest('table')
+                                      if (!table) return
+                                      const inputs = Array.from(
+                                        table.querySelectorAll<HTMLInputElement>(
+                                          'input[data-lab-result-nav]:not([disabled])',
+                                        ),
+                                      )
+                                      const idx = inputs.indexOf(e.currentTarget as HTMLInputElement)
+                                      if (idx < 0) return
+                                      const next =
+                                        e.key === 'ArrowDown' ? inputs[idx + 1] : inputs[idx - 1]
+                                      if (!next) return
+                                      next.focus()
+                                      next.select()
                                     }}
                                     className="w-full min-w-[7rem] max-w-[12rem] rounded-md border border-dashed border-slate-300 bg-white px-2 py-1 text-xs text-slate-800 placeholder:text-slate-400 focus:border-teal-400 focus:outline-none focus:ring-2 focus:ring-teal-500/20 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-500"
                                   />

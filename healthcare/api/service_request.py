@@ -752,7 +752,8 @@ def get_service_requests(
 		filters['booked'] = 1 if cint(booked) else 0
 
 	# Portal navbar branch (UI) + Cost Center User Permission when present.
-	# A selected branch is an exact match (same as visits / admissions).
+	# Always also include requests with no branch (unscoped) so they remain visible
+	# no matter which branch is selected in the top navbar.
 	resolved_cc = resolve_cost_center_filter(cost_center)
 	if resolved_cc is False:
 		return {"data": [], "total_count": 0}
@@ -763,7 +764,10 @@ def get_service_requests(
 			['Service Request', 'cost_center', 'is', 'not set'],
 		]
 	elif resolved_cc:
-		filters['cost_center'] = resolved_cc
+		or_filters = [
+			['Service Request', 'cost_center', '=', resolved_cc],
+			['Service Request', 'cost_center', 'is', 'not set'],
+		]
 
 	# Resolve human-readable template names for all supported template types
 	_template_name_field = {
