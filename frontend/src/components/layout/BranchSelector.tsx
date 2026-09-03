@@ -4,6 +4,8 @@ import { fetchBranchOptions } from '../../services/common'
 import {
   applyBranchFromIpMapper,
   getPortalBranch,
+  isAllBranchesSelected,
+  setAllBranchesSelected,
   setIpBranchOverride,
   setPortalBranch,
 } from '../../services/costCenterPermission'
@@ -52,14 +54,20 @@ export function BranchSelector({ placement = 'header' }: BranchSelectorProps) {
         setBranches(options.map((b) => ({ name: b.name, label: b.label || b.name })))
 
         const portal = getPortalBranch()
-        const next =
-          ipResult?.matched && mappedCc && !ipResult.overridden
+        const keepAllBranches = isAllBranchesSelected() || Boolean(ipResult?.overridden && !portal)
+        const next = keepAllBranches
+          ? ''
+          : ipResult?.matched && mappedCc && !ipResult.overridden
             ? mappedCc
             : portal || mappedCc || ''
         setSelected(next)
         if (next) {
+          setAllBranchesSelected(false)
           setPortalBranch(next)
           setUserCostCenter(next)
+        } else if (keepAllBranches) {
+          setAllBranchesSelected(true)
+          setUserCostCenter(undefined)
         }
         await refreshUserCostCenter()
 
@@ -101,8 +109,11 @@ export function BranchSelector({ placement = 'header' }: BranchSelectorProps) {
     setOpen(false)
     try {
       // UI-only branch filter — never create User Permissions.
-      if (ipMappedCostCenter) {
-        setIpBranchOverride(Boolean(value && value !== ipMappedCostCenter))
+      const allBranches = !value
+      setAllBranchesSelected(allBranches)
+      // Empty = All Branches is an explicit override so IP auto-select cannot snap back.
+      if (ipMappedCostCenter || allBranches) {
+        setIpBranchOverride(allBranches || Boolean(value && value !== ipMappedCostCenter))
       }
       setPortalBranch(value)
       setSelected(value)
@@ -128,15 +139,15 @@ export function BranchSelector({ placement = 'header' }: BranchSelectorProps) {
   const activeLabel =
     selected
       ? branches.find((b) => b.name === selected)?.label || selected
-      : 'Select Branch'
+      : 'All Branches'
 
   const title = onIpHomeBranch
     ? 'Branch set from your network IP — click to change'
     : ipOverrideActive
       ? 'Branch manually changed — select network branch to restore lock'
-      : selected
+        : selected
         ? `Branch: ${activeLabel}`
-        : undefined
+        : 'All branches — lists are not filtered by branch'
 
   const trailingIcon = onIpHomeBranch ? (
     <Lock className="h-3.5 w-3.5 shrink-0 opacity-80" aria-hidden />
@@ -176,7 +187,7 @@ export function BranchSelector({ placement = 'header' }: BranchSelectorProps) {
         </button>
         {open && (
           <div className="absolute bottom-full left-0 right-0 z-[110] mb-1 max-h-52 overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-xl">
-            <BranchOption label="Select Branch" active={!selected} onSelect={() => void handleSelect('')} />
+            <BranchOption label="All Branches" active={!selected} onSelect={() => void handleSelect('')} />
             {branches.map((b) => (
               <BranchOption
                 key={b.name}
@@ -210,7 +221,7 @@ export function BranchSelector({ placement = 'header' }: BranchSelectorProps) {
       </button>
       {open && (
         <div className="absolute top-full right-0 z-[110] mt-1 w-full max-h-60 overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-xl">
-          <BranchOption label="Select Branch" active={!selected} onSelect={() => void handleSelect('')} />
+          <BranchOption label="All Branches" active={!selected} onSelect={() => void handleSelect('')} />
           {branches.map((b) => (
             <BranchOption
               key={b.name}

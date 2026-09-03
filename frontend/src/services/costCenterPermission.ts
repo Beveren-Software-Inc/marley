@@ -14,14 +14,39 @@ export interface IpMapperBranchResult {
 }
 
 export const PORTAL_BRANCH_STORAGE_KEY = 'healthcare_portal_branch'
+/** Explicit navbar choice: show every branch (do not auto-fill IP / employee default). */
+export const PORTAL_ALL_BRANCHES_KEY = 'healthcare_portal_all_branches'
 /** Session flag: user manually picked a branch other than the IP-mapped one. */
 export const IP_BRANCH_OVERRIDE_KEY = 'healthcare_ip_branch_override'
 /** Set on login so the next resolve ignores override and uses IP branch. */
 export const IP_BRANCH_FORCE_ON_AUTH_KEY = 'healthcare_force_ip_on_auth'
 
+export function isAllBranchesSelected(): boolean {
+  try {
+    return typeof localStorage !== 'undefined' && localStorage.getItem(PORTAL_ALL_BRANCHES_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+
+export function setAllBranchesSelected(active: boolean) {
+  try {
+    if (typeof localStorage === 'undefined') return
+    if (active) {
+      localStorage.setItem(PORTAL_ALL_BRANCHES_KEY, '1')
+      localStorage.removeItem(PORTAL_BRANCH_STORAGE_KEY)
+    } else {
+      localStorage.removeItem(PORTAL_ALL_BRANCHES_KEY)
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
 export function getPortalBranch(): string {
   try {
     if (typeof localStorage === 'undefined') return ''
+    if (isAllBranchesSelected()) return ''
     return (localStorage.getItem(PORTAL_BRANCH_STORAGE_KEY) || '').trim()
   } catch {
     return ''
@@ -32,8 +57,12 @@ export function setPortalBranch(costCenter: string) {
   try {
     if (typeof localStorage === 'undefined') return
     const value = (costCenter || '').trim()
-    if (value) localStorage.setItem(PORTAL_BRANCH_STORAGE_KEY, value)
-    else localStorage.removeItem(PORTAL_BRANCH_STORAGE_KEY)
+    if (value) {
+      localStorage.removeItem(PORTAL_ALL_BRANCHES_KEY)
+      localStorage.setItem(PORTAL_BRANCH_STORAGE_KEY, value)
+    } else {
+      localStorage.removeItem(PORTAL_BRANCH_STORAGE_KEY)
+    }
   } catch {
     /* ignore */
   }
@@ -63,6 +92,7 @@ export function markForceIpBranchOnAuth() {
     if (typeof sessionStorage === 'undefined') return
     sessionStorage.removeItem(IP_BRANCH_OVERRIDE_KEY)
     sessionStorage.setItem(IP_BRANCH_FORCE_ON_AUTH_KEY, '1')
+    setAllBranchesSelected(false)
   } catch {
     /* ignore */
   }
@@ -84,6 +114,7 @@ function consumeForceIpBranchOnAuth(): boolean {
     if (sessionStorage.getItem(IP_BRANCH_FORCE_ON_AUTH_KEY) !== '1') return false
     sessionStorage.removeItem(IP_BRANCH_FORCE_ON_AUTH_KEY)
     sessionStorage.removeItem(IP_BRANCH_OVERRIDE_KEY)
+    setAllBranchesSelected(false)
     return true
   } catch {
     return false
@@ -118,7 +149,8 @@ export async function applyBranchFromIpMapper(opts?: {
 }): Promise<IpMapperBranchResult> {
   const forceOnAuth = consumeForceIpBranchOnAuth()
   const params = new URLSearchParams()
-  const skipApply = !forceOnAuth && (opts?.skipApply || hasIpBranchOverride())
+  const skipApply =
+    !forceOnAuth && (opts?.skipApply || hasIpBranchOverride() || isAllBranchesSelected())
   if (skipApply) {
     params.set('skip_apply', '1')
   }
