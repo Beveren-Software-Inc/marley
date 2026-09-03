@@ -94,12 +94,34 @@ export function isFuturePlanByStartDate(
   return start > todayDateString(asOf)
 }
 
+/**
+ * True when the medication line end date (or parent Rx end) is before today.
+ * End date itself remains active; the day after it is treated as expired.
+ */
+export function isMedicationEndDatePassed(
+  order:
+    | {
+        end_date?: string | null
+        _rx_end?: string | null
+      }
+    | null
+    | undefined,
+  asOf: Date = new Date()
+): boolean {
+  if (!order) return false
+  const end = String(order.end_date || order._rx_end || '').trim().slice(0, 10)
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(end)) return false
+  return end < todayDateString(asOf)
+}
+
 /** Filter/count helper for Current Prescription type cards (incl. computed Future Plan). */
 export function matchesPrescriptionTypeFilter(
   order: {
     medication_type?: string | null
     date?: string | null
     start_date?: string | null
+    end_date?: string | null
+    _rx_end?: string | null
     reason_stopped?: string | null
   },
   filterKey: string,
@@ -109,7 +131,9 @@ export function matchesPrescriptionTypeFilter(
   // Stopped lines belong only under the Stopped tab — not All / Reg Psy / etc.
   if (filterKey === '__stopped__') return isStopped
   if (isStopped) return false
+  // Expired-by-end-date lines stay visible under All only — not Active Psy/Med/etc.
   if (filterKey === 'All') return true
+  if (isMedicationEndDatePassed(order, asOf)) return false
   const future = isFuturePlanByStartDate(order, asOf)
   if (filterKey === 'Future Plan') return future
   // Real types only include lines that have started (not future-dated)

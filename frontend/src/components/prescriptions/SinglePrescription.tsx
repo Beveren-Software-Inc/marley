@@ -2249,10 +2249,21 @@ export const RxPage = ({ readOnly = false }: { readOnly?: boolean } = {}) => {
       user_name: prescription.user_name,
     }
   }
+  const orderForTypeFilter = (order: any) => {
+    if (order.end_date || order._rx_end) return order
+    const parentName = order.parent || order._prescription_name || prescription.name
+    const fromActive = activePrescriptions.find((r) => r.name === parentName) as
+      | { end_date?: string }
+      | undefined
+    return {
+      ...order,
+      _rx_end: fromActive?.end_date || prescription.end_date,
+    }
+  }
   const countFor = (key: string) =>
-    orders.filter((o: any) => matchesPrescriptionTypeFilter(o, key)).length
+    orders.filter((o: any) => matchesPrescriptionTypeFilter(orderForTypeFilter(o), key)).length
   const filteredOrders = orders.filter((o: any) =>
-    matchesPrescriptionTypeFilter(o, activeType)
+    matchesPrescriptionTypeFilter(orderForTypeFilter(o), activeType)
   )
   const activeTypeDef = MED_TYPES.find((t) => t.key === activeType)
   const completionPct =

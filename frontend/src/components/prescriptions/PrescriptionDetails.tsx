@@ -412,10 +412,14 @@ export const PrescriptionDetails = ({ prescriptionName, onUpdate }: Prescription
   )
 
   const orders = prescription.medication_orders || []
+  const orderForTypeFilter = (order: any) =>
+    order.end_date || order._rx_end
+      ? order
+      : { ...order, _rx_end: prescription.end_date }
   const countFor = (key: string) =>
-    orders.filter((o: any) => matchesPrescriptionTypeFilter(o, key)).length
+    orders.filter((o: any) => matchesPrescriptionTypeFilter(orderForTypeFilter(o), key)).length
   const filteredOrders = orders.filter((o: any) =>
-    matchesPrescriptionTypeFilter(o, activeType)
+    matchesPrescriptionTypeFilter(orderForTypeFilter(o), activeType)
   )
   const activeTypeDef = MED_TYPES.find(t => t.key === activeType)
   const completionPct = (prescription.total_orders ?? 0) > 0
