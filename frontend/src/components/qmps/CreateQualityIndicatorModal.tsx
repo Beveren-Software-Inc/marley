@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState } from 'react'
 import {
   CM_BTN_CANCEL,
   CM_BTN_PRIMARY,
@@ -11,14 +11,8 @@ import {
   MODAL_SECTION_TITLE_CLASS,
   MODAL_ERROR_BOX_CLASS,
 } from '../ui/CreateModalChrome'
-import { createQualityIndicator, fetchPortalDoctypes, type PortalDoctypeOption } from '../../services/qualityIndicators'
+import { createQualityIndicator } from '../../services/qualityIndicators'
 import { toast } from '../../hooks/useToast'
-import {
-  linkComboboxDropdownClassShort,
-  linkComboboxInputWithClearClass,
-  linkComboboxOptionClassCompact,
-} from '../ui/linkComboboxStyles'
-import { X } from 'lucide-react'
 
 const CATEGORIES = [
   'Patient Safety',
@@ -28,8 +22,25 @@ const CATEGORIES = [
   'Documentation & Compliance',
 ]
 
-const UNITS = ['Percentage', 'Rate per 1000', 'Count', 'Hours', 'Days']
 const FREQUENCIES = ['Monthly', 'Quarterly', 'Annual']
+
+const SELECTION_CRITERIA: { key: keyof typeof defaultCriteria; label: string }[] = [
+  { key: 'criteria_patient_safety_goals', label: 'Patient Safety Goals' },
+  { key: 'criteria_high_cost', label: 'High Cost' },
+  { key: 'criteria_high_volume', label: 'High Volume' },
+  { key: 'criteria_problem_prone', label: 'Problem Prone' },
+  { key: 'criteria_study_for_improvement', label: 'Selected Study for Improvement' },
+  { key: 'criteria_hospital_requirement', label: 'Hospital Requirement' },
+]
+
+const defaultCriteria = {
+  criteria_patient_safety_goals: false,
+  criteria_high_cost: false,
+  criteria_high_volume: false,
+  criteria_problem_prone: false,
+  criteria_study_for_improvement: false,
+  criteria_hospital_requirement: false,
+}
 
 interface CreateQualityIndicatorModalProps {
   onClose: () => void
@@ -38,95 +49,24 @@ interface CreateQualityIndicatorModalProps {
 
 export const CreateQualityIndicatorModal = ({ onClose, onSuccess }: CreateQualityIndicatorModalProps) => {
   const [form, setForm] = useState({
+    area_monitored: '',
     indicator_name: '',
     indicator_code: '',
     category: 'Patient Safety',
-    description: '',
+    numerator_description: '',
+    denominator_description: '',
+    indicator_formula: '',
+    source_of_data: '',
+    responsible_person: '',
+    reported_to: '',
     frequency: 'Monthly',
     is_active: true,
-    numerator_doctype: '',
-    numerator_filters: '',
-    numerator_date_field: 'creation',
-    denominator_doctype: '',
-    denominator_filters: '',
-    denominator_date_field: 'creation',
-    unit: 'Percentage',
+    ...defaultCriteria,
     target_value: '',
-    target_direction: 'Lower is better',
+    target_direction: 'Higher is better',
   })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-
-  // Numerator DocType combobox state
-  const [numDtQuery, setNumDtQuery] = useState('')
-  const [numDtOptions, setNumDtOptions] = useState<PortalDoctypeOption[]>([])
-  const [numDtOpen, setNumDtOpen] = useState(false)
-  const [numDtSelected, setNumDtSelected] = useState<PortalDoctypeOption | null>(null)
-  const numDtRef = useRef<HTMLDivElement>(null)
-
-  // Denominator DocType combobox state
-  const [denDtQuery, setDenDtQuery] = useState('')
-  const [denDtOptions, setDenDtOptions] = useState<PortalDoctypeOption[]>([])
-  const [denDtOpen, setDenDtOpen] = useState(false)
-  const [denDtSelected, setDenDtSelected] = useState<PortalDoctypeOption | null>(null)
-  const denDtRef = useRef<HTMLDivElement>(null)
-
-  // Search DocTypes
-  useEffect(() => {
-    if (!numDtOpen) return
-    const t = setTimeout(async () => {
-      const opts = await fetchPortalDoctypes(numDtQuery || undefined)
-      setNumDtOptions(opts)
-    }, numDtQuery ? 300 : 0)
-    return () => clearTimeout(t)
-  }, [numDtQuery, numDtOpen])
-
-  useEffect(() => {
-    if (!denDtOpen) return
-    const t = setTimeout(async () => {
-      const opts = await fetchPortalDoctypes(denDtQuery || undefined)
-      setDenDtOptions(opts)
-    }, denDtQuery ? 300 : 0)
-    return () => clearTimeout(t)
-  }, [denDtQuery, denDtOpen])
-
-  // Close dropdowns on outside click
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (numDtRef.current && !numDtRef.current.contains(e.target as Node)) setNumDtOpen(false)
-      if (denDtRef.current && !denDtRef.current.contains(e.target as Node)) setDenDtOpen(false)
-    }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [])
-
-  const handleNumDtSelect = (opt: PortalDoctypeOption) => {
-    setNumDtSelected(opt)
-    setNumDtQuery('')
-    setForm((prev) => ({ ...prev, numerator_doctype: opt.name }))
-    setNumDtOpen(false)
-  }
-
-  const clearNumDt = () => {
-    setNumDtSelected(null)
-    setNumDtQuery('')
-    setForm((prev) => ({ ...prev, numerator_doctype: '' }))
-    setNumDtOpen(false)
-  }
-
-  const handleDenDtSelect = (opt: PortalDoctypeOption) => {
-    setDenDtSelected(opt)
-    setDenDtQuery('')
-    setForm((prev) => ({ ...prev, denominator_doctype: opt.name }))
-    setDenDtOpen(false)
-  }
-
-  const clearDenDt = () => {
-    setDenDtSelected(null)
-    setDenDtQuery('')
-    setForm((prev) => ({ ...prev, denominator_doctype: '' }))
-    setDenDtOpen(false)
-  }
 
   const handleChange = (field: string, value: string | boolean) => {
     setForm((prev) => ({ ...prev, [field]: value }))
@@ -142,27 +82,29 @@ export const CreateQualityIndicatorModal = ({ onClose, onSuccess }: CreateQualit
       setError('Category is required')
       return
     }
-    if (!form.numerator_doctype.trim()) {
-      setError('Numerator DocType is required')
-      return
-    }
     try {
       setLoading(true)
       setError(null)
       await createQualityIndicator({
+        area_monitored: form.area_monitored.trim() || undefined,
         indicator_name: form.indicator_name.trim(),
         indicator_code: form.indicator_code.trim() || undefined,
         category: form.category,
-        description: form.description.trim() || undefined,
+        numerator_description: form.numerator_description.trim() || undefined,
+        denominator_description: form.denominator_description.trim() || undefined,
+        indicator_formula: form.indicator_formula.trim() || undefined,
+        source_of_data: form.source_of_data.trim() || undefined,
+        responsible_person: form.responsible_person.trim() || undefined,
+        reported_to: form.reported_to.trim() || undefined,
         frequency: form.frequency,
         is_active: form.is_active,
-        numerator_doctype: form.numerator_doctype.trim(),
-        numerator_filters: form.numerator_filters.trim() || undefined,
-        numerator_date_field: form.numerator_date_field.trim() || 'creation',
-        denominator_doctype: form.denominator_doctype.trim() || undefined,
-        denominator_filters: form.denominator_filters.trim() || undefined,
-        denominator_date_field: form.denominator_date_field.trim() || 'creation',
-        unit: form.unit,
+        criteria_patient_safety_goals: form.criteria_patient_safety_goals,
+        criteria_high_cost: form.criteria_high_cost,
+        criteria_high_volume: form.criteria_high_volume,
+        criteria_problem_prone: form.criteria_problem_prone,
+        criteria_study_for_improvement: form.criteria_study_for_improvement,
+        criteria_hospital_requirement: form.criteria_hospital_requirement,
+        unit: 'Percentage',
         target_value: form.target_value ? Number(form.target_value) : undefined,
         target_direction: form.target_direction,
       })
@@ -179,29 +121,18 @@ export const CreateQualityIndicatorModal = ({ onClose, onSuccess }: CreateQualit
   return (
     <div className={CREATE_MODAL_OVERLAY}>
       <div className={createModalShellClass('w-full max-w-2xl max-h-[90vh]')}>
-        <CreateModalHeader title="New Quality Indicator" onClose={onClose} />
+        <CreateModalHeader title="KPI Report" subtitle="Quality Indicator" onClose={onClose} />
         <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
           <div className="overflow-y-auto px-6 py-5 flex-1">
-            {/* Header fields */}
             <div className="grid grid-cols-2 gap-4">
-              <div className="col-span-2">
-                <label className={MODAL_LABEL_CLASS}>Indicator Name <span className="text-red-500">*</span></label>
-                <input
-                  type="text"
-                  value={form.indicator_name}
-                  onChange={(e) => handleChange('indicator_name', e.target.value)}
-                  className={MODAL_FIELD_CLASS}
-                  placeholder="e.g. Medication Error Rate"
-                />
-              </div>
               <div>
-                <label className={MODAL_LABEL_CLASS}>Indicator Code</label>
+                <label className={MODAL_LABEL_CLASS}>Area Monitored</label>
                 <input
                   type="text"
-                  value={form.indicator_code}
-                  onChange={(e) => handleChange('indicator_code', e.target.value)}
+                  value={form.area_monitored}
+                  onChange={(e) => handleChange('area_monitored', e.target.value)}
                   className={MODAL_FIELD_CLASS}
-                  placeholder="e.g. PSE-01"
+                  placeholder="e.g. In-Patient, Nursing"
                 />
               </div>
               <div>
@@ -216,8 +147,96 @@ export const CreateQualityIndicatorModal = ({ onClose, onSuccess }: CreateQualit
                   ))}
                 </select>
               </div>
+              <div className="col-span-2">
+                <label className={MODAL_LABEL_CLASS}>Indicator Name <span className="text-red-500">*</span></label>
+                <input
+                  type="text"
+                  value={form.indicator_name}
+                  onChange={(e) => handleChange('indicator_name', e.target.value)}
+                  className={MODAL_FIELD_CLASS}
+                  placeholder="e.g. Percentage of Complete Nursing Assessment in In-Patient"
+                />
+              </div>
+              <div className="col-span-2">
+                <label className={MODAL_LABEL_CLASS}>Numerator</label>
+                <textarea
+                  rows={2}
+                  value={form.numerator_description}
+                  onChange={(e) => handleChange('numerator_description', e.target.value)}
+                  className={MODAL_FIELD_CLASS}
+                  placeholder="Number of complete nursing assessments"
+                />
+                <p className="mt-1 text-xs text-slate-500">
+                  The count that meets the standard (the top of the fraction).
+                </p>
+              </div>
+              <div className="col-span-2">
+                <label className={MODAL_LABEL_CLASS}>Denominator</label>
+                <textarea
+                  rows={2}
+                  value={form.denominator_description}
+                  onChange={(e) => handleChange('denominator_description', e.target.value)}
+                  className={MODAL_FIELD_CLASS}
+                  placeholder="Total in-patient nursing assessments"
+                />
+                <p className="mt-1 text-xs text-slate-500">
+                  The total eligible cases (the bottom of the fraction).
+                </p>
+              </div>
+              <div className="col-span-2">
+                <label className={MODAL_LABEL_CLASS}>Indicator</label>
+                <textarea
+                  rows={2}
+                  value={form.indicator_formula}
+                  onChange={(e) => handleChange('indicator_formula', e.target.value)}
+                  className={MODAL_FIELD_CLASS}
+                  placeholder="(Numerator / Denominator) × 100"
+                />
+              </div>
+            </div>
+
+            <div className={`${MODAL_SECTION_CLASS} mt-4`}>
+              <h3 className={MODAL_SECTION_TITLE_CLASS}>Selection Criteria</h3>
+              <div className="grid grid-cols-2 gap-2">
+                {SELECTION_CRITERIA.map((c) => (
+                  <label key={c.key} className="inline-flex items-center gap-2 text-sm text-slate-700">
+                    <input
+                      type="checkbox"
+                      checked={form[c.key]}
+                      onChange={(e) => handleChange(c.key, e.target.checked)}
+                      className="h-4 w-4"
+                    />
+                    {c.label}
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4 mt-4">
               <div>
-                <label className={MODAL_LABEL_CLASS}>Reporting Frequency</label>
+                <label className={MODAL_LABEL_CLASS}>Target (%)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={form.target_value}
+                  onChange={(e) => handleChange('target_value', e.target.value)}
+                  className={MODAL_FIELD_CLASS}
+                  placeholder="e.g. 95"
+                />
+              </div>
+              <div>
+                <label className={MODAL_LABEL_CLASS}>Target Direction</label>
+                <select
+                  value={form.target_direction}
+                  onChange={(e) => handleChange('target_direction', e.target.value)}
+                  className={MODAL_FIELD_CLASS}
+                >
+                  <option value="Higher is better">Higher is better</option>
+                  <option value="Lower is better">Lower is better</option>
+                </select>
+              </div>
+              <div>
+                <label className={MODAL_LABEL_CLASS}>Frequency</label>
                 <select
                   value={form.frequency}
                   onChange={(e) => handleChange('frequency', e.target.value)}
@@ -239,189 +258,44 @@ export const CreateQualityIndicatorModal = ({ onClose, onSuccess }: CreateQualit
                   Active
                 </label>
               </div>
-            </div>
-
-            {/* Description */}
-            <div className="mt-4">
-              <label className={MODAL_LABEL_CLASS}>Description</label>
-              <textarea
-                rows={2}
-                value={form.description}
-                onChange={(e) => handleChange('description', e.target.value)}
-                className={MODAL_FIELD_CLASS}
-                placeholder="Short description of this indicator"
-              />
-            </div>
-
-            {/* Definition */}
-            <div className={`${MODAL_SECTION_CLASS} mt-4`}>
-              <h3 className={MODAL_SECTION_TITLE_CLASS}>Definition</h3>
-              <div className="grid grid-cols-2 gap-4">
-                {/* Numerator DocType — searchable dropdown */}
-                <div ref={numDtRef}>
-                  <label className={MODAL_LABEL_CLASS}>Numerator DocType <span className="text-red-500">*</span></label>
-                  <div className="relative">
-                    <input
-                      type="text"
-                      value={numDtSelected ? numDtSelected.label : numDtQuery}
-                      onChange={(e) => {
-                        setNumDtQuery(e.target.value)
-                        setNumDtOpen(true)
-                        if (numDtSelected) { setNumDtSelected(null); setForm((prev) => ({ ...prev, numerator_doctype: '' })) }
-                      }}
-                      onFocus={() => setNumDtOpen(true)}
-                      placeholder="Search DocType..."
-                      className={`${linkComboboxInputWithClearClass} pr-9`}
-                    />
-                    {numDtSelected ? (
-                      <button
-                        type="button"
-                        onClick={clearNumDt}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                        title="Clear"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
-                    ) : null}
-                    {numDtOpen && numDtOptions.length > 0 && (
-                      <div className={linkComboboxDropdownClassShort}>
-                        {numDtOptions.map((opt) => (
-                          <button
-                            key={opt.name}
-                            type="button"
-                            onClick={() => handleNumDtSelect(opt)}
-                            className={`${linkComboboxOptionClassCompact} text-slate-900`}
-                          >
-                            {opt.label}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-                <div>
-                  <label className={MODAL_LABEL_CLASS}>Numerator Date Field</label>
-                  <input
-                    type="text"
-                    value={form.numerator_date_field}
-                    onChange={(e) => handleChange('numerator_date_field', e.target.value)}
-                    className={MODAL_FIELD_CLASS}
-                    placeholder="e.g. creation, event_datetime"
-                  />
-                </div>
-                <div className="col-span-2">
-                  <label className={MODAL_LABEL_CLASS}>Numerator Filters (JSON)</label>
-                  <input
-                    type="text"
-                    value={form.numerator_filters}
-                    onChange={(e) => handleChange('numerator_filters', e.target.value)}
-                    className={MODAL_FIELD_CLASS}
-                    placeholder='e.g. {"status": "Open"}'
-                  />
-                </div>
-                {/* Denominator DocType — searchable dropdown */}
-                <div ref={denDtRef}>
-                  <label className={MODAL_LABEL_CLASS}>Denominator DocType</label>
-                  <div className="relative">
-                    <input
-                      type="text"
-                      value={denDtSelected ? denDtSelected.label : denDtQuery}
-                      onChange={(e) => {
-                        setDenDtQuery(e.target.value)
-                        setDenDtOpen(true)
-                        if (denDtSelected) { setDenDtSelected(null); setForm((prev) => ({ ...prev, denominator_doctype: '' })) }
-                      }}
-                      onFocus={() => setDenDtOpen(true)}
-                      placeholder="Search DocType..."
-                      className={`${linkComboboxInputWithClearClass} pr-9`}
-                    />
-                    {denDtSelected ? (
-                      <button
-                        type="button"
-                        onClick={clearDenDt}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                        title="Clear"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
-                    ) : null}
-                    {denDtOpen && denDtOptions.length > 0 && (
-                      <div className={linkComboboxDropdownClassShort}>
-                        {denDtOptions.map((opt) => (
-                          <button
-                            key={opt.name}
-                            type="button"
-                            onClick={() => handleDenDtSelect(opt)}
-                            className={`${linkComboboxOptionClassCompact} text-slate-900`}
-                          >
-                            {opt.label}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-                <div>
-                  <label className={MODAL_LABEL_CLASS}>Denominator Date Field</label>
-                  <input
-                    type="text"
-                    value={form.denominator_date_field}
-                    onChange={(e) => handleChange('denominator_date_field', e.target.value)}
-                    className={MODAL_FIELD_CLASS}
-                    placeholder="e.g. creation"
-                  />
-                </div>
-                <div className="col-span-2">
-                  <label className={MODAL_LABEL_CLASS}>Denominator Filters (JSON)</label>
-                  <input
-                    type="text"
-                    value={form.denominator_filters}
-                    onChange={(e) => handleChange('denominator_filters', e.target.value)}
-                    className={MODAL_FIELD_CLASS}
-                    placeholder='e.g. {"status": "Completed"}'
-                  />
-                </div>
+              <div className="col-span-2">
+                <label className={MODAL_LABEL_CLASS}>Source of Data</label>
+                <input
+                  type="text"
+                  value={form.source_of_data}
+                  onChange={(e) => handleChange('source_of_data', e.target.value)}
+                  className={MODAL_FIELD_CLASS}
+                  placeholder="e.g. Nursing assessment records"
+                />
               </div>
-            </div>
-
-            {/* Target */}
-            <div className={`${MODAL_SECTION_CLASS} mt-4`}>
-              <h3 className={MODAL_SECTION_TITLE_CLASS}>Target</h3>
-              <div className="grid grid-cols-3 gap-4">
-                <div>
-                  <label className={MODAL_LABEL_CLASS}>Unit</label>
-                  <select
-                    value={form.unit}
-                    onChange={(e) => handleChange('unit', e.target.value)}
-                    className={MODAL_FIELD_CLASS}
-                  >
-                    {UNITS.map((u) => (
-                      <option key={u} value={u}>{u}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className={MODAL_LABEL_CLASS}>Target Value</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={form.target_value}
-                    onChange={(e) => handleChange('target_value', e.target.value)}
-                    className={MODAL_FIELD_CLASS}
-                    placeholder="e.g. 95"
-                  />
-                </div>
-                <div>
-                  <label className={MODAL_LABEL_CLASS}>Target Direction</label>
-                  <select
-                    value={form.target_direction}
-                    onChange={(e) => handleChange('target_direction', e.target.value)}
-                    className={MODAL_FIELD_CLASS}
-                  >
-                    <option value="Lower is better">Lower is better</option>
-                    <option value="Higher is better">Higher is better</option>
-                  </select>
-                </div>
+              <div>
+                <label className={MODAL_LABEL_CLASS}>Responsible Person</label>
+                <input
+                  type="text"
+                  value={form.responsible_person}
+                  onChange={(e) => handleChange('responsible_person', e.target.value)}
+                  className={MODAL_FIELD_CLASS}
+                />
+              </div>
+              <div>
+                <label className={MODAL_LABEL_CLASS}>Reported To</label>
+                <input
+                  type="text"
+                  value={form.reported_to}
+                  onChange={(e) => handleChange('reported_to', e.target.value)}
+                  className={MODAL_FIELD_CLASS}
+                  placeholder="e.g. Quality Committee"
+                />
+              </div>
+              <div>
+                <label className={MODAL_LABEL_CLASS}>Indicator Code</label>
+                <input
+                  type="text"
+                  value={form.indicator_code}
+                  onChange={(e) => handleChange('indicator_code', e.target.value)}
+                  className={MODAL_FIELD_CLASS}
+                  placeholder="e.g. QI-01"
+                />
               </div>
             </div>
 

@@ -7,6 +7,36 @@ frappe.ui.form.on('Healthcare Settings', {
 			return;
 		}
 
+		frm.add_custom_button(__('Generate Doctors Stamp'), () => {
+			frappe.call({
+				method: 'healthcare.api.practitioner_stamp.preview_generate_doctors_stamps',
+				callback(preview) {
+					const counts = preview.message || {};
+					frappe.confirm(
+						__(
+							'Generate a Doctors Stamp for every Healthcare Practitioner?\n\nPractitioners: {0}\nWith licence no: {1}\n\nEach stamp is Hospital, Name, Role, and License No. (same layout as the Serene practitioner stamps). Existing stamp attachments are replaced. Continue?',
+							[counts.candidates || 0, counts.with_licence || 0]
+						),
+						() => {
+							frappe.call({
+								method: 'healthcare.api.practitioner_stamp.generate_all_practitioner_stamps',
+								freeze: true,
+								freeze_message: __('Generating doctors stamps…'),
+								callback(r) {
+									const msg = r.message || {};
+									frappe.msgprint({
+										title: __('Doctors Stamp'),
+										indicator: msg.errors ? 'orange' : 'green',
+										message: msg.message || __('Done'),
+									});
+								},
+							});
+						}
+					);
+				},
+			});
+		}, __('Data Maintenance'));
+
 		frm.add_custom_button(__('Migrate Patients (Category & Customer Group)'), () => {
 			frappe.confirm(
 				__(

@@ -6,6 +6,15 @@ export interface QualityIndicatorRow {
   indicator_code?: string
   category: string
   description?: string
+  area_monitored?: string
+  numerator_description?: string
+  denominator_description?: string
+  indicator_formula?: string
+  source_of_data?: string
+  responsible_person?: string
+  reported_to?: string
+  frequency?: string
+  selection_criteria?: string[]
   numerator: number
   denominator: number
   value: number
@@ -22,10 +31,23 @@ export interface CreateQualityIndicatorInput {
   indicator_code?: string
   category: string
   description?: string
+  area_monitored?: string
+  numerator_description?: string
+  denominator_description?: string
+  indicator_formula?: string
+  source_of_data?: string
+  responsible_person?: string
+  reported_to?: string
   frequency?: string
   is_active?: boolean
   owner_role?: string
-  numerator_doctype: string
+  criteria_patient_safety_goals?: boolean
+  criteria_high_cost?: boolean
+  criteria_high_volume?: boolean
+  criteria_problem_prone?: boolean
+  criteria_study_for_improvement?: boolean
+  criteria_hospital_requirement?: boolean
+  numerator_doctype?: string
   numerator_filters?: string
   numerator_date_field?: string
   denominator_doctype?: string
@@ -67,9 +89,22 @@ export async function createQualityIndicator(
     indicator_code: data.indicator_code,
     category: data.category,
     description: data.description,
+    area_monitored: data.area_monitored,
+    numerator_description: data.numerator_description,
+    denominator_description: data.denominator_description,
+    indicator_formula: data.indicator_formula,
+    source_of_data: data.source_of_data,
+    responsible_person: data.responsible_person,
+    reported_to: data.reported_to,
     frequency: data.frequency,
     is_active: data.is_active !== false ? 1 : 0,
     owner_role: data.owner_role,
+    criteria_patient_safety_goals: data.criteria_patient_safety_goals ? 1 : 0,
+    criteria_high_cost: data.criteria_high_cost ? 1 : 0,
+    criteria_high_volume: data.criteria_high_volume ? 1 : 0,
+    criteria_problem_prone: data.criteria_problem_prone ? 1 : 0,
+    criteria_study_for_improvement: data.criteria_study_for_improvement ? 1 : 0,
+    criteria_hospital_requirement: data.criteria_hospital_requirement ? 1 : 0,
     numerator_doctype: data.numerator_doctype,
     numerator_filters: data.numerator_filters,
     numerator_date_field: data.numerator_date_field,
@@ -99,10 +134,12 @@ export async function fetchIndicatorDashboard(params: {
   Object.entries(params).forEach(([k, v]) => {
     if (v) qs.set(k, v)
   })
-  const res = await apiRequest<{ message: QualityIndicatorRow[] }>(
+  const res = await apiRequest<QualityIndicatorRow[] | { message: QualityIndicatorRow[] }>(
     `${BASE}.get_indicator_dashboard?${qs.toString()}`
   )
-  return res?.message ?? []
+  if (Array.isArray(res)) return res
+  if (res && Array.isArray(res.message)) return res.message
+  return []
 }
 
 export async function snapshotIndicators(params: {
@@ -110,9 +147,11 @@ export async function snapshotIndicators(params: {
   period_end?: string
   cost_center?: string
 }): Promise<number> {
-  const res = await apiRequest<{ message: number }>(`${BASE}.snapshot_indicators`, {
+  const res = await apiRequest<number | { message: number }>(`${BASE}.snapshot_indicators`, {
     method: 'POST',
     body: JSON.stringify(params),
   })
-  return res?.message ?? 0
+  if (typeof res === 'number') return res
+  if (res && typeof res.message === 'number') return res.message
+  return 0
 }

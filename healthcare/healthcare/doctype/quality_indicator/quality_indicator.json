@@ -8,6 +8,7 @@
  "editable_grid": 1,
  "engine": "InnoDB",
  "field_order": [
+  "area_monitored",
   "indicator_name",
   "indicator_code",
   "category",
@@ -15,8 +16,23 @@
   "frequency",
   "is_active",
   "owner_role",
+  "responsible_person",
+  "reported_to",
   "sec_defn",
+  "numerator_description",
+  "denominator_description",
+  "indicator_formula",
+  "source_of_data",
   "description",
+  "sec_criteria",
+  "criteria_patient_safety_goals",
+  "criteria_high_volume",
+  "criteria_study_for_improvement",
+  "cb_criteria",
+  "criteria_high_cost",
+  "criteria_problem_prone",
+  "criteria_hospital_requirement",
+  "sec_calc",
   "numerator_doctype",
   "numerator_filters",
   "numerator_date_field",
@@ -31,6 +47,13 @@
   "target_direction"
  ],
  "fields": [
+  {
+   "fieldname": "area_monitored",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Area Monitored"
+  },
   {
    "fieldname": "indicator_name",
    "fieldtype": "Data",
@@ -78,9 +101,40 @@
    "options": "Role"
   },
   {
+   "fieldname": "responsible_person",
+   "fieldtype": "Data",
+   "label": "Responsible Person"
+  },
+  {
+   "fieldname": "reported_to",
+   "fieldtype": "Data",
+   "label": "Reported To"
+  },
+  {
    "fieldname": "sec_defn",
    "fieldtype": "Section Break",
    "label": "Definition"
+  },
+  {
+   "fieldname": "numerator_description",
+   "fieldtype": "Small Text",
+   "label": "Numerator"
+  },
+  {
+   "fieldname": "denominator_description",
+   "fieldtype": "Small Text",
+   "label": "Denominator"
+  },
+  {
+   "description": "e.g. (Numerator / Denominator) \u00d7 100",
+   "fieldname": "indicator_formula",
+   "fieldtype": "Small Text",
+   "label": "Indicator"
+  },
+  {
+   "fieldname": "source_of_data",
+   "fieldtype": "Small Text",
+   "label": "Source of Data"
   },
   {
    "fieldname": "description",
@@ -88,12 +142,61 @@
    "label": "Description"
   },
   {
+   "fieldname": "sec_criteria",
+   "fieldtype": "Section Break",
+   "label": "Selection Criteria"
+  },
+  {
+   "default": "0",
+   "fieldname": "criteria_patient_safety_goals",
+   "fieldtype": "Check",
+   "label": "Patient Safety Goals"
+  },
+  {
+   "default": "0",
+   "fieldname": "criteria_high_volume",
+   "fieldtype": "Check",
+   "label": "High Volume"
+  },
+  {
+   "default": "0",
+   "fieldname": "criteria_study_for_improvement",
+   "fieldtype": "Check",
+   "label": "Selected Study for Improvement"
+  },
+  {
+   "fieldname": "cb_criteria",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "criteria_high_cost",
+   "fieldtype": "Check",
+   "label": "High Cost"
+  },
+  {
+   "default": "0",
+   "fieldname": "criteria_problem_prone",
+   "fieldtype": "Check",
+   "label": "Problem Prone"
+  },
+  {
+   "default": "0",
+   "fieldname": "criteria_hospital_requirement",
+   "fieldtype": "Check",
+   "label": "Hospital Requirement"
+  },
+  {
+   "fieldname": "sec_calc",
+   "fieldtype": "Section Break",
+   "label": "System Calculation"
+  },
+  {
    "fieldname": "numerator_doctype",
    "fieldtype": "Link",
    "in_list_view": 1,
    "label": "Numerator DocType",
-   "options": "DocType",
-   "reqd": 1
+   "options": "DocType"
   },
   {
    "description": "e.g. {\"status\": \"Completed\"}",
@@ -146,7 +249,7 @@
   {
    "fieldname": "target_value",
    "fieldtype": "Float",
-   "label": "Target Value"
+   "label": "Target (%)"
   },
   {
    "fieldname": "cb_target",
@@ -163,7 +266,7 @@
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-07-20 10:07:00.728935",
+ "modified": "2026-09-07 17:22:00.000000",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Quality Indicator",
@@ -208,7 +311,7 @@
  ],
  "row_format": "Dynamic",
  "rows_threshold_for_grid_search": 20,
- "search_fields": "category,indicator_code",
+ "search_fields": "category,indicator_code,area_monitored",
  "sort_field": "modified",
  "sort_order": "DESC",
  "states": [],
