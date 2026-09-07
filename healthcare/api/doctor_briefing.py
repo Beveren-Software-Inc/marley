@@ -12,6 +12,7 @@ from healthcare.api.nurse_briefing import (
 	_active_admissions,
 	_attach_lab_test_group_names,
 	_cost_center_filters,
+	_exclude_labs_for_discharge_in_progress,
 	_resolve_cost_center,
 )
 
@@ -55,7 +56,7 @@ def _pending_review_lab_tests(cost_center: str | None) -> list[dict]:
 		limit_page_length=150,
 	)
 	_attach_lab_test_group_names(rows)
-	return filter_pending_review_labs_for_session(rows)
+	return _exclude_labs_for_discharge_in_progress(filter_pending_review_labs_for_session(rows))
 
 
 @frappe.whitelist()

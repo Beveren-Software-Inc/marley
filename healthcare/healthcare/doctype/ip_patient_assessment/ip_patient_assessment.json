@@ -9,6 +9,7 @@
  "field_order": [
   "trans_num",
   "admission_num",
+  "cost_center",
   "arrival",
   "comfortable",
   "introduction",
@@ -244,12 +245,18 @@
   {
    "fieldname": "column_break_hudp",
    "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "cost_center",
+   "fieldtype": "Link",
+   "label": "Cost Center",
+   "options": "Cost Center"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-06-02 15:29:12.468340",
+ "modified": "2026-09-07 14:54:00.000000",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "IP Patient Assessment",

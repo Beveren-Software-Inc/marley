@@ -67,6 +67,7 @@ import {
   type PrescriptionDoseLimitIssue,
 } from './PrescriptionDoseLimitConfirmModal'
 import { DateFilterInput } from '../ui/DateFilterInput'
+import { localDateInputValue } from '../../utils/formatDate'
 
 interface CreatePrescriptionModalProps {
   onClose: () => void
@@ -313,7 +314,6 @@ export const CreatePrescriptionModal = ({
   initialCareContext,
   initialPatientEncounter,
   initialInpatientRecord,
-  initialStartDate,
   initialPractitioner,
   transferAdmission,
   transferOrderEntryNames,
@@ -347,7 +347,7 @@ export const CreatePrescriptionModal = ({
     patient_encounter: '',
     inpatient_record: '',
     company: '',
-    start_date: new Date().toISOString().split('T')[0],
+    start_date: localDateInputValue(),
     practitioner: '',
   })
 
@@ -623,7 +623,7 @@ export const CreatePrescriptionModal = ({
         inpatient_record:
           careContext === 'Inpatient Admission' ? (prescriptionData.inpatient_record || '') : '',
         company: prescriptionData.company || '',
-        start_date: prescriptionData.start_date || new Date().toISOString().split('T')[0],
+        start_date: prescriptionData.start_date || localDateInputValue(),
         practitioner: prescriptionData.practitioner || '',
       })
       
@@ -874,9 +874,9 @@ export const CreatePrescriptionModal = ({
       patient_encounter: initialPatientEncounter || '',
       inpatient_record:
         initialCareContext === 'Patient Visit' ? '' : initialInpatientRecord || prev.inpatient_record,
-      start_date: initialStartDate || prev.start_date,
+      start_date: prev.start_date || localDateInputValue(),
     }))
-  }, [initialCareContext, initialPatientEncounter, initialInpatientRecord, initialStartDate, isEditing])
+  }, [initialCareContext, initialPatientEncounter, initialInpatientRecord, isEditing])
 
   useEffect(() => {
     if (isEditing) return
@@ -1037,7 +1037,6 @@ export const CreatePrescriptionModal = ({
     }
     if (!selectedPatient) { setError('Please select a patient'); setActiveTab('details'); return }
     if (!formData.company) { setError('Please select a company'); setActiveTab('details'); return }
-    if (!formData.start_date) { setError('Please set start date'); setActiveTab('details'); return }
     // A prescription can only be created against the current visit / admission.
     // Discharge transfer creates the visit on save when none is selected.
     if (
@@ -1086,6 +1085,9 @@ export const CreatePrescriptionModal = ({
     try {
       setSubmitting(true)
       let successResult: { patient_visit: string; patient_medication_order: string } | undefined
+      const headerStartDate = isEditing
+        ? (formData.start_date || localDateInputValue())
+        : localDateInputValue()
       
       if (initialCareContext === 'Patient Visit' && transferAdmission) {
         const result = await createVisitAndPrescriptionOnDischarge(
@@ -1107,7 +1109,7 @@ export const CreatePrescriptionModal = ({
           patient: selectedPatient!.name,
           care_context: formData.care_context,
           company: formData.company,
-          start_date: formData.start_date,
+          start_date: headerStartDate,
           practitioner: formData.practitioner || undefined,
           medication_orders: validMedications,
         }
@@ -1128,7 +1130,7 @@ export const CreatePrescriptionModal = ({
           patient: selectedPatient!.name,
           care_context: formData.care_context,
           company: formData.company,
-          start_date: formData.start_date,
+          start_date: headerStartDate,
           practitioner: formData.practitioner || undefined,
           medication_orders: validMedications,
         }
@@ -1150,7 +1152,7 @@ export const CreatePrescriptionModal = ({
             if (!shouldCreate) return []
             const scheduledDatetime = med.date
               ? `${med.date} ${med.time ?? '08:00:00'}`
-              : `${formData.start_date} 08:00:00`
+              : `${headerStartDate} 08:00:00`
             const task: CreateNurseTaskData = {
               patient: selectedPatient!.name,
               task_type: 'Medication Administration',
@@ -1394,19 +1396,6 @@ export const CreatePrescriptionModal = ({
                     </select>
                   </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">
-                      Start Date <span className="text-red-500">*</span>
-                    </label>
-                    <DateFilterInput
-                      value={formData.start_date}
-                      onChange={(e) => setFormData((p) => ({ ...p, start_date: e.target.value }))}
-                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Doctor Name</label>
                     <Combobox

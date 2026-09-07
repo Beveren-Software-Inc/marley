@@ -145,6 +145,6 @@ def get_ybocs_assessments(
 			"name", "patient", "patient_name", "assessment_date",
 			"practitioner", "practitioner_name",
 			"template", "total_score", "total_obsessions", "total_compulsions", "docstatus",
-			"inpatient_admission", "patient_visit",
+			"inpatient_admission", "patient_visit", "cost_center",
 		],
 	)

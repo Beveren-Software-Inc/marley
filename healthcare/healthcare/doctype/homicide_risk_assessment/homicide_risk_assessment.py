@@ -6,4 +6,7 @@ from frappe.model.document import Document
 
 
 class HomicideRiskAssessment(Document):
-	pass
+	def before_save(self):
+		from healthcare.api.assessment_care_context import fill_assessment_cost_center_from_care_context
+
+		fill_assessment_cost_center_from_care_context(self)

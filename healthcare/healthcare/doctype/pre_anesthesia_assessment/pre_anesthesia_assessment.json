@@ -7,6 +7,7 @@
  "field_order": [
   "inpatient_admission",
   "patient_visit",
+  "cost_center",
   "patient",
   "patient_name",
   "column_break_sbfy",
@@ -620,12 +621,18 @@
    "fieldtype": "Link",
    "label": "Anesthesiologist",
    "options": "Healthcare Practitioner"
+  },
+  {
+   "fieldname": "cost_center",
+   "fieldtype": "Link",
+   "label": "Cost Center",
+   "options": "Cost Center"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-03-18 03:05:07.316888",
+ "modified": "2026-09-07 14:54:00.000000",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Pre Anesthesia Assessment",

@@ -165,6 +165,6 @@ def get_ymrs_assessments(
 			"name", "patient", "patient_name", "assessment_date",
 			"practitioner", "practitioner_name",
 			"template", "total_score", "severity", "docstatus", "notes",
-			"inpatient_admission", "patient_visit",
+			"inpatient_admission", "patient_visit", "cost_center",
 		],
 	)

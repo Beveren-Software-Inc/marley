@@ -446,6 +446,12 @@ export const PatientVisitList = ({
     detailVisit && detailIndex >= 0 && totalCount > 0
       ? `${(page - 1) * pageSize + detailIndex + 1} of ${totalCount}`
       : undefined
+  const detailVisitTypeRaw = detailIndex >= 0 ? visits[detailIndex]?.visit_type : undefined
+  const detailVisitTypeLabel =
+    (detailVisitTypeRaw &&
+      (visitTypeOptions.find((vt) => vt.name === detailVisitTypeRaw)?.visit_type ||
+        detailVisitTypeRaw)) ||
+    undefined
 
   const goToPrevVisit = useCallback(() => {
     const list = visitsRef.current
@@ -925,8 +931,8 @@ export const PatientVisitList = ({
                         key={h}
                         className={
                           squeezeLayout
-                            ? `px-1.5 py-1.5 text-left text-[10px] font-semibold text-slate-600 uppercase tracking-tight whitespace-nowrap${h === 'Actions' ? ' sticky right-0 z-20 bg-slate-50 shadow-[-6px_0_8px_-6px_rgba(15,23,42,0.18)] w-11' : ''}`
-                            : 'px-3 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wide whitespace-nowrap'
+                            ? `px-1.5 py-1.5 text-left text-[10px] font-semibold text-slate-600 uppercase tracking-tight whitespace-nowrap${h === 'Date' ? ' w-[7rem] min-w-[7rem]' : ''}${h === 'Actions' ? ' sticky right-0 z-20 bg-slate-50 shadow-[-6px_0_8px_-6px_rgba(15,23,42,0.18)] w-11' : ''}`
+                            : `px-3 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wide whitespace-nowrap${h === 'Visit Date' ? ' min-w-[7.5rem]' : ''}`
                         }
                       >
                         {h}
@@ -938,7 +944,7 @@ export const PatientVisitList = ({
                     <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase tracking-wide">
                       Visit No
                     </th>
-                    <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase tracking-wide">
+                    <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase tracking-wide min-w-[7.5rem] w-[7.5rem]">
                       Encounter Date
                     </th>
                     <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase tracking-wide">
@@ -963,7 +969,7 @@ export const PatientVisitList = ({
                     <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wide">Doctor Name</th>
                     <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wide">Visit Type</th>
                     <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wide">Branch</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wide">Encounter Date</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wide min-w-[7.5rem]">Encounter Date</th>
                     {showAppointmentAmount && (
                       <th className="px-4 py-3 text-right text-xs font-semibold text-slate-600 uppercase tracking-wide">
                         Appointment Amount
@@ -1001,7 +1007,7 @@ export const PatientVisitList = ({
                       <span className="block truncate">{visit.value}</span>
                     </td>
                     <td
-                      className={`${squeezeLayout ? 'px-1.5 py-1.5 text-xs' : 'px-3 py-2.5 text-sm'} text-slate-700 ${squeezeLayout ? 'truncate' : 'whitespace-nowrap'} cursor-pointer hover:underline hover:text-primary`}
+                      className={`${squeezeLayout ? 'px-1.5 py-1.5 pr-2.5 text-[10px] tabular-nums whitespace-nowrap w-[7rem] min-w-[7rem]' : 'px-3 py-2.5 text-sm whitespace-nowrap min-w-[7.5rem]'} text-slate-700 cursor-pointer hover:underline hover:text-primary`}
                       onClick={() => openVisitDetail(visit)}
                       title="Open visit details"
                     >
@@ -1076,7 +1082,7 @@ export const PatientVisitList = ({
                         <CardRowMetaHint fields={patientVisitCardMetaFields(visit, visitMetaOptions)} />
                       </button>
                     </td>
-                    <td className="px-3 py-2.5 text-xs text-slate-700 align-top">
+                    <td className="px-3 py-2.5 pr-3 text-[11px] tabular-nums whitespace-nowrap min-w-[7.5rem] text-slate-700 align-top">
                       <button
                         type="button"
                         className="hover:underline hover:text-primary text-left"
@@ -1134,7 +1140,7 @@ export const PatientVisitList = ({
                     {branchLabel(visit.cost_center)}
                   </td>
                   <td
-                    className="px-4 py-3 text-sm text-slate-700 cursor-pointer hover:underline hover:text-primary"
+                    className="px-4 py-3 pr-3 text-xs tabular-nums whitespace-nowrap min-w-[7.5rem] text-slate-700 cursor-pointer hover:underline hover:text-primary"
                     onClick={() => openVisitDetail(visit)}
                     title="Open visit details"
                   >
@@ -1281,7 +1287,16 @@ export const PatientVisitList = ({
       {/* Slide-over Detail */}
       {detailVisit && (
         <DetailSlideOver
-          title="Patient Visit"
+          title={
+            <>
+              Patient Visit
+              {detailVisitTypeLabel ? (
+                <span className="ml-1.5 text-sm font-normal text-emerald-800/70">
+                  ({detailVisitTypeLabel})
+                </span>
+              ) : null}
+            </>
+          }
           subtitle={detailVisit}
           onClose={() => setDetailVisit(null)}
           maxWidthClass="max-w-3xl"

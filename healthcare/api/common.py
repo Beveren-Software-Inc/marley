@@ -6087,6 +6087,7 @@ _PATIENT_ASSESSMENT_UPDATE_FIELDS = (
 	"company",
 	"therapy_session",
 	"family_history",
+	"cost_center",
 )
 
 

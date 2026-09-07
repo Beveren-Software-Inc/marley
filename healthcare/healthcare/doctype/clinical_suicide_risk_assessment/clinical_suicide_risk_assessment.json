@@ -13,6 +13,7 @@
   "column_break_dqqk",
   "inpatient_admission",
   "patient_visit",
+  "cost_center",
   "section_ideation",
   "has_ideation",
   "ideation_details",
@@ -355,12 +356,18 @@
    "fieldtype": "Link",
    "label": "Patient Visit",
    "options": "Patient Visit"
+  },
+  {
+   "fieldname": "cost_center",
+   "fieldtype": "Link",
+   "label": "Cost Center",
+   "options": "Cost Center"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-06-14 13:17:40.988872",
+ "modified": "2026-09-07 14:54:00.000000",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Clinical Suicide Risk Assessment",

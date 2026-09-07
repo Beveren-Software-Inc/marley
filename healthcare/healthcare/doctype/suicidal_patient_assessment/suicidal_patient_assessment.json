@@ -12,6 +12,7 @@
   "naming_series",
   "basic_info_section",
   "admission_no",
+  "cost_center",
   "patient",
   "patient_name",
   "column_break_cqnx",
@@ -651,11 +652,17 @@
    "fieldname": "practitioner_name",
    "fieldtype": "Data",
    "label": "Practitioner Name"
+  },
+  {
+   "fieldname": "cost_center",
+   "fieldtype": "Link",
+   "label": "Cost Center",
+   "options": "Cost Center"
   }
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-06-09 10:38:09.368084",
+ "modified": "2026-09-07 14:54:00.000000",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Suicidal Patient Assessment",
