@@ -120,13 +120,13 @@
   {
    "fieldname": "remarks",
    "fieldtype": "Small Text",
-   "label": "Remarks"
+   "label": "Conclusion"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-07-20 10:07:00.860596",
+ "modified": "2026-09-07 17:22:00.000000",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Quality Indicator Result",

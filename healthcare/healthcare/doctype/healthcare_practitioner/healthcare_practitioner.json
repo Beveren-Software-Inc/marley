@@ -37,6 +37,7 @@
   "hospital",
   "medical_role",
   "parent_medical_role",
+  "stamp_role",
   "appointments",
   "practitioner_schedules",
   "google_calendar",
@@ -58,6 +59,7 @@
   "mobile_no",
   "email_id",
   "signature",
+  "doctors_satmp",
   "column_break_26",
   "practitioner_primary_address",
   "primary_address"
@@ -401,6 +403,16 @@
    "fieldname": "signature",
    "fieldtype": "Attach",
    "label": "Signature"
+  },
+  {
+   "fieldname": "doctors_satmp",
+   "fieldtype": "Attach",
+   "label": "Doctors Satmp"
+  },
+  {
+   "fieldname": "stamp_role",
+   "fieldtype": "Data",
+   "label": "Stamp Role"
   }
  ],
  "image_field": "image",
@@ -431,7 +443,7 @@
    "link_fieldname": "practitioner"
   }
  ],
- "modified": "2026-08-04 12:57:59.666723",
+ "modified": "2026-09-07 17:08:11.783579",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Healthcare Practitioner",

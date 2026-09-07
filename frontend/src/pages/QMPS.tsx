@@ -1,38 +1,30 @@
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { AlertTriangle, ClipboardList, History, Target, ShieldAlert } from 'lucide-react'
+import { AlertTriangle, Target, ShieldAlert } from 'lucide-react'
 import { QualityIndicatorsBoard } from '../components/qmps/QualityIndicatorsBoard'
 import { CreateQualityIndicatorModal } from '../components/qmps/CreateQualityIndicatorModal'
 import { CreatePatientSafetyEventModal } from '../components/qmps/CreatePatientSafetyEventModal'
 import {
   fetchPatientSafetyEvents,
-  fetchOVRs,
-  fetchCAPAs,
-  createOVR,
-  createCAPA,
   fetchPatientSafetyEventDetail,
   type PatientSafetyEvent,
   type PatientSafetyEventDetail,
-  type OccurrenceVarianceReport,
-  type CAPA,
 } from '../services/qmps'
 import { toast } from '../hooks/useToast'
 import { DetailSlideOver } from '../components/ui/CreateModalChrome'
 import { DashboardCard } from '../components/ui/DashboardCard'
 
-type QMPSTab = 'patient-safety-events' | 'quality-indicators' | 'recent-ovrs' | 'recent-capas'
+type QMPSTab = 'patient-safety-events' | 'quality-indicators'
 
 const VALID_TABS: QMPSTab[] = [
   'patient-safety-events',
   'quality-indicators',
-  'recent-ovrs',
-  'recent-capas',
 ]
 
 const NAV_CARDS = [
   {
     id: 'patient-safety-events' as QMPSTab,
-    title: 'Patient Safety Events',
+    title: 'Event Reporting Form',
     icon: AlertTriangle,
     color: 'bg-red-50 text-red-700 border-red-200',
     iconColor: 'text-red-600',
@@ -44,20 +36,6 @@ const NAV_CARDS = [
     color: 'bg-emerald-50 text-emerald-700 border-emerald-200',
     iconColor: 'text-emerald-600',
   },
-  {
-    id: 'recent-ovrs' as QMPSTab,
-    title: 'Recent OVRs',
-    icon: ClipboardList,
-    color: 'bg-amber-50 text-amber-700 border-amber-200',
-    iconColor: 'text-amber-600',
-  },
-  {
-    id: 'recent-capas' as QMPSTab,
-    title: 'Recent CAPA',
-    icon: History,
-    color: 'bg-blue-50 text-blue-700 border-blue-200',
-    iconColor: 'text-blue-600',
-  },
 ]
 
 export const QMPSPage = () => {
@@ -68,8 +46,6 @@ export const QMPSPage = () => {
 
   const [events, setEvents] = useState<PatientSafetyEvent[]>([])
   const [loadingEvents, setLoadingEvents] = useState(false)
-  const [ovrs, setOvrs] = useState<OccurrenceVarianceReport[]>([])
-  const [capas, setCapas] = useState<CAPA[]>([])
 
   // Create patient safety event modal
   const [showCreateEventModal, setShowCreateEventModal] = useState(false)
@@ -82,33 +58,11 @@ export const QMPSPage = () => {
   const [detailEvent, setDetailEvent] = useState<PatientSafetyEventDetail | null>(null)
   const [detailLoading, setDetailLoading] = useState(false)
 
-  // OVR & CAPA inline forms
-  const [newOvr, setNewOvr] = useState({
-    variance_type: '',
-    impact: '',
-    owner_department: '',
-    description: '',
-  })
-  const [creatingOvr, setCreatingOvr] = useState(false)
-
-  const [newCapa, setNewCapa] = useState({
-    title: '',
-    status: 'Open',
-    due_date: '',
-  })
-  const [creatingCapa, setCreatingCapa] = useState(false)
-
   const loadEvents = async () => {
     try {
       setLoadingEvents(true)
-      const [eventList, ovrList, capaList] = await Promise.all([
-        fetchPatientSafetyEvents(50, 0),
-        fetchOVRs(25, 0),
-        fetchCAPAs(25, 0),
-      ])
+      const eventList = await fetchPatientSafetyEvents(50, 0)
       setEvents(eventList)
-      setOvrs(ovrList)
-      setCapas(capaList)
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Failed to load events')
     } finally {
@@ -125,53 +79,6 @@ export const QMPSPage = () => {
     const newSearchParams = new URLSearchParams(searchParams)
     newSearchParams.set('tab', newTab)
     setSearchParams(newSearchParams, { replace: true })
-  }
-
-  const handleCreateOvr = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!newOvr.variance_type.trim()) {
-      toast.error('Variance type is required')
-      return
-    }
-    try {
-      setCreatingOvr(true)
-      await createOVR({
-        variance_type: newOvr.variance_type.trim(),
-        impact: newOvr.impact || undefined,
-        owner_department: newOvr.owner_department.trim() || undefined,
-        description: newOvr.description.trim() || undefined,
-      })
-      toast.success('OVR created')
-      setNewOvr({ variance_type: '', impact: '', owner_department: '', description: '' })
-      await loadEvents()
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to create OVR')
-    } finally {
-      setCreatingOvr(false)
-    }
-  }
-
-  const handleCreateCapa = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!newCapa.title.trim()) {
-      toast.error('CAPA title is required')
-      return
-    }
-    try {
-      setCreatingCapa(true)
-      await createCAPA({
-        title: newCapa.title.trim(),
-        status: newCapa.status || undefined,
-        due_date: newCapa.due_date || undefined,
-      })
-      toast.success('CAPA created')
-      setNewCapa({ title: '', status: 'Open', due_date: '' })
-      await loadEvents()
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to create CAPA')
-    } finally {
-      setCreatingCapa(false)
-    }
   }
 
   const openEventDetail = async (event: PatientSafetyEvent) => {
@@ -203,7 +110,7 @@ export const QMPSPage = () => {
 
       <div className="flex-1 min-h-0 min-w-0 flex flex-col overflow-hidden p-4 gap-4">
         {/* Navigation cards */}
-        <div className="grid grid-cols-4 gap-1.5 shrink-0">
+        <div className="grid grid-cols-2 gap-1.5 shrink-0">
           {NAV_CARDS.map((card) => {
             const Icon = card.icon
             const isActive = resolvedTab === card.id
@@ -239,19 +146,19 @@ export const QMPSPage = () => {
           {...(resolvedTab === 'patient-safety-events'
             ? {
                 onAdd: () => setShowCreateEventModal(true),
-                addButtonTitle: 'Report Patient Safety Event',
+                addButtonTitle: 'New Event Reporting Form',
               }
             : resolvedTab === 'quality-indicators'
               ? {
                   onAdd: () => setShowCreateQualityIndicator(true),
-                  addButtonTitle: 'Create Quality Indicator',
+                  addButtonTitle: 'New KPI Report',
                 }
               : {})}
         >
           {resolvedTab === 'patient-safety-events' && (
             <div className="p-1 flex-1 min-h-0 overflow-auto">
               <div className="flex items-center justify-between mb-3">
-                <h2 className="text-sm font-semibold text-slate-800">Safety Events</h2>
+                <h2 className="text-sm font-semibold text-slate-800">Event Reporting Form</h2>
                 <button
                   type="button"
                   onClick={loadEvents}
@@ -265,7 +172,7 @@ export const QMPSPage = () => {
                 <div className="text-sm text-slate-500 py-8 text-center">Loading events…</div>
               ) : events.length === 0 ? (
                 <div className="text-sm text-slate-500 py-8 text-center">
-                  NO PATIENT SAFETY EVENTS REPORTED YET. Click the + button above to report one.
+                  NO EVENT REPORTING FORMS YET. Click the + button above to report one.
                 </div>
               ) : (
                 <table className="w-full text-xs">
@@ -323,108 +230,6 @@ export const QMPSPage = () => {
               <QualityIndicatorsBoard key={qiRefreshKey} />
             </div>
           )}
-
-          {resolvedTab === 'recent-ovrs' && (
-            <div className="p-1 flex-1 min-h-0 overflow-auto">
-              <div className="flex items-center justify-between mb-3">
-                <h2 className="text-sm font-semibold text-slate-800">Recent OVRs</h2>
-                <form className="flex items-center gap-2 text-[11px]" onSubmit={handleCreateOvr}>
-                  <input
-                    type="text"
-                    value={newOvr.variance_type}
-                    onChange={(e) => setNewOvr({ ...newOvr, variance_type: e.target.value })}
-                    placeholder="New variance type"
-                    className="rounded-md border border-slate-300 px-2 py-1"
-                  />
-                  <button
-                    type="submit"
-                    disabled={creatingOvr}
-                    className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 disabled:opacity-50"
-                    title="Add OVR"
-                  >
-                    {creatingOvr ? '…' : '+'}
-                  </button>
-                </form>
-              </div>
-              {ovrs.length === 0 ? (
-                <div className="text-xs text-slate-500 py-2">
-                  NO OCCURRENCE / VARIANCE REPORTS YET.
-                </div>
-              ) : (
-                <table className="w-full text-xs">
-                  <thead className="bg-slate-50 border-b border-slate-200">
-                    <tr>
-                      <th className="px-3 py-2 text-left font-semibold text-slate-600">Date</th>
-                      <th className="px-3 py-2 text-left font-semibold text-slate-600">Type</th>
-                      <th className="px-3 py-2 text-left font-semibold text-slate-600">Impact</th>
-                      <th className="px-3 py-2 text-left font-semibold text-slate-600">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-200">
-                    {ovrs.map((o) => (
-                      <tr key={o.name} className="hover:bg-slate-50">
-                        <td className="px-3 py-1.5 text-slate-700">{o.ovr_date || '-'}</td>
-                        <td className="px-3 py-1.5 text-slate-800">{o.variance_type}</td>
-                        <td className="px-3 py-1.5 text-slate-700">{o.impact || '-'}</td>
-                        <td className="px-3 py-1.5 text-slate-700">{o.status || 'Open'}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
-            </div>
-          )}
-
-          {resolvedTab === 'recent-capas' && (
-            <div className="p-1 flex-1 min-h-0 overflow-auto">
-              <div className="flex items-center justify-between mb-3">
-                <h2 className="text-sm font-semibold text-slate-800 mb-2">Recent CAPA</h2>
-                <form className="flex items-center gap-2 text-[11px]" onSubmit={handleCreateCapa}>
-                  <input
-                    type="text"
-                    value={newCapa.title}
-                    onChange={(e) => setNewCapa({ ...newCapa, title: e.target.value })}
-                    placeholder="New CAPA title"
-                    className="rounded-md border border-slate-300 px-2 py-1"
-                  />
-                  <button
-                    type="submit"
-                    disabled={creatingCapa}
-                    className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 disabled:opacity-50"
-                    title="Add CAPA"
-                  >
-                    {creatingCapa ? '…' : '+'}
-                  </button>
-                </form>
-              </div>
-              {capas.length === 0 ? (
-                <div className="text-xs text-slate-500 py-2">
-                  NO CORRECTIVE / PREVENTIVE ACTIONS RECORDED YET.
-                </div>
-              ) : (
-                <table className="w-full text-xs">
-                  <thead className="bg-slate-50 border-b border-slate-200">
-                    <tr>
-                      <th className="px-3 py-2 text-left font-semibold text-slate-600">Title</th>
-                      <th className="px-3 py-2 text-left font-semibold text-slate-600">Owner</th>
-                      <th className="px-3 py-2 text-left font-semibold text-slate-600">Due Date</th>
-                      <th className="px-3 py-2 text-left font-semibold text-slate-600">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-200">
-                    {capas.map((c) => (
-                      <tr key={c.name} className="hover:bg-slate-50">
-                        <td className="px-3 py-1.5 text-slate-800">{c.title}</td>
-                        <td className="px-3 py-1.5 text-slate-700">{c.owner_user || '-'}</td>
-                        <td className="px-3 py-1.5 text-slate-700">{c.due_date || '-'}</td>
-                        <td className="px-3 py-1.5 text-slate-700">{c.status || 'Open'}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
-            </div>
-          )}
         </DashboardCard>
       </div>
 
@@ -450,7 +255,7 @@ export const QMPSPage = () => {
       {/* Event detail slide-over from right */}
       {detailEvent && (
         <DetailSlideOver
-          title="Patient Safety Event"
+          title="Event Reporting Form"
           subtitle={detailEvent.name}
           icon={<ShieldAlert className="w-5 h-5" />}
           onClose={() => setDetailEvent(null)}

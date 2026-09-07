@@ -90,6 +90,23 @@ frappe.ui.form.on('Healthcare Practitioner', {
 
 		set_query_service_item(frm, 'inpatient_visit_charge_item');
 		set_query_service_item(frm, 'op_consulting_charge_item');
+
+		if (!frm.is_new()) {
+			frm.add_custom_button(__('Generate Stamp'), () => {
+				frappe.call({
+					method: 'healthcare.api.practitioner_stamp.generate_practitioner_stamp',
+					args: { name: frm.doc.name },
+					freeze: true,
+					freeze_message: __('Generating stamp…'),
+					callback(r) {
+						if (r.message && r.message.status === 'ok') {
+							frappe.show_alert({ message: __('Stamp generated'), indicator: 'green' });
+							frm.reload_doc();
+						}
+					},
+				});
+			});
+		}
 	},
 
 	practitioner_primary_address: function(frm) {

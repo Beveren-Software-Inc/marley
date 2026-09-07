@@ -11,13 +11,49 @@ from __future__ import annotations
 import json
 
 import frappe
-from frappe import _
 from frappe.utils import add_months, get_first_day, get_last_day, getdate
 
 UNIT_MULTIPLIER = {
 	"Percentage": 100.0,
 	"Rate per 1000": 1000.0,
 }
+
+CRITERIA_FIELDS = (
+	("criteria_patient_safety_goals", "Patient Safety Goals"),
+	("criteria_high_cost", "High Cost"),
+	("criteria_high_volume", "High Volume"),
+	("criteria_problem_prone", "Problem Prone"),
+	("criteria_study_for_improvement", "Selected Study for Improvement"),
+	("criteria_hospital_requirement", "Hospital Requirement"),
+)
+
+DASHBOARD_FIELDS = [
+	"name",
+	"indicator_name",
+	"indicator_code",
+	"category",
+	"unit",
+	"description",
+	"is_active",
+	"area_monitored",
+	"numerator_description",
+	"denominator_description",
+	"indicator_formula",
+	"source_of_data",
+	"responsible_person",
+	"reported_to",
+	"frequency",
+	"criteria_patient_safety_goals",
+	"criteria_high_cost",
+	"criteria_high_volume",
+	"criteria_problem_prone",
+	"criteria_study_for_improvement",
+	"criteria_hospital_requirement",
+]
+
+
+def _selection_criteria(ind) -> list[str]:
+	return [label for field, label in CRITERIA_FIELDS if ind.get(field)]
 
 
 def _filters(raw: str | None) -> dict:
@@ -26,8 +62,13 @@ def _filters(raw: str | None) -> dict:
 	try:
 		parsed = json.loads(raw)
 	except (TypeError, ValueError):
-		frappe.throw(_("Invalid JSON in indicator filters: {0}").format(raw))
+		return {}
 	return parsed if isinstance(parsed, dict) else {}
+
+
+def _dashboard_fields() -> list[str]:
+	meta = frappe.get_meta("Quality Indicator")
+	return [f for f in DASHBOARD_FIELDS if f == "name" or meta.has_field(f)]
 
 
 def _count(doctype: str, filters: dict, date_field: str, start, end) -> int:
@@ -48,7 +89,7 @@ def compute_indicator(indicator: str, period_start, period_end, cost_center: str
 	num_filters = _filters(ind.numerator_filters)
 	den_filters = _filters(ind.denominator_filters)
 	if cost_center:
-		if frappe.get_meta(ind.numerator_doctype).has_field("cost_center"):
+		if ind.numerator_doctype and frappe.get_meta(ind.numerator_doctype).has_field("cost_center"):
 			num_filters["cost_center"] = cost_center
 		if ind.denominator_doctype and frappe.get_meta(ind.denominator_doctype).has_field(
 			"cost_center"
@@ -108,7 +149,7 @@ def get_indicator_dashboard(
 		period_start = get_first_day(today)
 		period_end = get_last_day(today)
 
-	filters = {"is_active": 1}
+	filters = {}
 	if category:
 		filters["category"] = category
 
@@ -116,8 +157,8 @@ def get_indicator_dashboard(
 	for ind in frappe.get_all(
 		"Quality Indicator",
 		filters=filters,
-		fields=["name", "indicator_name", "indicator_code", "category", "unit", "description"],
-		order_by="category asc, indicator_name asc",
+		fields=_dashboard_fields(),
+		order_by="modified desc",
 	):
 		try:
 			result = compute_indicator(ind.name, period_start, period_end, cost_center)
@@ -125,13 +166,32 @@ def get_indicator_dashboard(
 			frappe.log_error(
 				title="Quality indicator failed", message=frappe.get_traceback()
 			)
-			continue
+			result = {
+				"indicator": ind.name,
+				"numerator": 0,
+				"denominator": 0,
+				"value": 0,
+				"unit": ind.get("unit") or "Percentage",
+				"target_value": None,
+				"target_direction": None,
+				"met": 0,
+			}
 		result.update(
 			{
-				"indicator_name": ind.indicator_name,
-				"indicator_code": ind.indicator_code,
-				"category": ind.category,
-				"description": ind.description,
+				"indicator_name": ind.get("indicator_name") or ind.name,
+				"indicator_code": ind.get("indicator_code"),
+				"category": ind.get("category"),
+				"description": ind.get("description"),
+				"area_monitored": ind.get("area_monitored"),
+				"numerator_description": ind.get("numerator_description"),
+				"denominator_description": ind.get("denominator_description"),
+				"indicator_formula": ind.get("indicator_formula"),
+				"source_of_data": ind.get("source_of_data"),
+				"responsible_person": ind.get("responsible_person"),
+				"reported_to": ind.get("reported_to"),
+				"frequency": ind.get("frequency"),
+				"selection_criteria": _selection_criteria(ind),
+				"is_active": ind.get("is_active"),
 				"period_start": str(period_start),
 				"period_end": str(period_end),
 			}

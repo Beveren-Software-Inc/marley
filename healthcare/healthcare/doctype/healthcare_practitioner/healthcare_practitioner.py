@@ -83,6 +83,16 @@ class HealthcarePractitioner(Document):
 		self.append("practitioner_schedules", {"schedule": default_schedule})
 
 	def on_update(self):
+		if (
+			(self.has_value_changed("licence_no") or self.has_value_changed("stamp_role"))
+			and (self.licence_no or self.stamp_role or "").strip()
+		):
+			from healthcare.api.practitioner_stamp import generate_practitioner_stamp, stamp_attach_field
+
+			result = generate_practitioner_stamp(self.name)
+			if result.get("file_url"):
+				self.set(stamp_attach_field(), result["file_url"])
+
 		if not self.user_id:
 			return
 
