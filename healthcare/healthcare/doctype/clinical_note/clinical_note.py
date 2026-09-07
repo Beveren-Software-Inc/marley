@@ -23,6 +23,64 @@ def is_doctor_progress_note(doc):
 	return (doc.get("clinical_note_type") or "") == DOCTOR_PROGRESS_NOTE_TYPE
 
 
+def _clinical_note_field(doc, field: str) -> str:
+	val = doc.get(field) if doc else None
+	if val is None:
+		return ""
+	return val.strip() if isinstance(val, str) else str(val)
+
+
+def clinical_note_care_reference(doc) -> tuple[str | None, str | None]:
+	"""Return (doctype, name) for the linked Patient Visit or Inpatient Admission."""
+	pairs = (
+		(_clinical_note_field(doc, "reference_doctype"), _clinical_note_field(doc, "reference_document")),
+		(_clinical_note_field(doc, "reference_doc"), _clinical_note_field(doc, "reference_name")),
+	)
+	for ref_dt, ref_dn in pairs:
+		if ref_dt in ("Patient Visit", "Inpatient Admission") and ref_dn:
+			return ref_dt, ref_dn
+
+	admission = _clinical_note_field(doc, "inpatient_admission")
+	if admission:
+		return "Inpatient Admission", admission
+	return None, None
+
+
+def resolve_clinical_note_branch(doc) -> str | None:
+	"""Cost center (branch) from linked Patient Visit, else Inpatient Admission."""
+	from healthcare.api.sales_order_cost_center import cost_center_from_visit_or_admission
+
+	ref_dt, ref_dn = clinical_note_care_reference(doc)
+	if ref_dt == "Patient Visit" and ref_dn:
+		cc = cost_center_from_visit_or_admission("Patient Visit", ref_dn)
+		if cc:
+			return cc
+		admission = frappe.db.get_value("Patient Visit", ref_dn, "inpatient_record")
+		if admission:
+			return cost_center_from_visit_or_admission("Inpatient Admission", admission)
+		return None
+
+	if ref_dt == "Inpatient Admission" and ref_dn:
+		return cost_center_from_visit_or_admission("Inpatient Admission", ref_dn)
+
+	admission = _clinical_note_field(doc, "inpatient_admission")
+	if admission:
+		return cost_center_from_visit_or_admission("Inpatient Admission", admission)
+	return None
+
+
+def fill_branch_from_care_context(doc) -> None:
+	"""Copy branch/cost center from Patient Visit or Inpatient Admission onto the note."""
+	cc = resolve_clinical_note_branch(doc)
+	if cc:
+		doc.branch = cc
+		doc.cost_center = cc
+		return
+	existing = _clinical_note_field(doc, "cost_center")
+	if existing and not _clinical_note_field(doc, "branch"):
+		doc.branch = existing
+
+
 def fill_patient_from_inpatient_admission(doc):
 	"""When patient is empty but inpatient_admission is set, copy patient and patient_name from admission."""
 	admission = doc.get("inpatient_admission")
@@ -69,6 +127,9 @@ class ClinicalNote(Document):
 	def before_insert(self):
 		assign_clinical_note_trans_no(self)
 		fill_patient_from_inpatient_admission(self)
+
+	def before_save(self):
+		fill_branch_from_care_context(self)
 
 	def validate(self):
 		fill_patient_from_inpatient_admission(self)

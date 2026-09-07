@@ -278,6 +278,6 @@ def get_adhd_assessments(
 			"name", "patient", "patient_name", "assessment_date",
 			"practitioner", "practitioner_name",
 			"template", "positive_count", "result", "docstatus", "notes",
-			"inpatient_admission", "patient_visit",
+			"inpatient_admission", "patient_visit", "cost_center",
 		],
 	)

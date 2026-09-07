@@ -147,5 +147,6 @@ def get_gad7_assessments(
 			"name", "patient", "patient_name", "assessment_date",
 			"practitioner", "practitioner_name",
 			"template", "total_score", "severity", "docstatus",
+			"inpatient_admission", "patient_visit", "cost_center",
 		],
 	)

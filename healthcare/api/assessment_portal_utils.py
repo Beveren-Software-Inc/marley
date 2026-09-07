@@ -66,6 +66,10 @@ def apply_care_context_fields(doc, data: dict):
 	if data.get("practitioner") and doc.meta.has_field("rater") and not doc.get("rater"):
 		doc.rater = data["practitioner"]
 
+	from healthcare.api.assessment_care_context import fill_assessment_cost_center_from_care_context
+
+	fill_assessment_cost_center_from_care_context(doc)
+
 
 def enrich_assessment_row(row: dict) -> dict:
 	if row.get("patient") and not row.get("patient_name"):

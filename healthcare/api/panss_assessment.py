@@ -284,6 +284,6 @@ def get_panss_assessments(
 			"practitioner", "practitioner_name", "rater",
 			"positive_total", "negative_total", "general_total",
 			"panss_total", "composite_index", "severity_band", "docstatus", "clinical_notes",
-			"inpatient_admission", "patient_visit",
+			"inpatient_admission", "patient_visit", "cost_center",
 		],
 	)

@@ -12,6 +12,7 @@
   "practitioner_name",
   "inpatient_admission",
   "patient_visit",
+  "cost_center",
   "template",
   "patient_name",
   "notes",
@@ -98,12 +99,18 @@
    "fieldname": "patient_name",
    "fieldtype": "Data",
    "label": "Patient Name"
+  },
+  {
+   "fieldname": "cost_center",
+   "fieldtype": "Link",
+   "label": "Cost Center",
+   "options": "Cost Center"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-06-08 17:47:41.216798",
+ "modified": "2026-09-07 14:54:00.000000",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "GAD7 Assessment",

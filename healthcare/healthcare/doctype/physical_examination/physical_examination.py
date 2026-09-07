@@ -17,3 +17,8 @@ def assign_physical_examination_trans_no(doc) -> None:
 class PhysicalExamination(Document):
 	def before_insert(self):
 		assign_physical_examination_trans_no(self)
+
+	def before_save(self):
+		from healthcare.api.assessment_care_context import fill_assessment_cost_center_from_care_context
+
+		fill_assessment_cost_center_from_care_context(self)

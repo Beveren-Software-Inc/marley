@@ -43,7 +43,7 @@ import { Stethoscope } from 'lucide-react'
 import { InpatientDiagnosisModal } from './InpatientDiagnosisModal'
 import { CreateAdmissionModal } from './CreateAdmissionModal'
 import { UploadPatientDocumentsModal } from '../documents/UploadPatientDocumentsModal'
-import { formatAdmissionDate, resolveAdmissionStayDays } from '../../utils/admissionDateTime'
+import { formatAdmissionDate, formatDateOnlyDisplay, resolveAdmissionStayDays } from '../../utils/admissionDateTime'
 import { TruncatedName } from '../ui/dashboardCardListing'
 import { isDoctorRole, isNurseRole } from '../../config/permissions'
 import { stripDischargeFlowParams } from '../../utils/dischargeNavigation'
@@ -116,6 +116,8 @@ export const AdmissionList = ({
     userCostCenter,
   } = useCareContext()
   const compactCard = useDashboardCompactClinical()
+  const isDoctorList = isDoctorRole(userRole)
+  const tableColSpan = (patient ? 11 : 12)
   const thClass = compactCard
     ? 'px-1.5 py-1.5 text-left text-[10px] font-semibold text-slate-600 uppercase tracking-tight whitespace-nowrap'
     : 'px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap'
@@ -686,12 +688,19 @@ export const AdmissionList = ({
                   <th className={thClass}>{compactCard ? 'Patient' : 'Patient Name'}</th>
                 )}
                 <th className={thClass}>{compactCard ? 'Adm. Date' : 'Admission Date'}</th>
+                {isDoctorList ? (
+                  <th className={`${thClass} ${compactCard ? 'w-[7rem] min-w-[7rem]' : 'min-w-[7.5rem]'}`}>
+                    {compactCard ? 'Disc. Date' : 'Discharge Date'}
+                  </th>
+                ) : null}
                 <th className={thClass}>Branch</th>
                 <th className={thClass}>Status</th>
                 <th className={thClass}>{compactCard ? 'Adm. Doctor' : 'Admission by Doctor'}</th>
                 <th className={thClass}>{compactCard ? 'Res. Doctor' : 'Resident Doctor'}</th>
                 <th className={thClass}>{compactCard ? 'Psych.' : 'Psychologist'}</th>
-                <th className={thClass}>{compactCard ? 'Room' : 'Room No.'}</th>
+                {!isDoctorList ? (
+                  <th className={thClass}>{compactCard ? 'Room' : 'Room No.'}</th>
+                ) : null}
                 <th className={`${thClass} ${compactCard ? 'w-10 text-center' : ''}`}>Days</th>
                 <th className={`${thClass} ${compactCard ? 'w-11' : ''} ${actionHeadStickyClass}`}>Actions</th>
               </tr>
@@ -699,7 +708,7 @@ export const AdmissionList = ({
             <tbody className="divide-y divide-slate-200">
               {records.length === 0 ? (
                 <tr>
-                  <td colSpan={patient ? 11 : 12} className="px-4 py-8 text-center text-slate-500">
+                  <td colSpan={tableColSpan} className="px-4 py-8 text-center text-slate-500">
                     {hasActiveFilters ? 'NO ADMISSIONS MATCH YOUR FILTERS.' : 'NO ADMISSIONS FOUND'}
                   </td>
                 </tr>
@@ -738,9 +747,21 @@ export const AdmissionList = ({
                         />
                       </td>
                     )}
-                    <td className={`${tdClass} ${compactCard ? 'truncate' : 'whitespace-nowrap'}`}>
-                      {formatAdmissionDate(record)}
+                    <td
+                      className={`${tdClass} ${isDoctorList && compactCard ? 'text-[10px] tabular-nums whitespace-nowrap' : compactCard ? 'truncate' : 'whitespace-nowrap tabular-nums'}`}
+                    >
+                      {formatAdmissionDate(record, { includeTime: false, fallback: '-' })}
                     </td>
+                    {isDoctorList ? (
+                      <td
+                        className={`${tdClass} ${compactCard ? 'text-[10px] tabular-nums whitespace-nowrap' : 'whitespace-nowrap tabular-nums'}`}
+                      >
+                        {formatDateOnlyDisplay(
+                          record.discharge_datetime || record.draft_discharge_date,
+                          '-',
+                        )}
+                      </td>
+                    ) : null}
                     <td className={`${tdClass} truncate`} title={record.cost_center || undefined}>{branchLabel(record.cost_center)}</td>
                     <td className={`${tdClass} ${compactCard ? '' : 'whitespace-nowrap'}`}>
                       {(() => {
@@ -763,7 +784,9 @@ export const AdmissionList = ({
                     <td className={tdClass}>
                       <TruncatedName fill={compactCard} value={record.psychologist_doctor_name || record.psychologist_doctor} />
                     </td>
-                    <td className={`${tdClass} truncate`}>{record.room_service_no || record.bed_no || '-'}</td>
+                    {!isDoctorList ? (
+                      <td className={`${tdClass} truncate`}>{record.room_service_no || record.bed_no || '-'}</td>
+                    ) : null}
                     <td className={`${tdClass} ${compactCard ? 'text-center' : 'whitespace-nowrap text-center'}`}>
                       {resolveAdmissionStayDays(record) ?? '-'}
                     </td>

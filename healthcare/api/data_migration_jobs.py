@@ -857,6 +857,360 @@ def process_pmo_admission_backfill_batch(offset: int = 0) -> None:
 
 
 @frappe.whitelist()
+def start_clinical_note_branch_backfill_migration() -> dict:
+	"""Fill Clinical Note branch from Patient Visit or Inpatient Admission cost center."""
+	_require_admin()
+	from healthcare.api.clinical_note_branch_backfill import (
+		cache_clinical_note_branch_backfill_names,
+	)
+
+	job = "clinical_note_branch_backfill"
+	_acquire_lock(job)
+	total = cache_clinical_note_branch_backfill_names()
+	_set_progress(job, 0, total_notes=total)
+	frappe.enqueue(
+		"healthcare.api.data_migration_jobs.process_clinical_note_branch_backfill_batch",
+		offset=0,
+		queue="long",
+		timeout=3600,
+		job_name="healthcare_clinical_note_branch_backfill",
+	)
+	return {
+		"ok": True,
+		"message": _("Clinical Note branch backfill started ({0} notes without branch).").format(total),
+	}
+
+
+def process_clinical_note_branch_backfill_batch(offset: int = 0) -> None:
+	from healthcare.api.clinical_note_branch_backfill import (
+		CLINICAL_NOTE_BRANCH_BACKFILL_BATCH_SIZE,
+		load_cached_clinical_note_branch_backfill_names,
+		run_clinical_note_branch_backfill_batch,
+	)
+
+	job = "clinical_note_branch_backfill"
+	try:
+		names = load_cached_clinical_note_branch_backfill_names()
+		batch = names[offset : offset + CLINICAL_NOTE_BRANCH_BACKFILL_BATCH_SIZE]
+		if not batch:
+			_set_progress(job, offset, done=True)
+			_release_lock(job)
+			frappe.log_error(
+				title="Clinical Note branch backfill complete",
+				message=frappe.as_json(frappe.cache().get_value(_job_progress_key(job)) or {}),
+			)
+			return
+
+		result = run_clinical_note_branch_backfill_batch(batch)
+		prev = frappe.cache().get_value(_job_progress_key(job)) or {}
+		processed = offset + len(batch)
+		error_samples = list(prev.get("error_samples") or [])
+		for sample in result.get("error_samples") or []:
+			if len(error_samples) >= 10:
+				break
+			error_samples.append(sample)
+		_set_progress(
+			job,
+			processed,
+			ok=cint(prev.get("ok", 0)) + cint(result.get("ok", 0)),
+			skip=cint(prev.get("skip", 0)) + cint(result.get("skip", 0)),
+			errors=cint(prev.get("errors", 0)) + cint(result.get("errors", 0)),
+			error_samples=error_samples,
+			total_notes=prev.get("total_notes"),
+		)
+
+		if processed < len(names):
+			frappe.enqueue(
+				"healthcare.api.data_migration_jobs.process_clinical_note_branch_backfill_batch",
+				offset=processed,
+				queue="long",
+				timeout=3600,
+				job_name=f"healthcare_clinical_note_branch_backfill_{processed}",
+			)
+		else:
+			final = frappe.cache().get_value(_job_progress_key(job)) or {}
+			final.update({"processed": processed, "done": True, "updated_at": str(now_datetime())})
+			frappe.cache().set_value(_job_progress_key(job), final, expires_in_sec=JOB_LOCK_SECONDS)
+			_release_lock(job)
+			frappe.log_error(
+				title="Clinical Note branch backfill complete",
+				message=frappe.as_json(final),
+			)
+	except Exception:
+		frappe.db.rollback()
+		_set_progress(job, cint(offset), done=True, error=frappe.get_traceback())
+		_release_lock(job)
+		raise
+
+
+@frappe.whitelist()
+def start_assessment_cost_center_backfill_migration() -> dict:
+	"""Fill assessment cost_center from Patient Visit or Inpatient Admission."""
+	_require_admin()
+	from healthcare.api.assessment_cost_center_backfill import (
+		cache_assessment_cost_center_backfill_names,
+	)
+
+	job = "assessment_cost_center_backfill"
+	_acquire_lock(job)
+	total = cache_assessment_cost_center_backfill_names()
+	_set_progress(job, 0, total_notes=total)
+	frappe.enqueue(
+		"healthcare.api.data_migration_jobs.process_assessment_cost_center_backfill_batch",
+		offset=0,
+		queue="long",
+		timeout=3600,
+		job_name="healthcare_assessment_cost_center_backfill",
+	)
+	return {
+		"ok": True,
+		"message": _("Assessment cost center backfill started ({0} records without cost center).").format(
+			total
+		),
+	}
+
+
+def process_assessment_cost_center_backfill_batch(offset: int = 0) -> None:
+	from healthcare.api.assessment_cost_center_backfill import (
+		ASSESSMENT_COST_CENTER_BACKFILL_BATCH_SIZE,
+		load_cached_assessment_cost_center_backfill_names,
+		run_assessment_cost_center_backfill_batch,
+	)
+
+	job = "assessment_cost_center_backfill"
+	try:
+		names = load_cached_assessment_cost_center_backfill_names()
+		batch = names[offset : offset + ASSESSMENT_COST_CENTER_BACKFILL_BATCH_SIZE]
+		if not batch:
+			_set_progress(job, offset, done=True)
+			_release_lock(job)
+			frappe.log_error(
+				title="Assessment cost center backfill complete",
+				message=frappe.as_json(frappe.cache().get_value(_job_progress_key(job)) or {}),
+			)
+			return
+
+		result = run_assessment_cost_center_backfill_batch(batch)
+		prev = frappe.cache().get_value(_job_progress_key(job)) or {}
+		processed = offset + len(batch)
+		error_samples = list(prev.get("error_samples") or [])
+		for sample in result.get("error_samples") or []:
+			if len(error_samples) >= 10:
+				break
+			error_samples.append(sample)
+		_set_progress(
+			job,
+			processed,
+			ok=cint(prev.get("ok", 0)) + cint(result.get("ok", 0)),
+			skip=cint(prev.get("skip", 0)) + cint(result.get("skip", 0)),
+			errors=cint(prev.get("errors", 0)) + cint(result.get("errors", 0)),
+			error_samples=error_samples,
+			total_notes=prev.get("total_notes"),
+		)
+
+		if processed < len(names):
+			frappe.enqueue(
+				"healthcare.api.data_migration_jobs.process_assessment_cost_center_backfill_batch",
+				offset=processed,
+				queue="long",
+				timeout=3600,
+				job_name=f"healthcare_assessment_cost_center_backfill_{processed}",
+			)
+		else:
+			final = frappe.cache().get_value(_job_progress_key(job)) or {}
+			final.update({"processed": processed, "done": True, "updated_at": str(now_datetime())})
+			frappe.cache().set_value(_job_progress_key(job), final, expires_in_sec=JOB_LOCK_SECONDS)
+			_release_lock(job)
+			frappe.log_error(
+				title="Assessment cost center backfill complete",
+				message=frappe.as_json(final),
+			)
+	except Exception:
+		frappe.db.rollback()
+		_set_progress(job, cint(offset), done=True, error=frappe.get_traceback())
+		_release_lock(job)
+		raise
+
+
+@frappe.whitelist()
+def start_patient_assessment_cost_center_backfill_migration() -> dict:
+	"""Fill Patient Assessment cost_center from encounter (visit/admission) or admission."""
+	_require_admin()
+	from healthcare.api.assessment_cost_center_backfill import (
+		cache_patient_assessment_cost_center_backfill_names,
+	)
+
+	job = "patient_assessment_cost_center_backfill"
+	_acquire_lock(job)
+	total = cache_patient_assessment_cost_center_backfill_names()
+	_set_progress(job, 0, total_notes=total)
+	frappe.enqueue(
+		"healthcare.api.data_migration_jobs.process_patient_assessment_cost_center_backfill_batch",
+		offset=0,
+		queue="long",
+		timeout=3600,
+		job_name="healthcare_patient_assessment_cost_center_backfill",
+	)
+	return {
+		"ok": True,
+		"message": _(
+			"Patient Assessment cost center backfill started ({0} records without cost center)."
+		).format(total),
+	}
+
+
+def process_patient_assessment_cost_center_backfill_batch(offset: int = 0) -> None:
+	from healthcare.api.assessment_cost_center_backfill import (
+		ASSESSMENT_COST_CENTER_BACKFILL_BATCH_SIZE,
+		load_cached_patient_assessment_cost_center_backfill_names,
+		run_assessment_cost_center_backfill_batch,
+	)
+
+	job = "patient_assessment_cost_center_backfill"
+	try:
+		names = load_cached_patient_assessment_cost_center_backfill_names()
+		batch = names[offset : offset + ASSESSMENT_COST_CENTER_BACKFILL_BATCH_SIZE]
+		if not batch:
+			_set_progress(job, offset, done=True)
+			_release_lock(job)
+			frappe.log_error(
+				title="Patient Assessment cost center backfill complete",
+				message=frappe.as_json(frappe.cache().get_value(_job_progress_key(job)) or {}),
+			)
+			return
+
+		result = run_assessment_cost_center_backfill_batch(batch)
+		prev = frappe.cache().get_value(_job_progress_key(job)) or {}
+		processed = offset + len(batch)
+		error_samples = list(prev.get("error_samples") or [])
+		for sample in result.get("error_samples") or []:
+			if len(error_samples) >= 10:
+				break
+			error_samples.append(sample)
+		_set_progress(
+			job,
+			processed,
+			ok=cint(prev.get("ok", 0)) + cint(result.get("ok", 0)),
+			skip=cint(prev.get("skip", 0)) + cint(result.get("skip", 0)),
+			errors=cint(prev.get("errors", 0)) + cint(result.get("errors", 0)),
+			error_samples=error_samples,
+			total_notes=prev.get("total_notes"),
+		)
+
+		if processed < len(names):
+			frappe.enqueue(
+				"healthcare.api.data_migration_jobs.process_patient_assessment_cost_center_backfill_batch",
+				offset=processed,
+				queue="long",
+				timeout=3600,
+				job_name=f"healthcare_patient_assessment_cost_center_backfill_{processed}",
+			)
+		else:
+			final = frappe.cache().get_value(_job_progress_key(job)) or {}
+			final.update({"processed": processed, "done": True, "updated_at": str(now_datetime())})
+			frappe.cache().set_value(_job_progress_key(job), final, expires_in_sec=JOB_LOCK_SECONDS)
+			_release_lock(job)
+			frappe.log_error(
+				title="Patient Assessment cost center backfill complete",
+				message=frappe.as_json(final),
+			)
+	except Exception:
+		frappe.db.rollback()
+		_set_progress(job, cint(offset), done=True, error=frappe.get_traceback())
+		_release_lock(job)
+		raise
+
+
+@frappe.whitelist()
+def start_physical_examination_cost_center_backfill_migration() -> dict:
+	"""Fill Physical Examination cost_center from Patient Visit or Inpatient Admission."""
+	_require_admin()
+	from healthcare.api.assessment_cost_center_backfill import (
+		cache_physical_examination_cost_center_backfill_names,
+	)
+
+	job = "physical_examination_cost_center_backfill"
+	_acquire_lock(job)
+	total = cache_physical_examination_cost_center_backfill_names()
+	_set_progress(job, 0, total_notes=total)
+	frappe.enqueue(
+		"healthcare.api.data_migration_jobs.process_physical_examination_cost_center_backfill_batch",
+		offset=0,
+		queue="long",
+		timeout=3600,
+		job_name="healthcare_physical_examination_cost_center_backfill",
+	)
+	return {
+		"ok": True,
+		"message": _(
+			"Physical Examination cost center backfill started ({0} records without cost center)."
+		).format(total),
+	}
+
+
+def process_physical_examination_cost_center_backfill_batch(offset: int = 0) -> None:
+	from healthcare.api.assessment_cost_center_backfill import (
+		ASSESSMENT_COST_CENTER_BACKFILL_BATCH_SIZE,
+		load_cached_physical_examination_cost_center_backfill_names,
+		run_assessment_cost_center_backfill_batch,
+	)
+
+	job = "physical_examination_cost_center_backfill"
+	try:
+		names = load_cached_physical_examination_cost_center_backfill_names()
+		batch = names[offset : offset + ASSESSMENT_COST_CENTER_BACKFILL_BATCH_SIZE]
+		if not batch:
+			_set_progress(job, offset, done=True)
+			_release_lock(job)
+			frappe.log_error(
+				title="Physical Examination cost center backfill complete",
+				message=frappe.as_json(frappe.cache().get_value(_job_progress_key(job)) or {}),
+			)
+			return
+
+		result = run_assessment_cost_center_backfill_batch(batch)
+		prev = frappe.cache().get_value(_job_progress_key(job)) or {}
+		processed = offset + len(batch)
+		error_samples = list(prev.get("error_samples") or [])
+		for sample in result.get("error_samples") or []:
+			if len(error_samples) >= 10:
+				break
+			error_samples.append(sample)
+		_set_progress(
+			job,
+			processed,
+			ok=cint(prev.get("ok", 0)) + cint(result.get("ok", 0)),
+			skip=cint(prev.get("skip", 0)) + cint(result.get("skip", 0)),
+			errors=cint(prev.get("errors", 0)) + cint(result.get("errors", 0)),
+			error_samples=error_samples,
+			total_notes=prev.get("total_notes"),
+		)
+
+		if processed < len(names):
+			frappe.enqueue(
+				"healthcare.api.data_migration_jobs.process_physical_examination_cost_center_backfill_batch",
+				offset=processed,
+				queue="long",
+				timeout=3600,
+				job_name=f"healthcare_physical_examination_cost_center_backfill_{processed}",
+			)
+		else:
+			final = frappe.cache().get_value(_job_progress_key(job)) or {}
+			final.update({"processed": processed, "done": True, "updated_at": str(now_datetime())})
+			frappe.cache().set_value(_job_progress_key(job), final, expires_in_sec=JOB_LOCK_SECONDS)
+			_release_lock(job)
+			frappe.log_error(
+				title="Physical Examination cost center backfill complete",
+				message=frappe.as_json(final),
+			)
+	except Exception:
+		frappe.db.rollback()
+		_set_progress(job, cint(offset), done=True, error=frappe.get_traceback())
+		_release_lock(job)
+		raise
+
+
+@frappe.whitelist()
 def start_ip_admission_medicine_sheet_map_migration() -> dict:
 	"""Map IP Admission Medicine Sheet rows into Admission Detail child tables."""
 	_require_admin()

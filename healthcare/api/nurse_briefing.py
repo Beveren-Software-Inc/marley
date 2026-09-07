@@ -133,6 +133,40 @@ def _is_actionable_admission_warning(row: dict) -> bool:
 	return not _is_non_actionable_briefing_text(body)
 
 
+def _draft_discharge_admission_names(admission_names: list[str] | None = None) -> set[str]:
+	"""Admissions that have a draft Discharge (UI status: Discharge in Progress)."""
+	filters: dict = {"docstatus": 0}
+	if admission_names is not None:
+		names = [n for n in admission_names if n]
+		if not names:
+			return set()
+		filters["admission"] = ["in", names]
+	rows = frappe.get_all("Discharge", filters=filters, pluck="admission")
+	return {name for name in rows if name}
+
+
+def _exclude_discharge_in_progress_admissions(records: list[dict]) -> list[dict]:
+	if not records:
+		return records
+	dip = _draft_discharge_admission_names([r.get("name") for r in records])
+	if not dip:
+		return records
+	return [r for r in records if r.get("name") not in dip]
+
+
+def _exclude_labs_for_discharge_in_progress(rows: list[dict]) -> list[dict]:
+	"""Drop pending labs tied to an admission that is Discharge in Progress."""
+	if not rows:
+		return rows
+	admission_names = [r.get("inpatient_record") for r in rows if r.get("inpatient_record")]
+	if not admission_names:
+		return rows
+	dip = _draft_discharge_admission_names(admission_names)
+	if not dip:
+		return rows
+	return [r for r in rows if (r.get("inpatient_record") or "") not in dip]
+
+
 def _beds_for_admissions(admission_names: list[str]) -> dict[str, str | None]:
 	if not admission_names:
 		return {}
@@ -219,6 +253,10 @@ def _active_admissions(cost_center: str | None, *, all_branches: bool = False) -
 	if not records:
 		return []
 
+	records = _exclude_discharge_in_progress_admissions(records)
+	if not records:
+		return []
+
 	admission_names = [r["name"] for r in records]
 	patient_ids = [r["patient"] for r in records if r.get("patient")]
 	beds_by_admission = _beds_for_admissions(admission_names)
@@ -292,7 +330,7 @@ def _pending_sample_lab_tests(cost_center: str | None) -> list[dict]:
 		limit_page_length=150,
 	)
 	_attach_lab_test_group_names(rows)
-	return rows
+	return _exclude_labs_for_discharge_in_progress(rows)
 
 
 def _low_stock_items(cost_center: str | None) -> list[dict]:

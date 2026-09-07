@@ -141,5 +141,6 @@ def get_mood_disorder_assessments(
 			"name", "patient", "patient_name", "assessment_date",
 			"practitioner", "practitioner_name",
 			"template", "q1_yes_count", "further_assessment", "docstatus",
+			"inpatient_admission", "patient_visit", "cost_center",
 		],
 	)

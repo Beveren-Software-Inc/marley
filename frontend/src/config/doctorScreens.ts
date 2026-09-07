@@ -127,6 +127,10 @@ export const doctorScreenGroups: ScreenGroup[] = [
   },
   {
     groupTitle: '',
+    screens: [{ id: 'd-pending-lab-review', title: 'Pending Lab Review' }],
+  },
+  {
+    groupTitle: '',
     screens: [{ id: 'obs', title: 'Observation Level' }],
   },
   {
@@ -151,6 +155,10 @@ export const doctorScreenGroups: ScreenGroup[] = [
   },
   {
     groupTitle: '',
+    screens: [{ id: 'd-report-requests', title: 'Report Requests' }],
+  },
+  {
+    groupTitle: '',
     screens: [{ id: 'd-sick-leave', title: 'Sick Leave' }],
   },
   {
@@ -172,14 +180,6 @@ export const doctorScreenGroups: ScreenGroup[] = [
   {
     groupTitle: '',
     screens: [{ id: 'd-ip-warnings', title: 'Current IP Warnings & Allergies' }],
-  },
-  {
-    groupTitle: '',
-    screens: [{ id: 'd-pending-lab-review', title: 'Pending Lab Review' }],
-  },
-  {
-    groupTitle: '',
-    screens: [{ id: 'd-report-requests', title: 'Report Requests' }],
   },
 ]
 

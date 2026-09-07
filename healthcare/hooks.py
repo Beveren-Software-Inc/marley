@@ -497,6 +497,32 @@ _append_event("Clinical Note", "on_trash", "healthcare.api.patient_history_extra
 _append_event("Inpatient Admission", "on_update", "healthcare.api.patient_history_extras.record_admission")
 _append_event("Inpatient Admission", "on_trash", "healthcare.api.patient_history_extras.remove_clinical_extra")
 
+# Copy Cost Center from Patient Visit / Inpatient Admission onto assessments.
+for _dt in (
+	"YMRS Assessment",
+	"YBOCS Assessment",
+	"PHQ9 Assessment",
+	"GAD7 Assessment",
+	"Depression Assessment",
+	"ADHD Assessment",
+	"PANSS Assessment",
+	"Mood Disorder Assessment",
+	"Homicide Risk Assessment",
+	"Clinical Suicide Risk Assessment",
+	"Pre Anesthesia Assessment",
+	"Suicidal Patient Assessment",
+	"Patient Assessment",
+	"IP Patient Assessment",
+	"Fall Risk Assessment",
+	"Morse Fall Scale",
+	"Physical Examination",
+):
+	_append_event(
+		_dt,
+		"before_save",
+		"healthcare.api.assessment_care_context.fill_assessment_cost_center_on_save",
+	)
+
 # LAB-013 / LAB-021: measure laboratory turnaround time.
 _append_event("Lab Test", "validate", "healthcare.api.lab_tat.set_turnaround_time")
 

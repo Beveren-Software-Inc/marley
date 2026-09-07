@@ -157,7 +157,7 @@ def get_homicide_risk_assessments(
 			"name", "patient", "patient_name", "assessment_date",
 			"practitioner", "practitioner_name", "clinician",
 			"risk_level", "docstatus",
-			"inpatient_admission", "patient_visit",
+			"inpatient_admission", "patient_visit", "cost_center",
 		],
 	)
 	for row in rows:

@@ -1125,6 +1125,109 @@ frappe.ui.form.on('Healthcare Settings', {
 			);
 		}, __('Data Maintenance'));
 
+		frm.add_custom_button(__('Backfill Clinical Note Branch from Visit / Admission'), () => {
+			frappe.call({
+				method: 'healthcare.api.clinical_note_branch_backfill.preview_clinical_note_branch_backfill',
+				callback(preview) {
+					const counts = preview.message || {};
+					frappe.confirm(
+						__(
+							'Backfill Clinical Note Branch from the linked Patient Visit or Inpatient Admission cost center?\n\nNotes without branch (with visit or admission): {0}\nSampled as updatable: {1}\nSampled with no cost center on visit/admission: {2}\n\nNew and edited notes already copy branch on save. This job only fills existing notes that are still empty. Continue?',
+							[
+								counts.candidates || 0,
+								counts.needs_update_sampled || 0,
+								counts.unresolved_sampled || 0,
+							]
+						),
+						() =>
+							run_migration_job(
+								frm,
+								'start_clinical_note_branch_backfill_migration',
+								'clinical_note_branch_backfill'
+							)
+					);
+				},
+			});
+		}, __('Data Maintenance'));
+
+		frm.add_custom_button(__('Backfill Assessment Cost Center from Visit / Admission'), () => {
+			frappe.call({
+				method: 'healthcare.api.assessment_cost_center_backfill.preview_assessment_cost_center_backfill',
+				callback(preview) {
+					const counts = preview.message || {};
+					const byDoctype = counts.by_doctype || {};
+					const detail = Object.keys(byDoctype)
+						.sort()
+						.map((dt) => `${dt}: ${byDoctype[dt]}`)
+						.join('\n');
+					frappe.confirm(
+						__(
+							'Backfill Cost Center on assessments from the linked Patient Visit or Inpatient Admission?\n\nRecords without cost center (with visit or admission): {0}\n\n{1}\n\nNew and edited assessments already copy cost center on save. This job only fills existing records that are still empty. Continue?',
+							[counts.candidates || 0, detail || __('None')]
+						),
+						() =>
+							run_migration_job(
+								frm,
+								'start_assessment_cost_center_backfill_migration',
+								'assessment_cost_center_backfill'
+							)
+					);
+				},
+			});
+		}, __('Data Maintenance'));
+
+		frm.add_custom_button(__('Backfill Patient Assessment Cost Center from Visit / Admission'), () => {
+			frappe.call({
+				method:
+					'healthcare.api.assessment_cost_center_backfill.preview_patient_assessment_cost_center_backfill',
+				callback(preview) {
+					const counts = preview.message || {};
+					frappe.confirm(
+						__(
+							'Iterate Patient Assessment records with no Cost Center and copy it from the linked Patient Visit (encounter) or Inpatient Admission (encounter / admission)?\n\nRecords without cost center (with visit or admission): {0}\nSampled as updatable: {1}\nSampled with no cost center on visit/admission: {2}\n\nContinue?',
+							[
+								counts.candidates || 0,
+								counts.needs_update_sampled || 0,
+								counts.unresolved_sampled || 0,
+							]
+						),
+						() =>
+							run_migration_job(
+								frm,
+								'start_patient_assessment_cost_center_backfill_migration',
+								'patient_assessment_cost_center_backfill'
+							)
+					);
+				},
+			});
+		}, __('Data Maintenance'));
+
+		frm.add_custom_button(__('Backfill Physical Examination Cost Center from Visit / Admission'), () => {
+			frappe.call({
+				method:
+					'healthcare.api.assessment_cost_center_backfill.preview_physical_examination_cost_center_backfill',
+				callback(preview) {
+					const counts = preview.message || {};
+					frappe.confirm(
+						__(
+							'Iterate Physical Examination records with no Cost Center and copy it from the linked Patient Visit or Inpatient Admission?\n\nRecords without cost center (with visit or admission): {0}\nSampled as updatable: {1}\nSampled with no cost center on visit/admission: {2}\n\nNew exams already copy cost center on save. Continue?',
+							[
+								counts.candidates || 0,
+								counts.needs_update_sampled || 0,
+								counts.unresolved_sampled || 0,
+							]
+						),
+						() =>
+							run_migration_job(
+								frm,
+								'start_physical_examination_cost_center_backfill_migration',
+								'physical_examination_cost_center_backfill'
+							)
+					);
+				},
+			});
+		}, __('Data Maintenance'));
+
 		frm.add_custom_button(__('Create Clinical Notes from Visit Encounter Comment'), () => {
 			frappe.call({
 				method:
@@ -7372,6 +7475,54 @@ function poll_migration_status(jobKey) {
 								s.errors || 0,
 								s.processed || 0,
 								s.total || 0,
+							]
+						);
+					} else if (jobKey === 'clinical_note_branch_backfill') {
+						msg = __(
+							'{0} finished: {1} updated, {2} skipped, {3} errors (scanned {4} of {5}).',
+							[
+								jobKey,
+								s.ok || 0,
+								s.skip || 0,
+								s.errors || 0,
+								s.processed || 0,
+								s.total_notes || 0,
+							]
+						);
+					} else if (jobKey === 'assessment_cost_center_backfill') {
+						msg = __(
+							'{0} finished: {1} updated, {2} skipped, {3} errors (scanned {4} of {5}).',
+							[
+								jobKey,
+								s.ok || 0,
+								s.skip || 0,
+								s.errors || 0,
+								s.processed || 0,
+								s.total_notes || 0,
+							]
+						);
+					} else if (jobKey === 'patient_assessment_cost_center_backfill') {
+						msg = __(
+							'{0} finished: {1} Patient Assessments updated, {2} skipped, {3} errors (scanned {4} of {5}).',
+							[
+								jobKey,
+								s.ok || 0,
+								s.skip || 0,
+								s.errors || 0,
+								s.processed || 0,
+								s.total_notes || 0,
+							]
+						);
+					} else if (jobKey === 'physical_examination_cost_center_backfill') {
+						msg = __(
+							'{0} finished: {1} Physical Examinations updated, {2} skipped, {3} errors (scanned {4} of {5}).',
+							[
+								jobKey,
+								s.ok || 0,
+								s.skip || 0,
+								s.errors || 0,
+								s.processed || 0,
+								s.total_notes || 0,
 							]
 						);
 					} else {

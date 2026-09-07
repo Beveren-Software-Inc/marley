@@ -91,6 +91,7 @@ def get_suicidal_assessments(
 			"assessed_by",
 			"practitioner",
 			"practitioner_name",
+			"cost_center",
 			"active_suicidal_thoughts_plans",
 			"overwhelmed_thoughts_harming",
 			"made_current_plans",

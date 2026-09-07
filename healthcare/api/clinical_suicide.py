@@ -246,6 +246,7 @@ def get_suicide_risk_assessments(
             "clinician",
             "inpatient_admission",
             "patient_visit",
+            "cost_center",
             "risk_score",
             "risk_level",
             "docstatus",

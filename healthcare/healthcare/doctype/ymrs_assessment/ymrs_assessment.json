@@ -13,6 +13,7 @@
   "practitioner_name",
   "inpatient_admission",
   "patient_visit",
+  "cost_center",
   "total_score",
   "severity",
   "notes",
@@ -91,12 +92,18 @@
    "fieldtype": "Link",
    "label": "YMRS Template",
    "options": "YMRS Template"
+  },
+  {
+   "fieldname": "cost_center",
+   "fieldtype": "Link",
+   "label": "Cost Center",
+   "options": "Cost Center"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-06-09 10:32:28.257740",
+ "modified": "2026-09-07 14:54:00.000000",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "YMRS Assessment",
