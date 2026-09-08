@@ -782,14 +782,20 @@ def process_daily_patient_visits():
 				message=frappe.get_traceback(),
 			)
 
-	# Deactivate setups where to_date < current_date
-	expired_setups = frappe.get_all(
-		'Daily Patient Visit Setup',
-		filters={
-			'is_active': 1,
-			'to_date': ('<', current_date)
-		},
-		fields=['name']
+	# Deactivate setups whose end date has passed.
+	# Use raw SQL: frappe.get_all coalesces blank to_date to '0001-01-01', which would
+	# wrongly stop open-ended setups (no To Date = keep running until manually stopped).
+	expired_setups = frappe.db.sql(
+		"""
+		SELECT name
+		FROM `tabDaily Patient Visit Setup`
+		WHERE IFNULL(is_active, 0) = 1
+		  AND to_date IS NOT NULL
+		  AND to_date != ''
+		  AND to_date < %s
+		""",
+		(current_date,),
+		as_dict=True,
 	)
 
 	for expired in expired_setups:
