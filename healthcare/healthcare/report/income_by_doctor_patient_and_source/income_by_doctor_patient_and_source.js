@@ -46,6 +46,9 @@ frappe.query_reports["Income by Doctor Patient and Source"] = {
 			label: __("Doctor"),
 			fieldtype: "Link",
 			options: "Healthcare Practitioner",
+			get_query: function () {
+				return { filters: { doctor: 1 } };
+			},
 		},
 		{
 			fieldname: "patient",

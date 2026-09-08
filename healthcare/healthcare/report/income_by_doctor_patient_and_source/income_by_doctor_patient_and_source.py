@@ -20,9 +20,6 @@ from healthcare.api.doctor_commission import (
 	get_enabled_commission_sources,
 	resolve_practitioners_for_sources,
 )
-from healthcare.healthcare.report.doctor_service_revenue.doctor_service_revenue import (
-	get_practitioner_details,
-)
 
 UNSET_SOURCE = "Not Set"
 UNSET_PATIENT = "Not Set"
@@ -147,7 +144,7 @@ def get_columns(filters, periods):
 			]
 		)
 
-	columns.append({"label": _("Orders"), "fieldname": "orders", "fieldtype": "Int", "width": 90})
+	columns.append({"label": _("Services"), "fieldname": "services", "fieldtype": "Int", "width": 90})
 	for period in periods:
 		columns.append(
 			{
@@ -169,7 +166,7 @@ def get_data(filters, periods):
 	fill_order_source_links(service_lines)
 	practitioner_by_base = resolve_order_practitioners(service_lines)
 	practitioner_ids = {p for p in practitioner_by_base.values() if p}
-	practitioner_details = get_practitioner_details(practitioner_ids)
+	practitioner_details = get_doctor_practitioners(practitioner_ids)
 	filter_practitioner = filters.get("practitioner")
 	group_by = (filters.get("group_by") or "Doctor").strip()
 	period_by_ym = {(p["start"].year, p["start"].month): p["key"] for p in periods}
@@ -190,6 +187,8 @@ def get_data(filters, periods):
 		practitioner = practitioner_by_base.get(base_key) or ""
 		if not practitioner:
 			continue
+		if practitioner not in practitioner_details:
+			continue
 		if filter_practitioner and practitioner != filter_practitioner:
 			continue
 
@@ -204,7 +203,7 @@ def get_data(filters, periods):
 		order_name = line.sales_order or line.name
 		if order_name not in bucket["_orders"]:
 			bucket["_orders"].add(order_name)
-			bucket["orders"] += 1
+			bucket["services"] += 1
 		bucket[period_key] += amount
 		bucket["total"] += amount
 
@@ -224,7 +223,7 @@ def _empty_group_row(group_by, order, practitioner, details, source, periods):
 			"patient": order.patient or None,
 			"patient_name": order.patient_name or patient,
 			"source": source or None,
-			"orders": 0,
+			"services": 0,
 			"_orders": set(),
 			"total": 0.0,
 			**period_vals,
@@ -234,7 +233,7 @@ def _empty_group_row(group_by, order, practitioner, details, source, periods):
 		return {
 			"_key": label,
 			"source": source or None,
-			"orders": 0,
+			"services": 0,
 			"_orders": set(),
 			"total": 0.0,
 			**period_vals,
@@ -244,7 +243,7 @@ def _empty_group_row(group_by, order, practitioner, details, source, periods):
 		"_key": practitioner,
 		"practitioner": practitioner,
 		"doctor_name": details.get("practitioner_name") or practitioner,
-		"orders": 0,
+		"services": 0,
 		"_orders": set(),
 		"total": 0.0,
 		**period_vals,
@@ -288,6 +287,24 @@ def resolve_order_practitioners(orders):
 			known.add(doctype)
 
 	return resolve_practitioners_for_sources(with_base, sources)
+
+
+def get_doctor_practitioners(practitioner_ids):
+	"""Only Healthcare Practitioners with the Doctor checkbox ticked."""
+	if not practitioner_ids:
+		return {}
+	filters = {"name": ["in", list(practitioner_ids)]}
+	if frappe.get_meta("Healthcare Practitioner").has_field("doctor"):
+		filters["doctor"] = 1
+	fields = ["name", "practitioner_name"]
+	if frappe.get_meta("Healthcare Practitioner").has_field("doctors_id"):
+		fields.append("doctors_id")
+	rows = frappe.get_all(
+		"Healthcare Practitioner",
+		filters=filters,
+		fields=fields,
+	)
+	return {row.name: row for row in rows}
 
 
 def fetch_service_lines(filters):

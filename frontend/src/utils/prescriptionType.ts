@@ -72,6 +72,46 @@ export function isPrnPrescriptionType(medicationType?: string | null): boolean {
   return normalizePrescriptionType(medicationType) === 'PRN'
 }
 
+function isDaysValueCleared(value: unknown): boolean {
+  if (value === '' || value === null || value === undefined) return true
+  const n = Number(value)
+  return !Number.isFinite(n) || n <= 0
+}
+
+/**
+ * Keep End Date and Days in lockstep on create/edit.
+ * Filling one derives the other from Start Date; clearing either clears the other.
+ */
+export function syncPrescriptionEndDateAndDays<
+  T extends { date?: unknown; end_date?: unknown; no_of_days?: unknown },
+>(
+  row: T,
+  field: string,
+  addDays: (start: string, days: number) => string,
+  daysBetween: (start: string, end: string) => number,
+): T {
+  if (field !== 'date' && field !== 'end_date' && field !== 'no_of_days') return row
+
+  const start = String(row.date || '').trim()
+  const end = String(row.end_date || '').trim()
+  const daysRaw = row.no_of_days
+
+  if (field === 'end_date' && !end) {
+    return { ...row, end_date: '', no_of_days: '' }
+  }
+  if (field === 'no_of_days' && isDaysValueCleared(daysRaw)) {
+    return { ...row, no_of_days: '', end_date: '' }
+  }
+  if ((field === 'date' || field === 'end_date') && start && end) {
+    return { ...row, no_of_days: daysBetween(start, end) || 1 }
+  }
+  const daysNum = Number(daysRaw)
+  if (field === 'no_of_days' && start && Number.isFinite(daysNum) && daysNum > 0) {
+    return { ...row, end_date: addDays(start, daysNum) }
+  }
+  return row
+}
+
 /** Calendar date YYYY-MM-DD in local time. */
 export function todayDateString(asOf: Date = new Date()): string {
   const y = asOf.getFullYear()

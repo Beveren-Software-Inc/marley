@@ -20,6 +20,7 @@ import {
   normalizePrescriptionType,
   isFuturePlanByStartDate,
   SELECTABLE_PRESCRIPTION_TYPES,
+  syncPrescriptionEndDateAndDays,
 } from '../../utils/prescriptionType'
 import { prescriptionNeedsSignature, prescriptionIsSigned } from '../../utils/prescriptionSigning'
 import { RefreshCw, MoreVertical, Pencil, Plus, X, ChevronDown, History } from 'lucide-react'
@@ -373,15 +374,7 @@ export const EditMedicationEntryModal = ({
     setForm((f) => {
       const next = { ...f, [field]: value }
       if (field === 'date' || field === 'end_date' || field === 'no_of_days') {
-        const start = (field === 'date' ? value : next.date) as string
-        const end = (field === 'end_date' ? value : next.end_date) as string
-        const daysNum = Number(field === 'no_of_days' ? value : next.no_of_days)
-        // Do not auto-fill end date from start date alone — only when Days is set, or derive Days from start+end.
-        if ((field === 'date' || field === 'end_date') && start && end) {
-          next.no_of_days = String(daysBetween(start, end) || 1) as any
-        } else if (field === 'no_of_days' && start && Number.isFinite(daysNum) && daysNum > 0) {
-          next.end_date = addDaysToDate(start, daysNum)
-        }
+        return syncPrescriptionEndDateAndDays(next, field, addDaysToDate, daysBetween)
       }
       return next
     })
@@ -738,7 +731,7 @@ export const EditMedicationEntryModal = ({
                 className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm transition placeholder:text-slate-400 focus:border-emerald-400/80 focus:outline-none focus:ring-2 focus:ring-emerald-500/25 disabled:bg-slate-100 disabled:text-slate-500" />
             </div>
           </div>
-          <p className="text-[11px] text-slate-500">Start + End Date → Days; or Start Date + Days → End Date</p>
+          <p className="text-[11px] text-slate-500">Start + End Date → Days; or Start Date + Days → End Date. Clear End Date or Days to clear both.</p>
 
           <div>
             <label className="block text-xs font-medium text-slate-600 mb-1">Instructions</label>
@@ -962,14 +955,7 @@ export const AddMedicationEntryModal = ({
     setForm((f) => {
       const next = { ...f, [field]: value }
       if (field === 'date' || field === 'end_date' || field === 'no_of_days') {
-        const start = (field === 'date' ? value : next.date) as string
-        const end = (field === 'end_date' ? value : next.end_date) as string
-        const daysNum = Number(field === 'no_of_days' ? value : next.no_of_days)
-        if ((field === 'date' || field === 'end_date') && start && end) {
-          next.no_of_days = String(daysBetween(start, end) || 1) as any
-        } else if (field === 'no_of_days' && start && Number.isFinite(daysNum) && daysNum > 0) {
-          next.end_date = addDaysToDate(start, daysNum)
-        }
+        return syncPrescriptionEndDateAndDays(next, field, addDaysToDate, daysBetween)
       }
       return next
     })
@@ -1316,7 +1302,7 @@ export const AddMedicationEntryModal = ({
                 className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm transition placeholder:text-slate-400 focus:border-emerald-400/80 focus:outline-none focus:ring-2 focus:ring-emerald-500/25" />
             </div>
           </div>
-          <p className="text-[11px] text-slate-500">Start + End Date → Days; or Start Date + Days → End Date</p>
+          <p className="text-[11px] text-slate-500">Start + End Date → Days; or Start Date + Days → End Date. Clear End Date or Days to clear both.</p>
 
           <div>
             <label className="block text-xs font-medium text-slate-600 mb-1">Instructions</label>
