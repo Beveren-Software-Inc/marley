@@ -10,7 +10,7 @@ import { SignPrescriptionModal } from './SignPrescriptionModal'
 import { CreatePrescriptionModal } from './CreatePrescriptionModal'
 import { AddMedicationEntryModal, EditMedicationEntryModal } from './SinglePrescription'
 import { prescriptionNeedsSignature, prescriptionIsSigned } from '../../utils/prescriptionSigning'
-import { isFuturePlanByStartDate } from '../../utils/prescriptionType'
+import { isFuturePlanByStartDate, isMedicationEndDatePassed } from '../../utils/prescriptionType'
 import { useCareContext } from '../../providers/CareContextProvider'
 import { useCardFilters } from '../../contexts/CardFilterContext'
 import {
@@ -23,6 +23,7 @@ import { DateFilterInput } from '../ui/DateFilterInput'
 
 const statusColors: Record<string, string> = {
   Active: 'success',
+  Inactive: 'default',
   Discontinued: 'danger',
   Future: 'info',
 }
@@ -30,11 +31,12 @@ const statusColors: Record<string, string> = {
 const STATUS_OPTIONS = [
   { value: '', label: 'All' },
   { value: 'Active', label: 'Active' },
+  { value: 'Inactive', label: 'Inactive' },
   { value: 'Discontinued', label: 'Discontinued' },
   { value: 'Future', label: 'Future' },
 ] as const
 
-type LineListingStatus = 'Active' | 'Discontinued' | 'Future'
+type LineListingStatus = 'Active' | 'Inactive' | 'Discontinued' | 'Future'
 
 function prescriptionLineListingStatus(
   m: MedicationOrderEntry | null,
@@ -46,6 +48,14 @@ function prescriptionLineListingStatus(
     Boolean(String(m?.reason_stopped || '').trim())
   if (discontinued) return 'Discontinued'
   if (isFuturePlanByStartDate({ date: m?.date || row.start_date })) return 'Future'
+  if (
+    isMedicationEndDatePassed({
+      end_date: m?.end_date,
+      _rx_end: row.end_date,
+    })
+  ) {
+    return 'Inactive'
+  }
   return 'Active'
 }
 

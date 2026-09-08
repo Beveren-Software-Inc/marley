@@ -32,7 +32,7 @@ import {
   type PaymentEntryRow,
   type PaymentSummary,
 } from '../../services/serviceOrders'
-import { fetchModeOfPayments, fetchUsers, type LinkFieldOption } from '../../services/common'
+import { fetchModeOfPayments, fetchUsers, fetchBranchOptions, type LinkFieldOption } from '../../services/common'
 import { useCareContext } from '../../providers/CareContextProvider'
 import { useReceptionistShift } from '../../providers/ReceptionistShiftProvider'
 import { ReceptionistOwnerCell } from '../ui/ReceptionistOwnerCell'
@@ -269,6 +269,8 @@ export const BillingDashboard = ({ patient, admission, visit }: BillingDashboard
   const [paymentModes, setPaymentModes] = useState<Array<{ name: string; label: string }>>([])
   const [cashierFilter, setCashierFilter] = useState('')
   const [cashiers, setCashiers] = useState<LinkFieldOption[]>([])
+  const [branchFilter, setBranchFilter] = useState('')
+  const [branchOptions, setBranchOptions] = useState<LinkFieldOption[]>([])
   const [filterByOpenShift, setFilterByOpenShift] = useState(true)
 
   const shiftFilterActive = Boolean(shiftContext?.shiftRequired && filterByOpenShift)
@@ -429,8 +431,8 @@ const handleMakePayment = async (
       try {
         if (!hasLoadedOnce) setLoading(true)
         const [paymentRows, paySummary] = await Promise.all([
-          fetchPaymentEntries(undefined, undefined, undefined, fromDate || undefined, toDate || undefined, paymentModeFilter || undefined, shiftFilterActive, cashierFilter || undefined),
-          fetchPaymentSummary(undefined, undefined, undefined, fromDate || undefined, toDate || undefined, paymentModeFilter || undefined, shiftFilterActive, cashierFilter || undefined),
+          fetchPaymentEntries(undefined, undefined, undefined, fromDate || undefined, toDate || undefined, paymentModeFilter || undefined, shiftFilterActive, cashierFilter || undefined, branchFilter || undefined),
+          fetchPaymentSummary(undefined, undefined, undefined, fromDate || undefined, toDate || undefined, paymentModeFilter || undefined, shiftFilterActive, cashierFilter || undefined, branchFilter || undefined),
         ])
         if (isStale?.()) return
         setPayments(paymentRows)
@@ -483,8 +485,8 @@ const handleMakePayment = async (
             scopedReferenceName,
             effectivePatient
           ),
-          fetchPaymentEntries(scopedReferenceType, scopedReferenceName, effectivePatient, fromDate || undefined, toDate || undefined, paymentModeFilter || undefined, shiftFilterActive, cashierFilter || undefined),
-          fetchPaymentSummary(scopedReferenceType, scopedReferenceName, effectivePatient, fromDate || undefined, toDate || undefined, paymentModeFilter || undefined, shiftFilterActive, cashierFilter || undefined),
+          fetchPaymentEntries(scopedReferenceType, scopedReferenceName, effectivePatient, fromDate || undefined, toDate || undefined, paymentModeFilter || undefined, shiftFilterActive, cashierFilter || undefined, branchFilter || undefined),
+          fetchPaymentSummary(scopedReferenceType, scopedReferenceName, effectivePatient, fromDate || undefined, toDate || undefined, paymentModeFilter || undefined, shiftFilterActive, cashierFilter || undefined, branchFilter || undefined),
         ])
         if (isStale?.()) return
         setBillingCcRestricted(!!ccScope.restricted)
@@ -618,7 +620,7 @@ const handleMakePayment = async (
     return () => {
       cancelled = true
     }
-  }, [currentView, effectivePatient, scopedReferenceName, fromDate, toDate, paymentModeFilter, cashierFilter, shiftFilterActive])
+  }, [currentView, effectivePatient, scopedReferenceName, fromDate, toDate, paymentModeFilter, cashierFilter, branchFilter, shiftFilterActive])
 
   useEffect(() => {
     fetchModeOfPayments()
@@ -627,6 +629,9 @@ const handleMakePayment = async (
     fetchUsers(undefined, 'Receptionist')
       .then(setCashiers)
       .catch(() => setCashiers([]))
+    fetchBranchOptions()
+      .then(setBranchOptions)
+      .catch(() => setBranchOptions([]))
   }, [])
 
   // Filter inpatient balances
@@ -1115,6 +1120,19 @@ const handleMakePayment = async (
                 ))}
               </select>
             </div>
+            <div>
+              <label className="block text-xs text-slate-600 mb-1">Branch</label>
+              <select
+                value={branchFilter}
+                onChange={(e) => setBranchFilter(e.target.value)}
+                className="rounded-md border border-slate-300 px-3 py-2 text-sm bg-white min-w-[180px]"
+              >
+                <option value="">Select All</option>
+                {branchOptions.map((branch) => (
+                  <option key={branch.name} value={branch.name}>{branch.label}</option>
+                ))}
+              </select>
+            </div>
           </>
         )}
       </div>
@@ -1122,7 +1140,7 @@ const handleMakePayment = async (
   }
 
   const exportPaymentsCsv = () => {
-    const headers = ['Payment Entry', 'Posting Date', 'Mode', 'Amount', 'Party', 'Receptionist', 'Invoice', 'Reference Type', 'Reference Name']
+    const headers = ['Payment Entry', 'Posting Date', 'Mode', 'Amount', 'Party', 'Receptionist', 'Branch', 'Invoice', 'Reference Type', 'Reference Name']
     const rows = payments.map((p) => [
       p.name,
       p.posting_date || '',
@@ -1130,6 +1148,7 @@ const handleMakePayment = async (
       String(p.paid_amount ?? 0),
       p.party_name || '',
       p.cashier_name || p.cashier || '',
+      p.cost_center || '',
       p.invoice_name || '',
       p.invoice_reference_type || '',
       p.invoice_reference_name || '',
@@ -1163,6 +1182,10 @@ const handleMakePayment = async (
       if (cashierFilter) {
         const cashierLabel = cashiers.find((c) => c.name === cashierFilter)?.label || cashierFilter
         metaParts.push(`Receptionist: ${cashierLabel}`)
+      }
+      if (branchFilter) {
+        const branchLabel = branchOptions.find((b) => b.name === branchFilter)?.label || branchFilter
+        metaParts.push(`Branch: ${branchLabel}`)
       }
       if (effectivePatient) metaParts.push(`Patient: ${effectivePatient}`)
       if (effectiveReferenceName) metaParts.push(`${effectiveReferenceType}: ${effectiveReferenceName}`)
@@ -1271,6 +1294,7 @@ const handleMakePayment = async (
         modeOfPayment: paymentModeFilter || undefined,
         filterByOpenShift: shiftFilterActive,
         cashier: cashierFilter || undefined,
+        costCenter: branchFilter || undefined,
       })
       openDailyCollectionSummaryPrint(data)
     } catch (e) {

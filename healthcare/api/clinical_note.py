@@ -60,6 +60,39 @@ def _enrich_clinical_note_row(note: dict) -> dict:
 	return note
 
 
+def _attach_visit_encounter_date(note: dict) -> None:
+	"""Expose the linked Patient Visit encounter date for UI display."""
+	if (note.get("reference_doctype") or "") != "Patient Visit":
+		return
+	ref = (note.get("reference_document") or "").strip()
+	if not ref:
+		return
+	enc = frappe.db.get_value("Patient Visit", ref, "encounter_date")
+	if enc:
+		note["visit_encounter_date"] = str(enc)
+
+
+def _attach_visit_encounter_dates(notes: list[dict]) -> None:
+	names = []
+	for note in notes:
+		if (note.get("reference_doctype") or "") == "Patient Visit" and note.get("reference_document"):
+			names.append(note["reference_document"])
+	if not names:
+		return
+	rows = frappe.db.get_all(
+		"Patient Visit",
+		filters={"name": ["in", list(set(names))]},
+		fields=["name", "encounter_date"],
+	)
+	by_name = {r.name: r.encounter_date for r in rows}
+	for note in notes:
+		if (note.get("reference_doctype") or "") != "Patient Visit":
+			continue
+		enc = by_name.get(note.get("reference_document"))
+		if enc:
+			note["visit_encounter_date"] = str(enc)
+
+
 def _get_or_create_clinical_note_type(name: str | None) -> str | None:
 	if not name:
 		return None
@@ -263,6 +296,7 @@ def get_clinical_notes(**kwargs):
 	)
 	for note in clinical_notes:
 		_enrich_clinical_note_row(note)
+	_attach_visit_encounter_dates(clinical_notes)
 
 	return {
 		'data': clinical_notes,
@@ -289,7 +323,9 @@ def get_clinical_note(name: str | None = None):
 				frappe.PermissionError,
 			)
 
-	return _enrich_clinical_note_row(doc.as_dict())
+	row = _enrich_clinical_note_row(doc.as_dict())
+	_attach_visit_encounter_date(row)
+	return row
 
 
 @frappe.whitelist()

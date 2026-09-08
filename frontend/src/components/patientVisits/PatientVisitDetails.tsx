@@ -41,6 +41,7 @@ import {
 } from '../../utils/medicationOrderDisplayUtils'
 import { PatientDocumentAttachmentPreview } from '../ui/PatientDocumentAttachmentPreview'
 import { htmlToPlainText } from '../../utils/htmlToPlainText'
+import { formatLinkedVisitClinicalNoteDate } from '../../utils/formatDate'
 
 interface PatientVisitDetailsProps {
   visitNo: string
@@ -76,15 +77,6 @@ function formatDate(value?: string | null): string {
     return new Date(value).toLocaleDateString('en-GB')
   } catch {
     return String(value).slice(0, 10)
-  }
-}
-
-function formatDateTime(value?: string | null): string {
-  if (!value) return '—'
-  try {
-    return new Date(value).toLocaleString('en-GB')
-  } catch {
-    return String(value)
   }
 }
 
@@ -839,7 +831,10 @@ export const PatientVisitDetails = ({ visitNo, onUpdate }: PatientVisitDetailsPr
                         'Clinical Note'}
                     </p>
                     <p className="text-xs text-slate-400">
-                      {formatDateTime(note.posting_date)}
+                      {formatLinkedVisitClinicalNoteDate(
+                        note.posting_date,
+                        visit.encounter_date || note.visit_encounter_date,
+                      ) || '—'}
                     </p>
                   </div>
                   <p className="whitespace-pre-wrap text-slate-800">

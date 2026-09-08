@@ -754,6 +754,7 @@ def get_payment_entries(
     receptionist_shift=None,
     filter_by_open_shift=None,
     cashier=None,
+    cost_center=None,
 ):
     from healthcare.api.receptionist_shift import resolve_receptionist_shift_filter, SHIFT_LINK_FIELD
 
@@ -845,7 +846,7 @@ def get_payment_entries(
         else:
             conditions.append("si.patient = %(patient)s")
 
-    from healthcare.api.common import get_permitted_cost_centers
+    from healthcare.api.common import get_permitted_cost_centers, resolve_cost_center_filter
 
     permitted_cc = get_permitted_cost_centers()
     if permitted_cc is not None:
@@ -859,6 +860,18 @@ def get_payment_entries(
             )
         else:
             conditions.append("IFNULL(pe.cost_center, '') IN %(permitted_cc)s")
+
+    requested_cc = (cost_center or "").strip()
+    if requested_cc:
+        resolved = resolve_cost_center_filter(requested_cc)
+        if resolved is False:
+            return []
+        if isinstance(resolved, str):
+            conditions.append("IFNULL(pe.cost_center, '') = %(filter_cc)s")
+            params["filter_cc"] = resolved
+        elif isinstance(resolved, (list, tuple)) and resolved:
+            params["filter_cc_list"] = tuple(resolved)
+            conditions.append("IFNULL(pe.cost_center, '') IN %(filter_cc_list)s")
 
     where_sql = " AND ".join(conditions)
     rows = frappe.db.sql(
@@ -910,6 +923,7 @@ def get_payment_summary(
     receptionist_shift=None,
     filter_by_open_shift=None,
     cashier=None,
+    cost_center=None,
 ):
     rows = get_payment_entries(
         reference_type=reference_type,
@@ -921,6 +935,7 @@ def get_payment_summary(
         receptionist_shift=receptionist_shift,
         filter_by_open_shift=filter_by_open_shift,
         cashier=cashier,
+        cost_center=cost_center,
     )
     submitted_rows = [r for r in rows if cint(r.get("docstatus")) == 1]
     total_paid = sum(
@@ -1100,6 +1115,7 @@ def get_daily_collection_summary(
     receptionist_shift=None,
     filter_by_open_shift=None,
     cashier=None,
+    cost_center=None,
 ):
     """Daily Collection Summary: cashier → IP / OP visit rows with service + mode splits."""
     from_date = getdate(from_date or today())
@@ -1117,6 +1133,7 @@ def get_daily_collection_summary(
         receptionist_shift=receptionist_shift,
         filter_by_open_shift=filter_by_open_shift,
         cashier=cashier,
+        cost_center=cost_center,
     )
     receive = [
         r
@@ -1131,12 +1148,17 @@ def get_daily_collection_summary(
         frappe.db.get_value("Company", company, "company_name") if company else ""
     ) or company or ""
     branch = ""
+    requested_cc = (cost_center or "").strip()
     cc_names = []
     for r in receive:
         cc = (r.get("cost_center") or "").strip()
         if cc and cc not in cc_names:
             cc_names.append(cc)
-    if len(cc_names) == 1:
+    if requested_cc:
+        branch = (
+            frappe.db.get_value("Cost Center", requested_cc, "cost_center_name") or requested_cc
+        )
+    elif len(cc_names) == 1:
         branch = (
             frappe.db.get_value("Cost Center", cc_names[0], "cost_center_name") or cc_names[0]
         )

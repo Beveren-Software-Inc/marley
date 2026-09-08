@@ -25,6 +25,7 @@ import { toast } from '../../hooks/useToast'
 import { MoreHorizontal, Pencil, Trash2 } from 'lucide-react'
 import { PaginationControls, DEFAULT_PAGE_SIZE, type PageSize } from '../ui/PaginationControls'
 import { useSlideOverListNav } from '../../hooks/useSlideOverListNav'
+import { formatLinkedVisitClinicalNoteDate } from '../../utils/formatDate'
 
 // Helper function to strip HTML tags and decode HTML entities
 const stripHtml = (html: string): string => {
@@ -80,6 +81,10 @@ function doctorProgressNoteAuthorLabel(note: ClinicalNote): string {
   }
   if (note.username?.trim()) return note.username.trim()
   return note.user || '—'
+}
+
+function clinicalNoteDateLabel(note: ClinicalNote): string {
+  return formatLinkedVisitClinicalNoteDate(note.posting_date, note.visit_encounter_date) || '-'
 }
 
 function clinicalNoteAuthorLabel(note: ClinicalNote, clinicalNoteType?: string): string {
@@ -535,7 +540,7 @@ export const ClinicalNotesList = ({
               >
                 <td className="px-3 py-2.5 text-xs text-slate-700 whitespace-nowrap align-top">
                   <span className="text-primary font-medium">
-                    {note.posting_date ? new Date(note.posting_date).toLocaleString('en-GB') : '-'}
+                    {clinicalNoteDateLabel(note)}
                   </span>
                   <CardRowMetaHint fields={metaFields} />
                 </td>
@@ -612,7 +617,7 @@ export const ClinicalNotesList = ({
                     onClick={() => setDetailName(note.name)}
                   >
                     <span className="text-primary hover:underline">
-                      {note.posting_date ? new Date(note.posting_date).toLocaleString('en-GB') : '-'}
+                      {clinicalNoteDateLabel(note)}
                     </span>
                   </td>
                   <td className="px-4 py-3 text-sm text-slate-700 align-top max-w-xl">
@@ -654,9 +659,7 @@ export const ClinicalNotesList = ({
                     onClick={() => setDetailName(note.name)}
                   >
                     <span className="text-primary hover:underline">
-                      {note.posting_date
-                        ? new Date(note.posting_date).toLocaleString('en-GB')
-                        : '-'}
+                      {clinicalNoteDateLabel(note)}
                     </span>
                   </td>
                   {!patient && (

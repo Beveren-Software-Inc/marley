@@ -39,6 +39,7 @@ import { PaginationControls, LoadMoreControls, DEFAULT_PAGE_SIZE, type PageSize 
 import { ClearFiltersButton } from '../ui/ClearFiltersButton'
 import { UploadPatientDocumentsModal } from '../documents/UploadPatientDocumentsModal'
 import { DateFilterInput } from '../ui/DateFilterInput'
+import { Eye } from 'lucide-react'
 
 const statusColors: Record<string, string> = {
   'Open': 'warning',
@@ -532,6 +533,14 @@ export const PatientVisitList = ({
             triggerRef={menuRef}
             minWidth={160}
           >
+            <button
+              type="button"
+              onClick={() => { openVisitDetail(visit); setOpenActionRow(null) }}
+              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100"
+            >
+              <Eye className="h-3.5 w-3.5 shrink-0 text-slate-500" aria-hidden />
+              View
+            </button>
             {visit.status !== 'Cancelled' && (
               <button
                 type="button"

@@ -17,6 +17,8 @@ export interface ClinicalNote {
   note?: string
   reference_doctype?: string
   reference_document?: string
+  /** Encounter date of the linked Patient Visit, when reference is a visit. */
+  visit_encounter_date?: string
   inpatient_admission?: string
   branch?: string
   trans_no?: string
