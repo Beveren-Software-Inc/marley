@@ -11,9 +11,12 @@ from frappe import _
 from frappe.utils.file_manager import save_file
 
 DEFAULT_HOSPITAL = "Serene Psychiatry Hospital"
-STAMP_HOSPITAL_COLOR = (31, 111, 139)  # #1F6F8B from the Serene stamp samples
-STAMP_BORDER = (0, 0, 0)
-STAMP_TEXT = (0, 0, 0)
+# Rubber-stamp blue sampled from the Serene prescription stamp (border + all text).
+STAMP_INK = (58, 60, 196)  # #3A3CC4
+STAMP_INK_HEX = "#3A3CC4"
+STAMP_HOSPITAL_COLOR = STAMP_INK
+STAMP_BORDER = STAMP_INK
+STAMP_TEXT = STAMP_INK
 STAMP_BG = (255, 255, 255)
 STAMP_WIDTH = 900
 STAMP_HEIGHT = 320
@@ -105,11 +108,11 @@ def render_practitioner_stamp_svg(hospital: str, doctor_name: str, role: str, li
 	licence_line = f"License No. {licence_no}".strip() if licence_no else "License No."
 	svg = f"""<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="{STAMP_WIDTH}" height="{STAMP_HEIGHT}" viewBox="0 0 {STAMP_WIDTH} {STAMP_HEIGHT}">
-  <rect x="8" y="8" width="{STAMP_WIDTH - 16}" height="{STAMP_HEIGHT - 16}" fill="#ffffff" stroke="#000000" stroke-width="4"/>
-  <text x="{STAMP_WIDTH // 2}" y="88" text-anchor="middle" font-family="Cambria, Georgia, 'Times New Roman', serif" font-size="28" font-weight="700" fill="#1F6F8B" letter-spacing="2.4">{_xml_escape(hospital)}</text>
-  <text x="{STAMP_WIDTH // 2}" y="150" text-anchor="middle" font-family="Calibri, Arial, Helvetica, sans-serif" font-size="30" font-weight="700" fill="#000000">{_xml_escape(doctor_name)}</text>
-  <text x="{STAMP_WIDTH // 2}" y="200" text-anchor="middle" font-family="Calibri, Arial, Helvetica, sans-serif" font-size="22" fill="#000000">{_xml_escape(role)}</text>
-  <text x="{STAMP_WIDTH // 2}" y="248" text-anchor="middle" font-family="Calibri, Arial, Helvetica, sans-serif" font-size="22" fill="#000000">{_xml_escape(licence_line)}</text>
+  <rect x="8" y="8" width="{STAMP_WIDTH - 16}" height="{STAMP_HEIGHT - 16}" fill="#ffffff" stroke="{STAMP_INK_HEX}" stroke-width="4"/>
+  <text x="{STAMP_WIDTH // 2}" y="88" text-anchor="middle" font-family="Cambria, Georgia, 'Times New Roman', serif" font-size="28" font-weight="700" fill="{STAMP_INK_HEX}" letter-spacing="2.4">{_xml_escape(hospital)}</text>
+  <text x="{STAMP_WIDTH // 2}" y="150" text-anchor="middle" font-family="Calibri, Arial, Helvetica, sans-serif" font-size="30" font-weight="700" fill="{STAMP_INK_HEX}">{_xml_escape(doctor_name)}</text>
+  <text x="{STAMP_WIDTH // 2}" y="200" text-anchor="middle" font-family="Calibri, Arial, Helvetica, sans-serif" font-size="22" fill="{STAMP_INK_HEX}">{_xml_escape(role)}</text>
+  <text x="{STAMP_WIDTH // 2}" y="248" text-anchor="middle" font-family="Calibri, Arial, Helvetica, sans-serif" font-size="22" fill="{STAMP_INK_HEX}">{_xml_escape(licence_line)}</text>
 </svg>
 """
 	return svg.encode("utf-8")
