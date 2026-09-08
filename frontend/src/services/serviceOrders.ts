@@ -708,6 +708,7 @@ export async function fetchPaymentEntries(
   modeOfPayment?: string,
   filterByOpenShift?: boolean,
   cashier?: string,
+  costCenter?: string,
 ): Promise<PaymentEntryRow[]> {
   const params = new URLSearchParams()
   if (referenceType) params.append('reference_type', referenceType)
@@ -718,6 +719,7 @@ export async function fetchPaymentEntries(
   if (modeOfPayment) params.append('mode_of_payment', modeOfPayment)
   if (filterByOpenShift) params.append('filter_by_open_shift', '1')
   if (cashier) params.append('cashier', cashier)
+  if (costCenter) params.append('cost_center', costCenter)
   const response = await fetch(`/api/method/healthcare.api.billing.get_payment_entries?${params.toString()}`)
   const data = await response.json()
   return data.message || []
@@ -732,6 +734,7 @@ export async function fetchPaymentSummary(
   modeOfPayment?: string,
   filterByOpenShift?: boolean,
   cashier?: string,
+  costCenter?: string,
 ): Promise<PaymentSummary> {
   const params = new URLSearchParams()
   if (referenceType) params.append('reference_type', referenceType)
@@ -742,6 +745,7 @@ export async function fetchPaymentSummary(
   if (modeOfPayment) params.append('mode_of_payment', modeOfPayment)
   if (filterByOpenShift) params.append('filter_by_open_shift', '1')
   if (cashier) params.append('cashier', cashier)
+  if (costCenter) params.append('cost_center', costCenter)
   const response = await fetch(`/api/method/healthcare.api.billing.get_payment_summary?${params.toString()}`)
   const data = await response.json()
   return data.message || { payment_count: 0, total_paid: 0, advance_amount: 0, modes: [] }
@@ -801,6 +805,7 @@ export async function fetchDailyCollectionSummary(opts: {
   modeOfPayment?: string
   filterByOpenShift?: boolean
   cashier?: string
+  costCenter?: string
 }): Promise<DailyCollectionSummary> {
   const params = new URLSearchParams()
   if (opts.referenceType) params.append('reference_type', opts.referenceType)
@@ -811,6 +816,7 @@ export async function fetchDailyCollectionSummary(opts: {
   if (opts.modeOfPayment) params.append('mode_of_payment', opts.modeOfPayment)
   if (opts.filterByOpenShift) params.append('filter_by_open_shift', '1')
   if (opts.cashier) params.append('cashier', opts.cashier)
+  if (opts.costCenter) params.append('cost_center', opts.costCenter)
   const response = await fetch(
     `/api/method/healthcare.api.billing.get_daily_collection_summary?${params.toString()}`,
   )

@@ -36,6 +36,7 @@ import { RichTextContent } from '../ui/RichTextContent'
 import { MODAL_SECTION_CLASS, MODAL_SECTION_TITLE_CLASS } from '../ui/CreateModalChrome'
 import { CreatePrescriptionModal } from '../prescriptions/CreatePrescriptionModal'
 import { toast } from '../../hooks/useToast'
+import { formatDateTime, formatLinkedVisitClinicalNoteDate } from '../../utils/formatDate'
 
 type ClinicalNoteDoc = ClinicalNote & Record<string, unknown>
 
@@ -59,13 +60,11 @@ function displayValue(value: unknown): string {
   return String(value)
 }
 
-function formatDateTime(value?: string): string {
-  if (!value) return '—'
-  try {
-    return new Date(value).toLocaleString('en-GB')
-  } catch {
-    return value
-  }
+function notePostedLabel(source?: ClinicalNote | ClinicalNoteDoc | null): string {
+  if (!source) return '—'
+  return (
+    formatLinkedVisitClinicalNoteDate(source.posting_date, source.visit_encounter_date) || '—'
+  )
 }
 
 /** Calendar day (YYYY-MM-DD) from Clinical Note posting_date datetime. */
@@ -308,7 +307,7 @@ export function ClinicalNoteDetailPanel({
     if (!source) return name
     const parts = [
       source.patient_name || source.patient,
-      source.posting_date ? formatDateTime(source.posting_date) : null,
+      notePostedLabel(source) !== '—' ? notePostedLabel(source) : null,
       (source as ClinicalNoteDoc).trans_no || source.name,
     ].filter(Boolean)
     return parts.length ? parts.join(' · ') : name
@@ -586,7 +585,7 @@ export function ClinicalNoteDetailPanel({
               <InfoTile
                 icon={<Calendar className="h-4 w-4" strokeWidth={2} />}
                 label="Posted"
-                value={formatDateTime(doc?.posting_date || preview?.posting_date)}
+                value={notePostedLabel(doc || preview)}
               />
               <InfoTile
                 icon={<Building2 className="h-4 w-4" strokeWidth={2} />}

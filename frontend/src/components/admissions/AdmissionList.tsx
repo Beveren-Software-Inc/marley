@@ -39,7 +39,7 @@ import { CreatePatientReferralModal } from '../referrals/CreatePatientReferralMo
 import { PatientDiagnosisModal } from '../diagnosis/PatientDiagnosisModal'
 import { createInvoiceForInpatientAdmission } from '../../services/inpatientRecords' // Add this import
 import { toast } from '../../hooks/useToast' // Add this import if not already present
-import { Stethoscope } from 'lucide-react'
+import { Stethoscope, Eye } from 'lucide-react'
 import { InpatientDiagnosisModal } from './InpatientDiagnosisModal'
 import { CreateAdmissionModal } from './CreateAdmissionModal'
 import { UploadPatientDocumentsModal } from '../documents/UploadPatientDocumentsModal'
@@ -810,6 +810,17 @@ export const AdmissionList = ({
                               triggerRef={menuRef}
                               minWidth={200}
                             >
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  openAdmissionDetail(record)
+                                  setOpenActionRow(null)
+                                }}
+                                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100"
+                              >
+                                <Eye className="h-3.5 w-3.5 shrink-0 text-slate-500" aria-hidden />
+                                View
+                              </button>
                               {/* Add Create Invoice button - visible for most statuses */}
                               {record.status !== 'Cancelled' && record.status !== 'Discharged' && (
                                 <button

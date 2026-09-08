@@ -61,3 +61,37 @@ export function formatDateTime(value?: string | number | Date | null): string {
   const min = String(timeSource.getMinutes()).padStart(2, '0')
   return `${datePart} ${hh}:${min}`
 }
+
+/** YYYY-MM-DD from a Frappe date/datetime string (no timezone shift). */
+export function isoDateKey(value?: string | number | Date | null): string {
+  if (value === null || value === undefined || value === '') return ''
+  if (typeof value === 'string') {
+    const m = value.trim().match(/^(\d{4}-\d{2}-\d{2})/)
+    return m ? m[1] : ''
+  }
+  if (value instanceof Date && !isNaN(value.getTime())) {
+    const y = value.getFullYear()
+    const m = String(value.getMonth() + 1).padStart(2, '0')
+    const d = String(value.getDate()).padStart(2, '0')
+    return `${y}-${m}-${d}`
+  }
+  return ''
+}
+
+/**
+ * Display date for a Clinical Note linked to a Patient Visit.
+ * Migration often stored posting_date as the import day. When that calendar day
+ * differs from (or is missing vs) the visit encounter date, show the visit date.
+ */
+export function formatLinkedVisitClinicalNoteDate(
+  postingDate?: string | null,
+  visitEncounterDate?: string | null,
+): string {
+  const visitDay = isoDateKey(visitEncounterDate)
+  const noteDay = isoDateKey(postingDate)
+  if (visitDay && (!noteDay || visitDay !== noteDay)) {
+    return formatDate(visitEncounterDate) || visitDay
+  }
+  return formatDateTime(postingDate) || formatDate(visitEncounterDate) || ''
+}
+
