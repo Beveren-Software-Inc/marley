@@ -26,6 +26,7 @@
   "licence_no",
   "appointment",
   "receive_commision",
+  "doctor",
   "employee_and_user_details_section",
   "practitioner_type",
   "employee",
@@ -413,6 +414,12 @@
    "fieldname": "stamp_role",
    "fieldtype": "Data",
    "label": "Stamp Role"
+  },
+  {
+   "default": "0",
+   "fieldname": "doctor",
+   "fieldtype": "Check",
+   "label": "Doctor"
   }
  ],
  "image_field": "image",
@@ -443,7 +450,7 @@
    "link_fieldname": "practitioner"
   }
  ],
- "modified": "2026-09-07 17:08:11.783579",
+ "modified": "2026-09-08 11:07:27.493701",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Healthcare Practitioner",

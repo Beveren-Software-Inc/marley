@@ -47,6 +47,7 @@ import {
   flagsFromPrescriptionType,
   isLongActingPrescriptionType,
   isPrnPrescriptionType,
+  syncPrescriptionEndDateAndDays,
 } from '../../utils/prescriptionType'
 import { X, Plus, Trash2, Pill, ChevronDown, ChevronUp, PenLine } from 'lucide-react'
 import { SignaturePad, attachFileDisplayUrl } from '../ui/SignaturePad'
@@ -965,16 +966,7 @@ export const CreatePrescriptionModal = ({
       // Long-acting medicines may have an empty end date — don't auto-compute it for them.
       const rowIsLongActing = row.is_long_acting || isLongActingPrescriptionType(String(row.medication_type))
       if (!isIP && !rowIsLongActing && (field === 'date' || field === 'end_date' || field === 'no_of_days')) {
-        const start = row.date || ''
-        const end = (field === 'end_date' ? value : row.end_date) as string
-        const daysNum = Number(field === 'no_of_days' ? value : row.no_of_days)
-        // Only derive days from start+end; only derive end when the user sets Days.
-        // Do not auto-fill end date from start date alone.
-        if ((field === 'date' || field === 'end_date') && start && end) {
-          row.no_of_days = daysBetween(start, end) || 1
-        } else if (field === 'no_of_days' && start && Number.isFinite(daysNum) && daysNum > 0) {
-          row.end_date = addDays(start, daysNum)
-        }
+        Object.assign(row, syncPrescriptionEndDateAndDays(row, field, addDays, daysBetween))
       }
       
       next[index] = row
@@ -1863,7 +1855,7 @@ export const CreatePrescriptionModal = ({
                             )}
                           </div>
                           {!isIP && (
-                            <p className="text-[11px] text-slate-500">Start + End Date → Days; or Start Date + Days → End Date</p>
+                            <p className="text-[11px] text-slate-500">Start + End Date → Days; or Start Date + Days → End Date. Clear End Date or Days to clear both.</p>
                           )}
 
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
