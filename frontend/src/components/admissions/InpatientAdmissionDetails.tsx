@@ -6,11 +6,13 @@ import {
   ADMISSION_UI_STATUS_DISCHARGE_IN_PROGRESS,
   type InpatientRecord,
   type InpatientPackage,
+  NO_PACKAGE,
 } from '../../services/inpatientRecords'
 import { StatusPill } from '../ui/StatusPill'
 import { PackageSelectionModal } from './PackageSelectionModal'
 import { AdmissionFormModal } from './AdmissionFormModal'
 import { ScheduleDischargeModal } from './ScheduleDischargeModal'
+import { ModifyMedicalSupervisionModal } from './ModifyMedicalSupervisionModal'
 import { navigateToDischarge } from '../../utils/dischargeNavigation'
 import { getMedicalDiagnosisForPatient, type MedicalDiagnosisEntryRow } from '../../services/medicalDiagnosisEntry'
 import { fetchMedicineGiven, fetchMissedMedicine, type MedicineGivenRow, type MissedMedicineRow } from '../../services/medicineGiven'
@@ -1259,6 +1261,7 @@ export const InpatientAdmissionDetails = ({ admissionName, onUpdate }: Inpatient
   const [showAdmissionForm, setShowAdmissionForm] = useState(false)
   const [selectedPackage, setSelectedPackage] = useState<InpatientPackage | null>(null)
   const [showScheduleDischarge, setShowScheduleDischarge] = useState(false)
+  const [showMedicalSupervision, setShowMedicalSupervision] = useState(false)
 
   const { user } = useAuth()
   const isDoctor = isDoctorRole(
@@ -1413,12 +1416,26 @@ export const InpatientAdmissionDetails = ({ admissionName, onUpdate }: Inpatient
         {(record.status === 'Admission Scheduled' || record.status === 'Admitted' || record.status === 'Discharge Scheduled') && (
           <div className="flex flex-wrap gap-2 pb-1">
             {record.status === 'Admission Scheduled' && (
-              <button
-                onClick={() => setShowPackages(true)}
-                className="px-4 py-2 bg-primary text-white text-sm font-medium rounded-md hover:bg-primary/90 transition-colors"
-              >
-                Admit Patient
-              </button>
+              <>
+                <button
+                  onClick={() => setShowPackages(true)}
+                  className="px-4 py-2 bg-primary text-white text-sm font-medium rounded-md hover:bg-primary/90 transition-colors"
+                >
+                  Admit Patient
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedPackage(NO_PACKAGE)
+                    setShowPackages(false)
+                    setShowAdmissionForm(true)
+                  }}
+                  className="px-4 py-2 text-sm font-medium rounded-md border border-emerald-300 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 transition-colors"
+                  title="Skip package and quotation — choose room and admit"
+                >
+                  Admit without package
+                </button>
+              </>
             )}
             {record.status === 'Admitted' && Boolean(record.discharge_in_progress) && (
               <button
@@ -1437,6 +1454,13 @@ export const InpatientAdmissionDetails = ({ admissionName, onUpdate }: Inpatient
                   className="px-4 py-2 text-sm font-medium rounded-md border border-orange-600 text-orange-600 bg-white hover:bg-orange-600 hover:text-white transition-colors"
                 >
                   Schedule Discharge
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowMedicalSupervision(true)}
+                  className="px-4 py-2 text-sm font-medium rounded-md border border-teal-600 text-teal-700 bg-white hover:bg-teal-600 hover:text-white transition-colors"
+                >
+                  Modify Medical Supervision
                 </button>
                 {isDoctor && (
                   <button
@@ -1556,6 +1580,17 @@ export const InpatientAdmissionDetails = ({ admissionName, onUpdate }: Inpatient
           admission={{ name: record.name, patient: record.patient, patient_name: record.patient_name }}
           onClose={() => setShowScheduleDischarge(false)}
           onSuccess={handleDischargeScheduled}
+        />
+      )}
+
+      {showMedicalSupervision && (
+        <ModifyMedicalSupervisionModal
+          admission={record.name}
+          patientName={record.patient_name || record.patient}
+          onClose={() => setShowMedicalSupervision(false)}
+          onSaved={() => {
+            void loadRecord()
+          }}
         />
       )}
 

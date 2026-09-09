@@ -564,6 +564,7 @@ scheduler_events = {
 		],
 		"59 23 * * *": [
 			"healthcare.api.observation.create_daily_observation_sales_orders",
+			"healthcare.api.medical_supervision.process_daily_medical_supervision",
 		],
 	},
 	"daily": [
