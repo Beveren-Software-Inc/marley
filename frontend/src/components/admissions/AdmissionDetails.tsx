@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { fetchInpatientRecord, type InpatientRecord, type InpatientPackage, scheduleDischarge, cancelAdmission } from '../../services/inpatientRecords'
+import { fetchInpatientRecord, type InpatientRecord, type InpatientPackage, scheduleDischarge, cancelAdmission, NO_PACKAGE } from '../../services/inpatientRecords'
 import { hasAnyDischargeDraft, draftSavedAt } from '../../services/dischargeDraft'
 import { PackageSelectionModal } from './PackageSelectionModal'
 import { AdmissionFormModal } from './AdmissionFormModal'
@@ -106,6 +106,12 @@ export const AdmissionDetails = ({ admissionNo, onUpdate }: AdmissionDetailsProp
 
   const handleAdmit = () => {
     setShowPackages(true)
+  }
+
+  const handleAdmitWithoutPackage = () => {
+    setSelectedPackage(NO_PACKAGE)
+    setShowPackages(false)
+    setShowAdmitModal(true)
   }
 
   const handlePackageSelect = (pkg: any) => {
@@ -263,6 +269,14 @@ export const AdmissionDetails = ({ admissionNo, onUpdate }: AdmissionDetailsProp
                   className="px-4 py-2 text-sm font-medium text-white bg-primary rounded-md hover:bg-primary/90 disabled:opacity-50"
                 >
                   Admit
+                </button>
+                <button
+                  onClick={handleAdmitWithoutPackage}
+                  disabled={actionLoading}
+                  className="px-4 py-2 text-sm font-medium text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-md hover:bg-emerald-100 disabled:opacity-50"
+                  title="Skip package and quotation — choose room and admit"
+                >
+                  Admit without package
                 </button>
               <button
                 onClick={handleCancelAdmission}

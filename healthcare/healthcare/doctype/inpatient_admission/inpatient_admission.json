@@ -876,12 +876,13 @@
    "default": "0",
    "fieldname": "is_med_supr_required",
    "fieldtype": "Check",
-   "label": "Is Med Supr Required"
+   "label": "Medical Supervision Required"
   },
   {
+   "depends_on": "is_med_supr_required",
    "fieldname": "med_supr_service_code",
    "fieldtype": "Data",
-   "label": "Med Supr Service Code"
+   "label": "Medical Supervision Service"
   },
   {
    "fieldname": "column_break_lunl",

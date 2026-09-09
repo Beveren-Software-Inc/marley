@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
-import { fetchInpatientRecord, fetchServiceUnits, fetchBedNumbers, admitPatient, calculatePackagePrice, type ServiceUnit, type BedNoRecord, type InpatientPackage, createAdmissionQuotation, checkAdmissionQuotation, fetchCaseManagementTemplates, fetchAdmissionBillingSettings } from '../../services/inpatientRecords'
+import { fetchInpatientRecord, fetchServiceUnits, fetchBedNumbers, admitPatient, calculatePackagePrice, type ServiceUnit, type BedNoRecord, type InpatientPackage, createAdmissionQuotation, checkAdmissionQuotation, fetchCaseManagementTemplates, fetchMedicalSupervisionTemplates, fetchAdmissionBillingSettings, isNoPackage } from '../../services/inpatientRecords'
 import { uploadPatientFile, type PatientDocumentRow } from '../../services/patients'
 import { fetchDocumentTypes, fetchServiceUnitTypes, createDocumentType, type LinkFieldOption } from '../../services/common'
 import { DocumentTypeSelect } from '../ui/DocumentTypeSelect'
@@ -237,7 +237,7 @@ interface AdmissionFormModalProps {
   onClose: () => void
 }
 
-type Tab = 'admission' | 'case_management' | 'documents' | 'signatures' | 'relatives'
+type Tab = 'admission' | 'case_management' | 'medical_supervision' | 'documents' | 'signatures' | 'relatives'
 
 // Relationship options – must match IP Patient Relative doctype (same as Discharge)
 const RELATION_OPTIONS = [
@@ -283,6 +283,7 @@ export const AdmissionFormModal = ({
   onComplete,
   onClose
 }: AdmissionFormModalProps) => {
+  const skipPackage = isNoPackage(selectedPackage)
   const [activeTab, setActiveTab] = useState<Tab>('admission')
   const [record, setRecord] = useState<any>(null)
   const [roomTypes, setRoomTypes] = useState<LinkFieldOption[]>([])
@@ -379,6 +380,7 @@ export const AdmissionFormModal = ({
     checkIn: toDatetimeLocalValue(),
     expectedDischarge: '' as string,
     ipCaseManagement: 0 as 0 | 1,
+    isMedSuprRequired: null as null | 0 | 1,
   })
   const [caseManagementTemplates, setCaseManagementTemplates] = useState<
     Array<{ name: string; service_name?: string; item_code?: string; rate: number }>
@@ -390,6 +392,21 @@ export const AdmissionFormModal = ({
   const serviceDropdownRef = useRef<HTMLDivElement>(null)
   const [combineAdmissionAndCaseManagement, setCombineAdmissionAndCaseManagement] = useState(0)
   const [mandatoryAdmissionAssessmentFee, setMandatoryAdmissionAssessmentFee] = useState(0)
+  const [medicalSupervisionTemplates, setMedicalSupervisionTemplates] = useState<
+    Array<{
+      name: string
+      service_name?: string
+      item_code?: string
+      rate: number
+      default_medical_supervision?: number
+    }>
+  >([])
+  const [selectedMedicalSupervision, setSelectedMedicalSupervision] = useState<{
+    template: string
+    amount: number
+    label: string
+    code: string
+  } | null>(null)
 
   const caseManagementTotal = useMemo(
     () => caseManagementServices.reduce((sum, s) => sum + (Number(s.amount) || 0), 0),
@@ -402,6 +419,27 @@ export const AdmissionFormModal = ({
         (t) => !caseManagementServices.some((s) => s.template === t.name)
       ),
     [caseManagementTemplates, caseManagementServices]
+  )
+
+  const applyMedicalSupervisionTemplate = (t: {
+    name: string
+    service_name?: string
+    item_code?: string
+    rate: number
+  }) => {
+    setSelectedMedicalSupervision({
+      template: t.name,
+      amount: Number(t.rate) || 0,
+      label: t.service_name || t.name,
+      code: t.item_code || t.name,
+    })
+  }
+
+  const defaultMedicalSupervisionTemplate = useMemo(
+    () =>
+      medicalSupervisionTemplates.find((t) => Number(t.default_medical_supervision) === 1) ||
+      null,
+    [medicalSupervisionTemplates]
   )
 
   const addCaseManagementService = (t: {
@@ -479,6 +517,11 @@ export const AdmissionFormModal = ({
 
   useEffect(() => {
     const calculatePrice = async () => {
+      if (skipPackage) {
+        setCalculatedPrice(null)
+        setPriceBreakdown(null)
+        return
+      }
       if (days > 0 && selectedPackage.name) {
         // For custom packages, compute directly from the entered rate × room multiplier
         if (selectedPackage.name === '__custom__') {
@@ -520,7 +563,7 @@ export const AdmissionFormModal = ({
       }
     }
     calculatePrice()
-  }, [days, selectedPackage.name, selectedPackage.package_rate, activeRoomType, activeRoomMultiplier, selectedServiceUnits])
+  }, [days, selectedPackage.name, selectedPackage.package_rate, activeRoomType, activeRoomMultiplier, selectedServiceUnits, skipPackage])
 
   // ── Service unit search (any room type; cost center optional on room) ─────
 
@@ -621,10 +664,11 @@ export const AdmissionFormModal = ({
         setLoading(true)
         setError(null)
 
-        const [recordData, fetchedDocTypes, cmTemplates, billingSettings] = await Promise.all([
+        const [recordData, fetchedDocTypes, cmTemplates, msTemplates, billingSettings] = await Promise.all([
           fetchInpatientRecord(admissionNo),
           fetchDocumentTypes(),
           fetchCaseManagementTemplates(),
+          fetchMedicalSupervisionTemplates(),
           fetchAdmissionBillingSettings(),
         ])
 
@@ -656,6 +700,7 @@ export const AdmissionFormModal = ({
           },
         ])
         setCaseManagementTemplates(cmTemplates)
+        setMedicalSupervisionTemplates(msTemplates)
         setCombineAdmissionAndCaseManagement(
           Number(billingSettings.combine_admission_fee_and_case_management || 0)
         )
@@ -663,6 +708,24 @@ export const AdmissionFormModal = ({
         setMandatoryAdmissionAssessmentFee(mandatoryFee)
         if (mandatoryFee) {
           setFormData((prev) => ({ ...prev, ipCaseManagement: 1 }))
+        }
+
+        const existingMedSupr = Number((recordData as any).is_med_supr_required || 0) === 1
+        const existingMedCode = String((recordData as any).med_supr_service_code || '').trim()
+        if (existingMedSupr) {
+          setFormData((prev) => ({ ...prev, isMedSuprRequired: 1 }))
+          const matched =
+            msTemplates.find((t) => t.name === existingMedCode || t.item_code === existingMedCode) ||
+            msTemplates.find((t) => Number(t.default_medical_supervision) === 1) ||
+            null
+          if (matched) {
+            setSelectedMedicalSupervision({
+              template: matched.name,
+              amount: Number(matched.rate) || 0,
+              label: matched.service_name || matched.name,
+              code: matched.item_code || matched.name,
+            })
+          }
         }
 
         const existingRelatives = (recordData as any).patient_relatives || []
@@ -733,7 +796,7 @@ export const AdmissionFormModal = ({
 
   useEffect(() => {
     const checkQuotation = async () => {
-      if (selectedPackage.name === '__custom__') return
+      if (skipPackage || selectedPackage.name === '__custom__') return
       try {
         setCheckingQuotation(true)
         const result = await checkAdmissionQuotation(admissionNo, selectedPackage.name)
@@ -747,8 +810,8 @@ export const AdmissionFormModal = ({
         setCheckingQuotation(false)
       }
     }
-    if (admissionNo && selectedPackage.name) checkQuotation()
-  }, [admissionNo, selectedPackage.name])
+    if (admissionNo && selectedPackage.name && !skipPackage) checkQuotation()
+  }, [admissionNo, selectedPackage.name, skipPackage])
 
   // ── Service unit toggle (FIX: no longer replaces query on select) ─────────
 
@@ -893,6 +956,16 @@ export const AdmissionFormModal = ({
       setActiveTab('case_management')
       return
     }
+    if (formData.isMedSuprRequired !== 0 && formData.isMedSuprRequired !== 1) {
+      setError(new Error('Select Yes or No for Medical Supervision'))
+      setActiveTab('medical_supervision')
+      return
+    }
+    if (formData.isMedSuprRequired === 1 && !selectedMedicalSupervision?.template) {
+      setError(new Error('Select a Medical Supervision service on the Medical Supervision tab'))
+      setActiveTab('medical_supervision')
+      return
+    }
     const quotationSu = resolveQuotationServiceUnit()
     if (!quotationSu) {
       setError(new Error('Select at least one room or a bed (with a room) to create a quotation'))
@@ -940,13 +1013,13 @@ export const AdmissionFormModal = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    if (!salesOrderCreated && !existingQuotation) {
+    if (!skipPackage && !salesOrderCreated && !existingQuotation) {
       setError(new Error('Create a quotation first before admitting the patient'))
       setActiveTab('admission')
       return
     }
 
-    if (days <= 0) {
+    if (!skipPackage && days <= 0) {
       setError(new Error('Number of days must be greater than 0'))
       return
     }
@@ -965,6 +1038,17 @@ export const AdmissionFormModal = ({
     if (formData.ipCaseManagement === 1 && caseManagementServices.length === 0) {
       setError(new Error('Select at least one Admission Assessment Fee service'))
       setActiveTab('case_management')
+      return
+    }
+
+    if (formData.isMedSuprRequired !== 0 && formData.isMedSuprRequired !== 1) {
+      setError(new Error('Select Yes or No for Medical Supervision'))
+      setActiveTab('medical_supervision')
+      return
+    }
+    if (formData.isMedSuprRequired === 1 && !selectedMedicalSupervision?.template) {
+      setError(new Error('Select a Medical Supervision service'))
+      setActiveTab('medical_supervision')
       return
     }
 
@@ -1030,9 +1114,9 @@ export const AdmissionFormModal = ({
         patientDocuments.length > 0 ? patientDocuments : undefined,
         patientRelatives.length > 0 ? patientRelatives : undefined,
         selectedServiceUnits.map(su => su.name),
-        selectedPackage.name,
-        selectedPackage.package_rate,
-        selectedPackage.name === '__custom__' ? 0 : 1,
+        skipPackage ? undefined : selectedPackage.name,
+        skipPackage ? undefined : selectedPackage.package_rate,
+        skipPackage || selectedPackage.name === '__custom__' ? 0 : 1,
         selectedBedNo?.name ?? null,
         selectedBedNo?.name ?? null,
         wantCm ? 1 : 0,
@@ -1043,6 +1127,9 @@ export const AdmissionFormModal = ({
           ? caseManagementServices.map((s) => ({ template: s.template, amount: s.amount }))
           : null,
         selectedRoomType.name,
+        formData.isMedSuprRequired === 1 ? 1 : 0,
+        formData.isMedSuprRequired === 1 ? selectedMedicalSupervision?.template ?? null : null,
+        formData.isMedSuprRequired === 1 ? selectedMedicalSupervision?.amount ?? null : null,
       )
 
       onComplete()
@@ -1073,6 +1160,7 @@ export const AdmissionFormModal = ({
   const tabs: { id: Tab; label: string; badge?: number }[] = [
     { id: 'admission', label: 'Admission Details' },
     { id: 'case_management', label: 'Admission Assessment Fee' },
+    { id: 'medical_supervision', label: 'Medical Supervision' },
     { id: 'documents', label: 'Documents', badge: documents.length || undefined },
     { id: 'signatures', label: 'Signatures', badge: signatures.length || undefined },
     { id: 'relatives', label: 'Relatives', badge: relatives.length || undefined },
@@ -1087,7 +1175,9 @@ export const AdmissionFormModal = ({
         {/* Header */}
         <div className="p-6 border-b border-slate-200 shrink-0">
           <div className="flex items-center justify-between">
-            <h2 className="text-xl font-semibold text-slate-900">Admit Patient</h2>
+            <h2 className="text-xl font-semibold text-slate-900">
+              {skipPackage ? 'Admit without Package' : 'Admit Patient'}
+            </h2>
             <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
               <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -1128,6 +1218,15 @@ export const AdmissionFormModal = ({
             {activeTab === 'admission' && (
               <>
                 {/* Package Info */}
+                {skipPackage ? (
+                  <div className="rounded-lg p-4 bg-emerald-50 border border-emerald-200">
+                    <h3 className="font-semibold text-emerald-900 mb-1">Admit without package</h3>
+                    <p className="text-sm text-emerald-800">
+                      No package or quotation. Choose room type and bed as usual. You can still add
+                      Admission Assessment Fee on the next tab. Package can be attached later.
+                    </p>
+                  </div>
+                ) : (
                 <div className={`rounded-lg p-4 ${selectedPackage.name === '__custom__' ? 'bg-amber-50 border border-amber-200' : 'bg-slate-50'}`}>
                   <h3 className="font-semibold text-slate-900 mb-2">Selected Package</h3>
                   <div className="mb-2 flex items-center gap-2 flex-wrap">
@@ -1172,8 +1271,10 @@ export const AdmissionFormModal = ({
                     </div>
                   )}
                 </div>
+                )}
 
-                {/* Days + Discount */}
+                {/* Days + Discount — only when admitting with a package */}
+                {!skipPackage && (
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">
@@ -1205,6 +1306,7 @@ export const AdmissionFormModal = ({
                     />
                   </div>
                 </div>
+                )}
 
                 {/* Room Type + Room */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1349,7 +1451,7 @@ export const AdmissionFormModal = ({
                 </div>
 
                 {/* Calculated Price */}
-                {calculatingPrice ? (
+                {!skipPackage && (calculatingPrice ? (
                   <div className="bg-blue-50 border border-blue-200 rounded-md p-3 text-sm text-blue-700">
                     Calculating price...
                   </div>
@@ -1379,7 +1481,7 @@ export const AdmissionFormModal = ({
                     )}
                     <p className="text-xs text-green-700 mt-1">For {days} {days === 1 ? 'day' : 'days'} (rate = package / day)</p>
                   </div>
-                ) : null}
+                ) : null)}
 
                 {/* Patient Info */}
                 {record && (
@@ -1416,7 +1518,7 @@ export const AdmissionFormModal = ({
                   />
                 </div>
 
-                {salesOrderCreated && (
+                {salesOrderCreated && !skipPackage && (
                   <div className="bg-blue-50 border border-blue-200 rounded-md p-3 text-sm text-blue-800">
                     <p className="font-medium">Quotation drafted for approval.</p>
                     <p className="text-xs mt-1">Quotation: {salesOrderCreated}</p>
@@ -1562,7 +1664,12 @@ export const AdmissionFormModal = ({
                 )}
 
                 <div className="rounded-md border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600 space-y-1">
-                  {combineAdmissionAndCaseManagement ? (
+                  {skipPackage ? (
+                    <p>
+                      No package quotation on this admit. If you select Admission Assessment Fee, a Service Request
+                      is created on admit and billed with its own Sales Order.
+                    </p>
+                  ) : combineAdmissionAndCaseManagement ? (
                     <p>
                       Healthcare Settings: <strong>Combine Admission Fee and Admission Assessment Fee</strong> is on.
                       Create Quotation will include the assessment fee on the same quotation. On admit, a Service Request is created (no separate Sales Order).
@@ -1573,6 +1680,116 @@ export const AdmissionFormModal = ({
                       On admit, Admission Assessment Fee creates a Service Request that is billed with its own Sales Order.
                     </p>
                   )}
+                </div>
+              </div>
+            )}
+
+            {/* ── TAB: MEDICAL SUPERVISION ── */}
+            {activeTab === 'medical_supervision' && (
+              <div className="space-y-5">
+                <YesNoField
+                  label="Medical Supervision?"
+                  value={
+                    formData.isMedSuprRequired === 1
+                      ? 'Yes'
+                      : formData.isMedSuprRequired === 0
+                        ? 'No'
+                        : ''
+                  }
+                  required
+                  onChange={(v) => {
+                    const enabled = v === 'Yes'
+                    setFormData((prev) => ({ ...prev, isMedSuprRequired: enabled ? 1 : 0 }))
+                    if (!enabled) {
+                      setSelectedMedicalSupervision(null)
+                      return
+                    }
+                    if (!selectedMedicalSupervision && defaultMedicalSupervisionTemplate) {
+                      applyMedicalSupervisionTemplate(defaultMedicalSupervisionTemplate)
+                    }
+                  }}
+                />
+
+                {formData.isMedSuprRequired === 1 && (
+                  <>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">
+                        Medical Supervision Service <span className="text-red-500">*</span>
+                      </label>
+                      <select
+                        value={selectedMedicalSupervision?.template || ''}
+                        onChange={(e) => {
+                          const name = e.target.value
+                          if (!name) {
+                            setSelectedMedicalSupervision(null)
+                            return
+                          }
+                          const t = medicalSupervisionTemplates.find((row) => row.name === name)
+                          if (t) applyMedicalSupervisionTemplate(t)
+                        }}
+                        className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                      >
+                        <option value="">Select service…</option>
+                        {medicalSupervisionTemplates.map((t) => (
+                          <option key={t.name} value={t.name}>
+                            {(t.item_code || t.name)
+                              + (t.service_name ? ` — ${t.service_name}` : '')
+                              + (Number(t.default_medical_supervision) === 1 ? ' (default)' : '')
+                              + (t.rate != null ? ` · ${Number(t.rate).toLocaleString()} BHD` : '')}
+                          </option>
+                        ))}
+                      </select>
+                      {medicalSupervisionTemplates.length === 0 && (
+                        <p className="mt-1 text-xs text-amber-700">
+                          No services found. Mark a Healthcare Service Template with “Is Medical Supervision”.
+                        </p>
+                      )}
+                      {defaultMedicalSupervisionTemplate && (
+                        <p className="mt-1 text-[11px] text-slate-500">
+                          Default:{' '}
+                          {defaultMedicalSupervisionTemplate.item_code ||
+                            defaultMedicalSupervisionTemplate.service_name ||
+                            defaultMedicalSupervisionTemplate.name}
+                        </p>
+                      )}
+                    </div>
+
+                    {selectedMedicalSupervision && (
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">
+                          Amount (IP)
+                        </label>
+                        <div className="relative max-w-[12rem]">
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.001"
+                            value={Number.isFinite(selectedMedicalSupervision.amount) ? selectedMedicalSupervision.amount : ''}
+                            onChange={(e) => {
+                              const raw = e.target.value
+                              setSelectedMedicalSupervision((prev) =>
+                                prev
+                                  ? {
+                                      ...prev,
+                                      amount: raw === '' ? 0 : Math.max(0, parseFloat(raw) || 0),
+                                    }
+                                  : prev,
+                              )
+                            }}
+                            className="w-full rounded-md border border-slate-300 px-3 py-2 pr-12 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                          />
+                          <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[11px] text-slate-400">
+                            BHD
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
+
+                <div className="rounded-md border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
+                  If Yes, a Service Request is created on admit for the selected Medical Supervision
+                  service and billed with its own Sales Order.
                 </div>
               </div>
             )}
@@ -1952,7 +2169,7 @@ export const AdmissionFormModal = ({
 
           {/* Footer */}
           <div className="shrink-0 border-t border-slate-200 px-6 py-4 flex justify-between items-center bg-white gap-3">
-            {activeTab === 'admission' && !existingQuotation && !salesOrderCreated && (
+            {activeTab === 'admission' && !skipPackage && !existingQuotation && !salesOrderCreated && (
               <button
                 type="button"
                 onClick={handleCreateSalesOrder}
@@ -1964,8 +2181,11 @@ export const AdmissionFormModal = ({
             )}
 
             <div className="flex flex-col items-end gap-1 ml-auto">
-              {!salesOrderCreated && !existingQuotation && !checkingQuotation && (
+              {!skipPackage && !salesOrderCreated && !existingQuotation && !checkingQuotation && (
                 <p className="text-[11px] text-amber-700">Create a quotation to enable Admit Patient</p>
+              )}
+              {skipPackage && (
+                <p className="text-[11px] text-emerald-700">No package — room and signatures required to admit</p>
               )}
               <div className="flex gap-3">
                 <button type="button" onClick={onClose}
@@ -1976,11 +2196,11 @@ export const AdmissionFormModal = ({
                   type="submit"
                   disabled={
                     submitting ||
-                    checkingQuotation ||
-                    (!salesOrderCreated && !existingQuotation)
+                    (!skipPackage && checkingQuotation) ||
+                    (!skipPackage && !salesOrderCreated && !existingQuotation)
                   }
                   title={
-                    !salesOrderCreated && !existingQuotation
+                    !skipPackage && !salesOrderCreated && !existingQuotation
                       ? 'Create a quotation first'
                       : undefined
                   }

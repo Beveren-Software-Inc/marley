@@ -20,6 +20,8 @@
   "pricing",
   "is_ect",
   "is_case_management",
+  "is_medical_supervision",
+  "default_medical_supervision",
   "section_break_gxzz",
   "display_name",
   "sg_no",
@@ -174,10 +176,23 @@
    "fieldname": "is_case_management",
    "fieldtype": "Check",
    "label": "Is Case Management"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_medical_supervision",
+   "fieldtype": "Check",
+   "label": "Is Medical Supervision"
+  },
+  {
+   "default": "0",
+   "depends_on": "is_medical_supervision",
+   "fieldname": "default_medical_supervision",
+   "fieldtype": "Check",
+   "label": "Default Medical Supervision"
   }
  ],
  "links": [],
- "modified": "2026-07-14 01:26:00.246675",
+ "modified": "2026-09-09 11:19:30.320568",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Healthcare Service Template",

@@ -12,6 +12,7 @@ import { PackageSelectionModal } from './PackageSelectionModal'
 import { AdmissionFormModal } from './AdmissionFormModal'
 import { ScheduleDischargeModal } from './ScheduleDischargeModal'
 import { TransferCostCenterModal } from './TransferCostCenterModal'
+import { ModifyMedicalSupervisionModal } from './ModifyMedicalSupervisionModal'
 import { InpatientAdmissionDetails } from './InpatientAdmissionDetails'
 import { AddVisitorModal } from './AddVisitorModal'
 import { SuicidalPatientAssessmentModal } from './SuicidalPatientAssessmentModal'
@@ -34,6 +35,7 @@ import {
   getAdmissionDisplayStatus,
   type InpatientRecord,
   type InpatientPackage,
+  NO_PACKAGE,
 } from '../../services/inpatientRecords'
 import { CreatePatientReferralModal } from '../referrals/CreatePatientReferralModal'
 import { PatientDiagnosisModal } from '../diagnosis/PatientDiagnosisModal'
@@ -163,6 +165,7 @@ export const AdmissionList = ({
   const [showAdmissionForm, setShowAdmissionForm] = useState(false)
   const [selectedPackage, setSelectedPackage] = useState<InpatientPackage | null>(null)
   const [showScheduleDischarge, setShowScheduleDischarge] = useState(false)
+  const [medicalSupervisionAdmission, setMedicalSupervisionAdmission] = useState<InpatientRecord | null>(null)
   const [selectedAdmissionForDischarge, setSelectedAdmissionForDischarge] = useState<InpatientRecord | null>(null)
   const [showTransferCostCenter, setShowTransferCostCenter] = useState(false)
   const [selectedAdmissionForTransfer, setSelectedAdmissionForTransfer] = useState<InpatientRecord | null>(null)
@@ -369,6 +372,13 @@ export const AdmissionList = ({
   const handleAdmit = (recordName: string) => {
     setSelectedRecord(recordName)
     setShowPackages(true)
+  }
+
+  const handleAdmitWithoutPackage = (recordName: string) => {
+    setSelectedRecord(recordName)
+    setSelectedPackage(NO_PACKAGE)
+    setShowPackages(false)
+    setShowAdmissionForm(true)
   }
 
   const handlePackageSelect = (pkg: InpatientPackage) => {
@@ -860,13 +870,23 @@ export const AdmissionList = ({
                               )}
                               
                               {record.status === 'Admission Scheduled' && (
-                                <button
-                                  type="button"
-                                  onClick={() => { handleAdmit(record.name); setOpenActionRow(null) }}
-                                  className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
-                                >
-                                  Admit
-                                </button>
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() => { handleAdmit(record.name); setOpenActionRow(null) }}
+                                    className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
+                                  >
+                                    Admit
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => { handleAdmitWithoutPackage(record.name); setOpenActionRow(null) }}
+                                    className="block w-full text-left px-3 py-2 text-sm text-emerald-700 hover:bg-emerald-50"
+                                    title="Skip package and quotation — choose room and admit"
+                                  >
+                                    Admit without package
+                                  </button>
+                                </>
                               )}
                               {record.status === 'Admitted' && (
                                 <>
@@ -876,6 +896,16 @@ export const AdmissionList = ({
                                     className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
                                   >
                                     Schedule Discharge
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setMedicalSupervisionAdmission(record)
+                                      setOpenActionRow(null)
+                                    }}
+                                    className="block w-full text-left px-3 py-2 text-sm text-teal-800 hover:bg-teal-50"
+                                  >
+                                    Modify Medical Supervision
                                   </button>
                                   <button
                                     type="button"
@@ -1195,6 +1225,15 @@ export const AdmissionList = ({
           }}
           onClose={() => { setShowScheduleDischarge(false); setSelectedAdmissionForDischarge(null) }}
           onSuccess={handleDischargeScheduled}
+        />
+      )}
+
+      {medicalSupervisionAdmission && (
+        <ModifyMedicalSupervisionModal
+          admission={medicalSupervisionAdmission.name}
+          patientName={medicalSupervisionAdmission.patient_name || medicalSupervisionAdmission.patient}
+          onClose={() => setMedicalSupervisionAdmission(null)}
+          onSaved={() => refetch()}
         />
       )}
 

@@ -333,6 +333,19 @@ export interface InpatientPackage {
   duration_pricing?: DurationPricing[]
 }
 
+/** Sentinel for admit-without-package (skips package selection + quotation). */
+export const NO_PACKAGE: InpatientPackage = {
+  name: '__none__',
+  package_name: 'No Package',
+  no_of_days: 0,
+  package_rate: 0,
+  active: 1,
+}
+
+export function isNoPackage(pkg: Pick<InpatientPackage, 'name'> | null | undefined): boolean {
+  return (pkg?.name || '') === '__none__'
+}
+
 export interface InpatientPackagesResponse {
   packages: InpatientPackage[]
   default_currency: string
@@ -694,6 +707,25 @@ export async function fetchCaseManagementTemplates(search?: string): Promise<
   return []
 }
 
+export async function fetchMedicalSupervisionTemplates(search?: string): Promise<
+  Array<{
+    name: string
+    service_name?: string
+    item_code?: string
+    rate: number
+    default_medical_supervision?: number
+  }>
+> {
+  const params = new URLSearchParams()
+  if (search) params.append('search', search)
+  params.append('limit', '100')
+  const url = `/api/method/healthcare.api.inpatient_admission.get_medical_supervision_templates?${params.toString()}`
+  const response = await fetch(url)
+  const resData = await response.json()
+  if (Array.isArray(resData?.message)) return resData.message
+  return []
+}
+
 export async function fetchAdmissionBillingSettings(): Promise<{
   combine_admission_fee_and_case_management: number
   mendatory_admission_assessment_fee: number
@@ -747,6 +779,9 @@ export async function admitPatient(
   caseManagementFee?: number | null,
   caseManagementServices?: Array<{ template: string; amount?: number | null }> | null,
   serviceUnitType?: string | null,
+  isMedSuprRequired?: 0 | 1,
+  medSuprServiceCode?: string | null,
+  medicalSupervisionFee?: number | null,
 ) {
   const { ensureCSRF } = await import('./apiClient')
   const csrf = await ensureCSRF()
@@ -785,6 +820,9 @@ export async function admitPatient(
           ? caseManagementServices
           : null,
         service_unit_type: serviceUnitType || null,
+        is_med_supr_required: isMedSuprRequired ?? 0,
+        med_supr_service_code: medSuprServiceCode || null,
+        medical_supervision_fee: medicalSupervisionFee ?? null,
       })
     }
   )

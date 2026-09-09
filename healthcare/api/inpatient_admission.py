@@ -8,7 +8,7 @@ import re
 from frappe import _
 from datetime import timedelta
 
-from frappe.utils import cint, cstr, flt, format_timedelta, get_datetime, getdate
+from frappe.utils import cint, cstr, flt, format_timedelta, get_datetime, getdate, today
 from healthcare.api.patient_visit import create_invoice
 from healthcare.api.utils.api_utility import get_next_inpatient_case_number
 from healthcare.controllers.discount_validation import apply_insurance_discounts
@@ -3195,6 +3195,150 @@ def get_case_management_templates(search=None, limit=50):
 	return rows
 
 
+def _get_medical_supervision_ip_rate(template_name):
+	from healthcare.healthcare.doctype.healthcare_service_template.healthcare_service_template import (
+		get_healthcare_service_template_rate,
+	)
+
+	return flt(
+		get_healthcare_service_template_rate(
+			template_name=template_name,
+			patient_care_type="IP",
+		)
+	)
+
+
+def _validate_medical_supervision_template(template_name):
+	if not template_name:
+		frappe.throw(_("Medical Supervision service is required"))
+	if not frappe.db.exists("Healthcare Service Template", template_name):
+		frappe.throw(_("Healthcare Service Template {0} not found").format(template_name))
+	is_ms = cint(
+		frappe.db.get_value("Healthcare Service Template", template_name, "is_medical_supervision")
+	)
+	if not is_ms:
+		frappe.throw(
+			_("Healthcare Service Template {0} is not marked as Medical Supervision").format(
+				template_name
+			)
+		)
+	disabled = cint(frappe.db.get_value("Healthcare Service Template", template_name, "disabled"))
+	if disabled:
+		frappe.throw(_("Healthcare Service Template {0} is disabled").format(template_name))
+
+
+def _create_medical_supervision_service_request(
+	admission,
+	template_name,
+	amount=None,
+	*,
+	continuous=True,
+	billing_date=None,
+	bill=True,
+):
+	"""Create Service Request for Medical Supervision; optionally bill via Sales Order.
+
+	When continuous=True, sets is_continous_medical_supervision so the daily job keeps
+	charging until stop. Use continuous=False for one-off daily charge rows.
+	"""
+	from healthcare.api.service_request import create_service_request
+
+	_validate_medical_supervision_template(template_name)
+	rate = flt(amount) if amount is not None else _get_medical_supervision_ip_rate(template_name)
+	billing_date = getdate(billing_date or today())
+
+	practitioner = (
+		admission.get("primary_practitioner")
+		or admission.get("admission_by_doctor")
+		or admission.get("admission_practitioner")
+	)
+	if not practitioner:
+		frappe.throw(
+			_("Set a Primary Practitioner (or Admission Doctor) on the admission before Medical Supervision.")
+		)
+
+	cost_center = admission.get("cost_center")
+	if not cost_center:
+		frappe.throw(_("Set a Cost Center on the admission before Medical Supervision."))
+
+	sr = create_service_request(
+		{
+			"patient": admission.patient,
+			"inpatient_record": admission.name,
+			"template_dt": "Healthcare Service Template",
+			"template_dn": template_name,
+			"practitioner": practitioner,
+			"cost_center": cost_center,
+			"cost": rate,
+			"grand_total": rate,
+			"override_rate": 1,
+			"expected_date": str(billing_date),
+			"status": "draft-Request Status",
+		}
+	)
+
+	sr_name = (sr or {}).get("name")
+	if sr_name:
+		values = {
+			"cost": rate,
+			"grand_total": rate,
+			"discount_amount": 0,
+			"expected_date": str(billing_date),
+		}
+		if frappe.get_meta("Service Request").has_field("is_continous_medical_supervision"):
+			values["is_continous_medical_supervision"] = 1 if continuous else 0
+		frappe.db.set_value("Service Request", sr_name, values, update_modified=False)
+
+	sales_order = None
+	if bill and sr_name:
+		from healthcare.api.medical_supervision import bill_medical_supervision_service_request
+
+		sales_order = bill_medical_supervision_service_request(sr_name, billing_date=billing_date)
+
+	return {
+		"service_request": sr_name,
+		"sales_order": sales_order,
+		"amount": rate,
+		"template": template_name,
+		"continuous": 1 if continuous else 0,
+		"billing_date": str(billing_date),
+	}
+
+
+@frappe.whitelist()
+def get_medical_supervision_templates(search=None, limit=50):
+	"""Healthcare Service Templates marked Is Medical Supervision (IP rate)."""
+	filters = {"disabled": 0, "is_medical_supervision": 1}
+	or_filters = None
+	if search:
+		term = f"%{search}%"
+		or_filters = [
+			["service_name", "like", term],
+			["item_code", "like", term],
+			["name", "like", term],
+		]
+
+	rows = frappe.get_all(
+		"Healthcare Service Template",
+		filters=filters,
+		or_filters=or_filters,
+		fields=[
+			"name",
+			"service_name",
+			"item_code",
+			"rate",
+			"op_rate",
+			"default_medical_supervision",
+		],
+		limit=cint(limit) or 50,
+		order_by="default_medical_supervision desc, item_code, service_name",
+	)
+	for row in rows:
+		row["rate"] = _get_medical_supervision_ip_rate(row.name)
+		row["default_medical_supervision"] = cint(row.get("default_medical_supervision"))
+	return rows
+
+
 @frappe.whitelist()
 def get_admission_billing_settings():
 	"""Settings that affect admission quotation / case management billing."""
@@ -3225,6 +3369,9 @@ def admit_patient(
 	case_management_fee=None,
 	case_management_services=None,
 	service_unit_type=None,
+	is_med_supr_required=None,
+	med_supr_service_code=None,
+	medical_supervision_fee=None,
 ):
 	"""Admit a patient - wrapper for the DocType method"""
 	if not name:
@@ -3294,6 +3441,26 @@ def admit_patient(
 		if record.meta.has_field("case_management_fee"):
 			record.case_management_fee = 0
 
+	want_med_supr = (
+		cint(is_med_supr_required)
+		if is_med_supr_required is not None
+		else cint(record.get("is_med_supr_required"))
+	)
+	med_supr_template = (med_supr_service_code or "").strip() or None
+	med_supr_amount = None
+	if want_med_supr:
+		if not med_supr_template:
+			frappe.throw(_("Select a Medical Supervision service"))
+		_validate_medical_supervision_template(med_supr_template)
+		med_supr_amount = (
+			flt(medical_supervision_fee)
+			if medical_supervision_fee is not None
+			else _get_medical_supervision_ip_rate(med_supr_template)
+		)
+	if record.meta.has_field("is_med_supr_required"):
+		record.is_med_supr_required = want_med_supr
+	if record.meta.has_field("med_supr_service_code"):
+		record.med_supr_service_code = med_supr_template if want_med_supr else None
 
 	# Table MultiSelect: apply before admit so occupancy rows are built correctly
 	service_unit_list = frappe.parse_json(service_units or [])
@@ -3412,6 +3579,15 @@ def admit_patient(
 				)
 			)
 
+	med_supr_billing = None
+	if want_med_supr and med_supr_template:
+		record.reload()
+		med_supr_billing = _create_medical_supervision_service_request(
+			record,
+			med_supr_template,
+			amount=med_supr_amount,
+		)
+
 	frappe.db.commit()
 
 	result = {
@@ -3425,6 +3601,11 @@ def admit_patient(
 		result["case_management_service_request"] = case_mgmt_billings[0].get("service_request")
 		result["case_management_sales_order"] = case_mgmt_billings[0].get("sales_order")
 		result["case_management_amount"] = sum(flt(b.get("amount")) for b in case_mgmt_billings)
+	if med_supr_billing:
+		result["medical_supervision"] = med_supr_billing
+		result["medical_supervision_service_request"] = med_supr_billing.get("service_request")
+		result["medical_supervision_sales_order"] = med_supr_billing.get("sales_order")
+		result["medical_supervision_amount"] = med_supr_billing.get("amount")
 	return result
 
 

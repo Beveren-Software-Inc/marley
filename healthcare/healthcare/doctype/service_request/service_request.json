@@ -63,6 +63,7 @@
   "column_break_91",
   "order_description",
   "patient_instructions",
+  "is_continous_medical_supervision",
   "medical_code_section",
   "codification_table",
   "origin_section",
@@ -721,6 +722,12 @@
    "fieldname": "assigned_practitioner_name",
    "fieldtype": "Data",
    "label": "Assigned Practitioner Name"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_continous_medical_supervision",
+   "fieldtype": "Check",
+   "label": "Is Continous Medical Supervision"
   }
  ],
  "index_web_pages_for_search": 1,
@@ -739,8 +746,8 @@
    "link_fieldname": "service_request"
   }
  ],
- "modified": "2026-08-25 15:24:21.258777",
- "modified_by": "mania@beverensoftware.com",
+ "modified": "2026-09-09 11:39:04.694430",
+ "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Service Request",
  "naming_rule": "By \"Naming Series\" field",
