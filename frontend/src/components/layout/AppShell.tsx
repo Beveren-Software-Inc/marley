@@ -94,6 +94,7 @@ const nurseScreenGroups: ScreenGroup[] = [
     groupTitle: 'Other Services',
     screens: [
       { id: 'n-other', title: 'Other Services' },
+      { id: 'n-hygiene-barcode', title: 'Hygiene Barcode' },
       { id: 'n-sick', title: 'Sick Leave' },
     ],
   },

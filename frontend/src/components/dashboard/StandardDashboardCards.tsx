@@ -12,6 +12,7 @@ import { toast } from '../../hooks/useToast'
 import type { PatientVisitListRow } from '../../services/patientVisits'
 import type { InpatientRecord } from '../../services/inpatientRecords'
 import { isDoctorRole } from '../../config/permissions'
+import { openPatientAdmissionBarcodePrint } from '../../utils/printPatientAdmissionBarcode'
 
 /**
  * Standardised dashboard cards — Appointments, Patient Visits and
@@ -215,6 +216,14 @@ export function InpatientAdmissionsCard({
     toast.error('Select a patient, or an IP admission, before uploading documents.')
   }
 
+  const openPb = () => {
+    if (mode === 'IP' && activeAdmission) {
+      openPatientAdmissionBarcodePrint(activeAdmission)
+      return
+    }
+    toast.error('Select an IP admission in the header before printing the patient barcode.')
+  }
+
   return (
     <>
       <DashboardCard
@@ -226,6 +235,8 @@ export function InpatientAdmissionsCard({
         addButtonTitle="Create Admission"
         onUpload={openUpload}
         uploadButtonTitle="Upload documents"
+        onPb={openPb}
+        pbButtonTitle="Print patient barcode (PB)"
         listingScreen={listingScreen}
         allowCreateOnClosedEpisode
       >

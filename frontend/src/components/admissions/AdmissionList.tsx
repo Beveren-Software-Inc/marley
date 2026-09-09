@@ -48,6 +48,7 @@ import { UploadPatientDocumentsModal } from '../documents/UploadPatientDocuments
 import { formatAdmissionDate, formatDateOnlyDisplay, resolveAdmissionStayDays } from '../../utils/admissionDateTime'
 import { TruncatedName } from '../ui/dashboardCardListing'
 import { isDoctorRole, isNurseRole } from '../../config/permissions'
+import { openPatientAdmissionBarcodePrint } from '../../utils/printPatientAdmissionBarcode'
 import { stripDischargeFlowParams } from '../../utils/dischargeNavigation'
 import { DateFilterInput } from '../ui/DateFilterInput'
 import { useSlideOverListNav } from '../../hooks/useSlideOverListNav'
@@ -868,6 +869,18 @@ export const AdmissionList = ({
                                   Upload Document
                                 </button>
                               )}
+
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  openPatientAdmissionBarcodePrint(record.name)
+                                  setOpenActionRow(null)
+                                }}
+                                className="block w-full text-left px-3 py-2 text-sm text-slate-800 hover:bg-slate-100 font-semibold"
+                                title="Print patient barcode label"
+                              >
+                                PB
+                              </button>
                               
                               {record.status === 'Admission Scheduled' && (
                                 <>

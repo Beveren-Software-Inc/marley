@@ -22,6 +22,8 @@ type CardHeaderActionsProps = {
   addButtonTitle?: string
   onUpload?: () => void
   uploadButtonTitle?: string
+  onPb?: () => void
+  pbButtonTitle?: string
   onOpenListing?: () => void
   listingScreen?: string
   openListingTitle?: string
@@ -33,6 +35,8 @@ export function CardHeaderActions({
   addButtonTitle = 'Add',
   onUpload,
   uploadButtonTitle = 'Upload documents',
+  onPb,
+  pbButtonTitle = 'Print patient barcode',
   onOpenListing,
   listingScreen,
   openListingTitle = 'Open full list',
@@ -86,6 +90,17 @@ export function CardHeaderActions({
           <Upload className="w-3.5 h-3.5" strokeWidth={2.25} />
         </button>
       )}
+      {onPb && (
+        <button
+          type="button"
+          onClick={onPb}
+          className="h-6 min-w-[1.5rem] px-1 rounded-md border border-slate-300 bg-white text-[10px] font-bold tracking-wide text-slate-700 hover:bg-slate-50 flex items-center justify-center transition-colors flex-shrink-0"
+          title={pbButtonTitle}
+          aria-label={pbButtonTitle}
+        >
+          PB
+        </button>
+      )}
       {handleOpenListing && (
         <button
           type="button"
@@ -117,6 +132,8 @@ export const DashboardCard = ({
   onAdd,
   onUpload,
   uploadButtonTitle,
+  onPb,
+  pbButtonTitle,
   openListingTitle,
   children,
   className = '',
@@ -141,6 +158,9 @@ export const DashboardCard = ({
   onAdd?: () => void
   onUpload?: () => void
   uploadButtonTitle?: string
+  /** Patient barcode (PB) print — shown just after Upload. */
+  onPb?: () => void
+  pbButtonTitle?: string
   /** Navigate to full listing (sidebar screen). Use `listingScreen` or pass a custom handler. */
   onOpenListing?: () => void
   /** Query `screen` value for the full listing view, e.g. `rx`, `lab`, `n-given`. */
@@ -250,6 +270,8 @@ export const DashboardCard = ({
               addButtonTitle={resolvedAddTitle}
               onUpload={onUpload}
               uploadButtonTitle={uploadButtonTitle}
+              onPb={onPb}
+              pbButtonTitle={pbButtonTitle}
               onOpenListing={() => setExpanded((v) => !v)}
               openListingTitle={resolvedOpenListingTitle}
               collapseTitle={sectionLabel ? `Collapse ${sectionLabel}` : 'Collapse'}

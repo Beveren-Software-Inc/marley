@@ -4014,3 +4014,46 @@ def update_inpatient_admission(name, data):
 	frappe.db.commit()
 
 	return get_inpatient_record(doc.name)
+
+
+@frappe.whitelist()
+def get_patient_admission_barcode_label(name):
+	"""Patient barcode (PB) label data for an Inpatient Admission — same size as lab sample label."""
+	from healthcare.api.service_request import _lab_sample_patient_label_fields
+
+	if not name:
+		frappe.throw(_("Inpatient Admission name is required"))
+	if not frappe.db.exists("Inpatient Admission", name):
+		frappe.throw(_("Inpatient Admission not found"))
+
+	doc = frappe.get_doc("Inpatient Admission", name)
+	fields = _lab_sample_patient_label_fields(doc.patient, getattr(doc, "gender", None))
+
+	def _fmt(dt):
+		if not dt:
+			return ""
+		try:
+			return getdate(dt).strftime("%d-%b-%y").upper()
+		except Exception:
+			return cstr(dt)
+
+	admission_dt = (
+		getattr(doc, "admitted_datetime", None)
+		or getattr(doc, "admission_date", None)
+		or getattr(doc, "scheduled_date", None)
+	)
+	discharge_dt = getattr(doc, "discharge_datetime", None) or getattr(doc, "expected_discharge", None)
+	draft_info = _draft_discharge_fields(doc.name)
+	if draft_info.get("draft_discharge_date") and not getattr(doc, "discharge_datetime", None):
+		discharge_dt = draft_info.get("draft_discharge_date")
+
+	return {
+		"admission": doc.name,
+		"case_no": getattr(doc, "case_no", None) or doc.name,
+		"file_no": fields.get("file_no") or doc.patient or "",
+		"patient_name": fields.get("patient_name") or doc.patient_name or "",
+		"sex": fields.get("sex") or getattr(doc, "gender", None) or "",
+		"id_number": fields.get("id_number") or "",
+		"date_of_admission": _fmt(admission_dt),
+		"date_of_discharge": _fmt(discharge_dt),
+	}

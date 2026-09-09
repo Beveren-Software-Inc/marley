@@ -21,6 +21,7 @@ import { NursingCarePlanPrintButton } from '../components/nursing/NursingCarePla
 import { CreateClinicalNoteModal } from '../components/clinicalNotes/CreateClinicalNoteModal'
 import { MainNursingNoteList } from '../components/nursing/MainNursingNoteList'
 import { MedicalRecordChecklistReport } from '../components/nursing/MedicalRecordChecklistReport'
+import { HygieneBarcodePanel } from '../components/nursing/HygieneBarcodePanel'
 import { CreateMainNursingNoteModal } from '../components/nursing/CreateMainNursingNoteModal'
 import { DoctorOrderList } from '../components/doctorOrder/DoctorOrderList'
 import { getPatientActiveAdmission, type InpatientRecord } from '../services/inpatientRecords'
@@ -1399,6 +1400,17 @@ export const NursePage = () => {
              initialTemplate="Healthcare Service Template" 
           />
         )}
+      </div>
+    )
+  }
+
+  if (screen === 'n-hygiene-barcode') {
+    return (
+      <div className="flex flex-col">
+        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
+        <div className="p-4">
+          <HygieneBarcodePanel />
+        </div>
       </div>
     )
   }
