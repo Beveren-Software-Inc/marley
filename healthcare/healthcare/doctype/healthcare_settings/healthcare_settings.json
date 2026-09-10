@@ -139,6 +139,7 @@
   "ui_print_formats",
   "default_letter_head",
   "hospital_stamp",
+  "discharge_stamp",
   "section_break_mmer",
   "send_whatsap_notification_on_lab_test_creation",
   "section_break_pfnl",
@@ -1132,11 +1133,16 @@
    "fieldname": "calculate_doctors_comission_on_paid_service_only",
    "fieldtype": "Check",
    "label": "Calculate Doctors Comission on Paid Service Only"
+  },
+  {
+   "fieldname": "discharge_stamp",
+   "fieldtype": "Attach",
+   "label": "Discharge Stamp"
   }
  ],
  "issingle": 1,
  "links": [],
- "modified": "2026-09-03 01:10:56.123633",
+ "modified": "2026-09-10 11:15:41.504615",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Healthcare Settings",

@@ -140,7 +140,12 @@ export interface LabTest {
     type?: string
     block_save?: boolean
   }>
-  calculated_updates?: Array<{ name: string; lab_test_name?: string; custom_result: string }>
+  calculated_updates?: Array<{
+    name: string
+    lab_test_name?: string
+    custom_result: string
+    status?: string
+  }>
   by_nurse?: number | boolean
   /** Oracle LAB 00-03 legacy header import */
   is_legacy_import?: number | boolean

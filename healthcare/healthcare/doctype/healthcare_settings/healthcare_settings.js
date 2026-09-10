@@ -37,6 +37,30 @@ frappe.ui.form.on('Healthcare Settings', {
 			});
 		}, __('Data Maintenance'));
 
+		frm.add_custom_button(__('Generate Discharge Stamp'), () => {
+			frappe.confirm(
+				__(
+					'Generate the Discharge Stamp (red “DISCHARGED” rubber stamp) and attach it to Healthcare Settings → Discharge Stamp?\n\nAny existing discharge stamp attachment will be replaced. Continue?'
+				),
+				() => {
+					frappe.call({
+						method: 'healthcare.api.discharge_stamp.generate_discharge_stamp',
+						freeze: true,
+						freeze_message: __('Generating discharge stamp…'),
+						callback(r) {
+							const msg = r.message || {};
+							frappe.msgprint({
+								title: __('Discharge Stamp'),
+								indicator: 'green',
+								message: msg.message || __('Done'),
+							});
+							frm.reload_doc();
+						},
+					});
+				}
+			);
+		}, __('Data Maintenance'));
+
 		frm.add_custom_button(__('Migrate Patients (Category & Customer Group)'), () => {
 			frappe.confirm(
 				__(
