@@ -503,7 +503,11 @@ export const CreateSickLeaveModal = ({ onClose, onSuccess, patient }: CreateSick
 
   const handleToDateChange = (value: string) => {
     setToDate(value)
-    if (fromDate && value) {
+    if (!value) {
+      setDays('')
+      return
+    }
+    if (fromDate) {
       const diff = daysBetweenInclusive(fromDate, value)
       if (diff > 0) setDays(String(diff))
       else setDays('')
@@ -515,7 +519,11 @@ export const CreateSickLeaveModal = ({ onClose, onSuccess, patient }: CreateSick
     const cleaned = value.replace(/[^\d]/g, '')
     setDays(cleaned)
     const n = parseInt(cleaned, 10)
-    if (fromDate && n > 0) {
+    if (!cleaned || !(n > 0)) {
+      setToDate('')
+      return
+    }
+    if (fromDate) {
       setToDate(addDaysToDate(fromDate, n - 1))
     }
   }
@@ -755,7 +763,7 @@ export const CreateSickLeaveModal = ({ onClose, onSuccess, patient }: CreateSick
         diagnosis: diagnosis || undefined,
         doctor: doctorId || undefined,
         doctor_name: doctorName || selectedDoctor?.label || undefined,
-        branch: branch || undefined,
+        cost_center: branch || undefined,
         admission_no: admissionNo || undefined,
         patient: patientId || undefined,
         patient_name: patientName || patientQuery || undefined,

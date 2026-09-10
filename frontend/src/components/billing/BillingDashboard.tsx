@@ -90,6 +90,85 @@ function normalizePatientId(value?: string | null): string | undefined {
   return trimmed || undefined
 }
 
+/** UI-only consolidation: one row per invoice when multiple PEs settle it. */
+type PaymentDisplayRow = PaymentEntryRow & {
+  _memberNames: string[]
+  _consolidatedCount: number
+}
+
+function paymentConsolidateGroupKey(p: PaymentEntryRow): string | null {
+  const inv = (p.invoice_name || '').trim()
+  if (!inv) return null
+  // Keep drafts and advances as individual rows
+  if (Number(p.docstatus) === 0) return null
+  const type = (p.payment_type || 'Receive').trim() || 'Receive'
+  return `${inv}||${type}`
+}
+
+/** Default consolidated list for the Payments table only (PDF/Excel/summary use raw rows). */
+function buildPaymentDisplayRows(rows: PaymentEntryRow[], expanded: boolean): PaymentDisplayRow[] {
+  if (expanded) {
+    return rows.map((p) => ({
+      ...p,
+      _memberNames: [p.name],
+      _consolidatedCount: 1,
+    }))
+  }
+
+  const groups = new Map<string, PaymentEntryRow[]>()
+  const order: string[] = []
+  for (const p of rows) {
+    const key = paymentConsolidateGroupKey(p) || `solo:${p.name}`
+    if (!groups.has(key)) {
+      groups.set(key, [])
+      order.push(key)
+    }
+    groups.get(key)!.push(p)
+  }
+
+  return order.map((key) => {
+    const members = groups.get(key) || []
+    if (members.length <= 1) {
+      const p = members[0]
+      return {
+        ...p,
+        _memberNames: [p.name],
+        _consolidatedCount: 1,
+      }
+    }
+
+    const sorted = [...members].sort((a, b) => {
+      const byDate = (b.posting_date || '').localeCompare(a.posting_date || '')
+      if (byDate) return byDate
+      return b.name.localeCompare(a.name)
+    })
+    const primary = sorted[0]
+    const paid_amount = members.reduce((sum, m) => sum + (Number(m.paid_amount) || 0), 0)
+    const modes = [
+      ...new Set(members.map((m) => (m.mode_of_payment || '').trim()).filter(Boolean)),
+    ]
+    const cashiers = [...new Set(members.map((m) => (m.cashier || '').trim()).filter(Boolean))]
+    const cashierNames = [
+      ...new Set(members.map((m) => (m.cashier_name || m.cashier || '').trim()).filter(Boolean)),
+    ]
+
+    return {
+      ...primary,
+      paid_amount,
+      mode_of_payment: modes.length <= 1 ? modes[0] || primary.mode_of_payment || '' : 'Multiple',
+      cashier: cashiers.length === 1 ? cashiers[0] : primary.cashier,
+      cashier_name:
+        cashiers.length === 1
+          ? primary.cashier_name || cashiers[0]
+          : cashierNames.length > 1
+            ? 'Multiple'
+            : primary.cashier_name,
+      _memberNames: members.map((m) => m.name),
+      _consolidatedCount: members.length,
+    }
+  })
+}
+
 type CcBreakdownDisplayRow = PatientBillingCcRow & {
   row_key: string
   branch_label: string
@@ -262,6 +341,8 @@ export const BillingDashboard = ({ patient, admission, visit }: BillingDashboard
   const [crossBranchOpen, setCrossBranchOpen] = useState(false)
   const [payments, setPayments] = useState<PaymentEntryRow[]>([])
   const [paymentSummary, setPaymentSummary] = useState<PaymentSummary | null>(null)
+  /** false = consolidated (default); true = show every Payment Entry row */
+  const [paymentsExpanded, setPaymentsExpanded] = useState(false)
   const [showDateFilters, setShowDateFilters] = useState(false)
   const [fromDate, setFromDate] = useState('')
   const [toDate, setToDate] = useState('')
@@ -275,6 +356,15 @@ export const BillingDashboard = ({ patient, admission, visit }: BillingDashboard
 
   const shiftFilterActive = Boolean(shiftContext?.shiftRequired && filterByOpenShift)
   const openShiftName = shiftContext?.context?.open_shift?.name
+
+  const paymentDisplayRows = useMemo(
+    () => buildPaymentDisplayRows(payments, paymentsExpanded),
+    [payments, paymentsExpanded],
+  )
+  const hasConsolidatablePayments = useMemo(
+    () => buildPaymentDisplayRows(payments, false).some((r) => r._consolidatedCount > 1),
+    [payments],
+  )
 
   // Patient filter comes from the parent page; do not fall back to context (avoids stale ID after navbar clear).
   const effectivePatient = normalizePatientId(patient)
@@ -1311,7 +1401,23 @@ const handleMakePayment = async (
         <DateFiltersPanel />
         <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
           <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between">
-            <h3 className="font-semibold text-slate-800">Payments</h3>
+            <div className="flex items-center gap-2">
+              <h3 className="font-semibold text-slate-800">Payments</h3>
+              {hasConsolidatablePayments && (
+                <button
+                  type="button"
+                  onClick={() => setPaymentsExpanded((v) => !v)}
+                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded border border-slate-300 bg-white text-xs font-medium text-slate-700 hover:bg-slate-50"
+                  title={
+                    paymentsExpanded
+                      ? 'Group payment entries that settle the same invoice into one row'
+                      : 'Show every payment entry as its own row'
+                  }
+                >
+                  {paymentsExpanded ? 'Consolidate' : 'Expand'}
+                </button>
+              )}
+            </div>
             <div className="flex items-center gap-2">
               <button
                 type="button"
@@ -1375,7 +1481,7 @@ const handleMakePayment = async (
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {payments.map((p) => {
+                {paymentDisplayRows.map((p) => {
                   const isRefund = p.payment_type === 'Pay'
                   const isDraft = Number(p.docstatus) === 0
                   const isAdvance = !isRefund && !isDraft && !p.invoice_name
@@ -1399,9 +1505,19 @@ const handleMakePayment = async (
                     isAdvance && (opIpLabel || caseNo)
                       ? [opIpLabel, caseNo].filter(Boolean).join(' · ')
                       : ''
+                  const isConsolidated = p._consolidatedCount > 1
                   return (
-                  <tr key={p.name}>
-                    <td className="px-3 py-2 font-mono text-xs">{p.name}</td>
+                  <tr key={isConsolidated ? `c:${p.invoice_name}:${p.payment_type}:${p.name}` : p.name}>
+                    <td className="px-3 py-2 font-mono text-xs">
+                      <div className="flex flex-col gap-0.5">
+                        <span>{p.name}</span>
+                        {isConsolidated && (
+                          <span className="text-[10px] font-sans font-medium text-slate-500">
+                            +{p._consolidatedCount - 1} more · total of {p._consolidatedCount}
+                          </span>
+                        )}
+                      </div>
+                    </td>
                     <td className="px-3 py-2">{p.posting_date || '-'}</td>
                     <td className="px-3 py-2">
                       <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
@@ -1414,6 +1530,7 @@ const handleMakePayment = async (
                             : 'bg-blue-100 text-blue-800'
                       }`}>
                         {typeLabel}
+                        {isConsolidated ? ' · consolidated' : ''}
                       </span>
                     </td>
                     <td className="px-3 py-2 text-xs text-slate-700 whitespace-nowrap">
@@ -1430,9 +1547,10 @@ const handleMakePayment = async (
                         userId={p.cashier}
                         userLabel={p.cashier_name || p.cashier}
                         onChanged={(userId, fullName) => {
+                          const names = new Set(p._memberNames)
                           setPayments((prev) =>
                             prev.map((row) =>
-                              row.name === p.name
+                              names.has(row.name)
                                 ? { ...row, cashier: userId, cashier_name: fullName }
                                 : row
                             )
@@ -1450,7 +1568,11 @@ const handleMakePayment = async (
                           triggerPrint={1}
                           className="inline-flex items-center justify-center w-7 h-7 rounded border border-slate-300 bg-white text-slate-600 hover:bg-slate-50"
                           ariaLabel={`Print payment ${p.name}`}
-                          title="Print payment entry"
+                          title={
+                            isConsolidated
+                              ? 'Print consolidated payment (covers all entries for this invoice)'
+                              : 'Print payment entry'
+                          }
                         />
                       ) : (
                         <span className="text-xs text-slate-400">—</span>
@@ -1459,7 +1581,7 @@ const handleMakePayment = async (
                   </tr>
                   )
                 })}
-                {payments.length === 0 && (
+                {paymentDisplayRows.length === 0 && (
                   <tr><td colSpan={9} className="px-3 py-6 text-center text-slate-500">NO PAYMENTS FOUND FOR SELECTED FILTERS.</td></tr>
                 )}
               </tbody>

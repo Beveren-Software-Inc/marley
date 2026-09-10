@@ -12,6 +12,7 @@
   "trans_source",
   "column_break_header",
   "branch",
+  "cost_center",
   "section_break_links",
   "patient",
   "patient_name",
@@ -287,12 +288,18 @@
    "fieldname": "employees_care",
    "fieldtype": "Check",
    "label": "Employees care"
+  },
+  {
+   "fieldname": "cost_center",
+   "fieldtype": "Link",
+   "label": "Cost Center",
+   "options": "Cost Center"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-08-04 22:10:26.392142",
+ "modified": "2026-09-10 10:32:02.082204",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Patient Sick Leave",
