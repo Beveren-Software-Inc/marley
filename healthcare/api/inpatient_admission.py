@@ -2882,42 +2882,134 @@ def delete_discharge_observation(admission_name):
 	return {"message": _("Observation deleted")}
 
 
+def _assert_discharge_checklist_ready_for_submit(discharge_doc) -> None:
+	"""Full submit requires all checklist items done (finance pending uses a separate action)."""
+	from healthcare.healthcare.discharge_checklist_status import summarize_checklist_status
+
+	summary = summarize_checklist_status(discharge_doc.get("discharge_checklist"))
+	status = summary.get("checklist_status")
+	if status == "incomplete":
+		remaining = cint(summary.get("checklist_incomplete"))
+		frappe.throw(
+			_(
+				"Please complete all discharge checklist items. {0} item(s) remaining."
+			).format(remaining)
+		)
+	if status == "finance_pending":
+		frappe.throw(
+			_(
+				"Only finance checklist items remain. Use Discharge Without Finance, "
+				"or complete finance and then Discharge Patient."
+			)
+		)
+
+
+def _assert_discharge_checklist_finance_pending_only(discharge_doc) -> None:
+	from healthcare.healthcare.discharge_checklist_status import summarize_checklist_status
+
+	summary = summarize_checklist_status(discharge_doc.get("discharge_checklist"))
+	if summary.get("checklist_status") != "finance_pending":
+		frappe.throw(
+			_(
+				"Discharge Without Finance is only allowed when the only remaining "
+				"checklist items are finance/accounts."
+			)
+		)
+
+
+def _mark_admission_discharged_keeping_draft(admission_name: str, discharge_doc) -> None:
+	"""Set admission (and patient) to Discharged without submitting the Discharge draft.
+
+	Skips unbilled-services validation so finance can finish billing later.
+	"""
+	from frappe.utils import now_datetime
+	from healthcare.healthcare.doctype.inpatient_admission.inpatient_admission import (
+		check_out_inpatient,
+		validate_incompleted_service_requests,
+	)
+	from healthcare.healthcare.utils import validate_nursing_tasks
+
+	admission = frappe.get_doc("Inpatient Admission", admission_name)
+	if (admission.status or "").strip() == "Discharged":
+		return
+
+	validate_nursing_tasks(admission)
+	validate_incompleted_service_requests(admission)
+
+	check_out_inpatient(admission)
+	admission.discharge_datetime = discharge_doc.get("discharge_date") or now_datetime()
+	admission.status = "Discharged"
+	admission.save(ignore_permissions=True)
+
+	if admission.patient:
+		frappe.db.set_value("Patient", admission.patient, "inpatient_status", "Discharged")
+
+	if admission.get("discharge_encounter"):
+		frappe.db.set_value(
+			"Patient Visit",
+			admission.discharge_encounter,
+			"inpatient_status",
+			"Discharged",
+		)
+
+	from healthcare.healthcare.doctype.patient_follow_up.patient_follow_up import (
+		create_patient_follow_up_from_discharge,
+	)
+
+	create_patient_follow_up_from_discharge(admission_name, discharge_doc=discharge_doc)
+
+
+def _prepare_discharge_doc_for_action(admission_name, discharge_data):
+	"""Save draft discharge payload and run observation / charge / medicine prep."""
+	from healthcare.healthcare.discharge_checklist_permissions import is_first_checklist_item_complete
+
+	discharge_data = frappe.parse_json(discharge_data or {})
+	discharge_doc = _get_or_create_draft_discharge(admission_name)
+	_apply_discharge_payload(discharge_doc, discharge_data)
+	discharge_doc.flags.ignore_links = True
+	discharge_doc.save(ignore_permissions=True)
+	discharge_doc.reload()
+
+	observation_result = _create_observation_from_discharge_if_needed(discharge_doc, admission_name)
+	discharge_doc.reload()
+
+	charge_result = _create_discharge_today_charge_sales_order_if_needed(discharge_doc, admission_name)
+	discharge_doc.reload()
+
+	first_item_complete = is_first_checklist_item_complete(discharge_doc.get("discharge_checklist"))
+	medicine_result = _bill_pending_given_medicine_on_discharge_start(
+		admission_name,
+		first_item_is_complete=first_item_complete,
+		force=True,
+	)
+	package_result = _bill_pending_package_on_discharge_start(
+		admission_name,
+		discharge_doc,
+		first_item_is_complete=first_item_complete,
+		force=True,
+	)
+
+	return discharge_doc, observation_result, charge_result, medicine_result, package_result
+
+
 @frappe.whitelist()
 def create_and_submit_discharge(admission_name, discharge_data):
 	"""Create or update draft Discharge, then submit."""
 	try:
-		discharge_data = frappe.parse_json(discharge_data or {})
 		if not admission_name:
 			frappe.throw(_("Admission is required"))
 
 		frappe.logger().info(f"Creating discharge for admission {admission_name}")
 
-		discharge_doc = _get_or_create_draft_discharge(admission_name)
-		from healthcare.healthcare.discharge_checklist_permissions import is_first_checklist_item_complete
-
-		_apply_discharge_payload(discharge_doc, discharge_data)
-		discharge_doc.flags.ignore_links = True
-		discharge_doc.save(ignore_permissions=True)
-		discharge_doc.reload()
-
-		observation_result = _create_observation_from_discharge_if_needed(discharge_doc, admission_name)
-		discharge_doc.reload()
-
-		charge_result = _create_discharge_today_charge_sales_order_if_needed(discharge_doc, admission_name)
-		discharge_doc.reload()
-
-		first_item_complete = is_first_checklist_item_complete(discharge_doc.get("discharge_checklist"))
-		medicine_result = _bill_pending_given_medicine_on_discharge_start(
-			admission_name,
-			first_item_is_complete=first_item_complete,
-			force=True,
-		)
-		package_result = _bill_pending_package_on_discharge_start(
-			admission_name,
+		(
 			discharge_doc,
-			first_item_is_complete=first_item_complete,
-			force=True,
-		)
+			observation_result,
+			_charge_result,
+			medicine_result,
+			package_result,
+		) = _prepare_discharge_doc_for_action(admission_name, discharge_data)
+
+		_assert_discharge_checklist_ready_for_submit(discharge_doc)
 
 		if cint(discharge_doc.docstatus) == 0:
 			discharge_doc.flags.ignore_permissions = True
@@ -2951,6 +3043,62 @@ def create_and_submit_discharge(admission_name, discharge_data):
 		clean_message = re.sub(r"\s+", " ", clean_message).strip()
 
 		frappe.throw(_("Failed to create discharge: {0}").format(clean_message))
+
+
+@frappe.whitelist()
+def discharge_without_finance(admission_name, discharge_data):
+	"""Mark admission Discharged while leaving the Discharge document as draft.
+
+	Allowed only when incomplete checklist rows are finance/accounts items.
+	Finance can complete billing later and submit the Discharge.
+	"""
+	try:
+		if not admission_name:
+			frappe.throw(_("Admission is required"))
+
+		(
+			discharge_doc,
+			observation_result,
+			_charge_result,
+			medicine_result,
+			package_result,
+		) = _prepare_discharge_doc_for_action(admission_name, discharge_data)
+
+		_assert_discharge_checklist_finance_pending_only(discharge_doc)
+		_mark_admission_discharged_keeping_draft(admission_name, discharge_doc)
+
+		frappe.db.commit()
+
+		response = {
+			"name": discharge_doc.name,
+			"admission_status": "Discharged",
+			"discharge_submitted": 0,
+			"message": _(
+				"Patient discharged without finance. Admission is Discharged; "
+				"complete finance checklist and submit the Discharge when ready."
+			),
+		}
+		if observation_result:
+			response["observation"] = observation_result.get("name")
+			response["observation_trans_no"] = observation_result.get("trans_no")
+			if observation_result.get("sales_order"):
+				response["sales_order"] = observation_result.get("sales_order")
+
+		_apply_medicine_billing_to_discharge_response(response, medicine_result)
+		_apply_package_billing_to_discharge_response(response, package_result)
+
+		return response
+
+	except Exception as e:
+		import traceback
+
+		error_message = str(e)
+		frappe.log_error(traceback.format_exc(), "Discharge Without Finance Error")
+
+		clean_message = re.sub(r"<[^>]+>", "", error_message)
+		clean_message = re.sub(r"\s+", " ", clean_message).strip()
+
+		frappe.throw(_("Failed to discharge without finance: {0}").format(clean_message))
 
 def _combine_admission_and_case_management():
 	return cint(

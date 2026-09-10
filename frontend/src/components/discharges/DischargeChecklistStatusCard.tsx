@@ -107,7 +107,13 @@ export function DischargeChecklistStatusCard({
       {canProceed ? (
         <div className="flex items-center gap-2 rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm font-medium text-green-800">
           <CheckCircle2 className="h-4 w-4 shrink-0" strokeWidth={2} />
-          Go ahead
+          Go ahead — Discharge Patient
+        </div>
+      ) : dischargeSummary.checklist_status === 'finance_pending' &&
+        (nursingTotal === 0 || nursingComplete) ? (
+        <div className="flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+          <AlertCircle className="h-4 w-4 shrink-0" strokeWidth={2} />
+          Finance pending — use Discharge Without Finance
         </div>
       ) : (
         <div className="flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
