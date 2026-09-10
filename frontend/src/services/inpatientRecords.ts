@@ -1027,40 +1027,62 @@ export async function createDischarge(admissionName: string, dischargeData: any)
       }
     )
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err)
+    return rethrowDischargeUnbilledError(err)
+  }
+}
 
-    // Detect Frappe's "Unbilled Services" validation error
-    if (message.toLowerCase().includes('unbilled')) {
-      // The Frappe error message may embed HTML — extract it from the raw message
-      const htmlMatch = message.match(/<table[\s\S]*<\/table>/i)
-        || message.match(/<tr[\s\S]*<\/tr>/i)
-
-      if (htmlMatch) {
-        const services = parseUnbilledServicesHtml(htmlMatch[0])
-        if (services.length > 0) {
-          throw new UnbilledServicesError(services)
-        }
+/** Mark admission Discharged; keep Discharge as draft while finance checklist remains. */
+export async function dischargeWithoutFinance(admissionName: string, dischargeData: any) {
+  try {
+    return await apiRequest(
+      `/api/method/healthcare.api.inpatient_admission.discharge_without_finance`,
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          admission_name: admissionName,
+          discharge_data: dischargeData,
+        }),
       }
+    )
+  } catch (err) {
+    return rethrowDischargeUnbilledError(err)
+  }
+}
 
-      // Fallback: try to extract service types from plain text
-      // e.g. "Please invoice the following before discharge: Healthcare Service Documents"
-      const afterColon = message.split(/before discharge[:\s]*/i)[1]
-      if (afterColon) {
-        const types = afterColon
-          .split(/[,;]/)
-          .map(s => s.trim())
-          .filter(Boolean)
-        if (types.length > 0) {
-          throw new UnbilledServicesError(types.map(type => ({ type, ids: [] })))
-        }
+function rethrowDischargeUnbilledError(err: unknown): never {
+  const message = err instanceof Error ? err.message : String(err)
+
+  // Detect Frappe's "Unbilled Services" validation error
+  if (message.toLowerCase().includes('unbilled')) {
+    // The Frappe error message may embed HTML — extract it from the raw message
+    const htmlMatch =
+      message.match(/<table[\s\S]*<\/table>/i) || message.match(/<tr[\s\S]*<\/tr>/i)
+
+    if (htmlMatch) {
+      const services = parseUnbilledServicesHtml(htmlMatch[0])
+      if (services.length > 0) {
+        throw new UnbilledServicesError(services)
       }
-
-      // Last resort: generic unbilled error with no detail
-      throw new UnbilledServicesError([])
     }
 
-    throw err
+    // Fallback: try to extract service types from plain text
+    // e.g. "Please invoice the following before discharge: Healthcare Service Documents"
+    const afterColon = message.split(/before discharge[:\s]*/i)[1]
+    if (afterColon) {
+      const types = afterColon
+        .split(/[,;]/)
+        .map((s) => s.trim())
+        .filter(Boolean)
+      if (types.length > 0) {
+        throw new UnbilledServicesError(types.map((type) => ({ type, ids: [] })))
+      }
+    }
+
+    // Last resort: generic unbilled error with no detail
+    throw new UnbilledServicesError([])
   }
+
+  throw err
 }
 export async function cancelAdmission(inpatientRecordName: string, reason?: string) {
   const { ensureCSRF } = await import('./apiClient')

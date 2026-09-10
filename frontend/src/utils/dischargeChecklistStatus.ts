@@ -110,7 +110,22 @@ export function canSubmitDischargeWithChecklist(
   rows: Array<{ action_required?: string; click?: boolean | number | null }> | undefined
 ): boolean {
   const { checklist_status } = summarizeDischargeChecklistStatus(rows)
-  return checklist_status === 'complete' || checklist_status === 'finance_pending' || checklist_status === 'none'
+  // Full submit only when every checklist item is done (or there is no checklist).
+  return checklist_status === 'complete' || checklist_status === 'none'
+}
+
+/** Admission may be marked Discharged while Discharge stays draft (finance open). */
+export function canDischargeWithoutFinance(
+  rows: Array<{
+    action_required?: string
+    click?: boolean | number | null
+    department?: string
+    department_label?: string
+    department_2?: string
+    department_2_label?: string
+  }> | undefined
+): boolean {
+  return summarizeDischargeChecklistStatus(rows).checklist_status === 'finance_pending'
 }
 
 export const CHECKLIST_STATUS_LABELS: Record<DischargeChecklistStatus, string> = {

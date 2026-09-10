@@ -7,6 +7,7 @@ import { useSearchParams } from 'react-router-dom'
 
 import {
   createDischarge,
+  dischargeWithoutFinance,
   deleteDischargeObservation,
   deleteDischargeExtraCharge,
   fetchDischargeDraftForAdmission,
@@ -70,6 +71,7 @@ import { saveDischargeDraft, loadDischargeDraft, clearDischargeDraft, draftSaved
 import {
   summarizeDischargeChecklistStatus,
   canSubmitDischargeWithChecklist,
+  canDischargeWithoutFinance,
   CHECKLIST_STATUS_LABELS,
 } from '../../utils/dischargeChecklistStatus'
 import {
@@ -2473,6 +2475,10 @@ const presTotal = items.reduce((sum: number, d: any) => sum + (d.amount || 0), 0
   const hasDischargeReceptionist = Boolean((formData.discharge_receptionist || '').trim())
   const canSubmitDischarge =
     !hasDischargeReceptionist || canSubmitDischargeWithChecklist(checklistItems)
+  const canDischargeWithoutFinanceAction =
+    hasDischargeReceptionist && canDischargeWithoutFinance(checklistItems)
+  const showDischargePatientButton = canSubmitDischarge
+  const showDischargeWithoutFinanceButton = canDischargeWithoutFinanceAction
 
   const groupedNurseChecklist = groupByDepartment(nurseChecklistItems)
   const nurseTotalItems = nurseChecklistItems.length
@@ -2589,7 +2595,9 @@ const presTotal = items.reduce((sum: number, d: any) => sum + (d.amount || 0), 0
 
     if (!canSubmitDischarge) {
       setError(
-        `Please complete all discharge checklist items. ${checklistIncomplete} item${checklistIncomplete !== 1 ? 's' : ''} remaining (excluding finance-only items such as Billing Finalization).`
+        financeOnlyPending
+          ? 'Only finance checklist items remain. Use Discharge Without Finance, or complete finance first.'
+          : `Please complete all discharge checklist items. ${checklistIncomplete} item${checklistIncomplete !== 1 ? 's' : ''} remaining.`
       )
       setActiveTab('checklist')
       return
@@ -2627,9 +2635,7 @@ const presTotal = items.reduce((sum: number, d: any) => sum + (d.amount || 0), 0
           ? `Patient discharged. Observation ${result.observation} and Sales Order ${result.sales_order} created.`
           : result?.observation
             ? `Patient discharged. Observation ${result.observation} created.`
-            : financeOnlyPending
-              ? 'Patient discharged. Finance checklist items remain open on the discharge dashboard.'
-              : 'Patient discharged successfully!')
+            : 'Patient discharged successfully!')
       toast.success(successMsg, 5000)
       onSuccess()
     } catch (err) {
@@ -2638,6 +2644,69 @@ const presTotal = items.reduce((sum: number, d: any) => sum + (d.amount || 0), 0
         setError(null)
       } else {
         const errorMessage = err instanceof Error ? err.message : 'Failed to discharge patient'
+        toast.error(errorMessage, 5000)
+        setError(errorMessage)
+      }
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const handleDischargeWithoutFinance = async () => {
+    setError(null)
+    setUnbilledServices(null)
+
+    if (!formData.discharge_type) {
+      setError('Select a Discharge Type')
+      return
+    }
+
+    if (!canDischargeWithoutFinanceAction) {
+      setError(
+        'Discharge Without Finance is only available when the only remaining checklist items are finance/accounts.'
+      )
+      setActiveTab('checklist')
+      return
+    }
+
+    if (!validateObservationIfEnabled()) return
+
+    if (Number(formData.room_charge_today)) {
+      if (!formData.room_charges || Number(formData.room_charges) <= 0) {
+        setError('Room Charges amount must be greater than zero')
+        setActiveTab('charges')
+        return
+      }
+    }
+    if (
+      Number(formData.today_charge) &&
+      (!formData.medical_supervision_amount || Number(formData.medical_supervision_amount) <= 0)
+    ) {
+      setError('Medical Supervision Amount must be greater than zero')
+      setActiveTab('charges')
+      return
+    }
+
+    try {
+      setSubmitting(true)
+      const result = await dischargeWithoutFinance(admission.name, buildDischargePayload()) as {
+        message?: string
+        observation?: string
+        sales_order?: string
+      }
+      clearDischargeDraft(admission.name)
+      const successMsg =
+        result?.message ||
+        'Patient discharged without finance. Complete finance checklist and submit the Discharge when ready.'
+      toast.success(successMsg, 5000)
+      onSuccess()
+    } catch (err) {
+      if (err instanceof UnbilledServicesError) {
+        setUnbilledServices(err.services)
+        setError(null)
+      } else {
+        const errorMessage =
+          err instanceof Error ? err.message : 'Failed to discharge without finance'
         toast.error(errorMessage, 5000)
         setError(errorMessage)
       }
@@ -3670,7 +3739,8 @@ const presTotal = items.reduce((sum: number, d: any) => sum + (d.amount || 0), 0
                   {financeOnlyPending && (
                     <p className="text-xs text-yellow-700 mt-1.5 flex items-center gap-1">
                       <AlertCircle className="w-3.5 h-3.5" />
-                      Only finance checklist items remain (e.g. Billing Finalization) — discharge is allowed
+                      Only finance checklist items remain — use Discharge Without Finance to free the bed
+                      (Discharge stays draft until finance is completed)
                     </p>
                   )}
                   {allCompleted && (
@@ -5209,7 +5279,7 @@ const presTotal = items.reduce((sum: number, d: any) => sum + (d.amount || 0), 0
               {hasDischargeReceptionist && financeOnlyPending && (
                 <span className="flex items-center gap-1 text-yellow-700">
                   <AlertCircle className="w-3.5 h-3.5" />
-                  {CHECKLIST_STATUS_LABELS.finance_pending} — discharge allowed
+                  {CHECKLIST_STATUS_LABELS.finance_pending} — use Discharge Without Finance
                 </span>
               )}
               {hasDischargeReceptionist && allCompleted && totalItems > 0 && (
@@ -5237,18 +5307,31 @@ const presTotal = items.reduce((sum: number, d: any) => sum + (d.amount || 0), 0
                 <Save className="w-4 h-4" />
                 {savingDraft ? 'Saving…' : 'Save & Close'}
               </button>
-              <button
-                type="submit"
-                disabled={submitting || savingDraft || chargeSectionBusy || !canSubmitDischarge}
-                title={
-                  !canSubmitDischarge
-                    ? `Complete all discharge checklist items first (${checklistIncomplete} remaining)`
-                    : undefined
-                }
-                className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {submitting ? 'Discharging...' : 'Discharge Patient'}
-              </button>
+              {showDischargeWithoutFinanceButton && (
+                <button
+                  type="button"
+                  onClick={handleDischargeWithoutFinance}
+                  disabled={submitting || savingDraft || chargeSectionBusy}
+                  title="Mark admission Discharged and free the bed. Discharge document stays draft until finance completes."
+                  className="px-4 py-2 text-sm font-medium text-amber-950 bg-yellow-400 rounded-md hover:bg-yellow-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {submitting ? 'Discharging…' : 'Discharge Without Finance'}
+                </button>
+              )}
+              {showDischargePatientButton && (
+                <button
+                  type="submit"
+                  disabled={submitting || savingDraft || chargeSectionBusy || !canSubmitDischarge}
+                  title={
+                    !canSubmitDischarge
+                      ? `Complete all discharge checklist items first (${checklistIncomplete} remaining)`
+                      : undefined
+                  }
+                  className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {submitting ? 'Discharging...' : 'Discharge Patient'}
+                </button>
+              )}
             </div>
           </div>
         </form>
