@@ -52,23 +52,91 @@ def lab_test_list_filters(date_from, date_to, cost_center=None):
 	return filters
 
 
+def default_hospital_cost_center() -> str:
+	"""First Cost Center with custom_is_hospital ticked (portal default when no branch chosen)."""
+	try:
+		if frappe.db.has_column("Cost Center", "custom_is_hospital"):
+			rows = frappe.get_all(
+				"Cost Center",
+				filters={"custom_is_hospital": 1, "disabled": 0},
+				pluck="name",
+				order_by="name asc",
+				limit=1,
+			)
+			if rows:
+				return str(rows[0]).strip()
+	except Exception:
+		pass
+	return ""
+
+
 def letter_head_seed(cost_center=None):
-	seed = {"cost_center": (cost_center or "").strip()}
-	if not seed["cost_center"]:
+	# Prefer explicit branch; else first hospital cost center (custom_is_hospital).
+	cc = resolve_report_cost_center(cost_center) or ""
+	if not cc:
 		try:
-			seed["cost_center"] = frappe.defaults.get_user_default("cost_center") or ""
+			cc = (frappe.defaults.get_user_default("cost_center") or "").strip()
+		except Exception:
+			cc = ""
+	if not cc:
+		try:
+			from healthcare.api.common import get_permitted_cost_centers
+
+			permitted = get_permitted_cost_centers()
+			if permitted:
+				cc = str(permitted[0] or "").strip()
 		except Exception:
 			pass
-	return seed
+	return {"cost_center": cc}
+
+
+def resolve_report_cost_center(cost_center=None) -> str | None:
+	"""Explicit branch, else first hospital cost center (custom_is_hospital)."""
+	cc = (cost_center or "").strip()
+	if cc:
+		return cc
+	hospital = default_hospital_cost_center()
+	return hospital or None
+
+
+def get_report_letter_head(cost_center=None) -> dict:
+	"""Letter Head for lab/general reports (cost center → Healthcare Settings → Company)."""
+	from healthcare.api.nursing_print import get_doc_letter_head
+
+	seed = letter_head_seed(cost_center)
+	lh = get_doc_letter_head(seed)
+	if (lh.get("content") or "").strip() or (lh.get("footer") or "").strip():
+		return lh
+
+	# Healthcare Settings → Default Letter Head
+	try:
+		lh_name = frappe.db.get_single_value("Healthcare Settings", "default_letter_head")
+		if lh_name and frappe.db.exists("Letter Head", lh_name):
+			doc = frappe.get_cached_doc("Letter Head", lh_name)
+			return {"content": doc.content or "", "footer": doc.footer or ""}
+	except Exception:
+		pass
+
+	# Company default letter head
+	try:
+		company = (
+			frappe.defaults.get_user_default("company")
+			or frappe.db.get_single_value("Global Defaults", "default_company")
+			or ""
+		)
+		if company:
+			lh_name = frappe.db.get_value("Company", company, "default_letter_head")
+			if lh_name and frappe.db.exists("Letter Head", lh_name):
+				doc = frappe.get_cached_doc("Letter Head", lh_name)
+				return {"content": doc.content or "", "footer": doc.footer or ""}
+	except Exception:
+		pass
+
+	return {"content": "", "footer": ""}
 
 
 def branch_label(cost_center=None) -> str:
-	cc = (cost_center or "").strip()
-	if not cc:
-		try:
-			cc = frappe.defaults.get_user_default("cost_center") or ""
-		except Exception:
-			cc = ""
+	cc = resolve_report_cost_center(cost_center) or ""
 	if not cc:
 		return ""
 	try:

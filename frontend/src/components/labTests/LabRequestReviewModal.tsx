@@ -453,9 +453,21 @@ export function LabRequestReviewModal({
       }
       setSavingResultFor(name)
       try {
+        const groupTests =
+          review?.groups?.flatMap((g) => g.tests || []) ||
+          []
+        const siblingResults = groupTests
+          .filter((t) => t.lab_test)
+          .map((t) => ({
+            name: t.lab_test as string,
+            template: t.template || t.test_code,
+            lab_test_name: t.test_name,
+            custom_result: rawResultValue(t),
+          }))
         const saved = await saveAndSubmitLabTest(name, {
           custom_result: value,
           submit: false,
+          sibling_results: siblingResults,
         })
         patchTestResult(name, value, saved.status, saved.result_flag)
         applyCalculatedUpdates(saved.calculated_updates)
@@ -467,7 +479,7 @@ export function LabRequestReviewModal({
         setSavingResultFor(null)
       }
     },
-    [rawResultValue, userRole, patchTestResult, applyCalculatedUpdates]
+    [rawResultValue, userRole, patchTestResult, applyCalculatedUpdates, review]
   )
 
   useEffect(() => {

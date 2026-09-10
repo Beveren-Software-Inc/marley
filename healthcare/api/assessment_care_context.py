@@ -13,6 +13,7 @@ ASSESSMENT_COST_CENTER_DOCTYPES = (
 	"ADHD Assessment",
 	"PANSS Assessment",
 	"Mood Disorder Assessment",
+	"Homicide Risk Assessment",
 	"Clinical Suicide Risk Assessment",
 	"Pre Anesthesia Assessment",
 	"Suicidal Patient Assessment",
@@ -68,38 +69,84 @@ def assessment_care_reference(doc) -> tuple[str | None, str | None]:
 	return None, None
 
 
-def resolve_assessment_cost_center(doc) -> str | None:
+def _cc_from_visit(visit_name: str) -> str | None:
 	from healthcare.api.sales_order_cost_center import cost_center_from_visit_or_admission
 
-	ref_dt, ref_dn = assessment_care_reference(doc)
-	if ref_dt == "Patient Visit" and ref_dn:
-		cc = cost_center_from_visit_or_admission("Patient Visit", ref_dn)
-		if cc:
-			return cc
-		admission = frappe.db.get_value("Patient Visit", ref_dn, "inpatient_record")
-		if admission:
-			return cost_center_from_visit_or_admission("Inpatient Admission", admission)
-		return None
+	cc = cost_center_from_visit_or_admission("Patient Visit", visit_name)
+	if cc:
+		return cc
+	admission = frappe.db.get_value("Patient Visit", visit_name, "inpatient_record")
+	if admission:
+		return cost_center_from_visit_or_admission("Inpatient Admission", admission)
+	return None
 
-	if ref_dt == "Inpatient Admission" and ref_dn:
-		return cost_center_from_visit_or_admission("Inpatient Admission", ref_dn)
+
+def _cc_from_admission(admission_name: str) -> str | None:
+	from healthcare.api.sales_order_cost_center import cost_center_from_visit_or_admission
+
+	return cost_center_from_visit_or_admission("Inpatient Admission", admission_name)
+
+
+def resolve_assessment_cost_center(doc) -> str | None:
+	"""Resolve branch/cost center from care links on the assessment.
+
+	Tries the primary care reference first, then any other visit/admission
+	fields on the document (so an IP admission still wins when the visit
+	has no cost center).
+	"""
+	candidates: list[tuple[str, str]] = []
+	ref_dt, ref_dn = assessment_care_reference(doc)
+	if ref_dt and ref_dn:
+		candidates.append((ref_dt, ref_dn))
+
+	for name in VISIT_FIELDS:
+		visit = _field(doc, name)
+		if visit:
+			candidates.append(("Patient Visit", visit))
+	for name in ADMISSION_FIELDS:
+		admission = _field(doc, name)
+		if admission:
+			candidates.append(("Inpatient Admission", admission))
+
+	seen: set[tuple[str, str]] = set()
+	for ref_dt, ref_dn in candidates:
+		key = (ref_dt, ref_dn)
+		if key in seen:
+			continue
+		seen.add(key)
+		if ref_dt == "Patient Visit":
+			cc = _cc_from_visit(ref_dn)
+			if cc:
+				return cc
+		elif ref_dt == "Inpatient Admission":
+			cc = _cc_from_admission(ref_dn)
+			if cc:
+				return cc
 	return None
 
 
 def fill_assessment_cost_center_from_care_context(doc) -> None:
-	"""Set cost_center (and branch / branch_num when those fields exist) from visit or admission."""
+	"""Set cost_center (and branch / branch_num) from visit or admission when blank.
+
+	Does not override a branch already chosen on the UI / payload.
+	"""
+	meta = getattr(doc, "meta", None)
+	has_field = meta.has_field if meta is not None else lambda name: True
+
+	if has_field("cost_center") and _field(doc, "cost_center"):
+		return
+	if has_field("branch") and _field(doc, "branch") and not has_field("cost_center"):
+		return
+
 	cc = resolve_assessment_cost_center(doc)
 	if not cc:
 		return
 
-	meta = getattr(doc, "meta", None)
-	has_field = meta.has_field if meta is not None else lambda name: True
-
-	if has_field("cost_center"):
+	if has_field("cost_center") and not _field(doc, "cost_center"):
 		doc.cost_center = cc
-	if has_field("branch"):
+	if has_field("branch") and not _field(doc, "branch"):
 		doc.branch = cc
-	if has_field("branch_num"):
+	if has_field("branch_num") and not _field(doc, "branch_num"):
 		doc.branch_num = cc
 
 

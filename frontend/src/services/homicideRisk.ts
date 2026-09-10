@@ -89,6 +89,8 @@ export interface CreateHomicideRiskAssessmentInput {
   practitioner?: string
   inpatient_admission?: string
   patient_visit?: string
+  /** Portal branch; when omitted backend uses inpatient admission / visit cost center. */
+  cost_center?: string
   reason_clinician?: boolean
   reason_referral?: boolean
   reason_social?: boolean

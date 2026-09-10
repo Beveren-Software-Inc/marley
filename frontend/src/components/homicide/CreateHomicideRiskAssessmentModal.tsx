@@ -17,6 +17,7 @@ import {
   type LinkFieldOption,
 } from '../../services/common'
 import { useCareContext } from '../../providers/CareContextProvider'
+import { getPortalBranch } from '../../services/costCenterPermission'
 import {
   LOCKED_PRACTITIONER_INPUT_CLASS,
   useLockedLinkedPractitioner,
@@ -55,6 +56,7 @@ export const CreateHomicideRiskAssessmentModal = ({
     activeVisit,
     activeAdmission,
     selectedPatient: contextPatient,
+    userCostCenter,
   } = useCareContext()
 
   const lockedAdmission = activeAdmission || defaultAdmission || ''
@@ -301,6 +303,8 @@ export const CreateHomicideRiskAssessmentModal = ({
         practitioner: practitioner || undefined,
         inpatient_admission: inpatientAdmission || undefined,
         patient_visit: patientVisit || undefined,
+        // Branch from top bar when chosen; backend falls back to admission/visit CC.
+        cost_center: userCostCenter || getPortalBranch() || undefined,
         
         reason_clinician: reasonClinician,
         reason_referral: reasonReferral,

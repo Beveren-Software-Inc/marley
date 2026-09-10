@@ -44,7 +44,12 @@ def create_suicide_risk_assessment(data):
         doc.clinician = data.get("clinician")
         doc.inpatient_admission = data.get("inpatient_admission")
         doc.patient_visit = data.get("patient_visit")
-        
+        if data.get("cost_center") is not None:
+            doc.cost_center = data.get("cost_center") or None
+
+        from healthcare.api.assessment_care_context import fill_assessment_cost_center_from_care_context
+
+        fill_assessment_cost_center_from_care_context(doc)
         # Section 1: Suicidal Ideation
         doc.has_ideation = data.get("has_ideation", 0)
         if doc.has_ideation:

@@ -354,7 +354,7 @@ def wrap_print_document(
 	extra_css: str = "",
 	landscape: bool = True,
 ) -> str:
-	"""Full HTML document: report title, letter head, body, letter-head footer."""
+	"""Full HTML document: letter head, report title, body, letter-head footer."""
 	lh = letter_head or {}
 	content = lh.get("content") or ""
 	footer = lh.get("footer") or ""
@@ -386,8 +386,8 @@ body {{ margin: 0; padding: 8px; color: #000; font-family: Arial, Helvetica, san
 </style>
 </head>
 <body>
-<div class="np-doc-title">{esc(title)}</div>
 {top}
+<div class="np-doc-title">{esc(title)}</div>
 {body_html}
 {bottom}
 <script>window.onload = function () {{ window.print(); }}</script>

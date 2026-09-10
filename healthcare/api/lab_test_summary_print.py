@@ -1,4 +1,8 @@
-"""Lab Test Summary Report — counts and amounts by test (OP / IP)."""
+"""Lab Test Summary Report — counts and amounts by group collection (OP / IP).
+
+Rows are group collections (lab_test_group), not individual child templates.
+Test Code = group id (e.g. LAB-001), Test Name = group template name.
+"""
 
 from __future__ import annotations
 
@@ -6,18 +10,18 @@ import frappe
 from frappe.utils import flt
 
 from healthcare.api.lab_reports_common import (
-	is_ip_lab_test,
+	get_report_letter_head,
 	lab_test_list_filters,
-	letter_head_seed,
 	range_header_html,
+	resolve_report_cost_center,
 	resolve_report_dates,
 	test_amount,
+	is_ip_lab_test,
 )
 from healthcare.api.nursing_print import (
 	MAROON,
 	assert_nursing_print_permission,
 	esc,
-	get_doc_letter_head,
 	wrap_print_document,
 )
 
@@ -25,22 +29,58 @@ _TITLE = "Lab Tests Summary"
 _BLUE = "#1E4E8C"
 
 
-def _template_meta(template_name, fallback_name):
-	if template_name:
-		try:
-			row = frappe.db.get_value(
-				"Lab Test Template",
-				template_name,
-				["lab_test_code", "lab_test_name", "item"],
-				as_dict=True,
-			)
-		except Exception:
-			row = None
-		if row:
-			code = (row.get("lab_test_code") or row.get("item") or template_name or "").strip()
-			name = (row.get("lab_test_name") or fallback_name or template_name or "").strip()
-			return code, name
-	return "", (fallback_name or template_name or "").strip()
+def _template_parent_map(template_names: set[str]) -> dict[str, str]:
+	"""Map child template → parent group template (lab_group), when set."""
+	names = [n for n in template_names if n]
+	if not names:
+		return {}
+	try:
+		rows = frappe.get_all(
+			"Lab Test Template",
+			filters={"name": ["in", names]},
+			fields=["name", "lab_group"],
+		)
+	except Exception:
+		return {}
+	out = {}
+	for row in rows:
+		parent = (row.get("lab_group") or "").strip()
+		if parent:
+			out[row["name"]] = parent
+	return out
+
+
+def _group_meta(group_id: str) -> tuple[str, str]:
+	"""Return (test_code, test_name). Code is always the group id."""
+	gid = (group_id or "").strip()
+	if not gid or gid == "__unknown__":
+		return "", ""
+	try:
+		row = frappe.db.get_value(
+			"Lab Test Template",
+			gid,
+			["name", "lab_test_name"],
+			as_dict=True,
+		)
+	except Exception:
+		row = None
+	if row:
+		code = (row.get("name") or gid).strip()
+		name = (row.get("lab_test_name") or code).strip()
+		return code, name
+	return gid, gid
+
+
+def _resolve_group_id(row, parent_by_template: dict[str, str]) -> str:
+	group = (row.get("lab_test_group") or "").strip()
+	if group:
+		return group
+	template = (row.get("template") or "").strip()
+	if template and template in parent_by_template:
+		return parent_by_template[template]
+	if template:
+		return template
+	return (row.get("lab_test_name") or "__unknown__").strip()
 
 
 def _summary_rows(date_from, date_to, cost_center=None):
@@ -52,8 +92,11 @@ def _summary_rows(date_from, date_to, cost_center=None):
 		"Lab Test",
 		filters=filters,
 		fields=[
+			"name",
 			"template",
 			"lab_test_name",
+			"lab_test_group",
+			"service_request",
 			"inpatient_admission",
 			"inpatient_record",
 			"amount",
@@ -64,26 +107,49 @@ def _summary_rows(date_from, date_to, cost_center=None):
 		ignore_permissions=True,
 	)
 
-	buckets: dict[str, dict] = {}
+	parent_by_template = _template_parent_map(
+		{(r.get("template") or "").strip() for r in rows if r.get("template")}
+	)
+
+	# One collection instance = one (group id, service request) — or the Lab Test itself
+	# when there is no service request (standalone / legacy).
+	instances: dict[tuple[str, str], dict] = {}
 	for row in rows:
-		key = (row.get("template") or row.get("lab_test_name") or "__unknown__").strip()
-		if key not in buckets:
-			code, name = _template_meta(row.get("template"), row.get("lab_test_name"))
-			buckets[key] = {
-				"test_code": code or key,
-				"test_name": name or key,
+		group_id = _resolve_group_id(row, parent_by_template)
+		sr = (row.get("service_request") or "").strip()
+		instance_id = sr or (row.get("name") or "").strip() or group_id
+		key = (group_id, instance_id)
+		if key not in instances:
+			instances[key] = {
+				"group_id": group_id,
+				"is_ip": is_ip_lab_test(row),
+				"amount": 0.0,
+			}
+		instances[key]["amount"] += test_amount(row)
+		# Prefer IP if any child on the instance is IP
+		if is_ip_lab_test(row):
+			instances[key]["is_ip"] = True
+
+	buckets: dict[str, dict] = {}
+	for inst in instances.values():
+		gid = inst["group_id"]
+		if gid not in buckets:
+			code, name = _group_meta(gid)
+			buckets[gid] = {
+				"test_code": code or gid,
+				"test_name": name or gid,
 				"op_count": 0,
 				"op_amount": 0.0,
 				"ip_count": 0,
 				"ip_amount": 0.0,
 			}
-		amt = test_amount(row)
-		if is_ip_lab_test(row):
-			buckets[key]["ip_count"] += 1
-			buckets[key]["ip_amount"] += amt
+		amt = flt(inst["amount"])
+		if inst["is_ip"]:
+			buckets[gid]["ip_count"] += 1
+			buckets[gid]["ip_amount"] += amt
 		else:
-			buckets[key]["op_count"] += 1
-			buckets[key]["op_amount"] += amt
+			buckets[gid]["op_count"] += 1
+			buckets[gid]["op_amount"] += amt
 
 	out = []
 	for item in buckets.values():
@@ -150,7 +216,7 @@ def _table(rows: list[dict]) -> str:
 	else:
 		body.append(
 			"<tr class=\"lts-total\">"
-			'<td></td>'
+			"<td></td>"
 			'<td class="lts-total-label">Total</td>'
 			f'<td class="num">{totals["op_count"]}</td>'
 			f'<td class="num">{esc(_fmt_amt(totals["op_amount"]))}</td>'
@@ -198,7 +264,7 @@ _CSS = f"""
 @frappe.whitelist()
 def get_lab_test_summary_html(date_from=None, date_to=None, cost_center=None):
 	assert_nursing_print_permission("Lab Test")
-	cost_center = (cost_center or "").strip() or None
+	cost_center = resolve_report_cost_center(cost_center)
 	date_from, date_to = resolve_report_dates(date_from, date_to)
 	rows = _summary_rows(date_from, date_to, cost_center)
 	range_html = range_header_html(date_from, date_to, cost_center)
@@ -206,7 +272,7 @@ def get_lab_test_summary_html(date_from=None, date_to=None, cost_center=None):
 	return wrap_print_document(
 		_TITLE,
 		body,
-		get_doc_letter_head(letter_head_seed(cost_center)),
+		get_report_letter_head(cost_center),
 		extra_css=_CSS,
 		landscape=True,
 	)
