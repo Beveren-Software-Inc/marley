@@ -49,7 +49,7 @@ def ensure_assessment_read_permission(assessment_doctype: str, name: str):
 
 
 def apply_care_context_fields(doc, data: dict):
-	for field in ("practitioner", "inpatient_admission", "patient_visit", "notes"):
+	for field in ("practitioner", "inpatient_admission", "patient_visit", "notes", "cost_center"):
 		if data.get(field) is not None:
 			setattr(doc, field, data[field] or None)
 
@@ -66,6 +66,7 @@ def apply_care_context_fields(doc, data: dict):
 	if data.get("practitioner") and doc.meta.has_field("rater") and not doc.get("rater"):
 		doc.rater = data["practitioner"]
 
+	# UI branch (cost_center) wins when sent; otherwise copy from visit / admission.
 	from healthcare.api.assessment_care_context import fill_assessment_cost_center_from_care_context
 
 	fill_assessment_cost_center_from_care_context(doc)

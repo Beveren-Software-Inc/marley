@@ -4,6 +4,7 @@ import { DateFilterInput } from '../ui/DateFilterInput'
 import { fetchLabResultAssessmentHtml, fetchLabTestSummaryHtml } from '../../services/labTests'
 import { toast } from '../../hooks/useToast'
 import { useCareContext } from '../../providers/CareContextProvider'
+import { getPortalBranch } from '../../services/costCenterPermission'
 
 type LabReportTab = 'assessment' | 'summary'
 
@@ -42,7 +43,7 @@ export function LabReportsView() {
       const opts = {
         dateFrom: fromDate,
         dateTo: toDate,
-        costCenter: userCostCenter || undefined,
+        costCenter: userCostCenter || getPortalBranch() || undefined,
       }
       const html =
         tab === 'assessment'

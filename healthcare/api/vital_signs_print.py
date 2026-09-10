@@ -1,4 +1,4 @@
-"""TPR / Vital Signs listing PDF — branch letter head + shared patient header."""
+"""TPR / Vital Chart PDF — branch letter head + shared patient header."""
 
 from __future__ import annotations
 
@@ -10,15 +10,27 @@ from healthcare.api.nursing_print import (
 	assert_nursing_print_permission,
 	esc,
 	fmt_date,
-	fmt_time,
 	get_doc_letter_head,
 	op_patient_info_html,
-	patient_info_html,
+	parse_datetime,
 	patient_meta,
 	wrap_print_document,
 )
 
-_TITLE = "TPR / Vital Signs"
+_TITLE = "TPR/Vital Chart"
+
+# Column order matches the Serene TPR/VITAL CHART print.
+_COLUMNS: tuple[tuple[str, str], ...] = (
+	("date", "Date"),
+	("time", "Time"),
+	("bp", "BP"),
+	("pulse", "Pulse"),
+	("temperature", "Temperature"),
+	("spo2", "SPO2"),
+	("resp_rate", "Resp.Rate"),
+	("weight", "Weight"),
+	("staff_nurse", "Staff Nurse"),
+)
 
 _ROW_FIELDS = [
 	"name",
@@ -35,8 +47,7 @@ _ROW_FIELDS = [
 	"bp",
 	"spo2",
 	"weight",
-	"bmi",
-	"vital_signs_note",
+	"owner",
 	"inpatient_record",
 	"encounter",
 	"cost_center",
@@ -55,10 +66,30 @@ def _bp_text(row: dict) -> str:
 	return sys or dia or ""
 
 
-def _datetime_text(row: dict) -> str:
-	date_part = fmt_date(row.get("signs_date"), "%d-%m-%Y")
-	time_part = fmt_time(row.get("signs_time"))
-	return " ".join(part for part in (date_part, time_part) if part)
+def _time_text(value) -> str:
+	"""HH:MM:SS to match the sample TPR chart."""
+	dt = parse_datetime(value)
+	if dt and hasattr(dt, "strftime"):
+		return dt.strftime("%H:%M:%S")
+	return cstr(value or "").strip()
+
+
+def _staff_nurse(owner) -> str:
+	raw = cstr(owner or "").strip()
+	if not raw:
+		return ""
+	try:
+		if frappe.db.exists("User", raw):
+			full = frappe.db.get_value("User", raw, "full_name") or raw
+			token = cstr(full).strip()
+			first = token.split()[0] if token else raw
+			return first.upper()
+	except Exception:
+		pass
+	# email local-part fallback
+	if "@" in raw:
+		return raw.split("@", 1)[0].upper()
+	return raw.split()[0].upper() if raw else ""
 
 
 def _load_rows(
@@ -93,11 +124,14 @@ def _load_rows(
 		if user_id:
 			filters["owner"] = user_id
 
+	meta = frappe.get_meta("Vital Signs")
+	fields = [f for f in _ROW_FIELDS if meta.has_field(f) or f in ("name", "owner")]
+
 	rows = frappe.get_all(
 		"Vital Signs",
 		filters=filters,
-		fields=_ROW_FIELDS,
-		order_by="signs_date desc, signs_time desc",
+		fields=fields,
+		order_by="signs_date asc, signs_time asc",
 		limit=0,
 	)
 	for row in rows:
@@ -141,29 +175,72 @@ def _range_note(date_from=None, date_to=None) -> str:
 	return f'<div class="vs-range">{esc(" · ".join(parts))}</div>'
 
 
+def _display_row(row: dict) -> dict:
+	return {
+		"date": fmt_date(row.get("signs_date"), "%d-%m-%Y"),
+		"time": _time_text(row.get("signs_time")),
+		"bp": _bp_text(row),
+		"pulse": cstr(row.get("pulse") or "").strip(),
+		"temperature": cstr(row.get("temperature") or "").strip(),
+		"spo2": cstr(row.get("spo2") or "").strip(),
+		"resp_rate": cstr(row.get("respiratory_rate") or "").strip(),
+		"weight": cstr(row.get("weight") or "").strip(),
+		"staff_nurse": _staff_nurse(row.get("owner")),
+	}
+
+
+def _admission_date(admission: str) -> str:
+	if not admission:
+		return ""
+	try:
+		row = frappe.db.get_value(
+			"Inpatient Admission",
+			admission,
+			["admission_date", "admitted_datetime", "scheduled_date"],
+			as_dict=True,
+		)
+	except Exception:
+		row = None
+	if not row:
+		return ""
+	return fmt_date(
+		row.get("admission_date") or row.get("admitted_datetime") or row.get("scheduled_date"),
+		"%d-%m-%Y",
+	)
+
+
+def _tpr_patient_info_html(meta: dict, admission: str = "") -> str:
+	"""Patient block matching the sample TPR/VITAL CHART print."""
+	pairs = [
+		("Patient Name", meta.get("patient_name"), "Date Of Admission", _admission_date(admission)),
+		("Patient File No.", meta.get("file_no"), "CASE NO", meta.get("ip_case_no")),
+		("CPR / ID No.", meta.get("id_number"), "Sex", meta.get("gender")),
+	]
+	body = "".join(
+		"<tr>"
+		f'<td class="np-lbl">{esc(left_lbl)}</td><td class="np-val">{esc(left_val)}</td>'
+		f'<td class="np-lbl">{esc(right_lbl)}</td><td class="np-val">{esc(right_val)}</td>'
+		"</tr>"
+		for left_lbl, left_val, right_lbl, right_val in pairs
+	)
+	return f'<div class="np-info-wrap"><table class="np-info">{body}</table></div>'
+
+
 def _table(rows: list[dict], *, show_patient: bool) -> str:
-	headers = ["Date & Time"]
+	headers = [label for _, label in _COLUMNS]
+	keys = [key for key, _ in _COLUMNS]
 	if show_patient:
-		headers.append("Patient")
-	headers.extend(["Temp", "Pulse", "BP", "RR", "SPO2", "Weight", "BMI", "Record"])
+		headers = ["Patient", *headers]
 	head = "".join(f"<th>{esc(h)}</th>" for h in headers)
 	body = []
 	for row in rows:
-		cells = [f"<td>{esc(_datetime_text(row))}</td>"]
+		disp = _display_row(row)
+		cells = []
 		if show_patient:
 			cells.append(f"<td>{esc(row.get('patient_name') or row.get('patient') or '')}</td>")
-		cells.extend(
-			[
-				f"<td>{esc(row.get('temperature'))}</td>",
-				f"<td>{esc(row.get('pulse'))}</td>",
-				f"<td>{esc(_bp_text(row))}</td>",
-				f"<td>{esc(row.get('respiratory_rate'))}</td>",
-				f"<td>{esc(row.get('spo2'))}</td>",
-				f"<td>{esc(row.get('weight'))}</td>",
-				f"<td>{esc(row.get('bmi'))}</td>",
-				f"<td>{esc(row.get('trans_no') or row.get('name') or '')}</td>",
-			]
-		)
+		for k in keys:
+			cls = ' class="vs-nurse"' if k == "staff_nurse" else ""
+			cells.append(f"<td{cls}>{esc(disp.get(k) or '')}</td>")
 		body.append(f"<tr>{''.join(cells)}</tr>")
 	if not body:
 		colspan = len(headers)
@@ -180,19 +257,23 @@ _CSS = f"""
 		.vs-table {{
 			width: 100%;
 			border-collapse: collapse;
-			table-layout: auto;
+			table-layout: fixed;
 		}}
 		.vs-table th, .vs-table td {{
 			border: 1px solid #444;
-			padding: 4px 6px;
+			padding: 3px 5px;
 			font-size: 10px;
-			vertical-align: top;
+			vertical-align: middle;
+			text-align: center;
 		}}
 		.vs-table th {{
 			background: #e8e8e8;
 			color: {MAROON} !important;
 			font-weight: bold;
-			text-align: center;
+		}}
+		.vs-table td.vs-nurse {{
+			text-align: left;
+			white-space: nowrap;
 		}}
 		.vs-empty {{
 			text-align: center;
@@ -210,13 +291,19 @@ def render_vital_signs_report(
 	date_to=None,
 ) -> str:
 	meta = patient_meta(seed)
-	is_ip = bool(
+	admission = (
 		seed.get("inpatient_record")
 		or seed.get("admission_no")
 		or seed.get("admission")
 		or seed.get("inpatient_admission")
+		or ""
 	)
-	patient_block = patient_info_html(meta) if is_ip else op_patient_info_html(meta)
+	is_ip = bool(admission)
+	patient_block = (
+		_tpr_patient_info_html(meta, str(admission))
+		if is_ip
+		else op_patient_info_html(meta)
+	)
 	show_patient = not bool(seed.get("patient") or seed.get("file_no"))
 	return (
 		f'<div class="vs-report">'

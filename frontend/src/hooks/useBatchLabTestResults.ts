@@ -150,8 +150,29 @@ export function useBatchLabTestResults(
     for (const lt of dirtyTests) {
       try {
         const rowLabTech = resolveLabTechnicianId(lt)
-        const payload: { custom_result: string; lab_technician?: string } = {
+        const siblingResults = labTests
+          .filter((row) => {
+            if (lt.service_request && row.service_request) {
+              return row.service_request === lt.service_request
+            }
+            return (row.lab_test_group || row.template) === (lt.lab_test_group || lt.template)
+          })
+          .map((row) => ({
+            name: row.name,
+            template: row.template,
+            lab_test_name: row.lab_test_name,
+            custom_result:
+              row.name in pendingResults
+                ? pendingResults[row.name]
+                : String(row.custom_result || '').replace(/<[^>]+>/g, ''),
+          }))
+        const payload: {
+          custom_result: string
+          lab_technician?: string
+          sibling_results?: typeof siblingResults
+        } = {
           custom_result: pendingResults[lt.name] ?? '',
+          sibling_results: siblingResults,
         }
         if (rowLabTech) {
           payload.lab_technician = rowLabTech

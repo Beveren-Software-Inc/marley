@@ -2480,8 +2480,13 @@ def save_and_submit_lab_test(
     discount_amount=None,
     lab_technician=None,
     submit: bool = False,
+    sibling_results=None,
 ):
-    """Save lab results on a draft Lab Test. Submit happens only on doctor review (submit arg is ignored)."""
+    """Save lab results on a draft Lab Test. Submit happens only on doctor review (submit arg is ignored).
+
+	``sibling_results``: optional on-screen sibling values (list of
+	``{name, template, custom_result}``) so panel sum checks match the UI.
+	"""
     if not name:
         frappe.throw(_("Lab Test name is required"))
 
@@ -2543,10 +2548,19 @@ def save_and_submit_lab_test(
                     'require_result_value': 1,
                 })
 
+    if isinstance(sibling_results, str):
+        import json
+        sibling_results = json.loads(sibling_results or "[]")
+
     rule_feedback = {"warnings": [], "errors": [], "calculated_updates": []}
     if doc.template:
         # Validate formulas/sums; defer writing calculated siblings until after this doc is saved.
-        rule_feedback = apply_rules_to_doc(doc, block_on_error=True, persist_siblings=False)
+        rule_feedback = apply_rules_to_doc(
+            doc,
+            block_on_error=True,
+            persist_siblings=False,
+            result_overrides=sibling_results,
+        )
 
     # ========== ADD RESULT FLAG CALCULATION HERE ==========
     # Get patient gender

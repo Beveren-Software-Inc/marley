@@ -1668,6 +1668,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback, Fragment, type MutableRefObject, type ReactNode } from 'react'
 import { useLabTests } from '../../hooks/useLabTests'
 import { useCareContext } from '../../providers/CareContextProvider'
+import { getPortalBranch } from '../../services/costCenterPermission'
 import { StatusPill } from '../ui/StatusPill'
 import {
   getLabTestConsumables,
@@ -2589,7 +2590,7 @@ export const LabTestList = ({
       const html = await fetchLabResultAssessmentHtml({
         dateFrom,
         dateTo,
-        costCenter: userCostCenter || undefined,
+        costCenter: userCostCenter || getPortalBranch() || undefined,
       })
       const win = window.open('', '_blank', 'width=1400,height=900')
       if (!win) {

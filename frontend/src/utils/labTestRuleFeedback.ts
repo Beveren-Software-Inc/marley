@@ -10,7 +10,8 @@ type RuleMessage = {
 
 const PANEL_LEVEL_RULE_PATTERNS = [
   /differential total/i,
-  /differential counts for this panel/i,
+  /differential counts/i,
+  /selected differential counts/i,
 ]
 
 /** Panel sum rules apply to the whole group, not the single row being saved. */

@@ -20,27 +20,7 @@
    },
    {
     "aliases": null,
-    "lab_test_event": "LAB-001-004"
-   },
-   {
-    "aliases": null,
-    "lab_test_event": "LAB-001-003"
-   },
-   {
-    "aliases": null,
     "lab_test_event": "LAB-001-011"
-   },
-   {
-    "aliases": null,
-    "lab_test_event": "LAB-001-006"
-   },
-   {
-    "aliases": null,
-    "lab_test_event": "LAB-001-007"
-   },
-   {
-    "aliases": null,
-    "lab_test_event": "LAB-001-005"
    },
    {
     "aliases": null,
@@ -49,26 +29,6 @@
    {
     "aliases": null,
     "lab_test_event": "LAB-001-010"
-   },
-   {
-    "aliases": null,
-    "lab_test_event": "LAB-001-015"
-   },
-   {
-    "aliases": null,
-    "lab_test_event": "LAB-001-009"
-   },
-   {
-    "aliases": null,
-    "lab_test_event": "LAB-001-002"
-   },
-   {
-    "aliases": null,
-    "lab_test_event": "LAB-001-008"
-   },
-   {
-    "aliases": null,
-    "lab_test_event": "LAB-001-001"
    }
   ],
   "sum_target": 100.0,

@@ -100,11 +100,14 @@ def generate_doctor_commission_period(period_doc):
 		)
 
 	source_doctypes = [s.source_doctype for s in sources]
+	rules = load_active_commission_rules(period_doc.from_date, period_doc.to_date)
+	allowed_branches = resolve_payroll_cost_centers(period_doc, rules)
 	service_rows = fetch_commissionable_sales_order_items(
 		from_date=period_doc.from_date,
 		to_date=period_doc.to_date,
 		company=period_doc.company,
 		cost_center=period_doc.cost_center,
+		cost_centers=None if (period_doc.cost_center or "").strip() else allowed_branches,
 		source_doctypes=source_doctypes,
 		op_only=gen_settings["op_only"],
 		paid_only=gen_settings["paid_only"],
@@ -125,7 +128,6 @@ def generate_doctor_commission_period(period_doc):
 	eligible = get_commission_eligible_practitioners(
 		{p for p in practitioner_by_base.values() if p}
 	)
-	rules = load_active_commission_rules(period_doc.from_date, period_doc.to_date)
 	default_percent = flt(period_doc.default_commission_percent)
 	if default_percent <= 0:
 		default_percent = flt(frappe.db.get_single_value("Healthcare Settings", "doctors_commission"))
@@ -283,6 +285,7 @@ def fetch_commissionable_sales_order_items(
 	to_date,
 	company=None,
 	cost_center=None,
+	cost_centers=None,
 	source_doctypes=None,
 	op_only: bool = False,
 	paid_only: bool = False,
@@ -334,17 +337,40 @@ def fetch_commissionable_sales_order_items(
 	elif has_soi_cc:
 		cc_expr = "soi.cost_center"
 
-	if cost_center:
+	# Single payroll/report branch filter, or an explicit list from commission rules.
+	# ``cost_centers is None`` → no branch restriction (e.g. commission report).
+	# ``cost_centers == []`` → intentionally empty (no matching rule branches).
+	branch_list: list[str] | None = None
+	single = (cost_center or "").strip()
+	if single:
+		branch_list = [single]
+	elif cost_centers is not None:
+		branch_list = [
+			(cc or "").strip()
+			for cc in (cost_centers or [])
+			if (cc or "").strip()
+		]
+
+	if branch_list is not None:
+		if not branch_list:
+			return []
+		values["cost_centers"] = tuple(branch_list)
 		if has_so_cc and has_soi_cc:
 			conditions.append(
-				"(IFNULL(so.cost_center, '') = %(cost_center)s OR IFNULL(soi.cost_center, '') = %(cost_center)s)"
+				"(IFNULL(so.cost_center, '') IN %(cost_centers)s "
+				"OR IFNULL(soi.cost_center, '') IN %(cost_centers)s)"
 			)
 		elif has_so_cc:
-			conditions.append("so.cost_center = %(cost_center)s")
+			conditions.append("so.cost_center IN %(cost_centers)s")
 		elif has_soi_cc:
-			conditions.append("soi.cost_center = %(cost_center)s")
-		values["cost_center"] = cost_center
-
+			conditions.append("soi.cost_center IN %(cost_centers)s")
+		else:
+			frappe.throw(
+				_(
+					"Sales Order has no Cost Center field, so commission cannot be "
+					"limited to branches defined on Doctor Commission Rules."
+				)
+			)
 	return frappe.db.sql(
 		f"""
 		SELECT
@@ -628,6 +654,67 @@ def create_additional_salaries_for_payroll(payroll_doc):
 	return {"created": created, "skipped": skipped, "errors": errors}
 
 
+def collect_cost_centers_from_rules(rules: list) -> list[str]:
+	"""Unique branch names listed on rule Table MultiSelect rows (order preserved)."""
+	out: list[str] = []
+	seen: set[str] = set()
+	for rule in rules or []:
+		for cc in rule.get("cost_centers") or []:
+			name = (cc or "").strip()
+			if name and name not in seen:
+				seen.add(name)
+				out.append(name)
+	return out
+
+
+def collect_cost_centers_from_all_active_rules() -> list[str]:
+	"""Any branch listed on any active Doctor Commission Rule."""
+	if not frappe.db.exists("DocType", "Doctor Commission Rule Cost Center"):
+		return []
+	rows = frappe.db.sql(
+		"""
+		select distinct child.cost_center
+		from `tabDoctor Commission Rule Cost Center` child
+		inner join `tabDoctor Commission Rule` parent
+			on parent.name = child.parent
+		where parent.is_active = 1
+			and child.parenttype = 'Doctor Commission Rule'
+			and ifnull(child.cost_center, '') != ''
+		order by child.cost_center asc
+		""",
+		as_dict=True,
+	)
+	return [(r.cost_center or "").strip() for r in rows if (r.cost_center or "").strip()]
+
+
+def resolve_payroll_cost_centers(period_doc, period_rules: list) -> list[str]:
+	"""Branches to include when payroll has no single Branch filter.
+
+	1. Branches listed on commission rules overlapping this period
+	2. Else any branch listed on any active commission rule
+	3. Never unrestricted (all company branches)
+	"""
+	explicit = (getattr(period_doc, "cost_center", None) or "").strip()
+	if explicit:
+		return [explicit]
+
+	period_branches = collect_cost_centers_from_rules(period_rules)
+	if period_branches:
+		return period_branches
+
+	any_branches = collect_cost_centers_from_all_active_rules()
+	if any_branches:
+		return any_branches
+
+	frappe.throw(
+		_(
+			"No branches are set on Doctor Commission Rules. "
+			"Add Branches / Cost Centers on at least one active rule, "
+			"or set Branch on this payroll, before generating."
+		)
+	)
+
+
 def load_active_commission_rules(from_date, to_date):
 	from_date = getdate(from_date)
 	to_date = getdate(to_date)
@@ -637,7 +724,6 @@ def load_active_commission_rules(from_date, to_date):
 		fields=[
 			"name",
 			"practitioner",
-			"cost_center",
 			"item_code",
 			"item_group",
 			"calculation_type",
@@ -652,6 +738,7 @@ def load_active_commission_rules(from_date, to_date):
 		],
 		order_by="priority desc, modified desc",
 	)
+	_attach_rule_cost_centers(rules)
 	out = []
 	for rule in rules:
 		vf = getdate(rule.valid_from) if rule.valid_from else None
@@ -663,6 +750,38 @@ def load_active_commission_rules(from_date, to_date):
 			continue
 		out.append(rule)
 	return out
+
+
+def _attach_rule_cost_centers(rules: list) -> None:
+	"""Attach ``cost_centers`` list from the Table MultiSelect child table."""
+	if not rules:
+		return
+	names = [r.name for r in rules if r.get("name")]
+	by_parent: dict[str, list[str]] = {n: [] for n in names}
+	if names and frappe.db.exists("DocType", "Doctor Commission Rule Cost Center"):
+		for row in frappe.get_all(
+			"Doctor Commission Rule Cost Center",
+			filters={"parent": ["in", names], "parenttype": "Doctor Commission Rule"},
+			fields=["parent", "cost_center"],
+		):
+			cc = (row.cost_center or "").strip()
+			if cc and cc not in by_parent[row.parent]:
+				by_parent[row.parent].append(cc)
+	# Legacy single Link column (pre-multiselect) if still present on cached rows.
+	for rule in rules:
+		ccs = list(by_parent.get(rule.name) or [])
+		legacy = (rule.get("cost_center") or "").strip()
+		if legacy and legacy not in ccs:
+			ccs.append(legacy)
+		rule["cost_centers"] = ccs
+
+
+def _rule_matches_cost_center(rule, cost_center: str | None) -> bool:
+	"""Empty cost_centers = all branches; otherwise line branch must be listed."""
+	ccs = rule.get("cost_centers") or []
+	if not ccs:
+		return True
+	return (cost_center or "") in ccs
 
 
 def match_commission_rule(rules, practitioner, cost_center, item_code, item_group, on_date):
@@ -685,8 +804,8 @@ def match_commission_rule(rules, practitioner, cost_center, item_code, item_grou
 			if rule.practitioner != practitioner:
 				continue
 			score += 100
-		if rule.cost_center:
-			if rule.cost_center != (cost_center or ""):
+		if rule.get("cost_centers"):
+			if not _rule_matches_cost_center(rule, cost_center):
 				continue
 			score += 40
 		if rule.item_code:
@@ -706,7 +825,7 @@ def match_commission_rule(rules, practitioner, cost_center, item_code, item_grou
 
 def match_base_commission_rule(rules, practitioner, cost_center, on_date):
 	"""Match rule for practitioner+cost_center (ignore item filters).
-	
+
 	Used to check free_cases across all items for a practitioner/branch.
 	Returns the best matching rule based on practitioner and cost_center only,
 	even if that rule has item_code or item_group filters.
@@ -730,8 +849,8 @@ def match_base_commission_rule(rules, practitioner, cost_center, on_date):
 			if rule.practitioner != practitioner:
 				continue
 			score += 100
-		if rule.cost_center:
-			if rule.cost_center != (cost_center or ""):
+		if rule.get("cost_centers"):
+			if not _rule_matches_cost_center(rule, cost_center):
 				continue
 			score += 40
 

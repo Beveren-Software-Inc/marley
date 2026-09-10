@@ -64,7 +64,12 @@ def _parse_float(value) -> float | None:
 
 
 def _format_sum_validation_user_message(
-	labels: list[str], total: float, target: float, tolerance: float
+	labels: list[str],
+	total: float,
+	target: float,
+	tolerance: float,
+	*,
+	parts: list[tuple[str, float]] | None = None,
 ) -> str:
 	"""Short, readable message for clinicians (not a raw exception string)."""
 	low = target - tolerance
@@ -74,23 +79,24 @@ def _format_sum_validation_user_message(
 	low_s = _format_result(low)
 	high_s = _format_result(high)
 
-	if len(labels) <= 6:
-		tests = ", ".join(labels)
+	if parts:
+		detail = " + ".join(f"{label} ({_format_result(val)})" for label, val in parts)
+	elif len(labels) <= 6:
+		detail = ", ".join(labels)
 	else:
-		tests = ", ".join(labels[:5]) + _(", and {0} more").format(len(labels) - 5)
+		detail = ", ".join(labels[:5]) + _(", and {0} more").format(len(labels) - 5)
 
 	return _(
-		"The differential counts for this panel add up to {total}% "
+		"The selected differential counts add up to {total}% "
 		"(they should total {target}%, acceptable range {low}%–{high}%).\n\n"
-		"Tests checked: {tests}.\n\n"
-		"Adjust the results or update the Lab Test Result Rule so only the "
-		"percentage differentials are included (usually five tests on a CBC)."
+		"Only these tests from the rule child table are included:\n{tests}\n\n"
+		"Other children in the group (WBC, RBC, HGB, …) are not part of this sum."
 	).format(
 		total=total_s,
 		target=target_s,
 		low=low_s,
 		high=high_s,
-		tests=tests,
+		tests=detail,
 	)
 
 
@@ -480,6 +486,44 @@ def _align_values_to_rule_event_names(
 				_copy_to_label(part)
 
 
+def _apply_result_overrides_to_values(
+	values: dict[str, float], result_overrides: list[dict] | dict | None
+) -> None:
+	"""Overlay unsaved / on-screen sibling results so sum/formula checks match the UI.
+
+	``result_overrides`` may be:
+	- a list of ``{name?, template?, custom_result}``
+	- a dict of lab-test name → result string
+	"""
+	if not result_overrides:
+		return
+
+	rows: list[dict] = []
+	if isinstance(result_overrides, dict):
+		for key, raw in result_overrides.items():
+			rows.append({"name": str(key), "custom_result": raw})
+	else:
+		for row in result_overrides:
+			if isinstance(row, dict):
+				rows.append(row)
+
+	for row in rows:
+		val = _parse_float(row.get("custom_result"))
+		if val is None:
+			continue
+		name = (row.get("name") or "").strip()
+		tpl = (row.get("template") or "").strip()
+		lab_name = (row.get("lab_test_name") or "").strip()
+		if name and frappe.db.exists("Lab Test", name):
+			meta = frappe.db.get_value(
+				"Lab Test", name, ["template", "lab_test_name"], as_dict=True
+			) or {}
+			tpl = tpl or (meta.get("template") or "").strip()
+			lab_name = lab_name or (meta.get("lab_test_name") or "").strip()
+		for key in filter(None, [tpl, _display_name_for_template(tpl), lab_name, name]):
+			values[key] = val
+
+
 def _merge_panel_sibling_values(
 	values: dict[str, float],
 	panel_template: str,
@@ -488,6 +532,7 @@ def _merge_panel_sibling_values(
 	lab_test_group: str | None = None,
 	patient: str | None = None,
 	current_doc=None,
+	result_overrides: list[dict] | dict | None = None,
 ) -> None:
 	"""Load custom_result from each child lab test in the panel (for formulas and sums)."""
 	if not panel_template:
@@ -501,6 +546,7 @@ def _merge_panel_sibling_values(
 			current_doc=current_doc,
 		)
 	)
+	_apply_result_overrides_to_values(values, result_overrides)
 
 
 def _persist_calculated_lab_test_result(lt_name: str, formatted: str) -> str | None:
@@ -1054,17 +1100,48 @@ def get_enabled_rule_docs_for_panel(template: str, service_request: str | None =
 
 
 def merge_rule_docs(docs, *, panel_template: str = "") -> dict[str, Any] | None:
+	"""Merge panel + child rules.
+
+	Formulas from every doc are combined. Sum-to-target rows come only from the
+	panel/group rule's ``sum_events`` child table — never from every group child
+	and never by inventing rows from ``get_group_child_templates``.
+	"""
 	if not docs:
 		return None
-	merged = rule_doc_to_dict(docs[0])
-	for extra in docs[1:]:
-		part = rule_doc_to_dict(extra)
+
+	panel = (panel_template or "").strip()
+	merged: dict[str, Any] = {
+		"name": docs[0].name,
+		"lab_test_template": panel or docs[0].lab_test_template,
+		"enabled": True,
+		"sum_events": [],
+		"sum_events_configured": False,
+		"sum_target": 100,
+		"sum_tolerance": 0.5,
+		"sum_block_save": False,
+		"rule_lines": [],
+	}
+
+	for doc in docs:
+		part = rule_doc_to_dict(doc)
 		merged["rule_lines"].extend(part.get("rule_lines") or [])
-		merged["sum_events"].extend(part.get("sum_events") or [])
-		if part.get("sum_events"):
-			merged["sum_events_configured"] = True
-	if panel_template:
-		merged["lab_test_template"] = panel_template
+		tpl = (part.get("lab_test_template") or "").strip()
+		# Only the panel rule owns the differential / sum-to-target list.
+		if not part.get("sum_events"):
+			continue
+		if panel and tpl and tpl != panel:
+			continue
+		if merged["sum_events"]:
+			continue
+		merged["sum_events"] = list(part["sum_events"])
+		merged["sum_events_configured"] = True
+		merged["sum_target"] = part.get("sum_target", 100)
+		merged["sum_tolerance"] = part.get("sum_tolerance", 0.5)
+		merged["sum_block_save"] = bool(part.get("sum_block_save"))
+		merged["name"] = part.get("name") or merged["name"]
+
+	if panel:
+		merged["lab_test_template"] = panel
 	return merged
 
 
@@ -1114,6 +1191,7 @@ def apply_rules(
 	patient: str | None = None,
 	current_doc=None,
 	defer_formula_warnings: bool = False,
+	result_overrides: list[dict] | dict | None = None,
 ) -> dict[str, Any]:
 	"""Apply configured rules to a list of normal_test_item dicts (mutates copies in returned items)."""
 	out_items = [dict(row) for row in (items or [])]
@@ -1149,20 +1227,23 @@ def apply_rules(
 		lab_test_group=lab_test_group,
 		patient=patient,
 		current_doc=current_doc,
+		result_overrides=result_overrides,
 	)
 	_align_values_to_rule_event_names(values, rules, service_request=service_request)
 	patient_ctx = _patient_formula_context(patient)
 
-	# Sum validation
-	sum_event_defs = rules.get("sum_events") or []
+	# Sum validation — ONLY rows listed on the rule's sum_events child table.
+	# Never fall back to every child of the lab group.
+	sum_event_defs = list(rules.get("sum_events") or [])
 	if not sum_event_defs and not rules.get("rule_lines"):
 		warnings.append(
 			{
 				"type": "sum_validation_config",
 				"message": _(
-					"Lab Test Result Rule for this panel has no child tests listed. "
-					"Open the rule in Desk, click Load Group Child Tests, "
-					"and keep only the tests that must add up to {0} (e.g. the five differentials on CBC)."
+					"Lab Test Result Rule for this panel has no child tests listed under "
+					"“Tests That Must Sum to Target”. Add only the tests that should add "
+					"up to {0} (for CBC: Neutrophils, Lymphocytes, Monocytes, Eosinophils, "
+					"Basophils) — not every child in the group."
 				).format(rules.get("sum_target") or 100),
 				"ok": False,
 				"block_save": False,
@@ -1170,13 +1251,22 @@ def apply_rules(
 		)
 	if sum_event_defs:
 		parts: list[float] = []
+		labeled_parts: list[tuple[str, float]] = []
 		labels: list[str] = []
 		missing: list[str] = []
+		seen_sum_keys: set[str] = set()
 		for ev in sum_event_defs:
 			names = _event_names_from_rule_event(ev)
 			if not names:
 				continue
-			label = _display_name_for_template(names[0]) or names[0]
+			# Deduplicate if the same child was listed twice on the rule.
+			primary = names[0]
+			dedupe_key = _norm_key(primary)
+			if dedupe_key in seen_sum_keys:
+				continue
+			seen_sum_keys.add(dedupe_key)
+
+			label = _display_name_for_template(primary) or primary
 			val = None
 			for candidate in names:
 				val = resolve_event_value(candidate, index, values)
@@ -1187,14 +1277,11 @@ def apply_rules(
 			else:
 				parts.append(val)
 				labels.append(label)
+				labeled_parts.append((label, val))
 		if missing and parts:
 			warnings.append(
 				{
 					"type": "sum_validation_missing",
-					# "message": _(
-					# 	"Could not find results for: {0}. Enter results on each child lab test "
-					# 	"in this group, or check that the correct child tests are listed on the rule."
-					# ).format(", ".join(missing)),
 					"ok": False,
 					"block_save": False,
 				}
@@ -1204,7 +1291,9 @@ def apply_rules(
 			target = float(rules.get("sum_target") or 100)
 			tolerance = float(rules.get("sum_tolerance") or 0.5)
 			diff = abs(total - target)
-			msg = _format_sum_validation_user_message(labels, total, target, tolerance)
+			msg = _format_sum_validation_user_message(
+				labels, total, target, tolerance, parts=labeled_parts
+			)
 			short_msg = _format_sum_validation_short_message(labels, total, target, tolerance)
 			entry = {
 				"type": "sum_validation",
@@ -1214,6 +1303,7 @@ def apply_rules(
 				"total": total,
 				"target": target,
 				"tolerance": tolerance,
+				"included_tests": [{"label": lab, "value": val} for lab, val in labeled_parts],
 				"ok": diff <= tolerance,
 				"block_save": bool(rules.get("sum_block_save")),
 			}
@@ -1312,7 +1402,13 @@ def _resolve_panel_template_and_rule(doc):
 	return panel_template, (docs[0] if docs else None)
 
 
-def apply_rules_to_doc(doc, *, block_on_error: bool = True, persist_siblings: bool = True) -> dict[str, Any]:
+def apply_rules_to_doc(
+	doc,
+	*,
+	block_on_error: bool = True,
+	persist_siblings: bool = True,
+	result_overrides: list[dict] | dict | None = None,
+) -> dict[str, Any]:
 	"""Apply rules for this lab test (compound rows and/or group child results)."""
 	empty = {
 		"warnings": [],
@@ -1360,6 +1456,7 @@ def apply_rules_to_doc(doc, *, block_on_error: bool = True, persist_siblings: bo
 		patient=getattr(doc, "patient", None),
 		current_doc=doc,
 		defer_formula_warnings=defer_formula_warnings,
+		result_overrides=result_overrides,
 	)
 	calculated_updates = _sync_calculated_targets_to_lab_tests(
 		doc,

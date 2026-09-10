@@ -443,6 +443,8 @@ export interface SaveAndSubmitLabTestInput {
   discount_margin?: string
   discount?: number
   discount_amount?: number
+  /** On-screen sibling results so panel sum/formula checks match the UI, not stale DB values. */
+  sibling_results?: Array<{ name?: string; template?: string; lab_test_name?: string; custom_result?: string }>
 }
 
 export async function recalculatePanelForServiceRequest(

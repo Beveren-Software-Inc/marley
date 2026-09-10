@@ -16,35 +16,44 @@ frappe.ui.form.on('Lab Test Result Rule', {
 		}
 
 		frm.add_custom_button(__('Load Group Child Tests'), () => {
-			frappe.call({
-				method: 'healthcare.api.lab_test_result_rules.get_group_child_sum_events',
-				args: { parent_template: frm.doc.lab_test_template },
-				callback(r) {
-					const children = r.message || [];
-					if (!children.length) {
-						frappe.msgprint(
-							__(
-								'No child tests found. Link child templates to this panel using Parent Group = {0}, or add them on the group template table.',
-								[frm.doc.lab_test_template]
-							)
-						);
-						return;
-					}
-					frm.clear_table('sum_events');
-					children.forEach((child) => {
-						const row = frm.add_child('sum_events');
-						row.lab_test_event = child.lab_test_event;
+			frappe.confirm(
+				__(
+					'This will replace “Tests That Must Sum to Target” with EVERY child of the group. '
+					+ 'For CBC you usually keep only Neutrophils, Lymphocytes, Monocytes, Eosinophils, '
+					+ 'and Basophils — remove the rest after loading. Continue?'
+				),
+				() => {
+					frappe.call({
+						method: 'healthcare.api.lab_test_result_rules.get_group_child_sum_events',
+						args: { parent_template: frm.doc.lab_test_template },
+						callback(r) {
+							const children = r.message || [];
+							if (!children.length) {
+								frappe.msgprint(
+									__(
+										'No child tests found. Link child templates to this panel using Parent Group = {0}, or add them on the group template table.',
+										[frm.doc.lab_test_template]
+									)
+								);
+								return;
+							}
+							frm.clear_table('sum_events');
+							children.forEach((child) => {
+								const row = frm.add_child('sum_events');
+								row.lab_test_event = child.lab_test_event;
+							});
+							frm.refresh_field('sum_events');
+							frappe.show_alert({
+								message: __(
+									'Loaded {0} child test(s). Delete any that should NOT add up to {1}.',
+									[children.length, frm.doc.sum_target || 100]
+								),
+								indicator: 'orange',
+							});
+						},
 					});
-					frm.refresh_field('sum_events');
-					frappe.show_alert({
-						message: __(
-							'Loaded {0} child test(s). Remove any that are not part of the sum to {1}.',
-							[children.length, frm.doc.sum_target || 100]
-						),
-						indicator: 'green',
-					});
-				},
-			});
+				}
+			);
 		});
 	},
 });

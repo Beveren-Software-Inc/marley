@@ -84,7 +84,7 @@
    "options": "Company"
   },
   {
-   "description": "Optional. Limit generation to one branch.",
+   "description": "Optional. Limit generation to one branch. If blank, only branches listed on Doctor Commission Rules are included.",
    "fieldname": "cost_center",
    "fieldtype": "Link",
    "in_standard_filter": 1,

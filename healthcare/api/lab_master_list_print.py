@@ -7,11 +7,10 @@ import re
 import frappe
 from frappe.utils import cint, cstr, flt, now_datetime
 
-from healthcare.api.lab_reports_common import letter_head_seed
+from healthcare.api.lab_reports_common import get_report_letter_head
 from healthcare.api.nursing_print import (
 	MAROON,
 	esc,
-	get_doc_letter_head,
 	wrap_print_document,
 )
 
@@ -200,15 +199,17 @@ def get_lab_master_list_html(cost_center=None):
 	if not frappe.has_permission("Lab Test Template", "read"):
 		frappe.throw(frappe._("Not permitted to print Lab Test Price List"), frappe.PermissionError)
 
+	from healthcare.api.lab_reports_common import resolve_report_cost_center
+
+	cost_center = resolve_report_cost_center(cost_center)
 	groups, children_by_group, standalones = _load_templates()
 	printed = now_datetime().strftime("%A %B %d %Y %I:%M %p")
 	meta = f'<div class="lml-meta">Printed On: {esc(printed)}</div>'
 	body = f'<div class="lml-report">{meta}{_table(groups, children_by_group, standalones)}</div>'
-	seed = letter_head_seed(cost_center)
 	return wrap_print_document(
 		_TITLE,
 		body,
-		get_doc_letter_head(seed),
+		get_report_letter_head(cost_center),
 		extra_css=_CSS,
 		landscape=True,
 	)
