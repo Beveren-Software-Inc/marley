@@ -16,7 +16,7 @@
   "practitioner",
   "practitioner_name",
   "column_break_2",
-  "cost_center",
+  "cost_centers",
   "item_code",
   "item_group",
   "section_calc",
@@ -95,11 +95,11 @@
    "fieldtype": "Column Break"
   },
   {
-   "fieldname": "cost_center",
-   "fieldtype": "Link",
-   "in_standard_filter": 1,
-   "label": "Branch / Cost Center",
-   "options": "Cost Center"
+   "description": "Leave blank to apply to all branches. Select one or more branches to limit this rule.",
+   "fieldname": "cost_centers",
+   "fieldtype": "Table MultiSelect",
+   "label": "Branches / Cost Centers",
+   "options": "Doctor Commission Rule Cost Center"
   },
   {
    "fieldname": "item_code",
@@ -176,7 +176,7 @@
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-07-13 00:00:00.000000",
+ "modified": "2026-09-10 16:46:00.000000",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Doctor Commission Rule",
