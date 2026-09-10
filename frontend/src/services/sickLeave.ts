@@ -34,6 +34,8 @@ export interface CreateSickLeaveInput {
   source?: string
   sr_no?: string
   branch?: string
+  /** Cost Center (UI label is Branch) */
+  cost_center?: string
   patient_visit?: string
   /** Flag fields — Patient Sick Leave stores as Check (1/0) */
   sick_flag?: number

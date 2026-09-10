@@ -5893,9 +5893,10 @@ def create_sick_leave(data):
 		if data.get("patient_visit"):
 			doc.patient_visit = data["patient_visit"]
 
-		# Branch / cost center
-		if data.get("branch") or data.get("cost_center"):
-			doc.branch = data.get("branch") or data.get("cost_center")
+		# Branch (UI) → Cost Center (DocType field)
+		cc = (data.get("cost_center") or data.get("branch") or "").strip()
+		if cc:
+			doc.cost_center = cc
 
 		# Flag fields — the Patient Sick Leave doctype uses Check (boolean 0/1)
 		for flag_field in (

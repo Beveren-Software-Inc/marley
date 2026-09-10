@@ -252,7 +252,10 @@ def _build_fields(row: dict) -> dict[str, Any]:
 
 	branch = _resolve_cost_center(row.get("branch_num"))
 	if branch:
-		fields["branch"] = branch
+		fields["cost_center"] = branch
+		# Keep legacy branch populated when the field still exists on older sites
+		if frappe.db.has_column("Patient Sick Leave", "branch"):
+			fields["branch"] = branch
 
 	return {key: value for key, value in fields.items() if value not in (None, "")}
 
