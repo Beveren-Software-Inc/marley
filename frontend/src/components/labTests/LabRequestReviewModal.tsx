@@ -406,10 +406,21 @@ export function LabRequestReviewModal({
   )
 
   const applyCalculatedUpdates = useCallback(
-    (updates?: Array<{ name: string; lab_test_name?: string; custom_result: string }>) => {
+    (
+      updates?: Array<{
+        name: string
+        lab_test_name?: string
+        custom_result: string
+        status?: string
+      }>,
+    ) => {
       for (const upd of updates || []) {
         if (upd.name && upd.custom_result != null && String(upd.custom_result).trim() !== '') {
-          patchTestResult(upd.name, String(upd.custom_result), 'Pending Review')
+          patchTestResult(
+            upd.name,
+            String(upd.custom_result),
+            upd.status || 'Pending Review',
+          )
         }
       }
     },

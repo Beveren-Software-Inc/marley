@@ -503,31 +503,32 @@ def _merge_panel_sibling_values(
 	)
 
 
-def _persist_calculated_lab_test_result(lt_name: str, formatted: str) -> None:
-	"""Save calculated result on a Lab Test document (reliable for Text Editor fields)."""
+def _persist_calculated_lab_test_result(lt_name: str, formatted: str) -> str | None:
+	"""Save calculated result on a Lab Test document (reliable for Text Editor fields).
+
+	Returns the status after save (so callers can refresh the UI).
+	"""
 	if not lt_name:
-		return
+		return None
 	text = str(formatted).strip() if formatted is not None else ""
 	lt = frappe.get_doc("Lab Test", lt_name)
 	old_result = (lt.custom_result or "").strip()
-	was_reviewed = lt.status == "Reviewed"
+	cur_status = (lt.status or "").strip()
 	lt.custom_result = text
 	if lt.meta.has_field("results"):
 		lt.results = text
-	pre_result_statuses = {
-		"",
-		"Requested",
-		"Sample Collected",
-		"Testing in Progress",
-		"Testing in progress",
-		"Awaiting sample collection",
-		"Sample Collection in Progress",
-		"Sample collection in progress",
-	}
-	if text and was_reviewed and text != old_result:
-		lt.status = "Pending Review"
-	elif text and (lt.status or "") in pre_result_statuses:
-		lt.status = "Pending Review"
+
+	# Whenever a formula writes a result, move the sibling into Pending Review
+	# (unless cancelled/rejected, or Reviewed with an unchanged result).
+	# Covers Sample Collected, Partial Result Enter, Testing in Progress, etc.
+	if text:
+		if cur_status in ("Cancelled", "Rejected"):
+			pass
+		elif cur_status == "Reviewed" and text == old_result:
+			pass
+		else:
+			lt.status = "Pending Review"
+
 	lt.flags.skip_editing_lock = True
 	if text:
 		try:
@@ -557,13 +558,23 @@ def _persist_calculated_lab_test_result(lt_name: str, formatted: str) -> None:
 	if lt.docstatus == 1:
 		lt.flags.ignore_validate_update_after_submit = True
 	lt.save(ignore_permissions=True)
-	if text and (lt.docstatus == 0 or was_reviewed and text != old_result):
+	# Belt-and-suspenders: force status in DB in case a hook reloads/overwrites it
+	if text and (lt.status or "").strip() == "Pending Review":
+		frappe.db.set_value(
+			"Lab Test",
+			lt.name,
+			"status",
+			"Pending Review",
+			update_modified=False,
+		)
+	if text and (lt.docstatus == 0 or (cur_status == "Reviewed" and text != old_result)):
 		try:
 			from healthcare.api.lab_test_doctor_review import record_results_entered
 
 			record_results_entered(lt.name)
 		except Exception:
 			pass
+	return (lt.status or "").strip() or None
 
 
 def _sync_calculated_targets_to_lab_tests(
@@ -588,13 +599,17 @@ def _sync_calculated_targets_to_lab_tests(
 			continue
 		if _norm_key(tpl) == _norm_key(doc.template or ""):
 			doc.custom_result = formatted
+			status = None
 			if persist and doc.name:
-				_persist_calculated_lab_test_result(doc.name, formatted)
+				status = _persist_calculated_lab_test_result(doc.name, formatted)
+				if status:
+					doc.status = status
 			updates.append(
 				{
 					"name": doc.name,
 					"lab_test_name": getattr(doc, "lab_test_name", None) or target_label,
 					"custom_result": formatted,
+					"status": status or "Pending Review",
 				}
 			)
 			continue
@@ -606,14 +621,16 @@ def _sync_calculated_targets_to_lab_tests(
 			panel_template=panel_template,
 		)
 		if lt_name and lt_name != doc.name:
+			status = None
 			if persist:
-				_persist_calculated_lab_test_result(lt_name, formatted)
+				status = _persist_calculated_lab_test_result(lt_name, formatted)
 			updates.append(
 				{
 					"name": lt_name,
 					"lab_test_name": frappe.db.get_value("Lab Test", lt_name, "lab_test_name")
 					or target_label,
 					"custom_result": formatted,
+					"status": status or "Pending Review",
 				}
 			)
 	return updates
