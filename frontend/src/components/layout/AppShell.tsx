@@ -1,12 +1,19 @@
-import type { ReactNode } from 'react'
-import { useState, useMemo, useEffect } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
-import { ChevronDown, ChevronRight, Folder } from 'lucide-react'
+import { ChevronDown, ChevronRight, Folder, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
 import { UserMenu } from '../user/UserMenu'
-import { AppShellContext } from '../../contexts/AppShellContext'
+import {
+  AppShellContext,
+  APP_SIDEBAR_COLLAPSED_STORAGE_KEY,
+  APP_SIDEBAR_WIDTH_COLLAPSED_RAIL,
+  APP_SIDEBAR_WIDTH_EXPANDED,
+  APP_TOPBAR_HEIGHT_PX,
+} from '../../contexts/AppShellContext'
 import { BranchSelector } from './BranchSelector'
 import { NotificationBell } from '../notifications/NotificationBell'
 import { SidebarCareModePicker } from './SidebarCareModePicker'
+import { PortalBlankWorkspace } from './PortalBlankWorkspace'
 import { doctorScreenGroups, assessmentScreens } from '../../config/doctorScreens'
 import { useAuth } from '../../providers/AuthProvider'
 import { useCareContext } from '../../providers/CareContextProvider'
@@ -324,18 +331,31 @@ function stripInpatientDischargeFlowParams(params: URLSearchParams): void {
 function buildScreenPath(basePath: string, screenId: string, currentSearch: string): string {
   const params = new URLSearchParams(currentSearch)
   stripInpatientDischargeFlowParams(params)
+  params.delete('blank')
   params.set('screen', screenId)
   const qs = params.toString()
   return qs ? `${basePath}?${qs}` : basePath
 }
 
-/** Role home link: drop screen only, keep care context query params. */
+/** Role home link: drop screen / blank only, keep care context query params. */
 function buildRoleHomePath(basePath: string, currentSearch: string): string {
   const params = new URLSearchParams(currentSearch)
   stripInpatientDischargeFlowParams(params)
   params.delete('screen')
+  params.delete('blank')
   const qs = params.toString()
   return qs ? `${basePath}?${qs}` : basePath
+}
+
+/** Cleared portal workspace (double-click role). */
+function buildRoleBlankPath(basePath: string): string {
+  return `${basePath}?blank=1`
+}
+
+function isBlankWorkspaceSearch(search: string): boolean {
+  const params = new URLSearchParams(search)
+  const blank = (params.get('blank') || '').trim().toLowerCase()
+  return blank === '1' || blank === 'true' || blank === 'yes'
 }
 
 // ─── Sidebar nav styling ──────────────────────────────────────────────────────
@@ -391,7 +411,7 @@ function sidebarRoleClass(isActive: boolean): string {
 
 export const AppShell = ({ children }: { children: ReactNode }) => {
   const { user } = useAuth()
-  const { selectedPatient, costCenterPatientCareType, mode } = useCareContext()
+  const { selectedPatient, costCenterPatientCareType, mode, clearCareWorkspace } = useCareContext()
   const ccScope = careScopeFromCostCenterField(costCenterPatientCareType)
   const location = useLocation()
   const navigate = useNavigate()
@@ -400,6 +420,8 @@ export const AppShell = ({ children }: { children: ReactNode }) => {
   const inDoctorDischargeRoute = isInpatientDischargeRoute(urlSearch, [DOCTOR_DISCHARGE_SCREEN_ID])
   const sidebarModeForNurse = modeForInpatientDischargeScreens(mode, ccScope, inNurseDischargeRoute)
   const sidebarModeForDoctor = modeForInpatientDischargeScreens(mode, ccScope, inDoctorDischargeRoute)
+  const showBlankWorkspace = isBlankWorkspaceSearch(location.search)
+  const roleClickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Derive the active screen id from the current URL query param
   const activeScreen = urlSearch.get('screen')
@@ -413,6 +435,13 @@ export const AppShell = ({ children }: { children: ReactNode }) => {
   const [expandedTopics, setExpandedTopics] = useState<Set<string>>(new Set())
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set())
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    try {
+      return localStorage.getItem(APP_SIDEBAR_COLLAPSED_STORAGE_KEY) === '1'
+    } catch {
+      return false
+    }
+  })
 
   const toggleTopic = (linkTo: string) => {
     setExpandedTopics((prev) => {
@@ -433,6 +462,27 @@ export const AppShell = ({ children }: { children: ReactNode }) => {
 
   const toggleSidebar = () => setSidebarOpen((v) => !v)
   const closeSidebar  = () => setSidebarOpen(false)
+
+  const persistSidebarCollapsed = useCallback((collapsed: boolean) => {
+    setSidebarCollapsed(collapsed)
+    try {
+      localStorage.setItem(APP_SIDEBAR_COLLAPSED_STORAGE_KEY, collapsed ? '1' : '0')
+    } catch {
+      /* ignore quota / private mode */
+    }
+  }, [])
+
+  const toggleSidebarCollapsed = useCallback(() => {
+    persistSidebarCollapsed(!sidebarCollapsed)
+  }, [persistSidebarCollapsed, sidebarCollapsed])
+
+  const expandSidebar = useCallback(() => {
+    persistSidebarCollapsed(false)
+  }, [persistSidebarCollapsed])
+
+  const desktopSidebarWidth = sidebarCollapsed
+    ? APP_SIDEBAR_WIDTH_COLLAPSED_RAIL
+    : APP_SIDEBAR_WIDTH_EXPANDED
 
   const mainLinks = useMemo(() => {
     const links = ALL_MAIN_LINKS.map((link) => {
@@ -473,9 +523,22 @@ export const AppShell = ({ children }: { children: ReactNode }) => {
   ])
 
   const shellContextValue = useMemo(
-    () => ({ sidebarOpen, toggleSidebar, closeSidebar }),
-    [sidebarOpen],
+    () => ({
+      sidebarOpen,
+      toggleSidebar,
+      closeSidebar,
+      sidebarCollapsed,
+      toggleSidebarCollapsed,
+      expandSidebar,
+    }),
+    [sidebarOpen, sidebarCollapsed, toggleSidebarCollapsed, expandSidebar],
   )
+
+  useEffect(() => {
+    return () => {
+      if (roleClickTimerRef.current) clearTimeout(roleClickTimerRef.current)
+    }
+  }, [])
 
   /** Keep role + folder expanded for the current route and active screen. */
   useEffect(() => {
@@ -530,7 +593,15 @@ export const AppShell = ({ children }: { children: ReactNode }) => {
 
   return (
     <AppShellContext.Provider value={shellContextValue}>
-    <div className="h-screen overflow-hidden flex bg-muted">
+    <div
+      className="h-screen overflow-hidden flex bg-muted"
+      style={
+        {
+          ['--app-sidebar-width' as string]: `${desktopSidebarWidth}px`,
+          ['--app-topbar-height' as string]: `${APP_TOPBAR_HEIGHT_PX}px`,
+        } as CSSProperties
+      }
+    >
       {/* Mobile overlay */}
       {sidebarOpen && (
         <div className="md:hidden fixed inset-0 bg-black/50 z-40" onClick={closeSidebar} />
@@ -538,17 +609,30 @@ export const AppShell = ({ children }: { children: ReactNode }) => {
 
       {/* ── Sidebar ── */}
       <aside
-        className={`bg-primary bg-gradient-to-b from-white/[0.07] via-transparent to-black/25 text-white flex flex-col h-screen overflow-hidden fixed md:static z-40 shadow-xl shadow-black/10 transition-transform duration-300 ease-in-out ${
+        className={`bg-primary bg-gradient-to-b from-white/[0.07] via-transparent to-black/25 text-white flex flex-col h-screen overflow-hidden fixed md:static z-40 shadow-xl shadow-black/10 transition-[transform,width,min-width,opacity] duration-300 ease-in-out ${
           sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
-        } w-[240px]`}
+        } ${
+          sidebarCollapsed
+            ? 'w-[240px] md:w-0 md:min-w-0 md:opacity-0 md:pointer-events-none md:overflow-hidden'
+            : 'w-[240px]'
+        }`}
       >
-        {/* Logo */}
-        <div className="bg-primary px-3 py-3 border-b border-white/10 flex items-center justify-center flex-shrink-0">
-          <div className="w-full rounded-lg bg-white shadow-sm px-3 py-2.5 flex items-center justify-center">
+        {/* Logo + collapse — same height as main navbar */}
+        <div className="bg-primary px-2 border-b border-white/10 flex items-center gap-1.5 flex-shrink-0 h-[var(--app-topbar-height,60px)] box-border">
+          <button
+            type="button"
+            onClick={toggleSidebarCollapsed}
+            className="hidden md:inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-white/80 hover:bg-white/15 hover:text-white transition-colors"
+            aria-label="Collapse sidebar"
+            title="Collapse sidebar"
+          >
+            <PanelLeftClose className="h-4 w-4" strokeWidth={2} />
+          </button>
+          <div className="rounded-md bg-white shadow-sm px-2 py-1 flex items-center justify-center overflow-hidden shrink-0 max-h-9">
             <img
               src={sereneLogo}
-              alt="Serene Psychiatry Hospital"
-              className="w-[180px] max-w-full h-auto object-contain select-none"
+              alt="Serene Psychiatric Hospital"
+              className="block h-7 w-auto max-w-[100px] object-contain object-center select-none"
               draggable={false}
             />
           </div>
@@ -582,18 +666,53 @@ export const AppShell = ({ children }: { children: ReactNode }) => {
                         : <ChevronRight className="w-4 h-4" />}
                     </button>
                   )}
-                  <NavLink
-                    to={buildRoleHomePath(link.to, location.search)}
-                    onClick={() => {
-                      if (hasChildren) {
-                        setExpandedTopics((prev) => new Set(prev).add(link.to))
-                      }
-                      closeSidebar()
-                    }}
-                    className={sidebarRoleClass(roleIsActive)}
-                  >
-                    {link.label}
-                  </NavLink>
+                  {hasChildren ? (
+                    <a
+                      href={buildRoleHomePath(link.to, location.search)}
+                      title="Click: home · Double-click: clear workspace"
+                      onClick={(e) => {
+                        e.preventDefault()
+                        if (roleClickTimerRef.current) {
+                          clearTimeout(roleClickTimerRef.current)
+                        }
+                        roleClickTimerRef.current = setTimeout(() => {
+                          roleClickTimerRef.current = null
+                          setExpandedTopics((prev) => new Set(prev).add(link.to))
+                          navigate(buildRoleHomePath(link.to, location.search))
+                          closeSidebar()
+                        }, 280)
+                      }}
+                      onDoubleClick={(e) => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        if (roleClickTimerRef.current) {
+                          clearTimeout(roleClickTimerRef.current)
+                          roleClickTimerRef.current = null
+                        }
+                        clearCareWorkspace()
+                        setExpandedTopics((prev) => {
+                          const next = new Set(prev)
+                          next.delete(link.to)
+                          return next
+                        })
+                        navigate(buildRoleBlankPath(link.to))
+                        closeSidebar()
+                      }}
+                      className={sidebarRoleClass(roleIsActive)}
+                    >
+                      {link.label}
+                    </a>
+                  ) : (
+                    <NavLink
+                      to={buildRoleHomePath(link.to, location.search)}
+                      onClick={() => {
+                        closeSidebar()
+                      }}
+                      className={sidebarRoleClass(roleIsActive)}
+                    >
+                      {link.label}
+                    </NavLink>
+                  )}
                 </div>
 
                 {/* ── Grouped screens ── */}
@@ -716,24 +835,42 @@ export const AppShell = ({ children }: { children: ReactNode }) => {
       </aside>
 
       {/* ── Main content ── */}
-      <main className="p-0 h-screen flex flex-col flex-1 min-w-0 overflow-hidden md:ml-0">
-        <div
-          id="patient-alerts-portal"
-          className="fixed top-14 left-0 right-0 z-30 md:left-[240px]"
-          aria-hidden
-        />
-        <div
-          className={`flex-1 min-w-0 dense-listing ${
-            isLabRoute
-              ? 'overflow-hidden flex flex-col'
-              : `overflow-y-auto ${isNurseRoute ? 'overscroll-y-contain bg-slate-50' : ''}`
-          }`}
-        >
-          {children}
+      <main className="p-0 h-screen flex flex-row flex-1 min-w-0 overflow-hidden md:ml-0">
+        {/* Desktop collapsed rail — expand control stays outside patient search */}
+        {sidebarCollapsed && (
+          <div className="hidden md:flex w-8 shrink-0 flex-col items-center self-stretch bg-primary border-r border-white/10 z-20">
+            <div className="flex h-[var(--app-topbar-height,60px)] w-full shrink-0 items-center justify-center box-border border-b border-white/10">
+              <button
+                type="button"
+                onClick={expandSidebar}
+                className="inline-flex h-7 w-7 items-center justify-center rounded-md text-white/90 hover:bg-white/15 hover:text-white transition-colors"
+                aria-label="Expand sidebar"
+                title="Expand sidebar"
+              >
+                <PanelLeftOpen className="h-3.5 w-3.5" strokeWidth={2} />
+              </button>
+            </div>
+          </div>
+        )}
+        <div className="flex flex-col flex-1 min-w-0 h-full overflow-hidden">
+          <div
+            id="patient-alerts-portal"
+            className="fixed top-[var(--app-topbar-height,60px)] left-0 right-0 z-30 md:left-[var(--app-sidebar-width,240px)]"
+            aria-hidden
+          />
+          <div
+            className={`flex-1 min-w-0 dense-listing ${
+              isLabRoute
+                ? 'overflow-hidden flex flex-col'
+                : `overflow-y-auto ${isNurseRoute ? 'overscroll-y-contain bg-slate-50' : ''}`
+            }`}
+          >
+            {showBlankWorkspace ? <PortalBlankWorkspace /> : children}
+          </div>
+          <footer className="h-9 flex items-center justify-end px-4 text-[11px] text-white bg-gradient-to-r from-primary/70 via-primary to-primary/60">
+            © {new Date().getFullYear()} Powered by <span className="font-semibold ml-1">Beveren Software Inc.</span>
+          </footer>
         </div>
-        <footer className="h-9 flex items-center justify-end px-4 text-[11px] text-white bg-gradient-to-r from-primary/70 via-primary to-primary/60">
-          © {new Date().getFullYear()} Powered by <span className="font-semibold ml-1">Beveren Software Inc.</span>
-        </footer>
       </main>
     </div>
     </AppShellContext.Provider>

@@ -122,6 +122,8 @@ interface CareContextValue {
   applyOpCareContext: (opts: { patient?: string; visit: string; visitLabel?: string }) => void
   /** Select IP mode with patient + admission in the header (shared by admission/discharge links). */
   applyIpCareContext: (opts: { patient?: string; admission: string; admissionLabel?: string }) => void
+  /** Clear patient / visit / admission (portal double-click blank workspace). */
+  clearCareWorkspace: () => void
   /** Reload branch / company context after navbar branch switch. */
   refreshUserCostCenter: () => Promise<void>
   /** True when Healthcare Settings.lock_editing_data is enabled. */
@@ -506,6 +508,21 @@ export const CareContextProvider = ({ children }: { children: ReactNode }) => {
     [setMode, setActiveAdmission, setActiveVisit, setSelectedPatient],
   )
 
+  const clearCareWorkspace = useCallback(() => {
+    setSelectedPatient(undefined)
+    setActiveVisit(undefined)
+    setActiveAdmission(undefined)
+    try {
+      localStorage.removeItem(PATIENT_STORAGE_KEY)
+      localStorage.removeItem(VISIT_STORAGE_KEY)
+      localStorage.removeItem(VISIT_LABEL_STORAGE_KEY)
+      localStorage.removeItem(ADMISSION_STORAGE_KEY)
+      localStorage.removeItem(ADMISSION_LABEL_STORAGE_KEY)
+    } catch {
+      /* ignore */
+    }
+  }, [setSelectedPatient, setActiveVisit, setActiveAdmission])
+
   const contextValue = useMemo(
     () => ({
       mode,
@@ -544,6 +561,7 @@ export const CareContextProvider = ({ children }: { children: ReactNode }) => {
       lockDoctorsNameChoosing,
       applyOpCareContext,
       applyIpCareContext,
+      clearCareWorkspace,
       refreshUserCostCenter,
     }),
     [
@@ -577,6 +595,7 @@ export const CareContextProvider = ({ children }: { children: ReactNode }) => {
       lockDoctorsNameChoosing,
       applyOpCareContext,
       applyIpCareContext,
+      clearCareWorkspace,
       refreshUserCostCenter,
     ],
   )
