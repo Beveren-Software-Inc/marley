@@ -32,7 +32,7 @@ export function PortalPatientHeader({
       <header className="md:hidden bg-primary bg-gradient-to-r from-black/15 via-transparent to-black/15 text-white px-3 py-2 border-b border-black/10 shadow-sm shrink-0">
         <PatientSearch {...searchProps} renderAlertsPortal={false} />
       </header>
-      <header className="hidden md:flex items-center gap-3 bg-primary bg-gradient-to-r from-black/15 via-transparent to-black/15 text-white px-4 py-3 border-b border-black/10 shadow-sm shrink-0">
+      <header className="hidden md:flex items-center gap-3 bg-primary bg-gradient-to-r from-black/15 via-transparent to-black/15 text-white px-4 border-b border-black/10 shadow-sm shrink-0 h-[var(--app-topbar-height,60px)] box-border">
         <div className="flex-1 min-w-0">
           <PatientSearch
             selectedPatient={selectedPatient}

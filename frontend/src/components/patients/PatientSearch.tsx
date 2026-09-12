@@ -482,7 +482,7 @@ export const PatientSearch = ({
           <>
             <button
               type="button"
-              className={`fixed inset-0 top-14 left-0 right-0 bottom-0 z-30 md:left-[240px] backdrop-blur-md bg-slate-900/10 focus:outline-none ${
+              className={`fixed inset-0 top-[var(--app-topbar-height,60px)] left-0 right-0 bottom-0 z-30 md:left-[var(--app-sidebar-width,240px)] backdrop-blur-md bg-slate-900/10 focus:outline-none ${
                 alertsCanDismiss ? 'cursor-default' : 'cursor-not-allowed'
               }`}
               onClick={tryDismissAlerts}
