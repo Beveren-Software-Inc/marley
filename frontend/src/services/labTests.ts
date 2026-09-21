@@ -404,6 +404,12 @@ export interface LabTestTemplateDetails {
     normal_range?: string
   }>
   status_options?: string[]
+  /**
+   * Healthcare Settings.have_multiresults_on_lab_test as of this fetch.
+   * Preferred over the app-load-time context value so toggling the setting takes
+   * effect without reloading the whole portal.
+   */
+  have_multiresults_on_lab_test?: boolean
 }
 
 /** One row in the Observation Sample Collection child table. */
@@ -905,6 +911,9 @@ export interface LabHistoryMatrixCell {
   flag: 'normal' | 'abnormal' | 'neutral'
   direction?: 'high' | 'low' | null
   lab_test?: string
+  /** Reference range bounds for this result date (numeric when known). */
+  min?: number | string | null
+  max?: number | string | null
 }
 
 export interface LabHistoryMatrixRow {
@@ -915,6 +924,10 @@ export interface LabHistoryMatrixRow {
   group_key?: string
   /** Display name for the parent group (e.g. CBC). */
   group_label?: string
+  /** Row-level reference range — fallback when a cell carries no bounds. */
+  min?: number | string | null
+  max?: number | string | null
+  normal_range?: string
   cells: Record<string, LabHistoryMatrixCell>
 }
 
@@ -923,6 +936,11 @@ export interface LabHistoryMatrixResponse {
   rows: LabHistoryMatrixRow[]
   patient: string
   patient_name?: string
+  /**
+   * Healthcare Settings → "Show Ranges on History Lab Tests": lets the result box
+   * expand to reveal the reference min (left) / max (right).
+   */
+  show_ranges_on_history_lab_tests?: boolean
 }
 
 export async function fetchLabTestHistoryMatrix(params: {
