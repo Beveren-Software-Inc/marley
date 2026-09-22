@@ -1082,17 +1082,36 @@ def get_observation_templates(search=None, department=None):
 
 @frappe.whitelist()
 def get_items(search=None):
-	"""Get list of Items for service selection"""
+	"""Get list of Items for service selection
+
+	Search matches item code, item name and (when available) the scientific /
+	generic name. The Item pharmaceutical form is returned as
+	``pharmaceutical_form`` so prescription forms can prefill the dosage form.
+	"""
+	item_meta = frappe.get_meta('Item')
+	pharma_form_field = _item_pharmaceutical_form_fieldname()
+	sci_field = 'custom_scientific_name' if item_meta.has_field('custom_scientific_name') else None
+	active_substances_field = _item_active_substances_fieldname()
+	item_fields = ['name', 'item_code', 'item_name', 'item_group', 'stock_uom']
+	if pharma_form_field:
+		item_fields.append(pharma_form_field)
+
 	filters = {}
 	if search:
 		filters['item_name'] = ['like', f'%{search}%']
-		# Also search by item_code
-		items = frappe.db.sql("""
-			SELECT name, item_code, item_name, item_group, stock_uom
+		# Also search by item code, scientific / generic name and active substances.
+		select_fields = ', '.join(item_fields)
+		conditions = ['item_name LIKE %(search)s', 'item_code LIKE %(search)s']
+		if sci_field:
+			conditions.append(f'{sci_field} LIKE %(search)s')
+		if active_substances_field:
+			conditions.append(f'{active_substances_field} LIKE %(search)s')
+		items = frappe.db.sql(f"""
+			SELECT {select_fields}
 			FROM `tabItem`
 			WHERE 
 				disabled = 0
-				AND (item_name LIKE %(search)s OR item_code LIKE %(search)s)
+				AND ({' OR '.join(conditions)})
 			ORDER BY item_name
 			LIMIT 50
 		""", {
@@ -1102,18 +1121,26 @@ def get_items(search=None):
 		items = frappe.get_all(
 			'Item',
 			filters={**filters, 'disabled': 0},
-			fields=['name', 'item_code', 'item_name', 'item_group', 'stock_uom'],
+			fields=item_fields,
 			limit=50,
 			order_by='item_name'
 		)
-	
-	return [{
-		'name': i.name,
-		'label': i.item_name or i.item_code or i.name,
-		'item_code': i.item_code,
-		'item_group': i.item_group,
-		'stock_uom': i.stock_uom,
-	} for i in items]
+
+	out = []
+	for i in items:
+		entry = {
+			'name': i.name,
+			'label': i.item_name or i.item_code or i.name,
+			'item_code': i.item_code,
+			'item_group': i.item_group,
+			'stock_uom': i.stock_uom,
+		}
+		if pharma_form_field:
+			form_val = (i.get(pharma_form_field) or '').strip()
+			if form_val:
+				entry['pharmaceutical_form'] = form_val
+		out.append(entry)
+	return out
 
 
 def _normalize_prescription_item_label(label):
@@ -1181,6 +1208,49 @@ def get_item_route_of_administration(item):
 	return get_item_route_of_administration_value(item)
 
 
+def _item_pharmaceutical_form_fieldname():
+	"""First Item field that stores the pharmaceutical form (dosage form), if any."""
+	item_meta = frappe.get_meta('Item')
+	for fieldname in (
+		'custom_pharmaceutical_form',
+		'pharmaceutical_form',
+	):
+		if item_meta.has_field(fieldname):
+			return fieldname
+	return None
+
+
+def _item_active_substances_fieldname():
+	"""First Item field that stores the active substance(s), if any."""
+	item_meta = frappe.get_meta('Item')
+	for fieldname in (
+		'custom_active_substances',
+		'active_substances',
+	):
+		if item_meta.has_field(fieldname):
+			return fieldname
+	return None
+
+
+def get_item_pharmaceutical_form_value(item_name):
+	"""Pharmaceutical form linked on the Item (used to prefill the dosage form)."""
+	item_name = (item_name or '').strip()
+	if not item_name:
+		return None
+	fieldname = _item_pharmaceutical_form_fieldname()
+	if not fieldname:
+		return None
+	value = frappe.db.get_value('Item', item_name, fieldname)
+	value = (value or '').strip()
+	return value or None
+
+
+@frappe.whitelist()
+def get_item_pharmaceutical_form(item):
+	"""API: pharmaceutical form for a prescription drug Item."""
+	return get_item_pharmaceutical_form_value(item)
+
+
 def _item_group_chain_has_custom_is_pink(item_group_name, cache):
 	"""True if Item Group.custom_is_pink is set on this group or any ancestor."""
 	if not frappe.get_meta('Item Group').has_field('custom_is_pink'):
@@ -1205,6 +1275,19 @@ def _item_group_chain_has_custom_is_pink(item_group_name, cache):
 	result = _item_group_chain_has_custom_is_pink(parent, cache) if parent else False
 	cache[item_group_name] = result
 	return result
+
+
+def is_item_pink(item, cache=None):
+	"""True when the Item's Item Group (or any ancestor) has ``custom_is_pink`` ticked.
+
+	Pink medicines are controlled items — the flag is derived from the Item Group
+	and is never entered by hand on the prescription line.
+	"""
+	item = (item or '').strip()
+	if not item:
+		return False
+	item_group = frappe.db.get_value('Item', item, 'item_group')
+	return bool(_item_group_chain_has_custom_is_pink(item_group, cache if cache is not None else {}))
 
 
 def _prescription_warehouse_for_cost_center(cost_center):
@@ -1324,12 +1407,16 @@ def get_prescription_items(search=None, warehouse=None, cost_center=None, in_sto
 	route_field = _item_route_of_administration_fieldname()
 	item_meta = frappe.get_meta('Item')
 	sci_field = 'custom_scientific_name' if item_meta.has_field('custom_scientific_name') else None
+	pharma_form_field = _item_pharmaceutical_form_fieldname()
+	active_substances_field = _item_active_substances_fieldname()
 
 	fields = ['name', 'item_code', 'item_name', 'item_group', 'stock_uom']
 	if route_field:
 		fields.append(route_field)
 	if sci_field:
 		fields.append(sci_field)
+	if pharma_form_field:
+		fields.append(pharma_form_field)
 
 	or_filters = None
 	search = (search or '').strip()
@@ -1341,6 +1428,9 @@ def get_prescription_items(search=None, warehouse=None, cost_center=None, in_sto
 		# Allow searching drugs by their scientific / generic name too.
 		if sci_field:
 			or_filters[sci_field] = ['like', f'%{search}%']
+		# ...and by the active substance(s) stored on the Item.
+		if active_substances_field:
+			or_filters[active_substances_field] = ['like', f'%{search}%']
 
 	items = frappe.get_all(
 		'Item',
@@ -1387,6 +1477,11 @@ def get_prescription_items(search=None, warehouse=None, cost_center=None, in_sto
 			sci_val = (row.get(sci_field) or '').strip()
 			if sci_val:
 				entry['scientific_name'] = sci_val
+		if pharma_form_field:
+			form_val = (row.get(pharma_form_field) or '').strip()
+			if form_val:
+				# Prefills the prescription Dosage Form field on selection.
+				entry['pharmaceutical_form'] = form_val
 
 		out.append(entry)
 		if len(out) >= 50:
@@ -1423,6 +1518,36 @@ def filter_items_in_stock(item_codes=None, warehouse=None, cost_center=None):
 		"in_stock": in_stock,
 		"out_of_stock": out_of_stock,
 	}
+
+
+@frappe.whitelist()
+def filter_pink_items(item_codes=None):
+	"""Return the subset of the given Item codes that are pink medicines.
+
+	Pink medicines belong to an Item Group (or an ancestor group) with
+	``custom_is_pink`` ticked. The prescription UI keeps Is Pink ticked and
+	read-only for these rows.
+	"""
+	import json
+
+	if isinstance(item_codes, str):
+		try:
+			item_codes = json.loads(item_codes)
+		except (TypeError, ValueError):
+			item_codes = [c.strip() for c in item_codes.split(",") if c.strip()]
+
+	codes = []
+	seen = set()
+	for raw in item_codes or []:
+		code = (raw or "").strip()
+		if code and code not in seen:
+			seen.add(code)
+			codes.append(code)
+	if not codes:
+		return []
+
+	cache = {}
+	return [code for code in codes if is_item_pink(code, cache)]
 
 
 @frappe.whitelist()
@@ -1697,16 +1822,24 @@ def create_healthcare_practitioner(data):
 
 @frappe.whitelist()
 def get_dosage_forms(search=None):
-	"""Get list of Dosage Form for prescription medication rows."""
+	"""Options for the prescription Dosage Form field.
+
+	Dosage Form and Pharmaceutical Form describe the same thing. The medication
+	line links to ``Pharmaceutical Form`` when that doctype exists (newer setups),
+	so that list is served; the legacy ``Dosage Form`` list is the fallback.
+	"""
+	doctype = "Pharmaceutical Form" if frappe.db.exists("DocType", "Pharmaceutical Form") else "Dosage Form"
 	filters = {}
 	if search:
 		filters["name"] = ["like", f"%{search}%"]
 	items = frappe.get_all(
-		"Dosage Form",
+		doctype,
 		filters=filters,
 		fields=["name"],
 		order_by="name asc",
-		limit=50,
+		# Without a search the whole list is loaded so a form autofilled from the
+		# Item is always selectable in the dropdown.
+		limit=200 if search else 0,
 	)
 	return [{"name": d.name, "label": d.name} for d in items]
 
