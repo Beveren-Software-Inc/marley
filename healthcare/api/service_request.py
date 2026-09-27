@@ -698,6 +698,7 @@ def get_service_requests(
 	patient_care_type=None,
 	virtual_status=None,
 	cost_center=None,
+	include_hidden_from_ui=None,
 ):
 	"""Get list of Service Requests.
 
@@ -707,9 +708,18 @@ def get_service_requests(
 	Optional ``patient_care_type`` (OP/IP): when no specific visit/admission is passed,
 	hide the other care type (OP → no inpatient_record; IP → inpatient_record set).
 	Optional ``cost_center``: portal branch filter from the top navbar (UI-only).
+	Optional ``include_hidden_from_ui``: audit / export escape hatch. Lab Test Template
+	listings (Lab page → Lab Request tab, nurse lab request card) never return Service
+	Requests flagged *Hide from UI* unless this is passed as 1.
 	"""
 	from healthcare.api.common import resolve_cost_center_filter
 	filters = {'docstatus': ['!=', 2]}
+
+	# Service Requests flagged "Hide from UI" must not appear in any Lab Request
+	# listing — neither as rows nor in ``total_count`` (both use these filters).
+	if template_dt == 'Lab Test Template' and not cint(include_hidden_from_ui):
+		if frappe.db.has_column('Service Request', 'hide_from_ui'):
+			filters['hide_from_ui'] = ['!=', 1]
 
 	if patient:
 		filters['patient'] = patient

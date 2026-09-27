@@ -1,6 +1,6 @@
 {
  "actions": [],
- "creation": "2017-05-09 11:26:22.337760",
+ "creation": "2026-09-27 15:43:15.751961",
  "doctype": "DocType",
  "editable_grid": 1,
  "engine": "InnoDB",
@@ -48,6 +48,8 @@
   "automatically_create_lab_test_for_ip",
   "have_multiresults_on_lab_test",
   "show_ranges_on_history_lab_tests",
+  "add_outstanding_balance_to_full_and_final_settlement",
+  "outstanding_balance_salary_component",
   "column_break_tobn",
   "block_new_patient_visit_if_open_exist",
   "close_all_cost_before_patient_transfer",
@@ -138,7 +140,6 @@
   "auto_create_patient_visit_on_iop_enrollment",
   "section_break_pqbp",
   "doctors_commission",
-  "doctor_commission_salary_component",
   "print_settings_section",
   "ui_print_formats",
   "default_letter_head",
@@ -159,9 +160,6 @@
   "apply_age_based_dose_limits",
   "send_missing_lab_request_reminder",
   "whatsapp_appointment_reminder_template",
-  "calculate_doctors_commission_from_op_only",
-  "calculate_doctors_comission_on_paid_service_only",
-  "backdated_days_for_unpaid_commission",
   "cb_serene_automations",
   "remind_upcoming_nurse_tasks",
   "nurse_task_reminder_lead_minutes",
@@ -171,7 +169,15 @@
   "discount_approval_threshold_percent",
   "auto_free_visit_after_discharge",
   "free_visit_days_after_discharge",
-  "iop_charge_item"
+  "iop_charge_item",
+  "doctors_commission_section",
+  "calculate_doctors_commission_from_op_only",
+  "calculate_doctors_comission_on_paid_service_only",
+  "backdated_days_for_unpaid_commission",
+  "column_break_yhdd",
+  "mode_of_payment_for_commission",
+  "default_payable_account",
+  "default_expense_account"
  ],
  "fields": [
   {
@@ -779,13 +785,6 @@
    "label": "Doctors Commission"
   },
   {
-   "description": "Default Salary Component when creating Additional Salary from Doctor Commission Payroll.",
-   "fieldname": "doctor_commission_salary_component",
-   "fieldtype": "Link",
-   "label": "Doctor Commission Salary Component",
-   "options": "Salary Component"
-  },
-  {
    "fieldname": "section_break_fndq",
    "fieldtype": "Section Break"
   },
@@ -1174,11 +1173,52 @@
    "fieldname": "show_ranges_on_history_lab_tests",
    "fieldtype": "Check",
    "label": "Show Ranges on History Lab Tests"
+  },
+  {
+   "default": "0",
+   "fieldname": "add_outstanding_balance_to_full_and_final_settlement",
+   "fieldtype": "Check",
+   "label": "Add Outstanding Balance To Full and Final Settlement"
+  },
+  {
+   "description": "Deduction Salary Component used when an employee's outstanding Sales Invoice balance is booked as an Additional Salary (a deduction) from the Full and Final Statement.",
+   "fieldname": "outstanding_balance_salary_component",
+   "fieldtype": "Link",
+   "label": "Outstanding Balance Salary Component",
+   "options": "Salary Component"
+  },
+  {
+   "fieldname": "doctors_commission_section",
+   "fieldtype": "Section Break",
+   "label": "Doctors Commission"
+  },
+  {
+   "fieldname": "column_break_yhdd",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "mode_of_payment_for_commission",
+   "fieldtype": "Link",
+   "label": "Mode of Payment for Commission",
+   "options": "Mode of Payment"
+  },
+  {
+   "fieldname": "default_payable_account",
+   "fieldtype": "Link",
+   "label": "Default Payable Account",
+   "options": "Account"
+  },
+  {
+   "description": "Commission expense account debited for doctors without their own Expense Account.",
+   "fieldname": "default_expense_account",
+   "fieldtype": "Link",
+   "label": "Default Expense Account",
+   "options": "Account"
   }
  ],
  "issingle": 1,
  "links": [],
- "modified": "2026-09-21 05:27:16.075779",
+ "modified": "2026-09-28 01:19:50.261505",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Healthcare Settings",

@@ -16,17 +16,16 @@
   "cost_center",
   "column_break_2",
   "default_commission_percent",
-  "salary_component",
   "payroll_date",
   "section_totals",
   "total_service_amount",
   "total_cases",
+  "generated_by",
+  "journal_entry",
   "column_break_3",
   "total_commission",
   "total_deduction",
   "generated_on",
-  "generated_by",
-  "additional_salaries_created",
   "section_doctors",
   "doctors",
   "section_items",
@@ -49,7 +48,7 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Status",
-   "options": "Draft\nGenerated\nReviewed\nApproved\nSalary Created\nCancelled",
+   "options": "Draft\nGenerated\nApproved\nCancelled",
    "read_only": 1
   },
   {
@@ -104,15 +103,7 @@
   },
   {
    "allow_on_submit": 1,
-   "description": "Salary Component used when creating Additional Salary after submit. Defaults from Healthcare Settings.",
-   "fieldname": "salary_component",
-   "fieldtype": "Link",
-   "label": "Salary Component",
-   "options": "Salary Component"
-  },
-  {
-   "allow_on_submit": 1,
-   "description": "Payroll date for Additional Salary. Defaults to To Date.",
+   "description": "Posting date of the commission Journal Entry. Defaults to To Date.",
    "fieldname": "payroll_date",
    "fieldtype": "Date",
    "label": "Payroll Date"
@@ -170,10 +161,12 @@
   },
   {
    "allow_on_submit": 1,
-   "default": "0",
-   "fieldname": "additional_salaries_created",
-   "fieldtype": "Check",
-   "label": "Additional Salaries Created",
+   "description": "Journal Entry posted on submit: commission debited per doctor and the Healthcare Settings payable account credited.",
+   "fieldname": "journal_entry",
+   "fieldtype": "Link",
+   "label": "Journal Entry",
+   "no_copy": 1,
+   "options": "Journal Entry",
    "read_only": 1
   },
   {
@@ -216,7 +209,7 @@
    "link_fieldname": "doctor_commission_payroll"
   }
  ],
- "modified": "2026-09-24 17:17:51.373277",
+ "modified": "2026-09-28 01:23:29.219475",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Doctor Commission Payroll",

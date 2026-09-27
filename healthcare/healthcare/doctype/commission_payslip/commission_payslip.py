@@ -12,6 +12,35 @@ class CommissionPayslip(Document):
 		if self.from_date and self.to_date and getdate(self.from_date) > getdate(self.to_date):
 			frappe.throw(_("From Date cannot be after To Date"))
 		self._recalc_totals()
+		# A new (or amended) payslip starts life as a draft again.
+		if self.docstatus == 0 and not self.payment_entry:
+			self.status = "Draft"
+
+	def before_submit(self):
+		"""A payslip is submitted once the doctor's commission is approved and payable."""
+		if not self.items:
+			frappe.throw(_("There are no services on this payslip, so there is nothing to approve."))
+
+	def on_submit(self):
+		self.db_set("status", "Submitted", update_modified=False)
+
+	def on_cancel(self):
+		"""A payslip can be cancelled once its payment is out of the way.
+
+		Only a *live* Payment Entry is in the way. One that has itself been
+		cancelled leaves a stale link behind, which is cleared here rather than
+		blocking the cancel (and rather than being mistaken for a payment that
+		still exists when the commission is paid again).
+		"""
+		if self.payment_entry:
+			if cint(frappe.db.get_value("Payment Entry", self.payment_entry, "docstatus")) == 1:
+				frappe.throw(
+					_("Cancel Payment Entry {0} before cancelling this payslip.").format(
+						self.payment_entry
+					)
+				)
+			self.db_set("payment_entry", None, update_modified=False)
+		self.db_set("status", "Cancelled", update_modified=False)
 
 	def _recalc_totals(self):
 		"""Service amount, commission and distinct cases across the payslip lines.
@@ -47,3 +76,16 @@ class CommissionPayslip(Document):
 
 		self.flags.ignore_permissions = True
 		return get_statement_for_payslip(self)
+
+	@frappe.whitelist()
+	def create_payment_entry(self):
+		"""Pay this doctor's commission from the bank/cash account."""
+		from healthcare.api.doctor_commission_accounting import create_payment_entry_for_payslip
+
+		payment_entry = create_payment_entry_for_payslip(self)
+		return {
+			"payment_entry": payment_entry.name,
+			"paid_from": payment_entry.paid_from,
+			"mode_of_payment": payment_entry.mode_of_payment,
+			"paid_amount": payment_entry.paid_amount,
+		}

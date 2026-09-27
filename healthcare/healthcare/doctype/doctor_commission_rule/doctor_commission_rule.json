@@ -14,7 +14,6 @@
   "valid_to",
   "section_scope",
   "practitioner",
-  "practitioner_name",
   "column_break_2",
   "cost_centers",
   "item_code",
@@ -79,18 +78,9 @@
   {
    "description": "Leave blank for a default rule that applies to all eligible doctors.",
    "fieldname": "practitioner",
-   "fieldtype": "Link",
-   "in_list_view": 1,
-   "in_standard_filter": 1,
+   "fieldtype": "Table MultiSelect",
    "label": "Practitioner",
-   "options": "Healthcare Practitioner"
-  },
-  {
-   "fetch_from": "practitioner.practitioner_name",
-   "fieldname": "practitioner_name",
-   "fieldtype": "Data",
-   "label": "Practitioner Name",
-   "read_only": 1
+   "options": "Practitioner Multiselect"
   },
   {
    "fieldname": "column_break_2",
@@ -190,7 +180,7 @@
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-09-10 16:46:00.000000",
+ "modified": "2026-09-28 01:21:47.902965",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Doctor Commission Rule",
@@ -231,6 +221,7 @@
    "share": 1
   }
  ],
+ "row_format": "Dynamic",
  "sort_field": "modified",
  "sort_order": "DESC",
  "states": [],

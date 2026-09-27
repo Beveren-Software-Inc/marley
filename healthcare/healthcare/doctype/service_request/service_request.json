@@ -19,6 +19,7 @@
   "cost_center",
   "expected_date",
   "legacy",
+  "hide_from_ui",
   "patient_detail_section",
   "patient",
   "patient_name",
@@ -728,6 +729,13 @@
    "fieldname": "is_continous_medical_supervision",
    "fieldtype": "Check",
    "label": "Is Continous Medical Supervision"
+  },
+  {
+   "allow_on_submit": 1,
+   "default": "0",
+   "fieldname": "hide_from_ui",
+   "fieldtype": "Check",
+   "label": "Hide from UI"
   }
  ],
  "index_web_pages_for_search": 1,
@@ -746,7 +754,7 @@
    "link_fieldname": "service_request"
   }
  ],
- "modified": "2026-09-09 11:39:04.694430",
+ "modified": "2026-09-28 03:47:22.314752",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Service Request",

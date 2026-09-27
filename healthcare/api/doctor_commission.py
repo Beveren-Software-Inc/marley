@@ -184,6 +184,7 @@ def generate_doctor_commission_period(period_doc, include_backdated: bool | int 
 	detail_rows = []
 	skipped_no_practitioner = 0
 	skipped_not_eligible = 0
+	doctor_period_rule_lines = 0
 
 	for row in service_rows:
 		key = (row.custom_base_reference, row.custom_base_reference_name)
@@ -217,6 +218,13 @@ def generate_doctor_commission_period(period_doc, include_backdated: bool | int 
 			item_group=item_groups.get(row.item_code),
 			on_date=row.transaction_date,
 		)
+		if not rule:
+			# Precedence: the line's rule first, then the rule the doctor is on for this
+			# payroll period (the line's branch, service and date do not matter), then the
+			# Default Commission % and only then Healthcare Settings → Doctors Commission.
+			rule = match_doctor_period_rule(rules, practitioner)
+			if rule:
+				doctor_period_rule_lines += 1
 
 		commission_amount, calc_type, percent_used = calculate_line_commission(
 			rule=rule,
@@ -298,6 +306,8 @@ def generate_doctor_commission_period(period_doc, include_backdated: bool | int 
 				"practitioner_name": data["practitioner_name"],
 				"doctors_id": data["doctors_id"],
 				"employee": getattr(details, "employee", None) or details.get("employee"),
+				"expense_account": getattr(details, "expense_account", None)
+				or details.get("expense_account"),
 				"cost_center": data["cost_center"],
 				"cases_count": data["cases_count"],
 				"service_amount": data["service_amount"],
@@ -321,6 +331,7 @@ def generate_doctor_commission_period(period_doc, include_backdated: bool | int 
 		"doctors": len(period_doc.doctors or []),
 		"items": len(period_doc.items or []),
 		"backdated_items": backdated_count,
+		"doctor_period_rule_items": doctor_period_rule_lines,
 		"skipped_no_practitioner": skipped_no_practitioner,
 		"skipped_not_eligible": skipped_not_eligible,
 		"payslips": payslips.get("payslips", 0),
@@ -577,18 +588,26 @@ def get_practitioner_fields_for_doctype(doctype):
 	return available
 
 
+def _practitioner_commission_fields() -> list[str]:
+	"""Healthcare Practitioner columns needed for commission, tolerating old sites."""
+	meta = frappe.get_meta("Healthcare Practitioner")
+	fields = ["name", "practitioner_name", "employee"]
+	if meta.has_field("doctors_id"):
+		fields.append("doctors_id")
+	if meta.has_field("expense_account"):
+		fields.append("expense_account")
+	return fields
+
+
 def get_commission_eligible_practitioners(practitioner_ids):
 	"""Only practitioners with receive_commision checked."""
 	if not practitioner_ids:
 		return {}
 
-	has_flag = frappe.get_meta("Healthcare Practitioner").has_field("receive_commision")
-	fields = ["name", "practitioner_name", "employee"]
-	if frappe.get_meta("Healthcare Practitioner").has_field("doctors_id"):
-		fields.append("doctors_id")
+	fields = _practitioner_commission_fields()
 
 	filters = {"name": ["in", list(practitioner_ids)]}
-	if has_flag:
+	if frappe.get_meta("Healthcare Practitioner").has_field("receive_commision"):
 		filters["receive_commision"] = 1
 
 	rows = frappe.get_all("Healthcare Practitioner", filters=filters, fields=fields)
@@ -598,9 +617,7 @@ def get_commission_eligible_practitioners(practitioner_ids):
 def list_all_commission_eligible_practitioners():
 	"""All practitioners marked to receive commission."""
 	has_flag = frappe.get_meta("Healthcare Practitioner").has_field("receive_commision")
-	fields = ["name", "practitioner_name", "employee"]
-	if frappe.get_meta("Healthcare Practitioner").has_field("doctors_id"):
-		fields.append("doctors_id")
+	fields = _practitioner_commission_fields()
 
 	filters = {}
 	if has_flag:
@@ -648,6 +665,7 @@ def fetch_doctors_for_period(period_doc):
 				"practitioner_name": p.practitioner_name or "",
 				"doctors_id": getattr(p, "doctors_id", None) or p.name,
 				"employee": p.employee,
+				"expense_account": p.get("expense_account"),
 				"cost_center": period_doc.cost_center,
 				"cases_count": 0,
 				"service_amount": 0,
@@ -662,112 +680,6 @@ def fetch_doctors_for_period(period_doc):
 	period_doc.save(ignore_permissions=True)
 
 	return {"doctors": len(period_doc.doctors or [])}
-
-
-def create_additional_salaries_for_payroll(payroll_doc):
-	"""Create one Additional Salary per doctor row (HRMS) after payroll is submitted."""
-	payroll_doc = payroll_doc if hasattr(payroll_doc, "doctors") else frappe.get_doc(
-		"Doctor Commission Payroll", payroll_doc
-	)
-
-	if "hrms" not in frappe.get_installed_apps():
-		frappe.throw(_("Install HRMS to create Additional Salary from doctor commission."))
-
-	if not frappe.db.exists("DocType", "Additional Salary"):
-		frappe.throw(_("Additional Salary DocType not found. Ensure HRMS is installed."))
-
-	salary_component = payroll_doc.salary_component or frappe.db.get_single_value(
-		"Healthcare Settings", "doctor_commission_salary_component"
-	)
-	if not salary_component:
-		frappe.throw(
-			_(
-				"Set Salary Component on Doctor Commission Payroll "
-				"(or Healthcare Settings → Doctor Commission Salary Component)."
-			)
-		)
-
-	payroll_date = payroll_doc.payroll_date or payroll_doc.to_date
-	if not payroll_date:
-		frappe.throw(_("Set Payroll Date (or To Date) before creating Additional Salary."))
-
-	created = 0
-	skipped = 0
-	errors = []
-
-	for row in payroll_doc.doctors or []:
-		amount = flt(
-			row.adjusted_commission
-			if row.adjusted_commission not in (None, "")
-			else row.calculated_commission
-		)
-		if amount <= 0:
-			skipped += 1
-			continue
-
-		if row.additional_salary and frappe.db.exists("Additional Salary", row.additional_salary):
-			skipped += 1
-			continue
-
-		employee = row.employee or frappe.db.get_value(
-			"Healthcare Practitioner", row.practitioner, "employee"
-		)
-		if not employee:
-			skipped += 1
-			errors.append(
-				_("{0}: no Employee linked on Healthcare Practitioner").format(
-					row.practitioner_name or row.practitioner
-				)
-			)
-			continue
-
-		company = payroll_doc.company or frappe.db.get_value("Employee", employee, "company")
-		if not company:
-			skipped += 1
-			errors.append(
-				_("{0}: could not resolve Company for employee {1}").format(
-					row.practitioner_name or row.practitioner, employee
-				)
-			)
-			continue
-
-		try:
-			ads = frappe.get_doc(
-				{
-					"doctype": "Additional Salary",
-					"naming_series": "HR-ADS-.YY.-.MM.-",
-					"employee": employee,
-					"company": company,
-					"salary_component": salary_component,
-					"amount": amount,
-					"payroll_date": payroll_date,
-					"is_recurring": 0,
-					"overwrite_salary_structure_amount": 0,
-					"ref_doctype": "Doctor Commission Payroll",
-					"ref_docname": payroll_doc.name,
-				}
-			)
-			ads.flags.ignore_permissions = True
-			ads.insert()
-			ads.submit()
-			row.additional_salary = ads.name
-			row.employee = employee
-			created += 1
-		except Exception as e:
-			skipped += 1
-			errors.append(
-				_("{0}: {1}").format(row.practitioner_name or row.practitioner, str(e))
-			)
-
-	if created:
-		payroll_doc.salary_component = salary_component
-		payroll_doc.payroll_date = payroll_date
-		payroll_doc.additional_salaries_created = 1
-		payroll_doc.status = "Salary Created"
-		payroll_doc.flags.ignore_validate_update_after_submit = True
-		payroll_doc.save(ignore_permissions=True)
-
-	return {"created": created, "skipped": skipped, "errors": errors}
 
 
 def collect_cost_centers_from_rules(rules: list) -> list[str]:
@@ -839,7 +751,7 @@ def load_active_commission_rules(from_date, to_date):
 		filters={"is_active": 1},
 		fields=[
 			"name",
-			"practitioner",
+			*_rule_practitioner_column(),
 			"item_code",
 			"item_group",
 			"calculation_type",
@@ -854,6 +766,7 @@ def load_active_commission_rules(from_date, to_date):
 		],
 		order_by="priority desc, modified desc",
 	)
+	_attach_rule_practitioners(rules)
 	_attach_rule_cost_centers(rules)
 	_attach_rule_payment_modes(rules)
 	out = []
@@ -867,6 +780,50 @@ def load_active_commission_rules(from_date, to_date):
 			continue
 		out.append(rule)
 	return out
+
+
+def _rule_practitioner_column() -> list[str]:
+	"""The legacy ``practitioner`` Link column, while the field is still a Link.
+
+	``Doctor Commission Rule.practitioner`` is now a Practitioner Multiselect child
+	table, so the column is no longer queried; sites that have not migrated yet keep
+	matching through the single Link column.
+	"""
+	df = frappe.get_meta("Doctor Commission Rule").get_field("practitioner")
+	if df and df.fieldtype == "Link":
+		return ["practitioner"]
+	return []
+
+
+def _attach_rule_practitioners(rules: list) -> None:
+	"""Attach ``practitioners`` list from the Practitioner Multiselect child table."""
+	if not rules:
+		return
+	names = [r.name for r in rules if r.get("name")]
+	by_parent: dict[str, list[str]] = {n: [] for n in names}
+	if names and frappe.db.exists("DocType", "Practitioner Multiselect"):
+		meta = frappe.get_meta("Practitioner Multiselect")
+		# "practitioner" is the current field name; "practioner" is the old misspelling.
+		link_field = next(
+			(f for f in ("practitioner", "practioner") if meta.has_field(f)),
+			None,
+		)
+		if link_field:
+			for row in frappe.get_all(
+				"Practitioner Multiselect",
+				filters={"parent": ["in", names], "parenttype": "Doctor Commission Rule"},
+				fields=["parent", link_field],
+			):
+				practitioner = (row.get(link_field) or "").strip()
+				if practitioner and practitioner not in by_parent[row.parent]:
+					by_parent[row.parent].append(practitioner)
+	# Legacy single Link column (pre-multiselect) if still present on cached rows.
+	for rule in rules:
+		practitioners = list(by_parent.get(rule.name) or [])
+		legacy = (rule.get("practitioner") or "").strip()
+		if legacy and legacy not in practitioners:
+			practitioners.append(legacy)
+		rule["practitioners"] = practitioners
 
 
 def _attach_rule_cost_centers(rules: list) -> None:
@@ -948,9 +905,10 @@ def match_commission_rule(rules, practitioner, cost_center, item_code, item_grou
 				continue
 
 		score = cint(rule.priority or 0)
-		# Specificity bonus
-		if rule.practitioner:
-			if rule.practitioner != practitioner:
+		# Specificity bonus — a rule limited to doctors only applies to those doctors.
+		rule_practitioners = rule.get("practitioners") or []
+		if rule_practitioners:
+			if practitioner not in rule_practitioners:
 				continue
 			score += 100
 		if rule.get("cost_centers"):
@@ -993,9 +951,10 @@ def match_base_commission_rule(rules, practitioner, cost_center, on_date):
 				continue
 
 		score = cint(rule.priority or 0)
-		# Only match on practitioner and cost_center (ignore item filters)
-		if rule.practitioner:
-			if rule.practitioner != practitioner:
+		# Only match on doctor and cost_center (ignore item filters)
+		rule_practitioners = rule.get("practitioners") or []
+		if rule_practitioners:
+			if practitioner not in rule_practitioners:
 				continue
 			score += 100
 		if rule.get("cost_centers"):
@@ -1009,11 +968,51 @@ def match_base_commission_rule(rules, practitioner, cost_center, on_date):
 	return best
 
 
+def match_doctor_period_rule(rules, practitioner):
+	"""Best rule the doctor is on for the payroll period, whatever the line looks like.
+
+	Second level of the commission precedence ladder: a rule that lists the doctor
+	(or is not limited to any doctor) still governs a line that missed it branch-,
+	service- or date-wise. ``rules`` is already filtered to the payroll period by
+	``load_active_commission_rules``, so "for the period" is what is passed in here.
+
+	``None`` means no rule applies to this doctor at all — only then is the commission
+	taken from the Default Commission %, itself seeded from
+	``Healthcare Settings.doctors_commission``, the last resort.
+	"""
+	best = None
+	best_score = -1
+	for rule in rules:
+		rule_practitioners = rule.get("practitioners") or []
+		if rule_practitioners and practitioner not in rule_practitioners:
+			continue
+		# A rule with no amount at all would pay nothing, so keep looking.
+		if not _rule_defines_amount(rule):
+			continue
+		# Being limited to the doctor makes the rule more specific (as in
+		# match_commission_rule), so a doctor rule beats a higher priority generic one.
+		score = cint(rule.priority or 0) + (100 if rule_practitioners else 0)
+		if score > best_score:
+			best_score = score
+			best = rule
+	return best
+
+
+def _rule_defines_amount(rule) -> bool:
+	return bool(
+		flt(rule.get("commission_percent"))
+		or flt(rule.get("tier_commission_percent"))
+		or flt(rule.get("fixed_amount"))
+	)
+
+
 def calculate_line_commission(rule, service_amount, case_index, default_percent, base_rule=None):
 	"""Return (commission_amount, calculation_type, percent_used).
-	
+
 	base_rule: practitioner+cost_center rule (no item filters) for free_cases check.
-	rule: fully matched rule (with item specificity) for commission calculation.
+	rule: the rule that governs the line — fully matched, or the doctor's rule for the
+	payroll period. ``default_percent`` (the payroll's Default Commission %, itself
+	seeded from Healthcare Settings) is only reached when no rule applies at all.
 	"""
 	service_amount = flt(service_amount)
 	case_index = cint(case_index)
@@ -1026,7 +1025,8 @@ def calculate_line_commission(rule, service_amount, case_index, default_percent,
 			calc_type = free_cases_rule.calculation_type or "Percent of Amount"
 			return 0.0, calc_type, 0.0
 
-	# If no rule matched for commission calculation, use default
+	# Last resort: no rule applies to the doctor at all, so the Default Commission %
+	# (itself seeded from Healthcare Settings → Doctors Commission) is used.
 	if not rule:
 		percent = flt(default_percent)
 		return flt(service_amount * percent / 100.0), "Percent of Amount (Default)", percent
@@ -1205,6 +1205,15 @@ def build_commission_payslips_for_payroll(payroll_doc, *, replace: bool = True):
 	if replace:
 		_clear_draft_commission_payslips(payroll_doc.name)
 
+	# Submitted payslips are already approved (and possibly paid), so keep them.
+	submitted_practitioners = set(
+		frappe.get_all(
+			"Commission Payslip",
+			filters={"doctor_commission_payroll": payroll_doc.name, "docstatus": 1},
+			pluck="practitioner",
+		)
+	)
+
 	items_by_practitioner = defaultdict(list)
 	for row in payroll_doc.items or []:
 		if row.practitioner:
@@ -1228,7 +1237,7 @@ def build_commission_payslips_for_payroll(payroll_doc, *, replace: bool = True):
 	item_count = 0
 	for practitioner in order:
 		lines = items_by_practitioner.get(practitioner) or []
-		if not lines:
+		if not lines or practitioner in submitted_practitioners:
 			continue
 		rows = doctor_rows.get(practitioner) or []
 		head = rows[0] if rows else None

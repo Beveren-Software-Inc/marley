@@ -103,10 +103,10 @@ def get_columns():
 			"width": 100,
 		},
 		{
-			"label": _("Additional Salary"),
-			"fieldname": "additional_salary",
+			"label": _("Journal Entry"),
+			"fieldname": "journal_entry",
 			"fieldtype": "Link",
-			"options": "Additional Salary",
+			"options": "Journal Entry",
 			"width": 140,
 		},
 	]
@@ -155,6 +155,12 @@ def get_data(filters):
 		if frappe.get_meta("Doctor Commission Payroll Doctor").has_field("deduction_amount")
 		else "0 as deduction_amount,"
 	)
+	journal_entry_expr = (
+		"GROUP_CONCAT(DISTINCT parent.journal_entry ORDER BY parent.journal_entry SEPARATOR ', ') as journal_entry"
+		if frappe.get_meta("Doctor Commission Payroll").has_field("journal_entry")
+		else "'' as journal_entry"
+	)
+
 
 	data = frappe.db.sql(
 		f"""
@@ -178,7 +184,7 @@ def get_data(filters):
 			) as adjusted_commission,
 			GROUP_CONCAT(DISTINCT parent.name ORDER BY parent.name SEPARATOR ', ') as payroll,
 			GROUP_CONCAT(DISTINCT parent.status ORDER BY parent.status SEPARATOR ', ') as status,
-			GROUP_CONCAT(DISTINCT doctor.additional_salary ORDER BY doctor.additional_salary SEPARATOR ', ') as additional_salary
+			{journal_entry_expr}
 		FROM `tabDoctor Commission Payroll Doctor` doctor
 		INNER JOIN `tabDoctor Commission Payroll` parent
 			ON parent.name = doctor.parent
