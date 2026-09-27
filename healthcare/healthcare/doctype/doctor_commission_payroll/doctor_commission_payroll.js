@@ -39,14 +39,14 @@ frappe.ui.form.on("Doctor Commission Payroll", {
 			);
 		}
 
-		// After submit: the payslips and the Additional Salary.
+		// After submit: the posted Journal Entry and the Commission Payslips.
 		if (frm.doc.docstatus === 1) {
-			const primary = add_submitted_actions(frm);
-			add_additional_salary_action(frm, !primary);
+			add_journal_entry_actions(frm);
+			add_submitted_actions(frm);
 			return;
 		}
 
-		// Initially (draft): fetch doctors → generate commission → mark as reviewed.
+		// Initially (draft): fetch doctors → generate commission → submit.
 		if (frm.doc.docstatus === 0 && !frm.is_new()) {
 			add_draft_commission_actions(frm);
 		}
@@ -57,13 +57,6 @@ frappe.ui.form.on("Doctor Commission Payroll", {
 			frappe.db.get_single_value("Healthcare Settings", "doctors_commission").then((v) => {
 				if (v != null) frm.set_value("default_commission_percent", v);
 			});
-		}
-		if (!frm.doc.salary_component) {
-			frappe.db
-				.get_single_value("Healthcare Settings", "doctor_commission_salary_component")
-				.then((v) => {
-					if (v) frm.set_value("salary_component", v);
-				});
 		}
 	},
 
@@ -237,17 +230,16 @@ async function print_selected_doctor_statement(frm, dialog) {
 }
 
 
-// ─── Initially (draft): Fetch Doctors → Generate Commission → Mark as Reviewed ─
+// ─── Initially (draft): Fetch Doctors → Generate Commission → Submit ─────────
 
 function add_draft_commission_actions(frm) {
 	const has_doctors = (frm.doc.doctors || []).length > 0;
 	const has_items = (frm.doc.items || []).length > 0;
-	const can_review = frm.doc.status === "Generated";
 
+	// Guide the user along the flow: fetch → generate → submit.
 	let primary = "";
 	if (!has_doctors) primary = "fetch";
 	else if (!has_items) primary = "generate";
-	else if (can_review) primary = "review";
 
 	// 1. Fetch Doctors
 	const fetch_btn = frm.add_custom_button(
@@ -313,36 +305,8 @@ function add_draft_commission_actions(frm) {
 	);
 	if (primary === "generate") generate_btn.addClass("btn-primary");
 
-	// 3. Mark as Reviewed — after the commission has been generated
-	if (can_review) {
-		const review_btn = frm.add_custom_button(
-			__("Mark as Reviewed"),
-			() => {
-				frappe.confirm(
-					__(
-						"Mark this payroll as reviewed? The commission cannot be regenerated after review."
-					),
-					() => {
-						frm.call({
-							doc: frm.doc,
-							method: "mark_as_reviewed",
-							freeze: true,
-							freeze_message: __("Marking as reviewed..."),
-							callback() {
-								frm.reload_doc();
-								frappe.show_alert({
-									message: __("Marked as Reviewed."),
-									indicator: "green",
-								});
-							},
-						});
-					}
-				);
-			},
-			__("Actions")
-		);
-		if (primary === "review") review_btn.addClass("btn-primary");
-	}
+	// 3. Submit (the standard button) posts the Journal Entry and unlocks the
+	//    Commission Payslips.
 
 	return primary;
 }
@@ -390,67 +354,48 @@ function add_submitted_actions(frm) {
 }
 
 
-// ─── Create Additional Salary (HRMS) ─────────────────────────────────────────
+// ─── Journal Entry: the commission posted on submit ──────────────────────────
 
-function add_additional_salary_action(frm, highlight) {
-	const pending = (frm.doc.doctors || []).some((row) => {
-		const amount = flt(
-			row.adjusted_commission != null && row.adjusted_commission !== ""
-				? row.adjusted_commission
-				: row.calculated_commission
+function add_journal_entry_actions(frm) {
+	if (frm.doc.journal_entry) {
+		frm.add_custom_button(
+			__("Journal Entry"),
+			() => frappe.set_route("Form", "Journal Entry", frm.doc.journal_entry),
+			__("View")
 		);
-		return amount > 0 && !row.additional_salary;
-	});
-	if (!pending) return;
+		return;
+	}
 
-	const button = frm.add_custom_button(
-		__("Create Additional Salary"),
+	// Submitted before the accounts posting existed — post it now.
+	if (!frappe.model.can_create("Journal Entry")) return;
+
+	frm.add_custom_button(
+		__("Create Journal Entry"),
 		() => {
-			if (!frm.doc.salary_component) {
-				frappe.msgprint({
-					title: __("Salary Component Required"),
-					message: __(
-						"Set Salary Component on this document (or in Healthcare Settings) before creating Additional Salary."
-					),
-					indicator: "orange",
-				});
-				return;
-			}
 			frappe.confirm(
 				__(
-					"Create Additional Salary for each doctor with commission amount? These will be linked for payroll processing."
+					"Post the doctor commission to the accounts? Each doctor's expense account is debited and the payable account from Healthcare Settings is credited."
 				),
 				() => {
 					frm.call({
 						doc: frm.doc,
-						method: "create_additional_salary",
+						method: "create_journal_entry",
 						freeze: true,
-						freeze_message: __("Creating Additional Salary..."),
+						freeze_message: __("Creating Journal Entry..."),
 						callback(r) {
 							frm.reload_doc();
-							if (r.message) {
-								frappe.show_alert({
-									message: __(
-										"Created {0} Additional Salary record(s). Skipped {1}.",
-										[r.message.created || 0, r.message.skipped || 0]
-									),
-									indicator: "green",
-								});
-								if (r.message.errors && r.message.errors.length) {
-									frappe.msgprint({
-										title: __("Some rows were skipped"),
-										message: r.message.errors.join("<br>"),
-										indicator: "orange",
-									});
-								}
-							}
+							if (!r.message) return;
+							frappe.show_alert({
+								message: __("Journal Entry {0} created.", [r.message]),
+								indicator: "green",
+							});
+							frappe.set_route("Form", "Journal Entry", r.message);
 						},
 					});
 				}
 			);
 		},
-		__("Actions")
+		__("Create")
 	);
-	if (highlight) button.addClass("btn-primary");
 }
 

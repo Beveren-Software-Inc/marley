@@ -29,8 +29,67 @@ frappe.ui.form.on("Commission Payslip", {
 			},
 			__("Print")
 		);
+
+		add_payment_entry_actions(frm);
 	},
 });
+
+// ─── Pay the commission: Payment Entry against the payroll's Journal Entry ─────
+
+function add_payment_entry_actions(frm) {
+	// Already paid — link straight to the entry.
+	if (frm.doc.payment_entry) {
+		frm.add_custom_button(
+			__("View Payment Entry"),
+			() => frappe.set_route("Form", "Payment Entry", frm.doc.payment_entry),
+			__("View")
+		);
+		return;
+	}
+
+	// Only a submitted payslip is approved for payment.
+	if (frm.doc.docstatus !== 1) return;
+	if (!flt(frm.doc.total_commission) || !frm.doc.doctor_commission_payroll) return;
+	if (!frappe.model.can_create("Payment Entry")) return;
+
+	// The commission payable is credited when the payroll is submitted, so pay only then.
+	frappe.db
+		.get_value("Doctor Commission Payroll", frm.doc.doctor_commission_payroll, "docstatus")
+		.then((r) => {
+			if (!r || cint(r.message.docstatus) !== 1) return;
+			frm.add_custom_button(
+				__("Create Payment Entry"),
+				() => create_payment_entry(frm),
+				__("Create")
+			);
+		});
+}
+
+function create_payment_entry(frm) {
+	frappe.confirm(
+		__("Create a Payment Entry paying {0} to {1}?", [
+			format_currency(frm.doc.total_commission, frm.doc.currency),
+			frm.doc.practitioner_name || frm.doc.practitioner,
+		]),
+		() => {
+			frm.call({
+				doc: frm.doc,
+				method: "create_payment_entry",
+				freeze: true,
+				freeze_message: __("Creating Payment Entry..."),
+				callback(r) {
+					frm.reload_doc();
+					if (!r.message) return;
+					frappe.show_alert({
+						message: __("Payment Entry {0} created.", [r.message.payment_entry]),
+						indicator: "green",
+					});
+					frappe.set_route("Form", "Payment Entry", r.message.payment_entry);
+				},
+			});
+		}
+	);
+}
 
 function show_payslip_statement(frm) {
 	const dialog = new frappe.ui.Dialog({

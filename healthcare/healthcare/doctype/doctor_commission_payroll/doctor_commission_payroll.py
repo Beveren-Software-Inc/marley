@@ -17,18 +17,13 @@ class DoctorCommissionPayroll(Document):
 				frappe.db.get_single_value("Healthcare Settings", "doctors_commission")
 			)
 
-		if not self.salary_component:
-			self.salary_component = frappe.db.get_single_value(
-				"Healthcare Settings", "doctor_commission_salary_component"
-			)
-
 		if not self.payroll_date and self.to_date:
 			self.payroll_date = self.to_date
 
 		self._recalc_totals()
 
 	def before_submit(self):
-		if self.status not in ("Generated", "Reviewed", "Approved", "Salary Created"):
+		if self.status not in ("Generated", "Approved"):
 			frappe.throw(_("Generate commission before submitting"))
 		if not self.doctors:
 			frappe.throw(_("No doctor commission rows to submit. Generate first."))
@@ -36,12 +31,12 @@ class DoctorCommissionPayroll(Document):
 
 	def on_submit(self):
 		self._set_linked_sales_orders_commission_flag(1)
+		self._post_journal_entry()
 
 	def on_cancel(self):
-		self._cancel_linked_additional_salaries()
+		self._cancel_journal_entry()
 		self._set_linked_sales_orders_commission_flag(0)
-		self.status = "Cancelled"
-		self.additional_salaries_created = 0
+		self.db_set("status", "Cancelled", update_modified=False)
 
 	def _set_linked_sales_orders_commission_flag(self, value: int):
 		from healthcare.api.doctor_commission import set_sales_orders_commission_generated
@@ -49,19 +44,19 @@ class DoctorCommissionPayroll(Document):
 		sales_orders = [row.sales_order for row in (self.items or []) if row.sales_order]
 		set_sales_orders_commission_generated(sales_orders, value)
 
-	def _cancel_linked_additional_salaries(self):
-		if not frappe.db.exists("DocType", "Additional Salary"):
-			return
-		for row in self.doctors or []:
-			if not row.additional_salary:
-				continue
-			if not frappe.db.exists("Additional Salary", row.additional_salary):
-				continue
-			ads = frappe.get_doc("Additional Salary", row.additional_salary)
-			if ads.docstatus == 1:
-				ads.flags.ignore_permissions = True
-				ads.cancel()
-			row.additional_salary = None
+	def _post_journal_entry(self):
+		"""Book the commission: expense debited per doctor, payable credited."""
+		from healthcare.api.doctor_commission_accounting import create_journal_entry_for_payroll
+
+		journal_entry = create_journal_entry_for_payroll(self)
+		self.db_set("journal_entry", journal_entry.name, update_modified=False)
+		self.add_comment("Comment", _("Commission posted through Journal Entry {0}.").format(journal_entry.name))
+		return journal_entry
+
+	def _cancel_journal_entry(self):
+		from healthcare.api.doctor_commission_accounting import cancel_journal_entry_for_payroll
+
+		cancel_journal_entry_for_payroll(self)
 
 	def _recalc_totals(self):
 		total_service = 0
@@ -110,19 +105,6 @@ class DoctorCommissionPayroll(Document):
 		return generate_doctor_commission_period(self, include_backdated=cint(include_backdated))
 
 	@frappe.whitelist()
-	def mark_as_reviewed(self):
-		"""Mark the generated commission as reviewed before submitting."""
-		if self.docstatus != 0:
-			frappe.throw(_("Only draft documents can be marked as reviewed"))
-		if self.status not in ("Generated", "Approved"):
-			frappe.throw(_("Generate the commission before marking it as reviewed"))
-
-		self.status = "Reviewed"
-		self.flags.ignore_permissions = True
-		self.save()
-		return {"status": self.status}
-
-	@frappe.whitelist()
 	def create_commission_payslips(self):
 		"""Create/refresh draft Commission Payslips for the doctors on this payroll."""
 		from healthcare.api.doctor_commission import build_commission_payslips_for_payroll
@@ -156,12 +138,17 @@ class DoctorCommissionPayroll(Document):
 		return get_statement_for_payroll(self, practitioner)
 
 	@frappe.whitelist()
-	def create_additional_salary(self):
-		"""Create HRMS Additional Salary entries for each doctor after submit."""
-		from healthcare.api.doctor_commission import create_additional_salaries_for_payroll
+	def create_journal_entry(self):
+		"""Post (or re-post) the Journal Entry for an already submitted payroll."""
+		frappe.only_for(("System Manager", "Accounts Manager", "Accounts User", "Healthcare Administrator"))
 
 		if self.docstatus != 1:
-			frappe.throw(_("Submit the document before creating Additional Salary"))
+			frappe.throw(_("Submit the document before creating a Journal Entry"))
+		if self.journal_entry and frappe.db.exists("Journal Entry", self.journal_entry):
+			frappe.throw(
+				_("Journal Entry {0} already exists for this payroll.").format(self.journal_entry)
+			)
 
 		self.flags.ignore_permissions = True
-		return create_additional_salaries_for_payroll(self)
+		journal_entry = self._post_journal_entry()
+		return journal_entry.name

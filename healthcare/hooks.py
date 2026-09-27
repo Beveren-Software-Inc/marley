@@ -494,6 +494,12 @@ _append_event("Sales Invoice", "on_submit", "healthcare.api.patient_history_extr
 _append_event("Sales Invoice", "on_cancel", "healthcare.api.patient_history_extras.remove_billing_record")
 _append_event("Payment Entry", "on_submit", "healthcare.api.patient_history_extras.record_payment_entry")
 _append_event("Payment Entry", "on_cancel", "healthcare.api.patient_history_extras.remove_billing_record")
+# Doctor commission: a cancelled payment puts the payslip back on the payable list.
+_append_event(
+	"Payment Entry",
+	"on_cancel",
+	"healthcare.api.doctor_commission_accounting.on_payment_entry_cancel",
+)
 
 # WF-079: follow-ups into patient history (Patient Follow Up is not submittable).
 _append_event("Patient Follow Up", "on_update", "healthcare.api.patient_history_extras.record_follow_up")

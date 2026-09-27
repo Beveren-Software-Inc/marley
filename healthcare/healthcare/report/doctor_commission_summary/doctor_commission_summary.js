@@ -40,7 +40,7 @@ frappe.query_reports["Doctor Commission Summary"] = {
 			fieldname: "status",
 			label: __("Status"),
 			fieldtype: "Select",
-			options: "\nGenerated\nReviewed\nApproved\nSalary Created",
+			options: "\nGenerated\nApproved",
 		},
 	],
 };

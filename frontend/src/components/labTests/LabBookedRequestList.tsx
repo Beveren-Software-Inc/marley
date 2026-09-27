@@ -115,6 +115,8 @@ const FilterToggleButton = ({
  * Click opens a read-only review modal (no edit).
  * Scoped by header OP/IP and the top-navbar branch (userCostCenter).
  * OP hides inpatient requests; active visit/admission narrows further.
+ * Requests flagged "Hide from UI" are dropped server-side by get_service_requests,
+ * so they never show here (rows or totals) on any status tab.
  */
 export function LabBookedRequestList({
   patient,
@@ -188,6 +190,8 @@ export function LabBookedRequestList({
 
   useEffect(() => {
     let cancelled = false
+    // ``hide_from_ui`` Service Requests are filtered out by get_service_requests, so
+    // the rows/total_count below never contain them (all status tabs included).
     fetchServiceRequests(
       pageSize,
       (page - 1) * pageSize,
