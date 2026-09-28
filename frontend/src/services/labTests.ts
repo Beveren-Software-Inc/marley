@@ -121,8 +121,10 @@ export interface LabTest {
   worksheet_instructions?: string
   normal_test_items?: any[]
   sensitivity_test_items?: any[]
-  /** Patient Upload Document child table (same as Admission/Discharge) */
+  /** Uploaded documents child table (Patient Upload Document, field `uploaded_documents`) */
   documents?: Array<{ file_name?: string; document_type?: string; transaction_no?: string; upload_remarks?: string; document?: string }>
+  /** Number of uploaded reports / scans on this lab test (list indicator) */
+  documents_count?: number
   /** Sample instances child table – one row per required/actual sample */
   sample_instances?: LabTestSampleInstance[]
   /** Populated after save when lab result rules run */
@@ -527,6 +529,59 @@ export async function updateLabTestRemarks(labTestName: string, remarks: LabTest
 }
 
 import { apiRequest } from './apiClient'
+
+/** One row of the Lab Test "Uploaded Documents" child table (Patient Upload Document). */
+export interface LabTestDocumentRow {
+  name?: string
+  document_name?: string | null
+  file_name?: string | null
+  document_type?: string | null
+  transaction_no?: string | null
+  upload_remarks?: string | null
+  document?: string | null
+}
+
+export interface AttachLabTestDocumentInput {
+  /** file_url returned by the upload endpoint ('/files/…' or '/private/files/…'). */
+  fileUrl: string
+  documentType?: string
+  uploadRemarks?: string
+}
+
+export interface AttachLabTestDocumentResult {
+  name: string
+  /** Latest file mirrored on the Lab Test "Upload" Attach field (desk parity). */
+  upload?: string | null
+  documents: LabTestDocumentRow[]
+  documents_count: number
+}
+
+/**
+ * Upload an already-uploaded file (report / scan) to a Lab Test.
+ *
+ * The row is appended to the Lab Test "Uploaded Documents" child table (`Patient Upload
+ * Document`) under `uploaded_documents`. Allowed at every stage — before sample collection,
+ * after collection and after the test is submitted — unlike result entry, which stays locked
+ * until the sample is collected. Cancelled / rejected tests are refused by the backend.
+ */
+export async function attachLabTestDocument(
+  labTestName: string,
+  input: AttachLabTestDocumentInput
+): Promise<AttachLabTestDocumentResult> {
+  const { apiRequest } = await import('./apiClient')
+  return apiRequest<AttachLabTestDocumentResult>(
+    '/api/method/healthcare.api.lab_test.attach_lab_test_document',
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        name: labTestName,
+        file_url: input.fileUrl,
+        document_type: input.documentType || undefined,
+        upload_remarks: input.uploadRemarks || undefined,
+      }),
+    }
+  )
+}
 
 export interface DoctorReviewFormOptions {
   report_types: string[]

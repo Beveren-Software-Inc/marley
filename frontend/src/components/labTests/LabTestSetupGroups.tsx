@@ -15,6 +15,10 @@ import { useCareContext } from '../../providers/CareContextProvider'
 interface LabTestSetupGroupsProps {
   refreshKey?: number
   onEditClick?: (name: string) => void
+  /** Opens Create Lab Test Template for a brand-new parent group. */
+  onCreateGroupClick?: () => void
+  /** Opens Create Lab Test Template pre-linked to the given parent group. */
+  onCreateChildClick?: (parent: string) => void
 }
 
 type ChildDraft = {
@@ -125,7 +129,12 @@ const cellInputClass =
  * Lab Setup tab: compact parent (group) list on top; children of the selected
  * parent in a details card below (inline-editable + Save).
  */
-export const LabTestSetupGroups = ({ refreshKey = 0, onEditClick }: LabTestSetupGroupsProps) => {
+export const LabTestSetupGroups = ({
+  refreshKey = 0,
+  onEditClick,
+  onCreateGroupClick,
+  onCreateChildClick,
+}: LabTestSetupGroupsProps) => {
   const { userCostCenter } = useCareContext()
   const [allRows, setAllRows] = useState<LabTestTemplateListRow[]>([])
   const [loading, setLoading] = useState(false)
@@ -382,6 +391,35 @@ export const LabTestSetupGroups = ({ refreshKey = 0, onEditClick }: LabTestSetup
     </button>
   )
 
+  /** Same round "+" affordance the dashboard cards use for their create action. */
+  const createTemplateButtonClass =
+    'inline-flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-primary text-sm font-bold text-white transition-colors hover:bg-primary/90'
+
+  const createGroupButton = onCreateGroupClick ? (
+    <button
+      type="button"
+      onClick={onCreateGroupClick}
+      className={createTemplateButtonClass}
+      title="Create Lab Test Template"
+      aria-label="Create Lab Test Template"
+    >
+      +
+    </button>
+  ) : null
+
+  const createChildButton =
+    onCreateChildClick && selectedParent ? (
+      <button
+        type="button"
+        onClick={() => onCreateChildClick(selectedParent)}
+        className={createTemplateButtonClass}
+        title="Add child template to this group"
+        aria-label="Add child template to this group"
+      >
+        +
+      </button>
+    ) : null
+
   return (
     <div className="flex flex-col gap-3 min-h-0 flex-1">
       <DashboardCard
@@ -389,7 +427,12 @@ export const LabTestSetupGroups = ({ refreshKey = 0, onEditClick }: LabTestSetup
         filterable={false}
         noHeightLimit
         className="shrink-0"
-        headerExtra={masterListButton}
+        headerExtra={
+          <div className="flex items-center gap-2">
+            {createGroupButton}
+            {masterListButton}
+          </div>
+        }
       >
         <div className="flex flex-col gap-2 p-1">
           <input
@@ -486,7 +529,14 @@ export const LabTestSetupGroups = ({ refreshKey = 0, onEditClick }: LabTestSetup
         filterable={false}
         noHeightLimit
         className="flex-1 min-h-0"
-        headerExtra={children.length > 0 ? saveHeader : undefined}
+        headerExtra={
+          createChildButton || children.length > 0 ? (
+            <div className="flex items-center gap-2">
+              {createChildButton}
+              {children.length > 0 ? saveHeader : null}
+            </div>
+          ) : undefined
+        }
       >
         {!selectedParent ? (
           <div className="text-center text-sm text-slate-400 py-8">Select a lab group above</div>

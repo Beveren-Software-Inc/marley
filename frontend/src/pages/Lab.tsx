@@ -823,6 +823,9 @@ export const LabPage = () => {
   const [templateRefreshKey, setTemplateRefreshKey] = useState(0)
   const [showCreateTemplateModal, setShowCreateTemplateModal] = useState(false)
   const [editTemplateName, setEditTemplateName] = useState<string | undefined>(undefined)
+  /** Defaults applied when the create-template dialog is opened from Lab Setup. */
+  const [newTemplateGroup, setNewTemplateGroup] = useState<string | undefined>(undefined)
+  const [newTemplateIsGroup, setNewTemplateIsGroup] = useState(false)
 
   // Setup screen state (existing)
   const [showCreateSampleModal, setShowCreateSampleModal] = useState(false)
@@ -942,7 +945,32 @@ export const LabPage = () => {
 
   const handleEditTemplate = (templateName: string) => {
     setEditTemplateName(templateName)
+    setNewTemplateGroup(undefined)
+    setNewTemplateIsGroup(false)
     setShowCreateTemplateModal(true)
+  }
+
+  /** Lab Setup → "+" on the parents card: brand-new group template. */
+  const handleCreateGroupTemplate = () => {
+    setEditTemplateName(undefined)
+    setNewTemplateGroup(undefined)
+    setNewTemplateIsGroup(true)
+    setShowCreateTemplateModal(true)
+  }
+
+  /** Lab Setup → "+" on the children card: new child template for the selected group. */
+  const handleCreateChildTemplate = (parent: string) => {
+    setEditTemplateName(undefined)
+    setNewTemplateGroup(parent)
+    setNewTemplateIsGroup(false)
+    setShowCreateTemplateModal(true)
+  }
+
+  const closeTemplateModal = () => {
+    setShowCreateTemplateModal(false)
+    setEditTemplateName(undefined)
+    setNewTemplateGroup(undefined)
+    setNewTemplateIsGroup(false)
   }
 
   // ─── l-setup ───────────────────────────────────────────
@@ -991,6 +1019,8 @@ export const LabPage = () => {
               <LabTestSetupGroups
                 refreshKey={templateRefreshKey}
                 onEditClick={handleEditTemplate}
+                onCreateGroupClick={handleCreateGroupTemplate}
+                onCreateChildClick={handleCreateChildTemplate}
               />
             </div>
           ) : (
@@ -1067,17 +1097,15 @@ export const LabPage = () => {
 
         {showCreateTemplateModal && (
           <CreateLabTestTemplateModal
-            onClose={() => {
-              setShowCreateTemplateModal(false)
-              setEditTemplateName(undefined)
-            }}
+            onClose={closeTemplateModal}
             onSuccess={() => {
-              setShowCreateTemplateModal(false)
-              setEditTemplateName(undefined)
+              closeTemplateModal()
               setTemplateRefreshKey((k) => k + 1)
               handleTemplateCreated()
             }}
             templateName={editTemplateName}
+            initialLabGroup={newTemplateGroup}
+            initialIsGroup={newTemplateIsGroup}
           />
         )}
         {showCreateSampleModal && (
@@ -1273,14 +1301,15 @@ export const LabPage = () => {
       )}
       {showCreateTemplateModal && (
         <CreateLabTestTemplateModal
-          onClose={() => { setShowCreateTemplateModal(false); setEditTemplateName(undefined) }}
+          onClose={closeTemplateModal}
           onSuccess={() => {
-            setShowCreateTemplateModal(false)
-            setEditTemplateName(undefined)
+            closeTemplateModal()
             setTemplateRefreshKey(k => k + 1)
             handleTemplateCreated()
           }}
           templateName={editTemplateName}
+          initialLabGroup={newTemplateGroup}
+          initialIsGroup={newTemplateIsGroup}
         />
       )}
     </div>

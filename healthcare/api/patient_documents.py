@@ -34,6 +34,7 @@ _CHILD_SOURCE_LABELS = {
 	("Patient Upload Document", "Patient Visit", "documents"): "Patient Visit Document",
 	("Patient Upload Document", "Inpatient Admission", "e_signatures"): "Admission e-Signature",
 	("Patient Upload Document", "Discharge", "patient_documents"): "Discharge Document",
+	("Patient Upload Document", "Lab Test", "uploaded_documents"): "Lab Test Document",
 	("Patient Upload Document", "Lab Test", "documents"): "Lab Test Document",
 	("IP Patient Relative", "Inpatient Admission", "patient_relatives"): "Admission Relative Signature",
 	("IP Patient Relative", "Discharge", "patient_relatives"): "Discharge Relative Signature",
