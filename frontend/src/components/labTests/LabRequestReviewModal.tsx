@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type MouseEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
-import { ArrowDown, ArrowUp, ChevronDown, ChevronUp, Droplet, FlaskConical, Printer, X } from 'lucide-react'
+import { ArrowDown, ArrowUp, ChevronDown, ChevronUp, Droplet, FlaskConical, Paperclip, Printer, X } from 'lucide-react'
 import { fetchLabRequestReview,
   type LabRequestReview,
   type LabRequestReviewGroup,
@@ -16,7 +16,11 @@ import {
   type LabTest,
 } from '../../services/labTests'
 import { fetchLabTestResultRules, type LabTestResultRulesConfig } from '../../services/labTestResultRules'
-import { canEditLabTestResultForRow, isGroupedLabRequestFinished } from '../../config/permissions'
+import {
+  canAttachLabTestDocument,
+  canEditLabTestResultForRow,
+  isGroupedLabRequestFinished,
+} from '../../config/permissions'
 import { useCareContext } from '../../providers/CareContextProvider'
 import { useFormatMoney } from '../../hooks/useFormatMoney'
 import { toast } from '../../hooks/useToast'
@@ -25,6 +29,7 @@ import { formatDashboardDate } from '../ui/dashboardCardListing'
 import { StatusPill } from '../ui/StatusPill'
 import { LabTestSampleCollectionModal } from './LabTestSampleCollectionModal'
 import { LabTestEnterResultsModal } from './LabTestEnterResultsModal'
+import { AttachLabTestDocumentModal } from './AttachLabTestDocumentModal'
 import { openLabSampleBarcodePrint } from '../../utils/printLabSampleBarcodeLabel'
 import { openLabTestResultReportPrint } from '../../utils/printLabTestResultReport'
 import { showLabTestRuleFeedback } from '../../utils/labTestRuleFeedback'
@@ -304,6 +309,10 @@ export function LabRequestReviewModal({
   const [enterResultsLabTest, setEnterResultsLabTest] = useState<string | null>(null)
   const [panelRules, setPanelRules] = useState<LabTestResultRulesConfig | null>(null)
   const [groupsPanelCollapsed, setGroupsPanelCollapsed] = useState(false)
+  /** Attach / upload a report for the selected test (works before sample collection too). */
+  const [attachDocLabTest, setAttachDocLabTest] = useState<{ name: string; label?: string } | null>(
+    null
+  )
 
   const reload = useCallback(() => setReloadToken((n) => n + 1), [])
 
@@ -1101,6 +1110,18 @@ export function LabRequestReviewModal({
                           const formulaLine = formulaTargetForTest(test)
                           const isFormulaReadonly = Boolean(formulaLine?.readonly)
                           const isSaving = savingResultFor === test.lab_test
+                          // Attach / upload is allowed before and after sample collection —
+                          // unlike result entry, which waits for the collected sample.
+                          const canAttachDoc =
+                            !!test.lab_test &&
+                            canAttachLabTestDocument(
+                              {
+                                status: test.lab_test_status || '',
+                                docstatus: test.lab_test_docstatus ?? 0,
+                              },
+                              userRole
+                            )
+                          const documentCount = Number(test.documents_count || 0)
                           // Formula targets always show inline (calculated), even if template is Multiple.
                           // Multiple Results entry (button → external modal) is only offered when
                           // Healthcare Settings.have_multiresults_on_lab_test is enabled; otherwise
@@ -1223,6 +1244,7 @@ export function LabRequestReviewModal({
                                 )}
                               </td>
                               <td className="px-2.5 py-1.5 text-right">
+                                <div className="flex flex-wrap items-center justify-end gap-1.5">
                                 {singleLine ? (
                                   sampleDone ? (
                                     <ResultFlagIndicator
@@ -1270,6 +1292,38 @@ export function LabRequestReviewModal({
                                     ) : null}
                                   </div>
                                 )}
+                                {canAttachDoc ? (
+                                  <button
+                                    type="button"
+                                    aria-label="Attach document"
+                                    title={
+                                      documentCount > 0
+                                        ? `${documentCount} document${documentCount === 1 ? '' : 's'} attached — attach another`
+                                        : 'Attach / upload a report or scan'
+                                    }
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      setAttachDocLabTest({
+                                        name: test.lab_test as string,
+                                        label:
+                                          (test.test_name || test.template || '').trim() || undefined,
+                                      })
+                                    }}
+                                    className={`inline-flex h-7 items-center justify-center gap-0.5 rounded-md border px-1.5 transition-colors ${
+                                      documentCount > 0
+                                        ? 'border-primary/40 bg-primary/5 text-primary hover:bg-primary/10'
+                                        : 'border-slate-300 bg-white text-slate-500 hover:border-primary hover:text-primary'
+                                    }`}
+                                  >
+                                    <Paperclip className="h-3.5 w-3.5" />
+                                    {documentCount > 0 ? (
+                                      <span className="text-[9px] font-bold leading-none">
+                                        {documentCount}
+                                      </span>
+                                    ) : null}
+                                  </button>
+                                ) : null}
+                                </div>
                               </td>
                             </tr>
                           )
@@ -1338,6 +1392,15 @@ export function LabRequestReviewModal({
           }}
         />
       )}
+      {attachDocLabTest ? (
+        <AttachLabTestDocumentModal
+          labTestName={attachDocLabTest.name}
+          labTestLabel={attachDocLabTest.label}
+          elevated
+          onClose={() => setAttachDocLabTest(null)}
+          onAttached={() => reload()}
+        />
+      ) : null}
     </>,
     document.body
   )

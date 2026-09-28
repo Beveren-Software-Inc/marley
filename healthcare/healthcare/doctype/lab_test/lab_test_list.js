@@ -19,7 +19,89 @@ frappe.listview_settings['Lab Test'] = {
 		listview.page.add_menu_item(__('Create Multiple'), function () {
 			create_multiple_dialog(listview);
 		});
+
+		// LAB-039 override. A Lab Test whose sample is already with the lab may not be
+		// deleted or cancelled by the normal path, so System Managers get the same
+		// force actions the health SPA exposes.
+		if (frappe.user.has_role('System Manager')) {
+			listview.page.add_menu_item(__('Force Delete Lab Test'), function () {
+				force_override_selected_lab_tests(listview, 'delete');
+			});
+			listview.page.add_menu_item(__('Force Cancel Lab Test'), function () {
+				force_override_selected_lab_tests(listview, 'cancel');
+			});
+		}
 	}
+};
+
+var force_override_selected_lab_tests = function (listview, action) {
+	var selected = listview.get_checked_items() || [];
+	if (!selected.length) {
+		frappe.msgprint(__('Select at least one Lab Test first.'));
+		return;
+	}
+
+	var is_cancel = action === 'cancel';
+	var method = is_cancel
+		? 'healthcare.api.lab_request_actions.force_cancel_lab_test'
+		: 'healthcare.api.lab_request_actions.force_delete_lab_test';
+	var action_label = is_cancel ? __('Force Cancel') : __('Force Delete');
+
+	frappe.confirm(
+		__('{0} {1} selected Lab Test(s), overriding the recorded sample collection?', [
+			action_label,
+			selected.length
+		]),
+		function () {
+			frappe.prompt(
+				{
+					fieldtype: 'Small Text',
+					fieldname: 'reason',
+					label: __('Reason'),
+					description: __('Recorded against the override for audit.')
+				},
+				function (values) {
+					var pending = selected.slice();
+					var failed = [];
+
+					var run_next = function () {
+						if (!pending.length) {
+							if (failed.length) {
+								frappe.msgprint(
+									__('{0} of the Lab Test(s) could not be processed: {1}', [
+										failed.length,
+										failed.join(', ')
+									])
+								);
+							}
+							listview.refresh();
+							return;
+						}
+
+						var row = pending.shift();
+						frappe.call({
+							method: method,
+							args: { lab_test_name: row.name, reason: values.reason || null },
+							callback: function (data) {
+								if (data.exc) {
+									failed.push(row.name);
+								}
+								run_next();
+							},
+							error: function () {
+								failed.push(row.name);
+								run_next();
+							}
+						});
+					};
+
+					run_next();
+				},
+				action_label,
+				__('Proceed')
+			);
+		}
+	);
 };
 
 var create_multiple_dialog = function (listview) {

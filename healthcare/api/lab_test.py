@@ -810,6 +810,7 @@ def _enrich_lab_test_rows(lab_tests, template_cache=None):
 			lab_test["lab_test_group_name"] = group_name_cache[group_code]
 
 	_attach_lab_test_sampling_dates(lab_tests)
+	_attach_lab_test_documents_count(lab_tests)
 
 	service_requests = {
 		lt.service_request
@@ -828,6 +829,68 @@ def _enrich_lab_test_rows(lab_tests, template_cache=None):
 		for lab_test in lab_tests:
 			if cint(lab_test.get("is_group_lab_test") or 0) and lab_test.get("service_request"):
 				lab_test["service_request_status"] = sr_status_map.get(lab_test.service_request)
+
+	return lab_tests
+
+
+# Uploaded reports / scans are filed in a ``Patient Upload Document`` child table on the Lab
+# Test. ``uploaded_documents`` is the field the SPA writes to; ``documents`` (the older
+# "Upload Documents" tab grid) is still read so rows filed through the desk keep showing up in
+# the upload dialog, in the paperclip counters and in the patient document portal.
+LAB_TEST_DOCUMENT_FIELDS = ("uploaded_documents", "documents")
+
+
+def _lab_test_document_fields(meta=None):
+	"""Lab Test child-table fieldnames that hold uploaded documents (current field first)."""
+	meta = meta or frappe.get_meta("Lab Test")
+	return [fieldname for fieldname in LAB_TEST_DOCUMENT_FIELDS if meta.has_field(fieldname)]
+
+
+def _lab_test_document_target(meta=None):
+	"""Field new uploads are appended to.
+
+	Prefers ``uploaded_documents`` and falls back to the legacy grid on a site whose doctype
+	has not been migrated yet (and to ``uploaded_documents`` when neither field exists, so the
+	error names the field the UI writes).
+	"""
+	fields = _lab_test_document_fields(meta)
+	return fields[0] if fields else LAB_TEST_DOCUMENT_FIELDS[0]
+
+
+def _lab_test_document_rows(doc):
+	"""Every uploaded document row on a Lab Test, current field first."""
+	rows = []
+	for fieldname in _lab_test_document_fields(getattr(doc, "meta", None)):
+		rows.extend(getattr(doc, fieldname, None) or [])
+	return rows
+
+
+def _attach_lab_test_documents_count(lab_tests):
+	"""Attach ``documents_count`` (uploaded reports / scans) to lab test list rows.
+
+	The Results column shows a paperclip with the attachment count; one grouped
+	query keeps the list endpoint free of per-row lookups.
+	"""
+	if not lab_tests:
+		return lab_tests
+
+	names = [lt.get("name") for lt in lab_tests if lt.get("name")]
+	doc_counts: dict[str, int] = {}
+	if names:
+		for row in frappe.db.get_all(
+			"Patient Upload Document",
+			filters={
+				"parenttype": "Lab Test",
+				"parentfield": ["in", _lab_test_document_fields()],
+				"parent": ["in", names],
+			},
+			fields=["parent", {"COUNT": "name", "as": "documents_count"}],
+			group_by="parent",
+		):
+			doc_counts[row.parent] = cint(row.documents_count)
+
+	for lab_test in lab_tests:
+		lab_test["documents_count"] = doc_counts.get(lab_test.get("name"), 0)
 
 	return lab_tests
 
@@ -2178,8 +2241,8 @@ def get_lab_test(name):
 			else None
 		),
 	}
-	# Include documents child table (Patient Upload Document)
-	documents = getattr(lab_test, 'documents', None) or []
+	# Include the uploaded documents child table (Patient Upload Document):
+	# ``uploaded_documents`` plus any rows still on the legacy ``documents`` grid.
 	out['documents'] = [
 		{
 			'file_name': r.get('document_name') or r.get('file_name'),
@@ -2188,8 +2251,11 @@ def get_lab_test(name):
 			'upload_remarks': r.get('upload_remarks'),
 			'document': r.get('document'),
 		}
-		for r in documents
+		for r in _lab_test_document_rows(lab_test)
 	]
+	# Latest report mirrored on the Lab Test "Upload" Attach field (desk parity).
+	out['upload'] = lab_test.get('upload')
+	out['documents_count'] = len(out['documents'])
 	# Include remarks child table (Remark)
 	remarks_table = getattr(lab_test, 'remarks', None) or []
 	out['remarks'] = [{'rrmark': getattr(r, 'rrmark', None) or ''} for r in remarks_table]
@@ -2382,13 +2448,19 @@ def request_lab_consumables(lab_test, items, company=None, schedule_date=None, i
 
 
 def _apply_documents_to_doc(doc, documents):
-	"""Replace doc.documents child table with the given list of dicts (Patient Upload Document shape)."""
+	"""Replace the Lab Test uploaded-documents child table with the given list of dicts.
+
+	Rows are written to ``uploaded_documents`` (see :func:`_lab_test_document_target`); the
+	legacy ``documents`` grid is cleared as well when the doctype still has it.
+	"""
 	if documents is None:
 		return
 	if isinstance(documents, str):
 		import json
 		documents = json.loads(documents)
-	doc.documents = []
+	target = _lab_test_document_target(doc.meta)
+	for fieldname in _lab_test_document_fields(doc.meta):
+		doc.set(fieldname, [])
 	for row in (documents or []):
 		if not isinstance(row, dict):
 			continue
@@ -2396,7 +2468,7 @@ def _apply_documents_to_doc(doc, documents):
 			continue
 		user_label = row.get('file_name') or row.get('document_name') or ''
 		doc_type = row.get('document_type') or None
-		doc.append('documents', {
+		doc.append(target, {
 			'document_name': user_label,
 			'file_name': doc_type if doc_type and frappe.db.exists('Document Type', doc_type) else None,
 			'document_type': doc_type,
@@ -3113,6 +3185,104 @@ def update_lab_test_basic(name, data=None):
 	}
 
 
+def _lab_test_documents_payload(doc):
+	"""Serialise the Lab Test uploaded-document child rows (Patient Upload Document) for the UI.
+
+	Covers both ``uploaded_documents`` and any rows still on the legacy ``documents`` grid.
+	"""
+	return [
+		{
+			"name": row.name,
+			"document_name": row.get("document_name"),
+			"file_name": row.get("file_name") or row.get("document_name"),
+			"document_type": row.get("document_type"),
+			"transaction_no": row.get("transaction_no"),
+			"upload_remarks": row.get("upload_remarks"),
+			"document": row.get("document"),
+		}
+		for row in _lab_test_document_rows(doc)
+	]
+
+
+@frappe.whitelist()
+def attach_lab_test_document(
+	name,
+	file_url,
+	file_name=None,
+	document_type=None,
+	transaction_no=None,
+	upload_remarks=None,
+):
+	"""File an uploaded report / scan on a Lab Test (``uploaded_documents`` child table).
+
+	Available at every stage of the lab test — before or after sample collection and
+	even once the test is submitted — so a scanned report can be filed without opening
+	the result-entry screen (which stays locked until sample collection is done).
+	Only cancelled / rejected tests refuse new documents.
+
+	``transaction_no`` is kept for desk parity / older callers; the SPA upload dialog only
+	asks for the file, the document type and remarks.
+	"""
+	if not name:
+		frappe.throw(_("Lab Test name is required"))
+
+	file_url = cstr(file_url).strip()
+	if not file_url:
+		frappe.throw(_("Upload a file before attaching it to the lab test"))
+
+	doc = frappe.get_doc("Lab Test", name)
+
+	if cint(doc.docstatus) == 2 or (doc.status or "").strip() in ("Rejected", "Cancelled"):
+		frappe.throw(
+			_("Cannot attach documents to a {0} Lab Test").format(doc.status or _("Cancelled")),
+			frappe.PermissionError,
+		)
+
+	# Role gate only — deliberately does NOT call _ensure_lab_result_save_allowed(),
+	# which requires completed sample collection and a non-final status.
+	_ensure_lab_result_edit_permission(doc)
+
+	if not frappe.has_permission("Lab Test", "write", doc=doc):
+		frappe.throw(
+			_("You do not have permission to update this lab test"), frappe.PermissionError
+		)
+
+	display_name = cstr(file_name).strip()
+	if not display_name:
+		display_name = frappe.db.get_value("File", {"file_url": file_url}, "file_name") or None
+
+	doc.append(
+		_lab_test_document_target(doc.meta),
+		{
+			"file_name": display_name,
+			"document": file_url,
+			"document_type": cstr(document_type).strip() or None,
+			"transaction_no": cstr(transaction_no).strip() or None,
+			"upload_remarks": cstr(upload_remarks).strip() or None,
+		},
+	)
+
+	# Desk parity: the Lab Test "Upload" Attach field mirrors the latest report so the
+	# uploaded file is also visible on the standard Lab Test form.
+	if doc.meta.has_field("upload"):
+		doc.upload = file_url
+
+	if cint(doc.docstatus) == 1:
+		# The uploaded-documents grid is not an allow-on-submit field; filing a report must
+		# still be possible after the test is submitted.
+		doc.flags.ignore_validate_update_after_submit = True
+
+	doc.save(ignore_permissions=True)
+
+	documents = _lab_test_documents_payload(doc)
+	return {
+		"name": doc.name,
+		"upload": doc.get("upload"),
+		"documents": documents,
+		"documents_count": len(documents),
+	}
+
+
 @frappe.whitelist()
 def create_lab_test(data):
 	"""Create a new Lab Test"""
@@ -3191,15 +3361,16 @@ def create_lab_test(data):
 		if isinstance(documents, str):
 			import json
 			documents = json.loads(documents)
+		document_field = _lab_test_document_target(lab_test.meta)
 		for row in (documents or []):
 			if not isinstance(row, dict):
 				continue
 			if not (row.get('file_name') or row.get('document_name') or row.get('document')):
 				continue
-			# file_name in Patient Upload Document is Link to "Document Type"; use document_name (Data) for display/filename
+			# file_name in Patient Upload Document is Data with a Document Type hint; use document_name (Data) for display/filename
 			user_label = row.get('file_name') or row.get('document_name') or ''
 			doc_type = row.get('document_type') or None
-			lab_test.append('documents', {
+			lab_test.append(document_field, {
 				'document_name': user_label,
 				'file_name': doc_type if doc_type and frappe.db.exists('Document Type', doc_type) else None,
 				'document_type': doc_type,
@@ -3207,7 +3378,7 @@ def create_lab_test(data):
 				'upload_remarks': row.get('upload_remarks') or None,
 				'document': row.get('document') or None,
 			})
-		if lab_test.documents:
+		if lab_test.get(document_field):
 			lab_test.save(ignore_permissions=True)
 
 	# Return the created lab test

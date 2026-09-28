@@ -1714,17 +1714,19 @@ import { LabTestDetails } from './LabTestDetails'
 import { EditLabTestModal } from './EditLabTestModal'
 import { LabTestReviewModal } from './LabTestReviewModal'
 import { LabTestSampleCollectionModal } from './LabTestSampleCollectionModal'
+import { AttachLabTestDocumentModal } from './AttachLabTestDocumentModal'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 import { PortalActionsMenu } from '../ui/PortalActionsMenu'
 import { PaginationControls, LoadMoreControls, DEFAULT_PAGE_SIZE, type PageSize } from '../ui/PaginationControls'
 import { toast } from '../../hooks/useToast'
 import {
+  canAttachLabTestDocument,
   canEditLabTestResults,
   canEditLabTestResultForRow,
   isGroupedLabRequestFinished,
   labResultLockReason,
 } from '../../config/permissions'
-import { Search, X, ChevronDown, ChevronRight, ArrowDown, ArrowUp, AlertTriangle, ShieldAlert, Trash2, Download } from 'lucide-react'
+import { Search, X, ChevronDown, ChevronRight, ArrowDown, ArrowUp, AlertTriangle, ShieldAlert, Trash2, Download, Paperclip } from 'lucide-react'
 import { createPortal } from 'react-dom'
 import { useCardFilters, useCardHeaderSlot, useCardLeadingSlot, useDashboardCompactClinical, usePreferCardLoadMore } from '../../contexts/CardFilterContext'
 import { useBatchLabTestResults } from '../../hooks/useBatchLabTestResults'
@@ -2744,6 +2746,9 @@ export const LabTestList = ({
   const [editingResult, setEditingResult] = useState<string | null>(null)
   const [editingValue, setEditingValue] = useState<string>('')
 
+  /** Attach / upload document dialog (paperclip icon in the Results column). */
+  const [attachDocLabTest, setAttachDocLabTest] = useState<{ name: string; label?: string } | null>(null)
+
   /** Inline lab technician picker (table column after Results). */
   const [inlineLabTechLabTestName, setInlineLabTechLabTestName] = useState<string | null>(null)
   const [inlineLabTechQuery, setInlineLabTechQuery] = useState('')
@@ -3493,10 +3498,14 @@ export const LabTestList = ({
     const dirty = batch.isDirty(labTest)
     const rowEditable = canEditResultRow(labTest)
     const isEmpty = !displayResult
+    const documentCount = Number(labTest.documents_count || 0)
+    // Attaching a report / scan works before sample collection and after the result is final.
+    const canAttachDocument = canAttachLabTestDocument(labTest, userRole, { nurseLabContext })
     return (
     <td className="px-3 py-1.5 text-sm max-w-[200px]">
+      <div className="flex items-center gap-1 min-w-0">
       {editingResult === labTest.name ? (
-        <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+        <div className="flex flex-1 min-w-0 items-center gap-1" onClick={(e) => e.stopPropagation()}>
           <input type="text" value={editingValue} onChange={(e) => setEditingValue(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === 'Enter') finishResultEdit(labTest)
@@ -3512,7 +3521,7 @@ export const LabTestList = ({
           setEditingResult(labTest.name)
           setEditingValue(displayResult)
         }}
-          className={`min-h-[22px] min-w-[72px] rounded px-1.5 py-0.5 text-sm transition-colors ${
+          className={`min-h-[22px] min-w-[72px] flex-1 min-w-0 rounded px-1.5 py-0.5 text-sm transition-colors ${
             !rowEditable
               ? displayResult
                 ? 'cursor-not-allowed bg-slate-50 text-slate-800'
@@ -3546,6 +3555,35 @@ export const LabTestList = ({
           )}
         </div>
       )}
+      {canAttachDocument ? (
+        <button
+          type="button"
+          aria-label="Attach document"
+          title={
+            documentCount > 0
+              ? `${documentCount} document${documentCount === 1 ? '' : 's'} attached — attach another`
+              : 'Attach / upload a report or scan'
+          }
+          onClick={(e) => {
+            e.stopPropagation()
+            setAttachDocLabTest({
+              name: resolveLabTestDocName(labTest),
+              label: (labTest.lab_test_name || labTest.template || '').trim() || undefined,
+            })
+          }}
+          className={`inline-flex h-6 min-w-[1.5rem] shrink-0 items-center justify-center gap-0.5 rounded-md border px-1 transition-colors ${
+            documentCount > 0
+              ? 'border-primary/40 bg-primary/5 text-primary hover:bg-primary/10'
+              : 'border-slate-200 bg-white text-slate-400 hover:border-primary hover:text-primary'
+          }`}
+        >
+          <Paperclip className="h-3.5 w-3.5" />
+          {documentCount > 0 ? (
+            <span className="text-[9px] font-bold leading-none">{documentCount}</span>
+          ) : null}
+        </button>
+      ) : null}
+      </div>
     </td>
   )
   }
@@ -5326,6 +5364,17 @@ export const LabTestList = ({
           />
         </label>
       </ConfirmActionModal>
+
+      {attachDocLabTest ? (
+        <AttachLabTestDocumentModal
+          labTestName={attachDocLabTest.name}
+          labTestLabel={attachDocLabTest.label}
+          onClose={() => setAttachDocLabTest(null)}
+          onAttached={() => {
+            void refetch()
+          }}
+        />
+      ) : null}
     </div>
   )
 }

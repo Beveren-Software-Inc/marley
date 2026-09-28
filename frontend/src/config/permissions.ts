@@ -133,6 +133,23 @@ export function canEditLabTestResultForRow(
   return labTest.docstatus === 1
 }
 
+/** Whether the user may attach / upload documents (reports, scans) on a lab test row.
+ *
+ * Deliberately independent of `canEditLabTestResultForRow`: attaching must work
+ * before sample collection is completed and after the result is final (scanned
+ * reports arrive late). Cancelled / rejected tests refuse new documents, matching
+ * the backend `attach_lab_test_document` guard. */
+export function canAttachLabTestDocument(
+  labTest: LabTestRowPerm,
+  roles: string[] | undefined,
+  opts?: LabResultEditOptions
+): boolean {
+  const status = (labTest.status || '').trim()
+  if (status === 'Rejected' || status === 'Cancelled') return false
+  if (labTest.docstatus === 2) return false
+  return _mayEditLabResults(labTest, roles, opts)
+}
+
 /** Human-readable reason a lab result row is locked for the given user, or null if editable.
  * Lets the UI explain a disabled result field instead of silently hiding it (F014). */
 export function labResultLockReason(

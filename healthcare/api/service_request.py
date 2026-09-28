@@ -1247,6 +1247,25 @@ def get_lab_request_review(name):
 			continue
 		lab_tests_by_template.setdefault(tpl, []).append(lt)
 
+	# Uploaded reports / scans per linked lab test — shown as an attachment count
+	# on the test row (available before and after sample collection).
+	from healthcare.api.lab_test import _lab_test_document_fields
+
+	document_counts: dict[str, int] = {}
+	linked_lab_names = [lt.get("name") for lt in lab_test_rows if lt.get("name")]
+	if linked_lab_names:
+		for row in frappe.db.get_all(
+			"Patient Upload Document",
+			filters={
+				"parenttype": "Lab Test",
+				"parentfield": ["in", _lab_test_document_fields()],
+				"parent": ["in", linked_lab_names],
+			},
+			fields=["parent", {"COUNT": "name", "as": "documents_count"}],
+			group_by="parent",
+		):
+			document_counts[row.parent] = cint(row.documents_count)
+
 	for g in group_rows:
 		for test in g.get("tests") or []:
 			linked = lab_tests_by_template.get(test.get("template") or "", [])
@@ -1264,6 +1283,7 @@ def get_lab_request_review(name):
 					lt.get("template"), test.get("custom_result"), patient_sex
 				) or ""
 			test["result_flag"] = flag
+			test["documents_count"] = document_counts.get(test["lab_test"] or "", 0)
 
 	return {
 		"name": doc.name,

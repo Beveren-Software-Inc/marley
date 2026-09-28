@@ -174,6 +174,8 @@ export interface LabRequestReviewTest {
   custom_result?: string | null
   /** High/Low/Normal or Use Status marks (Deficiency, Toxicity, …). */
   result_flag?: string | null
+  /** Uploaded reports / scans attached to the linked Lab Test. */
+  documents_count?: number
 }
 
 export interface LabRequestReviewGroup {

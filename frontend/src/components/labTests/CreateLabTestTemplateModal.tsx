@@ -25,6 +25,10 @@ interface CreateLabTestTemplateModalProps {
   onClose: () => void
   onSuccess?: (created: { name: string; lab_test_name: string; department?: string }) => void
   templateName?: string
+  /** Create mode only: pre-select the parent group (used when adding a child template). */
+  initialLabGroup?: string
+  /** Create mode only: pre-tick "Is Group" (used when adding a parent group template). */
+  initialIsGroup?: boolean
 }
 
 const STATUS_BAND_OPTIONS = [
@@ -327,6 +331,8 @@ export function CreateLabTestTemplateModal({
   onClose,
   onSuccess,
   templateName,
+  initialLabGroup,
+  initialIsGroup,
 }: CreateLabTestTemplateModalProps) {
   const isEdit = Boolean(templateName)
   const [loading, setLoading] = useState(isEdit)
@@ -335,8 +341,8 @@ export function CreateLabTestTemplateModal({
 
   const [labTestCode, setLabTestCode] = useState('')
   const [labTestName, setLabTestName] = useState('')
-  const [labGroup, setLabGroup] = useState('')
-  const [isGroup, setIsGroup] = useState(false)
+  const [labGroup, setLabGroup] = useState(initialLabGroup || '')
+  const [isGroup, setIsGroup] = useState(Boolean(initialIsGroup))
   const [disabled, setDisabled] = useState(false)
   const [isMultiple, setIsMultiple] = useState(false)
   const [isBillable, setIsBillable] = useState(true)

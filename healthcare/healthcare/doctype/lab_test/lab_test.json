@@ -44,6 +44,7 @@
   "printed_on",
   "by_nurse",
   "sample_collected",
+  "upload",
   "outsourced_section",
   "is_outsourced",
   "outsource_lab_name",
@@ -61,7 +62,7 @@
   "gender",
   "c_b",
   "service_unit",
-	"practitioner",
+  "practitioner",
   "practitioner_name",
   "assigned_healthcare_practioner",
   "assigned_practitioner_name",
@@ -119,6 +120,8 @@
   "trans_source",
   "section_break_jhxk",
   "transfer_remark",
+  "section_break_bnaj",
+  "uploaded_documents",
   "legacy_oracle_tab",
   "legacy_oracle_audit_section",
   "cr_id",
@@ -618,9 +621,9 @@
   {
    "fieldname": "assigned_healthcare_practioner",
    "fieldtype": "Link",
+   "ignore_user_permissions": 1,
    "label": "Assigned Healthcare Practioner",
-   "options": "Healthcare Practitioner",
-   "ignore_user_permissions": 1
+   "options": "Healthcare Practitioner"
   },
   {
    "fetch_from": "assigned_healthcare_practioner.practitioner_name",
@@ -1303,6 +1306,21 @@
    "fieldname": "sample_collected",
    "fieldtype": "Check",
    "label": "Sample Collected"
+  },
+  {
+   "fieldname": "upload",
+   "fieldtype": "Attach",
+   "label": "Upload"
+  },
+  {
+   "fieldname": "section_break_bnaj",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "uploaded_documents",
+   "fieldtype": "Table",
+   "label": "Uploaded Documents",
+   "options": "Patient Upload Document"
   }
  ],
  "is_submittable": 1,
@@ -1312,7 +1330,7 @@
    "link_fieldname": "reference_name"
   }
  ],
- "modified": "2026-08-03 15:04:07.720339",
+ "modified": "2026-09-28 19:31:43.936711",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Lab Test",
