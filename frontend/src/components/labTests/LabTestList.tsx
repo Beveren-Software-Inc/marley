@@ -1687,7 +1687,13 @@ import {
   type NormalTestResultRow,
   type LabTestTemplateDetails,
 } from '../../services/labTests'
-import { cancelLabSampleHandling, deleteRequestedLabTest } from '../../services/labRequestActions'
+import {
+  cancelLabSampleHandling,
+  canForceLabOverride,
+  deleteRequestedLabTest,
+  forceCancelLabTest,
+  forceDeleteLabTest,
+} from '../../services/labRequestActions'
 import { showLabTestRuleFeedback } from '../../utils/labTestRuleFeedback'
 import { ConfirmActionModal } from '../ui/ConfirmActionModal'
 import {
@@ -1718,7 +1724,7 @@ import {
   isGroupedLabRequestFinished,
   labResultLockReason,
 } from '../../config/permissions'
-import { Search, X, ChevronDown, ChevronRight, ArrowDown, ArrowUp, AlertTriangle, Trash2, Download } from 'lucide-react'
+import { Search, X, ChevronDown, ChevronRight, ArrowDown, ArrowUp, AlertTriangle, ShieldAlert, Trash2, Download } from 'lucide-react'
 import { createPortal } from 'react-dom'
 import { useCardFilters, useCardHeaderSlot, useCardLeadingSlot, useDashboardCompactClinical, usePreferCardLoadMore } from '../../contexts/CardFilterContext'
 import { useBatchLabTestResults } from '../../hooks/useBatchLabTestResults'
@@ -1798,6 +1804,26 @@ function canDeleteRequestedLabTest(labTest: LabTest): boolean {
   if (isLegacyHistoryLabRow(labTest)) return false
   if ((labTest.docstatus ?? 0) !== 0) return false
   return (labTest.status || '').trim() === 'Requested'
+}
+
+/** LAB-039 override: System Managers may act on lab tests that already have a sample. */
+function roleAllowsForceOverride(userRole?: string[]): boolean {
+  return Array.isArray(userRole) && userRole.includes('System Manager')
+}
+
+/** Submitted lab tests are normally cancelled through results/rejection only. */
+function canForceCancelLabTestRow(labTest: LabTest): boolean {
+  if (isLegacyHistoryLabRow(labTest)) return false
+  if ((labTest.docstatus ?? 0) !== 1) return false
+  return (labTest.status || '').trim() !== 'Cancelled'
+}
+
+/** Draft-but-blocked and submitted lab tests: the normal delete path refuses these. */
+function canForceDeleteLabTestRow(labTest: LabTest): boolean {
+  if (isLegacyHistoryLabRow(labTest)) return false
+  if ((labTest.docstatus ?? 0) >= 2) return false
+  if ((labTest.status || '').trim() === 'Cancelled') return false
+  return !canDeleteRequestedLabTest(labTest)
 }
 
 const escapeHtml = (value: unknown): string =>
@@ -2894,6 +2920,29 @@ export const LabTestList = ({
   const [sampleCancelLoading, setSampleCancelLoading] = useState(false)
   const [deleteLabTestTarget, setDeleteLabTestTarget] = useState<LabTest | null>(null)
   const [deleteLabTestLoading, setDeleteLabTestLoading] = useState(false)
+  // LAB-039 override (System Manager only). The API check is authoritative; the role list
+  // in context gives an instant first paint before the request resolves.
+  const [canForceOverride, setCanForceOverride] = useState(() => roleAllowsForceOverride(userRole))
+  const [forceDeleteLabTestTarget, setForceDeleteLabTestTarget] = useState<LabTest | null>(null)
+  const [forceDeleteLabTestLoading, setForceDeleteLabTestLoading] = useState(false)
+  const [forceDeleteReason, setForceDeleteReason] = useState('')
+  const [forceCancelLabTestTarget, setForceCancelLabTestTarget] = useState<LabTest | null>(null)
+  const [forceCancelLabTestLoading, setForceCancelLabTestLoading] = useState(false)
+  const [forceCancelReason, setForceCancelReason] = useState('')
+
+  useEffect(() => {
+    let cancelled = false
+    canForceLabOverride()
+      .then((allowed) => {
+        if (!cancelled) setCanForceOverride(allowed)
+      })
+      .catch(() => {
+        /* keep the role-based fallback */
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const handleCancelSampleHandlingForLabTest = (labTest: LabTest) => {
     setOpenActionRow(null)
@@ -2936,6 +2985,62 @@ export const LabTestList = ({
       toast.error(e instanceof Error ? e.message : 'Failed to delete lab test')
     } finally {
       setDeleteLabTestLoading(false)
+    }
+  }
+
+  const handleForceDeleteLabTest = (labTest: LabTest) => {
+    setOpenActionRow(null)
+    setForceDeleteReason('')
+    setForceDeleteLabTestTarget(labTest)
+  }
+
+  const confirmForceDeleteLabTest = async () => {
+    if (!forceDeleteLabTestTarget) return
+    setForceDeleteLabTestLoading(true)
+    try {
+      const result = await forceDeleteLabTest(
+        forceDeleteLabTestTarget.name,
+        forceDeleteReason.trim() || undefined
+      )
+      const scCount = result.sample_collections_cancelled?.length ?? 0
+      if (result.deleted_service_request && result.service_request) {
+        toast.success(`Lab test force deleted. Lab request ${result.service_request} was also removed.`)
+      } else {
+        toast.success(
+          `Lab test force deleted${
+            scCount ? ` (${scCount} sample collection${scCount === 1 ? '' : 's'} cancelled)` : ''
+          }.`
+        )
+      }
+      setForceDeleteLabTestTarget(null)
+      setForceDeleteReason('')
+      await refetch()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to force delete lab test')
+    } finally {
+      setForceDeleteLabTestLoading(false)
+    }
+  }
+
+  const handleForceCancelLabTest = (labTest: LabTest) => {
+    setOpenActionRow(null)
+    setForceCancelReason('')
+    setForceCancelLabTestTarget(labTest)
+  }
+
+  const confirmForceCancelLabTest = async () => {
+    if (!forceCancelLabTestTarget) return
+    setForceCancelLabTestLoading(true)
+    try {
+      await forceCancelLabTest(forceCancelLabTestTarget.name, forceCancelReason.trim() || undefined)
+      toast.success('Lab test force cancelled')
+      setForceCancelLabTestTarget(null)
+      setForceCancelReason('')
+      await refetch()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to force cancel lab test')
+    } finally {
+      setForceCancelLabTestLoading(false)
     }
   }
 
@@ -3659,6 +3764,30 @@ export const LabTestList = ({
                 Delete Lab Test
               </button>
             )}
+            {canForceOverride && canForceCancelLabTestRow(labTest) && (
+              <>
+                <div className="border-t border-slate-100 my-1" />
+                <button
+                  type="button"
+                  onClick={() => handleForceCancelLabTest(labTest)}
+                  className="flex items-center gap-2 w-full text-left px-3 py-2 text-sm font-medium text-red-800 hover:bg-red-50"
+                >
+                  Force Cancel Lab Test
+                </button>
+              </>
+            )}
+            {canForceOverride && canForceDeleteLabTestRow(labTest) && (
+              <>
+                {!canForceCancelLabTestRow(labTest) && <div className="border-t border-slate-100 my-1" />}
+                <button
+                  type="button"
+                  onClick={() => handleForceDeleteLabTest(labTest)}
+                  className="flex items-center gap-2 w-full text-left px-3 py-2 text-sm font-medium text-red-800 hover:bg-red-50"
+                >
+                  Force Delete Lab Test
+                </button>
+              </>
+            )}
             {canEditResults && !resultsReadOnly && (
               <button
                 type="button"
@@ -3705,6 +3834,67 @@ export const LabTestList = ({
     </td>
   )
 
+  // LAB-039 override for a grouped lab request. Grouped requests collapse into a
+  // single header row that has no per-test actions menu, so a System Manager could
+  // not reach Force Cancel / Force Delete from the row they see first. The menu
+  // acts on the first test of the group that the override applies to.
+  const renderGroupOverrideMenu = (children: LabTest[], groupKey: string) => {
+    const cancelTarget = children.find((child) => canForceCancelLabTestRow(child))
+    const deleteTarget = children.find((child) => canForceDeleteLabTestRow(child))
+    if (!cancelTarget && !deleteTarget) return null
+
+    const menuKey = `group-override:${groupKey}`
+    const targetName = (cancelTarget || deleteTarget)?.name || ''
+
+    return (
+      <div className="relative inline-block" ref={openActionRow === menuKey ? actionMenuRef : undefined}>
+        <button
+          type="button"
+          data-no-row-click
+          onClick={(e) => {
+            e.stopPropagation()
+            setOpenActionRow((prev) => (prev === menuKey ? null : menuKey))
+          }}
+          className="inline-flex items-center justify-center w-7 h-7 rounded border border-red-300 bg-white text-red-700 hover:bg-red-50"
+          title={`System Manager override for ${targetName} (grouped request)`}
+          aria-label="System Manager override"
+        >
+          <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+            <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
+          </svg>
+        </button>
+        <PortalActionsMenu
+          open={openActionRow === menuKey}
+          onClose={() => setOpenActionRow(null)}
+          triggerRef={actionMenuRef}
+          minWidth={180}
+        >
+          {cancelTarget && (
+            <button
+              type="button"
+              onClick={() => handleForceCancelLabTest(cancelTarget)}
+              className="flex items-center gap-2 w-full text-left px-3 py-2 text-sm font-medium text-red-800 hover:bg-red-50"
+            >
+              Force Cancel Lab Test
+            </button>
+          )}
+          {deleteTarget && (
+            <>
+              {!cancelTarget && <div className="border-t border-slate-100 my-1" />}
+              <button
+                type="button"
+                onClick={() => handleForceDeleteLabTest(deleteTarget)}
+                className="flex items-center gap-2 w-full text-left px-3 py-2 text-sm font-medium text-red-800 hover:bg-red-50"
+              >
+                Force Delete Lab Test
+              </button>
+            </>
+          )}
+        </PortalActionsMenu>
+      </div>
+    )
+  }
+
   const slideOverActionBtn =
     'inline-flex items-center rounded-md border border-emerald-200/80 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 shadow-sm hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-50'
 
@@ -3735,6 +3925,26 @@ export const LabTestList = ({
           className={`${slideOverActionBtn} border-red-200 text-red-700 hover:bg-red-50`}
         >
           Delete Lab Test
+        </button>
+      )}
+      {canForceOverride && canForceCancelLabTestRow(labTest) && (
+        <button
+          type="button"
+          onClick={() => handleForceCancelLabTest(labTest)}
+          className={`${slideOverActionBtn} border-red-300 font-semibold text-red-800 hover:bg-red-50`}
+          title="System Manager override: cancel this submitted lab test even though the sample was already collected"
+        >
+          Force Cancel Lab Test
+        </button>
+      )}
+      {canForceOverride && canForceDeleteLabTestRow(labTest) && (
+        <button
+          type="button"
+          onClick={() => handleForceDeleteLabTest(labTest)}
+          className={`${slideOverActionBtn} border-red-300 font-semibold text-red-800 hover:bg-red-50`}
+          title="System Manager override: delete this lab test even though the sample was already collected"
+        >
+          Force Delete Lab Test
         </button>
       )}
       {canEditResults && !resultsReadOnly && (
@@ -4356,6 +4566,7 @@ export const LabTestList = ({
                               Review
                             </button>
                           )}
+                          {canForceOverride && renderGroupOverrideMenu(children, groupKey)}
                         </div>
                        </td>
                     </tr>
@@ -5039,6 +5250,81 @@ export const LabTestList = ({
             actually received for the order.
           </p>
         ) : null}
+      </ConfirmActionModal>
+
+      <ConfirmActionModal
+        open={!!forceCancelLabTestTarget}
+        title="Force cancel lab test?"
+        subtitle={forceCancelLabTestTarget?.name}
+        icon={<ShieldAlert className="h-5 w-5" />}
+        tone="danger"
+        loading={forceCancelLabTestLoading}
+        confirmLabel="Force cancel test"
+        cancelLabel="Keep test"
+        onClose={() => {
+          if (!forceCancelLabTestLoading) setForceCancelLabTestTarget(null)
+        }}
+        onConfirm={() => void confirmForceCancelLabTest()}
+      >
+        <div className="rounded-xl border border-red-200/80 bg-red-50/80 px-4 py-3 text-sm text-red-900">
+          <span className="font-semibold">System Manager override.</span> This submitted lab test is past the
+          sample-collection point, where cancellation is normally blocked.
+        </div>
+        <ul className="list-disc space-y-1 pl-5 text-sm text-slate-600">
+          <li>The lab test is cancelled, not deleted, so the record stays visible</li>
+          <li>Sample collections and their history are left untouched</li>
+          <li>Any entered results stay attached to the cancelled test</li>
+          <li>The override is recorded on the patient timeline with your user name</li>
+        </ul>
+        <label className="block">
+          <span className="text-sm font-medium text-slate-700">Reason (optional)</span>
+          <textarea
+            value={forceCancelReason}
+            onChange={(e) => setForceCancelReason(e.target.value)}
+            rows={2}
+            disabled={forceCancelLabTestLoading}
+            placeholder="e.g. sample rejected, test ordered in error"
+            className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-60"
+          />
+        </label>
+      </ConfirmActionModal>
+
+      <ConfirmActionModal
+        open={!!forceDeleteLabTestTarget}
+        title="Force delete lab test?"
+        subtitle={forceDeleteLabTestTarget?.name}
+        icon={<Trash2 className="h-5 w-5" />}
+        tone="danger"
+        loading={forceDeleteLabTestLoading}
+        confirmLabel="Force delete permanently"
+        cancelLabel="Keep test"
+        onClose={() => {
+          if (!forceDeleteLabTestLoading) setForceDeleteLabTestTarget(null)
+        }}
+        onConfirm={() => void confirmForceDeleteLabTest()}
+      >
+        <div className="rounded-xl border border-red-200/80 bg-red-50/80 px-4 py-3 text-sm text-red-900">
+          <span className="font-semibold">System Manager override.</span> This lab test is past the
+          sample-collection point and will be permanently removed. This cannot be undone.
+        </div>
+        <ul className="list-disc space-y-1 pl-5 text-sm text-slate-600">
+          <li>Submitted tests are cancelled before they are removed</li>
+          <li>Sample collections are kept as cancelled records so the sample history stays auditable</li>
+          <li>Results and review data entered for this test are removed with it</li>
+          <li>The lab request is removed when this was its last test; billing is retired</li>
+          <li>The override is recorded on the patient timeline with your user name</li>
+        </ul>
+        <label className="block">
+          <span className="text-sm font-medium text-slate-700">Reason (optional)</span>
+          <textarea
+            value={forceDeleteReason}
+            onChange={(e) => setForceDeleteReason(e.target.value)}
+            rows={2}
+            disabled={forceDeleteLabTestLoading}
+            placeholder="e.g. duplicate order, patient left, test replaced"
+            className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-60"
+          />
+        </label>
       </ConfirmActionModal>
     </div>
   )

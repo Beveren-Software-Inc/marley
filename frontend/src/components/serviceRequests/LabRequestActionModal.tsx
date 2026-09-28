@@ -1,5 +1,5 @@
-import type { ReactNode } from 'react'
-import { AlertTriangle, FlaskConical, Trash2, X } from 'lucide-react'
+import { useState, type ReactNode } from 'react'
+import { AlertTriangle, FlaskConical, ShieldAlert, Trash2, X } from 'lucide-react'
 import {
   CM_BTN_CANCEL,
   CM_BTN_PRIMARY,
@@ -8,17 +8,30 @@ import {
 } from '../ui/CreateModalChrome'
 import type { ServiceRequest } from '../../services/serviceRequests'
 
-export type LabRequestModalAction = 'delete' | 'cancel' | 'settlement' | 'sample_handling'
+export type LabRequestModalAction =
+  | 'delete'
+  | 'cancel'
+  | 'settlement'
+  | 'sample_handling'
+  | 'force_cancel'
 
 export interface LabRequestActionModalProps {
   action: LabRequestModalAction
   serviceRequest: ServiceRequest
   loading?: boolean
+  /** Number of linked lab tests (used by the Force Cancel warning). */
+  labTestCount?: number
+  /** True when at least one linked lab test already has sample collection. */
+  hasSampleCollection?: boolean
+  /** Paid invoice: the force cancel warns that a settlement choice is required. */
+  requiresSettlement?: boolean
   onClose: () => void
   onDeleteConfirm: () => void
   onSampleHandlingConfirm: () => void
   onCancelConfirm: () => void
   onSettlementChoice: (mode: 'refund' | 'patient_credit') => void
+  /** System Manager LAB-039 override. */
+  onForceCancelConfirm: (reason: string, settlementMode?: 'refund' | 'patient_credit') => void
 }
 
 function ModalShell({
@@ -114,15 +127,20 @@ export function LabRequestActionModal({
   action,
   serviceRequest,
   loading = false,
+  labTestCount = 0,
+  hasSampleCollection = false,
+  requiresSettlement = false,
   onClose,
   onDeleteConfirm,
   onSampleHandlingConfirm,
   onCancelConfirm,
   onSettlementChoice,
+  onForceCancelConfirm,
 }: LabRequestActionModalProps) {
   const srLabel = serviceRequest.name
   const patientLabel = serviceRequest.patient_name || serviceRequest.patient || 'Patient'
   const templateLabel = serviceRequest.template_name || serviceRequest.template_dn || 'Lab request'
+  const [forceReason, setForceReason] = useState('')
 
   if (action === 'delete') {
     return (
@@ -243,6 +261,88 @@ export function LabRequestActionModal({
             <dd className="font-medium text-right">{templateLabel}</dd>
           </div>
         </dl>
+      </ModalShell>
+    )
+  }
+
+  if (action === 'force_cancel') {
+    return (
+      <ModalShell
+        tone="danger"
+        title="Force cancel lab request?"
+        subtitle="System Manager override — the sample-collection rule is bypassed."
+        icon={<ShieldAlert className="h-5 w-5" />}
+        loading={loading}
+        onClose={onClose}
+        footer={
+          <>
+            <button type="button" onClick={onClose} disabled={loading} className={CM_BTN_CANCEL}>
+              Keep request
+            </button>
+            {requiresSettlement ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => onForceCancelConfirm(forceReason.trim(), 'patient_credit')}
+                  disabled={loading}
+                  className="rounded-lg bg-red-600 px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-red-600/25 transition hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {loading ? 'Forcing…' : 'Force cancel · Patient credit'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onForceCancelConfirm(forceReason.trim(), 'refund')}
+                  disabled={loading}
+                  className="rounded-lg border border-red-300 bg-white px-4 py-2.5 text-sm font-semibold text-red-800 shadow-sm transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Force cancel · Refund
+                </button>
+              </>
+            ) : (
+              <button
+                type="button"
+                onClick={() => onForceCancelConfirm(forceReason.trim())}
+                disabled={loading}
+                className="rounded-lg bg-red-600 px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-red-600/25 transition hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {loading ? 'Forcing…' : 'Force cancel request'}
+              </button>
+            )}
+          </>
+        }
+      >
+        <div className="rounded-xl border border-red-200/80 bg-red-50/80 px-4 py-3 text-sm text-red-900">
+          <span className="font-semibold">{srLabel}</span> for{' '}
+          <span className="font-medium">{patientLabel}</span>
+          {hasSampleCollection ? ' already has sample collection recorded' : ' is past the point where it can be cancelled'}
+          {labTestCount > 0
+            ? ` on ${labTestCount} lab test${labTestCount === 1 ? '' : 's'}`
+            : ''}
+          . The normal cancel and delete rules block this request.
+        </div>
+        <ul className="list-disc space-y-1 pl-5 text-sm text-slate-600">
+          <li>Submitted lab tests are cancelled before they are removed</li>
+          <li>Sample collections are kept as cancelled records so the sample history stays auditable</li>
+          <li>Results and review data entered for these tests are removed with them</li>
+          <li>Billing is retired; a paid invoice is credited to the patient account</li>
+          {requiresSettlement && (
+            <li className="font-medium text-red-800">
+              A paid invoice is linked: choose Patient credit or Refund below
+            </li>
+          )}
+          <li>This override is recorded on the patient timeline with your user name</li>
+        </ul>
+        <label className="block">
+          <span className="text-sm font-medium text-slate-700">Reason (optional)</span>
+          <textarea
+            value={forceReason}
+            onChange={(e) => setForceReason(e.target.value)}
+            rows={2}
+            disabled={loading}
+            placeholder="e.g. wrong test requested, duplicate order, sample rejected"
+            className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-60"
+          />
+        </label>
       </ModalShell>
     )
   }

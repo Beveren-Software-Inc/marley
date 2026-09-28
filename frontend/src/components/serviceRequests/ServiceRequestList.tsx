@@ -12,6 +12,7 @@ import {
   deleteDraftLabRequest,
   cancelBookedLabRequest,
   cancelLabSampleHandling,
+  forceCancelLabRequest,
   type LabRequestActions,
 } from '../../services/labRequestActions'
 import {
@@ -265,6 +266,8 @@ export const ServiceRequestList = ({
             can_delete_lab_tests: false,
             can_delete_lab_request: false,
             can_edit_lab_request: false,
+            can_force_override: false,
+            can_force_cancel_lab_request: false,
             lab_tests: [],
           },
         }))
@@ -439,6 +442,39 @@ export const ServiceRequestList = ({
       onLabTestCreated?.()
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to cancel lab request')
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
+  const handleForceCancelLabRequest = async (
+    sr: ServiceRequest,
+    reason?: string,
+    settlementMode?: 'refund' | 'patient_credit'
+  ) => {
+    setOpenActionRow(null)
+    setActionLoading(sr.name)
+    try {
+      const result = await forceCancelLabRequest({
+        serviceRequestName: sr.name,
+        reason,
+        settlementMode,
+      })
+      const removedCount = result.lab_tests_removed?.length ?? 0
+      toast.success(
+        `Lab request force cancelled${removedCount ? ` (${removedCount} lab test${removedCount === 1 ? '' : 's'} removed)` : ''}.` +
+          (result.payment_entry ? ` Patient credit ${result.payment_entry} recorded.` : '')
+      )
+      setLabRequestModal(null)
+      setLabActionsBySr((prev) => {
+        const next = { ...prev }
+        delete next[sr.name]
+        return next
+      })
+      doRefetch()
+      onLabTestCreated?.()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to force cancel lab request')
     } finally {
       setActionLoading(null)
     }
@@ -1003,6 +1039,24 @@ export const ServiceRequestList = ({
                           </button>
                         )}
 
+                        {isLab &&
+                          labActions?.can_force_cancel_lab_request &&
+                          !labActions?.can_delete &&
+                          !labActions?.can_cancel_simple &&
+                          !labActions?.can_cancel_with_settlement && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setOpenActionRow(null)
+                                setLabRequestModal({ action: 'force_cancel', sr })
+                              }}
+                              disabled={loadingThis}
+                              className="block w-full text-left px-3 py-2 text-sm font-medium text-red-800 hover:bg-red-50 disabled:opacity-50"
+                            >
+                              Force Cancel Lab Request…
+                            </button>
+                          )}
+
                         {isLab && labActions?.can_cancel_sample_handling && (
                           <button
                             type="button"
@@ -1099,6 +1153,15 @@ export const ServiceRequestList = ({
           action={labRequestModal.action}
           serviceRequest={labRequestModal.sr}
           loading={actionLoading === labRequestModal.sr.name}
+          labTestCount={labActionsBySr[labRequestModal.sr.name]?.lab_tests?.length ?? 0}
+          hasSampleCollection={Boolean(
+            labActionsBySr[labRequestModal.sr.name]?.lab_tests?.some(
+              (lt) => lt.has_sample_collected || lt.past_sample_collection
+            )
+          )}
+          requiresSettlement={Boolean(
+            labActionsBySr[labRequestModal.sr.name]?.requires_settlement
+          )}
           onClose={() => {
             if (actionLoading === labRequestModal.sr.name) return
             setLabRequestModal(null)
@@ -1107,6 +1170,7 @@ export const ServiceRequestList = ({
           onSampleHandlingConfirm={() => handleCancelLabSampleHandling(labRequestModal.sr)}
           onCancelConfirm={() => handleCancelBookedLabRequest(labRequestModal.sr)}
           onSettlementChoice={(mode) => handleCancelBookedLabRequest(labRequestModal.sr, mode)}
+          onForceCancelConfirm={(reason) => handleForceCancelLabRequest(labRequestModal.sr, reason)}
         />
       )}
     </div>

@@ -6,7 +6,12 @@ import frappe
 from frappe import _
 from frappe.utils import cint, flt, nowdate
 
+from healthcare.healthcare.lab_request_guard import allow_sample_collection_override
+
 LAB_TEMPLATE_DT = "Lab Test Template"
+
+# LAB-039 override: only these roles may delete/cancel past sample collection.
+LAB_FORCE_OVERRIDE_ROLES = ("System Manager",)
 
 POST_SAMPLE_LAB_STATUSES = frozenset(
 	{
@@ -40,6 +45,30 @@ def _require_lab_roles() -> None:
 			"LabTest Approver",
 		)
 	)
+
+
+def user_can_force_lab_override(user: str | None = None) -> bool:
+	"""True when the user may bypass LAB-039 (Force Delete / Force Cancel)."""
+	user = user or frappe.session.user
+	if user == "Administrator":
+		return True
+	roles = set(frappe.get_roles(user))
+	return any(role in roles for role in LAB_FORCE_OVERRIDE_ROLES)
+
+
+def _require_force_override_roles() -> None:
+	"""Force delete / force cancel is restricted to System Managers."""
+	if not user_can_force_lab_override():
+		frappe.throw(
+			_("Only a System Manager can force delete or force cancel a lab request after sample collection."),
+			frappe.PermissionError,
+		)
+
+
+@frappe.whitelist()
+def can_force_lab_override() -> bool:
+	"""Frontend gate for the System Manager Force Delete / Force Cancel actions."""
+	return user_can_force_lab_override()
 
 
 def _get_lab_service_request(name: str):
@@ -143,19 +172,29 @@ def _lab_request_action_flags(phase: str, lab_tests: list[dict], requires_settle
 	}
 
 
+def _clear_sample_collected_meta(lab_test_doc) -> None:
+	"""Reset a Lab Test to "awaiting sample collection" without stale collection meta.
+
+	Undoing sample handling removes/relinks the Sample Collections, so the collected
+	date and id recorded earlier have to be cleared as well. Leaving them behind made
+	LAB-039 keep treating the test as sampled, which blocked every later delete or
+	cancel of the request even though no sample was attached anymore.
+	"""
+	lab_test_doc.status = "Awaiting sample collection"
+	if hasattr(lab_test_doc, "sample_collected"):
+		lab_test_doc.sample_collected = 0
+	if hasattr(lab_test_doc, "sample_collected_date"):
+		lab_test_doc.sample_collected_date = None
+	if hasattr(lab_test_doc, "sample_collected_id"):
+		lab_test_doc.sample_collected_id = None
+
+
 def _sync_lab_test_sample_status(lab_test_doc) -> None:
 	"""Align Lab Test status + sample_collected check with linked Sample Collections."""
 	rows = lab_test_doc.get("sample_instances") or []
-	if not rows:
-		lab_test_doc.status = "Awaiting sample collection"
-		if hasattr(lab_test_doc, "sample_collected"):
-			lab_test_doc.sample_collected = 0
-		return
 	linked = sum(1 for row in rows if (getattr(row, "sample_collection", None) or "").strip())
 	if linked <= 0:
-		lab_test_doc.status = "Awaiting sample collection"
-		if hasattr(lab_test_doc, "sample_collected"):
-			lab_test_doc.sample_collected = 0
+		_clear_sample_collected_meta(lab_test_doc)
 	elif linked < len(rows):
 		lab_test_doc.status = "Sample Collection in Progress"
 		if hasattr(lab_test_doc, "sample_collected"):
@@ -478,10 +517,14 @@ def get_lab_request_actions(service_request_name: str) -> dict:
 	phase = _lab_request_phase(sr, lab_tests)
 	requires_settlement = _lab_request_requires_settlement(sr)
 	flags = _lab_request_action_flags(phase, lab_tests, requires_settlement=requires_settlement)
+	can_force = user_can_force_lab_override()
 	return {
 		"service_request": sr.name,
 		"phase": phase,
 		**flags,
+		# LAB-039 override (System Manager only).
+		"can_force_override": can_force,
+		"can_force_cancel_lab_request": can_force and phase != "cancelled",
 		"lab_tests": [
 			{
 				"name": lt["name"],
@@ -491,10 +534,33 @@ def get_lab_request_actions(service_request_name: str) -> dict:
 				"can_cancel_sample_handling": phase == "sample_collected"
 				and not _lab_test_past_sample_collection(lt),
 				"can_delete": _can_delete_requested_lab_test(lt),
+				"can_force_delete": can_force,
 			}
 			for lt in lab_tests
 		],
 	}
+
+
+def _sync_lab_request_items_after_test_removal(sr, template_name: str | None) -> None:
+	"""Keep `lab_request_items` JSON in sync when a lab test/template is removed."""
+	template = (template_name or "").strip()
+	if not template or not getattr(sr, "lab_request_items", None):
+		return
+
+	from healthcare.healthcare.lab_request_items import (
+		parse_lab_request_items,
+		remove_template_from_lab_request_items,
+	)
+
+	items = remove_template_from_lab_request_items(parse_lab_request_items(sr), template)
+	sr.lab_request_items = frappe.as_json(items) if items else None
+	# Keep legacy selected_group_templates aligned for single-group requests.
+	if hasattr(sr, "selected_group_templates"):
+		if len(items) == 1 and (items[0].get("kind") or "").strip().lower() == "group":
+			sr.selected_group_templates = frappe.as_json(items[0].get("children") or [])
+		elif not items:
+			sr.selected_group_templates = None
+	sr.save(ignore_permissions=True)
 
 
 @frappe.whitelist()
@@ -525,23 +591,8 @@ def delete_requested_lab_test(lab_test_name: str) -> dict:
 	linked_before = _linked_lab_tests(sr_name)
 	visit_name = getattr(sr, "order_group", None) or getattr(sr, "patient_visit", None)
 
-	# Keep lab_request_items JSON in sync when a child/single is removed.
-	from healthcare.healthcare.lab_request_items import (
-		parse_lab_request_items,
-		remove_template_from_lab_request_items,
-	)
-
 	template = (frappe.db.get_value("Lab Test", lab_test_name, "template") or "").strip()
-	if template and getattr(sr, "lab_request_items", None):
-		items = remove_template_from_lab_request_items(parse_lab_request_items(sr), template)
-		sr.lab_request_items = frappe.as_json(items) if items else None
-		# Keep legacy selected_group_templates aligned for single-group requests.
-		if hasattr(sr, "selected_group_templates"):
-			if len(items) == 1 and (items[0].get("kind") or "").strip().lower() == "group":
-				sr.selected_group_templates = frappe.as_json(items[0].get("children") or [])
-			elif not items:
-				sr.selected_group_templates = None
-		sr.save(ignore_permissions=True)
+	_sync_lab_request_items_after_test_removal(sr, template)
 
 	_delete_or_cancel_lab_test(lab_test_name)
 	_remove_lab_tests_from_visit(visit_name, [lab_test_name])
@@ -737,3 +788,243 @@ def cancel_lab_sample_handling(service_request_name: str | None = None, lab_test
 		"lab_tests": lab_test_names,
 		"sample_collections_cancelled": cancelled_samples,
 	}
+
+
+# --------------------------------------------------------------------------- #
+# LAB-039 override — System Manager Force Delete / Force Cancel
+# --------------------------------------------------------------------------- #
+def _log_force_override(
+	patient: str | None,
+	action: str,
+	detail: str | None = None,
+	reason: str | None = None,
+) -> None:
+	"""Record a forced override on the patient timeline so the removal stays auditable.
+
+	Comments on the removed documents are dropped together with them, so the audit
+	note is written against the patient instead.
+	"""
+	if not patient or not frappe.db.exists("Patient", patient):
+		return
+
+	note = _("Force {0} by {1}").format(action, frappe.session.user)
+	if detail:
+		note = f"{note} — {detail}"
+	reason = (reason or "").strip()
+	if reason:
+		note = f"{note}: {reason}"
+
+	frappe.get_doc("Patient", patient).add_comment("Info", note)
+
+
+def _lab_test_sample_collection_names(lab_test_doc) -> list[str]:
+	"""Sample Collection names linked from a Lab Test (read-only)."""
+	names: list[str] = []
+	for row in lab_test_doc.get("sample_instances") or []:
+		sc_name = (getattr(row, "sample_collection", None) or "").strip()
+		if sc_name:
+			names.append(sc_name)
+
+	main_sample = (getattr(lab_test_doc, "sample", None) or "").strip()
+	if main_sample:
+		names.append(main_sample)
+
+	return list(dict.fromkeys(names))
+
+
+def _force_remove_lab_test(lab_test_name: str) -> list[str]:
+	"""Remove a lab test past the LAB-039 sample-collection guard.
+
+	Callers must have verified the System Manager role first. Submitted lab tests are
+	cancelled before removal and their Sample Collections are cancelled (never deleted)
+	so the sample history stays auditable. Returns the retired Sample Collection names.
+	"""
+	doc = frappe.get_doc("Lab Test", lab_test_name)
+	sample_names = _lab_test_sample_collection_names(doc)
+
+	if doc.docstatus == 1:
+		# Keep the audit trail: cancel the submitted test before removing it.
+		with allow_sample_collection_override():
+			doc.cancel()
+
+	_delete_lab_test_dependencies(lab_test_name)
+
+	for sc_name in sample_names:
+		_cancel_sample_collection_doc(sc_name)
+
+	with allow_sample_collection_override():
+		frappe.delete_doc("Lab Test", lab_test_name, ignore_permissions=True, force=True)
+
+	return sample_names
+
+
+@frappe.whitelist()
+def force_delete_lab_test(lab_test_name: str, reason: str | None = None) -> dict:
+	"""System Manager override of LAB-039: delete a lab test that has sample collection.
+
+	Runs the normal delete path (sample collections are cancelled, results/billing are
+	retired, the lab request is removed when it was the last test) with the
+	sample-collection block lifted, and records who forced it.
+	"""
+	_require_force_override_roles()
+	if not lab_test_name:
+		frappe.throw(_("Lab Test name is required."))
+
+	lab_test = frappe.db.get_value(
+		"Lab Test",
+		lab_test_name,
+		["name", "status", "docstatus", "service_request", "template", "patient"],
+		as_dict=True,
+	)
+	if not lab_test:
+		frappe.throw(_("Lab Test {0} was not found.").format(frappe.bold(lab_test_name)))
+
+	sr_name = (lab_test.service_request or "").strip()
+	sr = _get_lab_service_request(sr_name) if sr_name else None
+	linked_before = _linked_lab_tests(sr_name) if sr else []
+	visit_name = None
+	if sr is not None:
+		visit_name = getattr(sr, "order_group", None) or getattr(sr, "patient_visit", None)
+		# Only draft lab requests can be re-saved; submitted ones keep their JSON as-is.
+		if sr.docstatus == 0:
+			_sync_lab_request_items_after_test_removal(sr, lab_test.template)
+
+	_log_force_override(lab_test.patient, _("delete lab test"), detail=lab_test_name, reason=reason)
+
+	sample_names = _force_remove_lab_test(lab_test_name)
+	_remove_lab_tests_from_visit(visit_name, [lab_test_name])
+
+	sr_cleanup = {"deleted_service_request": False, "service_request": sr_name}
+	if sr is not None and len(linked_before) <= 1:
+		sr_cleanup = _cleanup_service_request_if_empty(sr_name)
+
+	frappe.db.commit()
+	return {
+		"deleted": True,
+		"lab_test": lab_test_name,
+		"sample_collections_cancelled": sample_names,
+		**sr_cleanup,
+	}
+
+
+@frappe.whitelist()
+def force_cancel_lab_test(lab_test_name: str, reason: str | None = None) -> dict:
+	"""System Manager override of LAB-039: cancel a submitted lab test after sample collection.
+
+	The lab test is cancelled (not deleted) and its sample collections are left
+	untouched, so the sample and result history stays visible in the lab lists.
+	"""
+	_require_force_override_roles()
+	if not lab_test_name:
+		frappe.throw(_("Lab Test name is required."))
+
+	lab_test = frappe.db.get_value(
+		"Lab Test",
+		lab_test_name,
+		["name", "status", "docstatus", "service_request", "patient"],
+		as_dict=True,
+	)
+	if not lab_test:
+		frappe.throw(_("Lab Test {0} was not found.").format(frappe.bold(lab_test_name)))
+	if cint(lab_test.docstatus) == 2:
+		frappe.throw(_("Lab Test {0} is already cancelled.").format(frappe.bold(lab_test_name)))
+	if cint(lab_test.docstatus) == 0:
+		frappe.throw(
+			_("Lab Test {0} is still a draft — use Force Delete instead.").format(
+				frappe.bold(lab_test_name)
+			)
+		)
+
+	doc = frappe.get_doc("Lab Test", lab_test_name)
+	_log_force_override(lab_test.patient, _("cancel lab test"), detail=lab_test_name, reason=reason)
+
+	with allow_sample_collection_override():
+		doc.cancel()
+
+	frappe.db.commit()
+	return {
+		"cancelled": True,
+		"lab_test": lab_test_name,
+		"reason": (reason or "").strip() or None,
+	}
+
+
+@frappe.whitelist()
+def force_cancel_lab_request(
+	service_request_name: str,
+	reason: str | None = None,
+	settlement_mode: str | None = None,
+) -> dict:
+	"""System Manager override of LAB-039: cancel a lab request after sample collection.
+
+	Linked lab tests are force removed (submitted ones are cancelled first, sample
+	collections are cancelled), visit charges and billing are retired exactly like the
+	normal cancel path. When a paid invoice exists the amount is credited to the
+	patient account (or refunded when `settlement_mode` is "refund"); the caller must
+	choose, matching the automatic settlement used when the last lab test of a request
+	is deleted.
+	"""
+	_require_force_override_roles()
+	sr = _get_lab_service_request(service_request_name)
+	lab_tests = _linked_lab_tests(sr.name)
+	phase = _lab_request_phase(sr, lab_tests)
+	if phase == "cancelled":
+		frappe.throw(_("This lab request is already cancelled."))
+
+	settlement_mode = (settlement_mode or "").strip().lower() or None
+	if settlement_mode not in (None, "refund", "patient_credit"):
+		frappe.throw(_("Settlement mode must be Patient Credit or Refund."))
+
+	requires_settlement = _lab_request_requires_settlement(sr)
+	if requires_settlement and not settlement_mode:
+		# Mirror the normal cancel path: never pick a settlement silently.
+		frappe.throw(_("Choose Patient Credit or Refund to settle the paid invoice."))
+	if not requires_settlement:
+		settlement_mode = None
+
+	lab_test_names = [lt["name"] for lt in lab_tests]
+	_log_force_override(sr.patient, _("cancel lab request"), detail=sr.name, reason=reason)
+
+	sample_names: list[str] = []
+	for name in lab_test_names:
+		sample_names.extend(_force_remove_lab_test(name))
+
+	visit_name = getattr(sr, "order_group", None) or getattr(sr, "patient_visit", None)
+	_remove_lab_tests_from_visit(visit_name, lab_test_names)
+
+	credit_amount = flt(sr.grand_total) or flt(sr.cost) or 0
+	paid_amount = _get_service_request_paid_amount(sr)
+	billing = _cancel_billing_for_service_request(sr)
+	so_name = billing.get("previous_sales_order")
+
+	payment_entry = None
+	if settlement_mode == "patient_credit" and paid_amount > 0:
+		payment_entry = _apply_patient_credit(
+			sr,
+			min(paid_amount, credit_amount) if credit_amount > 0 else paid_amount,
+			f"Patient credit for force-cancelled lab request {sr.name}",
+		)
+
+	_reset_service_request_after_cancel(sr)
+
+	deleted_sr = False
+	_delete_patient_medical_records_for_reference("Service Request", sr.name)
+	if sr.docstatus == 0:
+		frappe.delete_doc("Service Request", sr.name, ignore_permissions=True, force=True)
+		deleted_sr = True
+
+	frappe.db.commit()
+	return {
+		"ok": True,
+		"service_request": sr.name,
+		"deleted_service_request": deleted_sr,
+		"settlement_mode": settlement_mode,
+		"requires_settlement": requires_settlement,
+		"sales_order": so_name,
+		"cancelled_sales_invoices": billing.get("cancelled_sales_invoices") or [],
+		"payment_entry": payment_entry,
+		"lab_tests_removed": lab_test_names,
+		"sample_collections_cancelled": sample_names,
+		"reason": (reason or "").strip() or None,
+	}
+
