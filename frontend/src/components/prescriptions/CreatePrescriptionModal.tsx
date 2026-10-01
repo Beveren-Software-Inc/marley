@@ -141,6 +141,7 @@ const emptyMedicationRow = (startDate: string): MedicationOrderRow => ({
   // "Other" frequency: total dose taken over a period (Dose Frequency).
   total_dose: '',
   total_dose_per: '',
+  written_frequency: '',
 })
 
 function formatMedicationStockInline(stock: PrescriptionDrugStockCheck): string | null {
@@ -390,6 +391,7 @@ export const CreatePrescriptionModal = ({
   const [drugLoading, setDrugLoading] = useState<Record<number, boolean>>({})
 
   const [frequencyQueries, setFrequencyQueries] = useState<Record<number, string>>({})
+  const [shownFrequencyQueries, setShownFrequencyQueries] = useState<Record<number, string>>({})
   const [doseFrequencyQueries, setDoseFrequencyQueries] = useState<Record<number, string>>({})
   const [routeQueries, setRouteQueries] = useState<Record<number, string>>({})
   const [uomQueries, setUomQueries] = useState<Record<number, string>>({})
@@ -839,6 +841,7 @@ export const CreatePrescriptionModal = ({
                 med.medication_type === 'Contraindicated' ? '' : (med.medication_type || ''),
               total_dose: med.total_dose || '',
               total_dose_per: med.total_dose_per || '',
+              written_frequency: med.written_frequency || '',
               frequency_in_a_day: med.frequency_in_a_day || 0,
               ...flagsFromPrescriptionType(
                 med.medication_type === 'Contraindicated' ? '' : med.medication_type
@@ -862,14 +865,17 @@ export const CreatePrescriptionModal = ({
         const queries: Record<number, string> = {}
         const nextUomQueries: Record<number, string> = {}
         const nextDoseFreqQueries: Record<number, string> = {}
+        const nextShownFreqQueries: Record<number, string> = {}
         loadedMedications.forEach((med, idx) => {
           if (med.drug) queries[idx] = med.drug_name || med.drug
           if (med.uom) nextUomQueries[idx] = med.uom
           if (med.total_dose_per) nextDoseFreqQueries[idx] = med.total_dose_per
+          if (med.written_frequency) nextShownFreqQueries[idx] = med.written_frequency
         })
         setDrugQueries(queries)
         setUomQueries(nextUomQueries)
         setDoseFrequencyQueries(nextDoseFreqQueries)
+        setShownFrequencyQueries(nextShownFreqQueries)
       }
 
       if (prescriptionData.doctors_signature) {
@@ -1031,6 +1037,7 @@ export const CreatePrescriptionModal = ({
       medicationRowKeysRef.current = prepared.map(() => nextMedicationRowKey())
       const queries: Record<number, string> = {}
       const nextFreq: Record<number, string> = {}
+      const nextShownFreq: Record<number, string> = {}
       const nextDoseFreq: Record<number, string> = {}
       const nextRoute: Record<number, string> = {}
       const nextUom: Record<number, string> = {}
@@ -1038,6 +1045,7 @@ export const CreatePrescriptionModal = ({
       prepared.forEach((med, idx) => {
         queries[idx] = (med.drug_name || med.drug || '').trim()
         if (med.patient_frequency) nextFreq[idx] = med.patient_frequency
+        if (med.written_frequency) nextShownFreq[idx] = med.written_frequency
         if (med.total_dose_per) nextDoseFreq[idx] = med.total_dose_per
         if (med.route_of_administration) nextRoute[idx] = med.route_of_administration
         if (med.uom) nextUom[idx] = med.uom
@@ -1045,6 +1053,7 @@ export const CreatePrescriptionModal = ({
       })
       setDrugQueries(queries)
       setFrequencyQueries(nextFreq)
+      setShownFrequencyQueries(nextShownFreq)
       setDoseFrequencyQueries(nextDoseFreq)
       setRouteQueries(nextRoute)
       setUomQueries(nextUom)
@@ -1223,6 +1232,7 @@ export const CreatePrescriptionModal = ({
       if (field === 'patient_frequency' && !isOtherFrequency(String(value))) {
         row.total_dose = ''
         row.total_dose_per = ''
+        row.written_frequency = ''
       }
 
       // Start Date / End Date / Days stay in lockstep for every care context
@@ -1316,12 +1326,15 @@ export const CreatePrescriptionModal = ({
     )
     const otherMissing = otherDoseLines.filter(
       (med) =>
-        !String(med.total_dose || '').trim() || !String(med.total_dose_per || '').trim(),
+        !String(med.total_dose || '').trim() ||
+        !String(med.total_dose_per || '').trim() ||
+        !String(med.written_frequency || '').trim() ||
+        isOtherFrequency(med.written_frequency),
     )
     if (otherMissing.length > 0) {
       const names = otherMissing.map((m) => m.drug_name || m.drug).join(', ')
       setError(
-        `Total Dose and Total Dose Per are required when Frequency is Other: ${names}`,
+        `Total Dose, Total Dose Per, and the frequency to show are required when Frequency is Other: ${names}`,
       )
       setActiveTab('medications')
       return
@@ -2108,6 +2121,46 @@ export const CreatePrescriptionModal = ({
                           {/* "Other" frequency: the dose is a total over a period,
                               e.g. 700 per week → 100/day for the daily dose check. */}
                           {isOtherFrequency(row.patient_frequency) && (
+                            <div className="space-y-3">
+                            <div>
+                              <label className="block text-xs font-medium text-slate-600 mb-1">
+                                Frequency to show <span className="text-red-500">*</span>
+                              </label>
+                              <Combobox
+                                value={row.written_frequency ?? ''}
+                                displayValue={
+                                  shownFrequencyQueries[index] ??
+                                  (row.written_frequency
+                                    ? frequencyOptions.find((f) => f.name === row.written_frequency)?.label ||
+                                      row.written_frequency
+                                    : '')
+                                }
+                                placeholder="Select the frequency that appears..."
+                                options={frequencyOptions.filter((f) => !isOtherFrequency(f.name))}
+                                loading={loadingFrequency}
+                                onQueryChange={(q) => {
+                                  setShownFrequencyQueries((prev) => ({ ...prev, [index]: q }))
+                                  searchFrequencies(q)
+                                }}
+                                onOpen={() => {
+                                  if (frequencyOptions.length === 0) searchFrequencies('')
+                                }}
+                                onSelect={(opt) => {
+                                  updateMedicationRow(index, 'written_frequency', opt.name)
+                                  setShownFrequencyQueries((prev) => ({
+                                    ...prev,
+                                    [index]: opt.label || opt.name,
+                                  }))
+                                }}
+                                onClear={() => {
+                                  updateMedicationRow(index, 'written_frequency', '')
+                                  setShownFrequencyQueries((prev) => ({ ...prev, [index]: '' }))
+                                }}
+                              />
+                              <p className="mt-1 text-[11px] text-slate-500">
+                                Other above is only the guide. This frequency is saved and shown on the prescription.
+                              </p>
+                            </div>
                             <div className="grid grid-cols-2 gap-3">
                               <div>
                                 <label className="block text-xs font-medium text-slate-600 mb-1">
@@ -2160,6 +2213,7 @@ export const CreatePrescriptionModal = ({
                                   }}
                                 />
                               </div>
+                            </div>
                             </div>
                           )}
 

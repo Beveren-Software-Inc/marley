@@ -124,12 +124,12 @@ export function displayMedicationDosageWithUom(order: MedicationOrderLike): stri
 }
 
 export function displayMedicationFrequency(order: MedicationOrderLike): string {
-  return (
-    text(order.patient_frequency) ||
-    text(order.written_frequency) ||
-    text(order.frequency) ||
-    '-'
-  )
+  const patientFrequency = text(order.patient_frequency)
+  const written = text(order.written_frequency)
+  // "Other" is only the guide that unlocks total dose. The chosen frequency is what appears.
+  const isOther = patientFrequency.toLowerCase().replace(/[^a-z]/g, '') === 'other'
+  if (isOther && written) return written
+  return patientFrequency || written || text(order.frequency) || '-'
 }
 
 export function displayMedicationStartDate(

@@ -292,6 +292,7 @@ const CLINICAL_EDIT_FIELDS = [
   // "Other" frequency: changing the total dose / period is a clinical change.
   'total_dose',
   'total_dose_per',
+  'written_frequency',
 ] as const
 
 const CASEFOLD_EDIT_FIELDS = new Set([
@@ -353,6 +354,7 @@ export const EditMedicationEntryModal = ({
     healthcare_practitioner: order.healthcare_practitioner || '',
     total_dose: order.total_dose || '',
     total_dose_per: order.total_dose_per || '',
+    written_frequency: order.written_frequency || '',
     frequency_in_a_day: order.frequency_in_a_day || 0,
     medication_type:
       order.medication_type === 'Contraindicated' ? '' : (order.medication_type || ''),
@@ -372,6 +374,7 @@ export const EditMedicationEntryModal = ({
   const [doseLimitAddNewLine, setDoseLimitAddNewLine] = useState(false)
 
   const [freqQuery, setFreqQuery] = useState(order.patient_frequency || '')
+  const [shownFreqQuery, setShownFreqQuery] = useState(order.written_frequency || '')
   const [freqOptions, setFreqOptions] = useState<LinkFieldOption[]>([])
   const [freqLoading, setFreqLoading] = useState(false)
   /** "Total Dose Per" options shown when the frequency is "Other". */
@@ -599,8 +602,13 @@ export const EditMedicationEntryModal = ({
     }
     // Frequency "Other": the total dose and the period it covers are mandatory.
     if (isOtherFrequency(String(form.patient_frequency))) {
-      if (!String(form.total_dose || '').trim() || !String(form.total_dose_per || '').trim()) {
-        toast.error('Total Dose and Total Dose Per are required when Frequency is Other')
+      if (
+        !String(form.total_dose || '').trim() ||
+        !String(form.total_dose_per || '').trim() ||
+        !String(form.written_frequency || '').trim() ||
+        isOtherFrequency(form.written_frequency)
+      ) {
+        toast.error('Total Dose, Total Dose Per, and the frequency to show are required when Frequency is Other')
         return
       }
       if (parseDoseNumber(form.total_dose) == null) {
@@ -674,7 +682,9 @@ export const EditMedicationEntryModal = ({
       if (field === 'patient_frequency' && !isOtherFrequency(String(value))) {
         next.total_dose = ''
         next.total_dose_per = ''
+        next.written_frequency = ''
         setDoseFreqQuery('')
+        setShownFreqQuery('')
       }
       return next
     })
@@ -903,6 +913,25 @@ export const EditMedicationEntryModal = ({
 
           {/* "Other" frequency: dose is a total over a period, e.g. 700 per week. */}
           {isOtherFrequency(form.patient_frequency) && (
+            <div className="space-y-3">
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">Frequency to show <span className="text-red-500">*</span></label>
+              <MiniCombobox
+                value={form.written_frequency}
+                displayValue={shownFreqQuery}
+                placeholder="Select the frequency that appears..."
+                options={freqOptions.filter((f) => !isOtherFrequency(f.name))}
+                loading={freqLoading}
+                disabled={disabled}
+                onQueryChange={(q) => { setShownFreqQuery(q); searchFrequencies(q) }}
+                onOpen={() => { if (freqOptions.length === 0) searchFrequencies('') }}
+                onSelect={(opt) => { updateField('written_frequency', opt.name); setShownFreqQuery(opt.label || opt.name) }}
+                onClear={() => { updateField('written_frequency', ''); setShownFreqQuery('') }}
+              />
+              <p className="mt-1 text-[11px] text-slate-500">
+                Other above is only the guide. This frequency is saved and shown on the prescription.
+              </p>
+            </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">Total Dose <span className="text-red-500">*</span></label>
@@ -930,6 +959,7 @@ export const EditMedicationEntryModal = ({
                   onClear={() => { updateField('total_dose_per', ''); setDoseFreqQuery('') }}
                 />
               </div>
+            </div>
             </div>
           )}
 
@@ -1130,6 +1160,7 @@ export const AddMedicationEntryModal = ({
     healthcare_practitioner: '',
     total_dose: '',
     total_dose_per: '',
+    written_frequency: '',
     frequency_in_a_day: 0,
   })
   const [saving, setSaving] = useState(false)
@@ -1145,6 +1176,7 @@ export const AddMedicationEntryModal = ({
   const [addPinkItemLocked, setAddPinkItemLocked] = useState(false)
 
   const [addFreqQuery, setAddFreqQuery] = useState('')
+  const [addShownFreqQuery, setAddShownFreqQuery] = useState('')
   const [addFreqOptions, setAddFreqOptions] = useState<LinkFieldOption[]>([])
   const [addFreqLoading, setAddFreqLoading] = useState(false)
   /** "Total Dose Per" options shown when the frequency is "Other". */
@@ -1340,8 +1372,13 @@ export const AddMedicationEntryModal = ({
     }
     // Frequency "Other": the total dose and the period it covers are mandatory.
     if (isOtherFrequency(String(form.patient_frequency))) {
-      if (!String(form.total_dose || '').trim() || !String(form.total_dose_per || '').trim()) {
-        toast.error('Total Dose and Total Dose Per are required when Frequency is Other')
+      if (
+        !String(form.total_dose || '').trim() ||
+        !String(form.total_dose_per || '').trim() ||
+        !String(form.written_frequency || '').trim() ||
+        isOtherFrequency(form.written_frequency)
+      ) {
+        toast.error('Total Dose, Total Dose Per, and the frequency to show are required when Frequency is Other')
         return
       }
       if (parseDoseNumber(form.total_dose) == null) {
@@ -1404,7 +1441,9 @@ export const AddMedicationEntryModal = ({
       if (field === 'patient_frequency' && !isOtherFrequency(String(value))) {
         next.total_dose = ''
         next.total_dose_per = ''
+        next.written_frequency = ''
         setAddDoseFreqQuery('')
+        setAddShownFreqQuery('')
       }
       return next
     })
@@ -1649,6 +1688,24 @@ export const AddMedicationEntryModal = ({
 
           {/* "Other" frequency: dose is a total over a period, e.g. 700 per week. */}
           {isOtherFrequency(form.patient_frequency) && (
+            <div className="space-y-3">
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">Frequency to show <span className="text-red-500">*</span></label>
+              <MiniCombobox
+                value={form.written_frequency}
+                displayValue={addShownFreqQuery}
+                placeholder="Select the frequency that appears..."
+                options={addFreqOptions.filter((f) => !isOtherFrequency(f.name))}
+                loading={addFreqLoading}
+                onQueryChange={(q) => { setAddShownFreqQuery(q); addSearchFrequencies(q) }}
+                onOpen={() => { if (addFreqOptions.length === 0) addSearchFrequencies('') }}
+                onSelect={(opt) => { updateField('written_frequency', opt.name); setAddShownFreqQuery(opt.label || opt.name) }}
+                onClear={() => { updateField('written_frequency', ''); setAddShownFreqQuery('') }}
+              />
+              <p className="mt-1 text-[11px] text-slate-500">
+                Other above is only the guide. This frequency is saved and shown on the prescription.
+              </p>
+            </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">Total Dose <span className="text-red-500">*</span></label>
@@ -1674,6 +1731,7 @@ export const AddMedicationEntryModal = ({
                   onClear={() => { updateField('total_dose_per', ''); setAddDoseFreqQuery('') }}
                 />
               </div>
+            </div>
             </div>
           )}
 

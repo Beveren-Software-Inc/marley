@@ -334,6 +334,7 @@
    "label": "Medicine No"
   },
   {
+   "allow_on_submit": 1,
    "fieldname": "written_frequency",
    "fieldtype": "Data",
    "label": "Written Frequency"

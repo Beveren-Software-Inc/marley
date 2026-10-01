@@ -11,6 +11,7 @@ import { CreatePrescriptionModal } from './CreatePrescriptionModal'
 import { AddMedicationEntryModal, EditMedicationEntryModal } from './SinglePrescription'
 import { prescriptionNeedsSignature, prescriptionIsSigned } from '../../utils/prescriptionSigning'
 import { isFuturePlanByStartDate, isMedicationEndDatePassed, isMedicationStopped, normalizePrescriptionType } from '../../utils/prescriptionType'
+import { isOtherFrequency } from '../../utils/prescriptionDosage'
 import { useCareContext } from '../../providers/CareContextProvider'
 import { useCardFilters } from '../../contexts/CardFilterContext'
 import {
@@ -702,7 +703,11 @@ export const PrescriptionList = ({
                 {m?.dosage ? `${m.dosage}${m.uom ? ` ${m.uom}` : ''}` : '-'}
               </td>
               <td className="px-3 py-2 text-slate-700">{m?.route_of_administration || '-'}</td>
-              <td className="px-3 py-2 text-slate-700">{m?.patient_frequency || '-'}</td>
+              <td className="px-3 py-2 text-slate-700">
+                {isOtherFrequency(m?.patient_frequency) && m?.written_frequency
+                  ? m.written_frequency
+                  : m?.patient_frequency || '-'}
+              </td>
               <td className="px-3 py-2 text-slate-700 whitespace-nowrap">
                 {fmtDate(m?.date || row.start_date)}
               </td>
