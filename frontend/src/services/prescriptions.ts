@@ -530,6 +530,7 @@ export function mapOrderToDuplicateMedication(order: any): MedicationOrderRow {
     // "Other" frequency: keep the total dose and the period it is taken over.
     total_dose: order.total_dose || '',
     total_dose_per: order.total_dose_per || '',
+    written_frequency: order.written_frequency || '',
   }
 }
 
@@ -646,6 +647,9 @@ export async function createPrescription(
       end_date: row.end_date || undefined,
       time: row.time,
       patient_frequency: isLongActing ? longFreq : row.patient_frequency,
+      total_dose: row.total_dose || undefined,
+      total_dose_per: row.total_dose_per || undefined,
+      written_frequency: row.written_frequency || undefined,
       is_pink: row.is_pink,
       reference_no: row.reference_no || '',
       is_prn: normalized.is_prn ?? row.is_prn ?? false,

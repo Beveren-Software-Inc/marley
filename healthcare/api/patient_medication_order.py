@@ -663,6 +663,25 @@ def _set_medication_row(doc, row):
 		if entry.meta.has_field('total_dose_per'):
 			entry.total_dose_per = cstr(row.get('total_dose_per') or '').strip() or None
 		# Frequency "Other" is dosed as a total over a period → both are required.
+		if entry.meta.has_field('written_frequency'):
+			shown = cstr(row.get('written_frequency') or '').strip()
+			if _is_other_frequency(shown):
+				frappe.throw(
+					_("Choose the frequency that should appear on the prescription. Other is only the guide."),
+					title=_("Missing Frequency"),
+				)
+			entry.written_frequency = shown or None
+			if (
+				not shown
+				and cstr(entry.get('total_dose') or '').strip()
+				and cstr(entry.get('total_dose_per') or '').strip()
+			):
+				frappe.throw(
+					_("Choose the frequency that should appear for {0}. Other is only the guide.").format(
+						cstr(row.get('drug_name') or entry.drug or '').strip() or _("this medicine")
+					),
+					title=_("Missing Frequency"),
+				)
 		_assert_other_frequency_dose_complete(
 			entry.patient_frequency,
 			entry.get('total_dose'),
@@ -2599,6 +2618,7 @@ _MEDICATION_ENTRY_AMEND_FIELDS = frozenset(
 		"healthcare_practitioner",
 		"total_dose",
 		"total_dose_per",
+		"written_frequency",
 	}
 )
 _MEDICATION_ENTRY_ALLOWED_FIELDS = [
@@ -2625,6 +2645,7 @@ _MEDICATION_ENTRY_ALLOWED_FIELDS = [
 	"healthcare_practitioner_name",
 	"total_dose",
 	"total_dose_per",
+	"written_frequency",
 ]
 
 
