@@ -43,12 +43,32 @@ frappe.query_reports["Doctor Service Revenue"] = {
 			options: "Item",
 		},
 		{
+			fieldname: "exclude_medicines",
+			label: __("Exclude Medicines"),
+			fieldtype: "Check",
+			default: 1,
+		},
+		{
+			fieldname: "exclude_inpatient",
+			label: __("Exclude Inpatient Admission / IP Services"),
+			fieldtype: "Check",
+			default: 1,
+		},
+		{
+			fieldname: "paid_only",
+			label: __("Paid Only"),
+			fieldtype: "Check",
+			default: 1,
+		},
+		{
 			fieldname: "view",
 			label: __("View"),
 			fieldtype: "Select",
 			options: "Summary by Doctor\nDetailed Lines",
 			default: "Summary by Doctor",
+			on_change: function () {
+				frappe.query_report.refresh();
+			},
 		},
 	],
 };
-

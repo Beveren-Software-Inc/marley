@@ -6,13 +6,29 @@ Doctor Service Revenue — amounts attributed to doctors from all billed service
 Data source: submitted Sales Orders linked to healthcare base docs
 (via custom_base_reference / custom_base_reference_name), with practitioner
 resolved from the base document.
+
+By default stock items (medicines / dispensed drugs) are excluded — they are
+not doctor service income. Uncheck ``Exclude Medicines`` to include them.
+
+``Exclude Inpatient`` drops Sales Orders whose base document is an inpatient
+admission charge, IP service, or discharge.
+
+``Paid Only`` keeps orders that are fully collected via advance, or whose
+linked Sales Invoices have no outstanding.
 """
 
 from __future__ import annotations
 
 import frappe
 from frappe import _
-from frappe.utils import flt, getdate
+from frappe.utils import cint, flt, getdate
+
+# Base documents billed for inpatient stay / ward services (not OP doctor income).
+INPATIENT_BASE_DOCTYPES = (
+	"Inpatient Admission",
+	"IP Service",
+	"Discharge",
+)
 
 # Preferred Healthcare Practitioner link fields per base doctype (first non-empty wins).
 DOCTYPE_PRACTITIONER_FIELDS = {
@@ -50,7 +66,7 @@ GENERIC_PRACTITIONER_FIELDS = [
 def execute(filters=None):
 	filters = frappe._dict(filters or {})
 	view = (filters.get("view") or "Summary by Doctor").strip()
-	if view == "Detailed Lines":
+	if "detailed" in view.lower():
 		columns = get_detail_columns()
 		data = get_detail_data(filters)
 	else:
@@ -63,13 +79,6 @@ def get_summary_columns():
 	return [
 		{"label": _("Doctor ID"), "fieldname": "doctor_id", "fieldtype": "Data", "width": 110},
 		{"label": _("Doctor Name"), "fieldname": "doctor_name", "fieldtype": "Data", "width": 200},
-		{
-			"label": _("Practitioner"),
-			"fieldname": "practitioner",
-			"fieldtype": "Link",
-			"options": "Healthcare Practitioner",
-			"width": 150,
-		},
 		{"label": _("Cases"), "fieldname": "cases", "fieldtype": "Int", "width": 80},
 		{
 			"label": _("Total Service Amount"),
@@ -81,15 +90,25 @@ def get_summary_columns():
 
 
 def get_detail_columns():
+	# Column fieldnames must not clash with filter fieldnames (e.g. item_code).
 	return [
 		{"label": _("Doctor ID"), "fieldname": "doctor_id", "fieldtype": "Data", "width": 110},
 		{"label": _("Doctor Name"), "fieldname": "doctor_name", "fieldtype": "Data", "width": 160},
+		{"label": _("Service"), "fieldname": "service_name", "fieldtype": "Data", "width": 240},
 		{
-			"label": _("Practitioner"),
-			"fieldname": "practitioner",
+			"label": _("Item"),
+			"fieldname": "service",
 			"fieldtype": "Link",
-			"options": "Healthcare Practitioner",
-			"width": 130,
+			"options": "Item",
+			"width": 120,
+		},
+		{"label": _("Source"), "fieldname": "base_doctype", "fieldtype": "Data", "width": 140},
+		{
+			"label": _("Source Document"),
+			"fieldname": "base_name",
+			"fieldtype": "Dynamic Link",
+			"options": "base_doctype",
+			"width": 140,
 		},
 		{"label": _("Date"), "fieldname": "transaction_date", "fieldtype": "Date", "width": 100},
 		{
@@ -100,28 +119,7 @@ def get_detail_columns():
 			"width": 120,
 		},
 		{"label": _("Patient Name"), "fieldname": "patient_name", "fieldtype": "Data", "width": 150},
-		{
-			"label": _("Base DocType"),
-			"fieldname": "base_doctype",
-			"fieldtype": "Data",
-			"width": 140,
-		},
-		{
-			"label": _("Base Document"),
-			"fieldname": "base_name",
-			"fieldtype": "Dynamic Link",
-			"options": "base_doctype",
-			"width": 140,
-		},
-		{
-			"label": _("Service"),
-			"fieldname": "service",
-			"fieldtype": "Link",
-			"options": "Item",
-			"width": 130,
-		},
-		{"label": _("Service Name"), "fieldname": "service_name", "fieldtype": "Data", "width": 180},
-		{"label": _("Qty"), "fieldname": "qty", "fieldtype": "Float", "width": 80},
+		{"label": _("Qty"), "fieldname": "qty", "fieldtype": "Float", "width": 70},
 		{
 			"label": _("Service Amount"),
 			"fieldname": "service_amount",
@@ -144,11 +142,19 @@ def get_summary_data(filters):
 				"practitioner": line["practitioner"],
 				"cases": 0,
 				"service_amount": 0.0,
+				"_orders": set(),
 			}
-		by_doctor[key]["cases"] += 1
+		order_name = line.get("sales_order")
+		# One Sales Order (e.g. group lab / service request) = one case, not one per item line.
+		if order_name and order_name not in by_doctor[key]["_orders"]:
+			by_doctor[key]["_orders"].add(order_name)
+			by_doctor[key]["cases"] += 1
 		by_doctor[key]["service_amount"] += flt(line["service_amount"])
 
-	return sorted(by_doctor.values(), key=lambda r: r["service_amount"], reverse=True)
+	rows = list(by_doctor.values())
+	for row in rows:
+		row.pop("_orders", None)
+	return sorted(rows, key=lambda r: r["service_amount"], reverse=True)
 
 
 def get_detail_data(filters):
@@ -177,18 +183,24 @@ def build_earning_lines(filters):
 		details = practitioner_details.get(practitioner) or {}
 		service_amount = flt(row.amount)
 
+		item_code = row.item_code or ""
+		item_name = row.item_name or item_code
 		rows.append(
 			{
 				"doctor_id": details.get("doctors_id") or practitioner,
-				"doctor_name": details.get("practitioner_name") or "",
+				"doctor_name": details.get("practitioner_name") or practitioner,
 				"practitioner": practitioner,
+				"sales_order": row.sales_order,
 				"transaction_date": row.transaction_date,
 				"patient": row.patient,
 				"patient_name": row.custom_patient_name or "",
 				"base_doctype": row.custom_base_reference,
 				"base_name": row.custom_base_reference_name,
-				"service": row.item_code,
-				"service_name": row.item_name,
+				"item_code": item_code,
+				"item_name": item_name,
+				# Keep legacy keys for any callers still reading them.
+				"service": item_code,
+				"service_name": item_name,
 				"qty": flt(row.qty),
 				"service_amount": service_amount,
 			}
@@ -204,6 +216,48 @@ def get_service_items(filters):
 		"IFNULL(so.custom_base_reference_name, '') != ''",
 	]
 	values = {}
+	# Medicines / dispensed stock are not doctor service income.
+	exclude_medicines = cint(filters.get("exclude_medicines"))
+	if exclude_medicines:
+		conditions.append("IFNULL(item.is_stock_item, 0) = 0")
+
+	# Inpatient admission / IP service / discharge charges.
+	if cint(filters.get("exclude_inpatient")):
+		conditions.append("so.custom_base_reference NOT IN %(inpatient_base_doctypes)s")
+		values["inpatient_base_doctypes"] = INPATIENT_BASE_DOCTYPES
+
+	# Fully paid via advance on SO, or linked invoices with no outstanding.
+	paid_only = cint(filters.get("paid_only") if filters.get("paid_only") is not None else filters.get("paid"))
+	invoice_join = ""
+	if paid_only:
+		conditions.append(
+			"""(
+				IFNULL(so.advance_paid, 0) + 0.00001 >= IFNULL(so.grand_total, 0)
+				OR (
+					IFNULL(inv.invoice_count, 0) > 0
+					AND IFNULL(inv.outstanding, 0) <= 0.00001
+				)
+			)"""
+		)
+		invoice_join = """
+		LEFT JOIN (
+			SELECT
+				x.sales_order,
+				COUNT(*) AS invoice_count,
+				SUM(x.outstanding_amount) AS outstanding
+			FROM (
+				SELECT DISTINCT
+					sii.sales_order,
+					si.name,
+					si.outstanding_amount
+				FROM `tabSales Invoice Item` sii
+				INNER JOIN `tabSales Invoice` si ON si.name = sii.parent
+				WHERE si.docstatus = 1
+					AND IFNULL(sii.sales_order, '') != ''
+			) x
+			GROUP BY x.sales_order
+		) inv ON inv.sales_order = so.name
+		"""
 
 	if filters.get("from_date"):
 		conditions.append("so.transaction_date >= %(from_date)s")
@@ -221,9 +275,14 @@ def get_service_items(filters):
 		conditions.append("soi.item_code = %(item_code)s")
 		values["item_code"] = filters.item_code
 
+	item_join = ""
+	if exclude_medicines:
+		item_join = "INNER JOIN `tabItem` item ON item.name = soi.item_code"
+
 	return frappe.db.sql(
 		f"""
 		SELECT
+			so.name AS sales_order,
 			so.transaction_date,
 			so.patient,
 			so.custom_patient_name,
@@ -236,6 +295,8 @@ def get_service_items(filters):
 		FROM `tabSales Order` so
 		INNER JOIN `tabSales Order Item` soi
 			ON soi.parent = so.name AND soi.parenttype = 'Sales Order'
+		{item_join}
+		{invoice_join}
 		WHERE {" AND ".join(conditions)}
 		ORDER BY so.transaction_date DESC, so.name DESC, soi.idx ASC
 		""",
