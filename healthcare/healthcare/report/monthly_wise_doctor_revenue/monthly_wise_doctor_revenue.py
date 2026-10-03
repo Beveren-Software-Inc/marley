@@ -143,6 +143,7 @@ def get_data(filters, months):
 				"practitioner": practitioner,
 				"cases": 0,
 				"total": 0.0,
+				"_orders": set(),
 				**{month["key"]: 0.0 for month in months},
 			}
 
@@ -151,12 +152,19 @@ def get_data(filters, months):
 		txn_date = getdate(line["transaction_date"])
 		month_key = month_key_by_ym.get((txn_date.year, txn_date.month))
 
-		row["cases"] += 1
+		order_name = line.get("sales_order")
+		# One Sales Order (e.g. group lab / service request) = one case.
+		if order_name and order_name not in row["_orders"]:
+			row["_orders"].add(order_name)
+			row["cases"] += 1
 		row["total"] += amount
 		if month_key:
 			row[month_key] += amount
 
-	return sorted(by_doctor.values(), key=lambda r: r["total"], reverse=True)
+	rows = list(by_doctor.values())
+	for row in rows:
+		row.pop("_orders", None)
+	return sorted(rows, key=lambda r: r["total"], reverse=True)
 
 
 def get_chart_data(data, months):

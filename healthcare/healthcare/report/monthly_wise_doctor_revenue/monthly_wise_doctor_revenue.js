@@ -44,5 +44,23 @@ frappe.query_reports["Monthly Wise Doctor Revenue"] = {
 			fieldtype: "Link",
 			options: "Item",
 		},
+		{
+			fieldname: "exclude_medicines",
+			label: __("Exclude Medicines"),
+			fieldtype: "Check",
+			default: 1,
+		},
+		{
+			fieldname: "exclude_inpatient",
+			label: __("Exclude Inpatient Admission / IP Services"),
+			fieldtype: "Check",
+			default: 1,
+		},
+		{
+			fieldname: "paid_only",
+			label: __("Paid Only"),
+			fieldtype: "Check",
+			default: 1,
+		},
 	],
 };
