@@ -1669,6 +1669,19 @@ def _is_current_signed_clinical_pmo(row) -> bool:
 	return True
 
 
+def _is_live_clinical_pmo(row) -> bool:
+	"""Whether a submitted PMO is still live for Current Prescription, ignoring the signature.
+
+	Same exclusions as :func:`_is_current_signed_clinical_pmo` (Cancelled / Completed /
+	Stopped / Draft) but keeps Unsigned orders. Used as the OP (Patient Visit) fallback so a
+	freshly created but not-yet-signed prescription still appears on Current Prescription.
+	"""
+	status = cstr(
+		(row.get("status") if isinstance(row, dict) else getattr(row, "status", None)) or ""
+	).strip()
+	return status not in ("Cancelled", "Completed", "Stopped", "Draft")
+
+
 @frappe.whitelist()
 def get_medication_order_by_inpatient_or_encounter(inpatient_record=None, patient_encounter=None):
 	"""
@@ -1679,6 +1692,11 @@ def get_medication_order_by_inpatient_or_encounter(inpatient_record=None, patien
 	all of them are returned together so Current Prescription shows every active signed line.
 
 	The latest signed order remains the primary document for header actions (add / sign / edit Rx).
+
+	OP (Patient Visit): when the visit has no signed clinical order yet, the latest live order
+	for that visit is shown even while it is still Unsigned, so the doctor/nurse sees the
+	prescription they just created for the chosen OP. IP (Inpatient Admission) keeps the
+	signed-only behaviour.
 	"""
 	if not inpatient_record and not patient_encounter:
 		frappe.throw("Either Inpatient Record ID or Patient Encounter ID is required")
@@ -1704,6 +1722,17 @@ def get_medication_order_by_inpatient_or_encounter(inpatient_record=None, patien
 	)
 
 	active_names = [row.name for row in medication_orders if _is_current_signed_clinical_pmo(row)]
+
+	# OP visit without a signed order yet: fall back to the latest live order for the visit
+	# (even Unsigned) so Current Prescription shows the freshly created prescription instead
+	# of nothing. `medication_orders` is newest-first, so `next(...)` returns the latest.
+	if not active_names and patient_encounter and not inpatient_record:
+		latest_live = next(
+			(row for row in medication_orders if _is_live_clinical_pmo(row)),
+			None,
+		)
+		if latest_live:
+			active_names = [latest_live.name]
 
 	if not active_names:
 		frappe.msgprint("No medication order found")
