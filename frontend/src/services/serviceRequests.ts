@@ -186,6 +186,8 @@ export interface LabRequestReviewGroup {
   is_group?: number
   /** Set when this group was marked Complete (per-group; request may still be Booked). */
   finished?: number
+  /** Lab Test Template.enable_external_lab_print — show External Lab Report in print menu. */
+  enable_external_lab_print?: number
   tests: LabRequestReviewTest[]
   test_count: number
   total_price: number

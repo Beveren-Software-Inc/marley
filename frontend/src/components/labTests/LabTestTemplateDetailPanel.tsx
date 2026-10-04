@@ -17,6 +17,7 @@ interface TemplateDetail {
   is_group: number
   is_billable: number
   disabled: number
+  enable_external_lab_print?: number
   nursing_checklist_template: string
   item: string
   lab_test_code: string
@@ -143,6 +144,9 @@ export const LabTestTemplateDetailPanel = ({
                 {detail.is_group ? <Badge label="Group Template" color="bg-violet-100 text-violet-700" /> : null}
                 <Badge label={detail.is_billable ? 'Billable' : 'Not Billable'} color={detail.is_billable ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500'} />
                 <Badge label={detail.disabled ? 'Disabled' : 'Active'} color={detail.disabled ? 'bg-red-100 text-red-600' : 'bg-emerald-100 text-emerald-700'} />
+                {detail.enable_external_lab_print ? (
+                  <Badge label="External Lab Print" color="bg-amber-100 text-amber-800" />
+                ) : null}
                 {detail.lab_test_template_type && <Badge label={detail.lab_test_template_type} color="bg-blue-100 text-blue-700" />}
               </div>
 

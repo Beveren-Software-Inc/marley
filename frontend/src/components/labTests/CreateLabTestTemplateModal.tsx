@@ -346,6 +346,7 @@ export function CreateLabTestTemplateModal({
   const [disabled, setDisabled] = useState(false)
   const [isMultiple, setIsMultiple] = useState(false)
   const [isBillable, setIsBillable] = useState(true)
+  const [enableExternalLabPrint, setEnableExternalLabPrint] = useState(false)
 
   const [labTestUom, setLabTestUom] = useState('')
   const [minRange, setMinRange] = useState('')
@@ -379,6 +380,7 @@ export function CreateLabTestTemplateModal({
         setDisabled(Boolean(doc.disabled))
         setIsMultiple(Boolean(doc.is_multiple))
         setIsBillable(doc.is_billable !== 0)
+        setEnableExternalLabPrint(Boolean(doc.enable_external_lab_print))
         setLabTestUom((doc.lab_test_uom as string) || '')
         setMinRange(doc.min_range != null && doc.min_range !== '' ? String(doc.min_range) : '')
         setMaxRange(doc.max_range != null && doc.max_range !== '' ? String(doc.max_range) : '')
@@ -484,6 +486,7 @@ export function CreateLabTestTemplateModal({
       disabled: disabled ? 1 : 0,
       is_multiple: isMultiple ? 1 : 0,
       is_billable: isBillable ? 1 : 0,
+      enable_external_lab_print: enableExternalLabPrint ? 1 : 0,
       lab_test_uom: labTestUom.trim() || null,
       min_range: parseNum(minRange),
       max_range: parseNum(maxRange),
@@ -661,6 +664,18 @@ export function CreateLabTestTemplateModal({
                         className="rounded border-slate-300 text-primary focus:ring-primary"
                       />
                       Is Billable
+                    </label>
+                    <label
+                      className="flex items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 sm:col-span-2"
+                      title="When checked, Lab Request print shows Laboratory Report and External Lab Report (no comments)."
+                    >
+                      <input
+                        type="checkbox"
+                        checked={enableExternalLabPrint}
+                        onChange={(e) => setEnableExternalLabPrint(e.target.checked)}
+                        className="rounded border-slate-300 text-primary focus:ring-primary"
+                      />
+                      Enable External Lab Print
                     </label>
                   </div>
                 </section>

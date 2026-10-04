@@ -643,6 +643,13 @@
    "label": "Outsource"
   },
   {
+   "default": "0",
+   "description": "When checked, Lab Request print shows a dropdown with Laboratory Report and External Lab Report (no comments).",
+   "fieldname": "enable_external_lab_print",
+   "fieldtype": "Check",
+   "label": "Enable External Lab Print"
+  },
+  {
    "fieldname": "section_break_fiwl",
    "fieldtype": "Section Break"
   },

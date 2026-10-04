@@ -1026,6 +1026,7 @@ def _template_review_fields(template_names, patient_sex=None, patient_care_type=
 		"male_max_range",
 		"female_min_range",
 		"female_max_range",
+		"enable_external_lab_print",
 	]
 	if has_included:
 		fields.append("price_included_in_group")
@@ -1065,6 +1066,7 @@ def _template_review_fields(template_names, patient_sex=None, patient_care_type=
 			"template_type": row.get("lab_test_template_type") or "",
 			"price_included_in_group": included,
 			"list_rate": _lab_template_list_rate(row, patient_care_type),
+			"enable_external_lab_print": cint(row.get("enable_external_lab_print")),
 		}
 	return out
 
@@ -1193,6 +1195,7 @@ def get_lab_request_review(name):
 				or parent,
 				"is_group": 1 if g["kind"] == "group" else 0,
 				"finished": item_finished,
+				"enable_external_lab_print": cint(parent_meta.get("enable_external_lab_print")),
 				"tests": tests,
 				"test_count": len(tests),
 				"total_price": flt(sum(flt(t.get("price") or 0) for t in tests)),
