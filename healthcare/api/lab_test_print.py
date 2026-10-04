@@ -18,7 +18,7 @@ import re
 from collections import OrderedDict
 
 import frappe
-from frappe.utils import formatdate, strip_html
+from frappe.utils import cint, format_datetime, formatdate, strip_html
 
 
 def _esc(value) -> str:
@@ -451,3 +451,208 @@ def render_lab_test_result_report(doc):
 		</table>
 	</div>
 	"""
+
+
+def _external_meta(doc):
+	"""Header fields for the external-lab style report (Al Borg–like layout)."""
+	m = _patient_meta(doc)
+	company = ""
+	cost_center = ""
+	sr = (doc.get("service_request") or "").strip()
+	if sr and frappe.db.exists("Service Request", sr):
+		sr_row = frappe.db.get_value(
+			"Service Request", sr, ["company", "cost_center", "creation"], as_dict=True
+		) or {}
+		company = sr_row.get("company") or ""
+		cost_center = sr_row.get("cost_center") or ""
+		registered = sr_row.get("creation")
+	else:
+		registered = doc.get("creation")
+
+	sample_at = cost_center or company or ""
+	if cost_center and frappe.db.exists("Cost Center", cost_center):
+		sample_at = (
+			frappe.db.get_value("Cost Center", cost_center, "cost_center_name") or cost_center
+		)
+
+	reported = doc.get("result_date") or doc.get("submitted_date") or doc.get("modified")
+	return {
+		"patient_name": m["patient_name"],
+		"sex_age": m["sex_age"],
+		"patient_no": m["file_no"] or m["id_number"] or (doc.get("patient") or ""),
+		"sample_collected_at": sample_at,
+		"contract": company,
+		"file_no": m["file_no"],
+		"accession_no": doc.name,
+		"registered_on": format_datetime(registered) if registered else "",
+		"reported_on": format_datetime(reported) if reported else (m["date"] or ""),
+		"request_no": m["request_no"],
+	}
+
+
+def _external_header_html(doc) -> str:
+	m = _external_meta(doc)
+
+	def col(label, value):
+		return (
+			f'<div style="margin-bottom:3px;">'
+			f'<span style="font-weight:bold;color:#1a1a1a;">{_esc(label)}</span> '
+			f'<span style="color:#000;">{_esc(value)}</span>'
+			f"</div>"
+		)
+
+	return f"""
+	<table style="width:100%;border-collapse:collapse;margin-bottom:12px;font-size:11px;">
+		<tr>
+			<td style="width:34%;vertical-align:top;padding-right:8px;">
+				{col("Name:", m["patient_name"])}
+				{col("Age / Sex:", m["sex_age"])}
+				{col("Patient No.:", m["patient_no"])}
+			</td>
+			<td style="width:33%;vertical-align:top;padding-right:8px;">
+				{col("Sample Collected At:", m["sample_collected_at"])}
+				{col("Contract:", m["contract"])}
+				{col("File No.:", m["file_no"])}
+			</td>
+			<td style="width:33%;vertical-align:top;">
+				{col("Accession No.:", m["accession_no"])}
+				{col("Registered on:", m["registered_on"])}
+				{col("Reported on:", m["reported_on"])}
+			</td>
+		</tr>
+	</table>
+	"""
+
+
+def _external_result_row_html(name, result, uom, range_text) -> str:
+	"""Test / Result / Unit / Ref. Range — no Flag, no Comments."""
+	return (
+		f"<tr>"
+		f'<td style="width:45%;text-align:left;border-bottom:1px solid #ccc;padding:5px 4px;">{_esc(name)}</td>'
+		f'<td style="text-align:left;border-bottom:1px solid #ccc;padding:5px 4px;">{_esc(result)}</td>'
+		f'<td style="text-align:center;border-bottom:1px solid #ccc;padding:5px 4px;">{_esc(uom)}</td>'
+		f'<td style="text-align:center;border-bottom:1px solid #ccc;padding:5px 4px;">{_esc(range_text)}</td>'
+		f"</tr>"
+	)
+
+
+def _external_rows_for_lab_test(lt, cache) -> list[str]:
+	"""Same result sources as Laboratory Report, but without Flag column."""
+	rows = _parse_custom_result(lt.get("custom_result"))
+	sex = lt.get("patient_sex")
+	body = []
+	if rows:
+		for code, result in rows:
+			tpl = _template_info(code, cache)
+			name = tpl.get("lab_test_name") or code
+			uom = tpl.get("lab_test_uom") or ""
+			lo, hi = _range_bounds(tpl, sex)
+			body.append(_external_result_row_html(name, result, uom, _range_text(lo, hi)))
+		return body
+
+	for item in lt.get("normal_test_items") or []:
+		code = (getattr(item, "template", None) or "").strip()
+		result = getattr(item, "result_value", None) or ""
+		name = (
+			getattr(item, "lab_test_name", None)
+			or getattr(item, "lab_test_event", None)
+			or code
+		)
+		uom = getattr(item, "lab_test_uom", None) or ""
+		range_text = getattr(item, "normal_range", None) or ""
+		if code:
+			tpl = _template_info(code, cache)
+			if not name:
+				name = tpl.get("lab_test_name") or code
+			if not uom:
+				uom = tpl.get("lab_test_uom") or ""
+			if not range_text:
+				lo, hi = _range_bounds(tpl, sex)
+				range_text = _range_text(lo, hi)
+		body.append(_external_result_row_html(name or "—", result, uom, range_text))
+	if body:
+		return body
+
+	code = (lt.get("template") or "").strip()
+	raw = (lt.get("custom_result") or "").strip()
+	result = ""
+	if raw:
+		plain = strip_html(raw).strip()
+		if plain and not _parse_custom_result(raw):
+			result = plain
+	if code:
+		tpl = _template_info(code, cache)
+		name = tpl.get("lab_test_name") or lt.get("lab_test_name") or code
+		uom = tpl.get("lab_test_uom") or ""
+		lo, hi = _range_bounds(tpl, lt.get("patient_sex"))
+		return [_external_result_row_html(name, result, uom, _range_text(lo, hi))]
+	return [_external_result_row_html(lt.get("lab_test_name") or lt.name, result, "", "")]
+
+
+def _external_sections_html(lab_tests, cache) -> str:
+	buckets: OrderedDict[str, list] = OrderedDict()
+	for lt in lab_tests:
+		buckets.setdefault(_bucket_key(lt), []).append(lt)
+
+	parts: list[str] = []
+	th = "border-bottom:2px solid #333;padding:6px 4px;font-weight:bold;font-size:11px;"
+	for key, tests in buckets.items():
+		body_rows: list[str] = []
+		for lt in tests:
+			body_rows.extend(_external_rows_for_lab_test(lt, cache))
+		if not body_rows:
+			body_rows = [_external_result_row_html("—", "", "", "")]
+		title = _group_display_name(key, tests)
+		parts.append(
+			f"""
+			<div style="font-weight:bold;font-size:13px;margin:10px 0 6px;color:#111;">
+				{_esc(title)}
+			</div>
+			<table style="width:100%;border-collapse:collapse;margin-bottom:14px;font-size:11px;">
+				<thead>
+					<tr>
+						<th style="{th}width:45%;text-align:left;">Test</th>
+						<th style="{th}text-align:left;">Result</th>
+						<th style="{th}text-align:center;">Unit</th>
+						<th style="{th}text-align:center;">Ref. Range</th>
+					</tr>
+				</thead>
+				<tbody>{''.join(body_rows)}</tbody>
+			</table>
+			"""
+		)
+	return "".join(parts)
+
+
+@frappe.whitelist()
+def render_lab_test_external_report(doc):
+	"""External / outsourced-style lab report: results only, no Comments / Note blocks."""
+	if isinstance(doc, str):
+		doc = frappe.get_doc("Lab Test", doc)
+
+	lab_tests = _resolve_group_lab_tests(doc)
+	cache: dict = {}
+	sections = _external_sections_html(lab_tests, cache)
+
+	return f"""
+	<style>
+		.ex-lab {{ font-family: Arial, Helvetica, sans-serif; color: #000; font-size: 11px; }}
+		@media print {{
+			.ex-lab {{ -webkit-print-color-adjust: exact; print-color-adjust: exact; }}
+		}}
+	</style>
+	<div class="ex-lab">
+		{_external_header_html(doc)}
+		{sections}
+	</div>
+	"""
+
+
+def template_allows_external_lab_print(template_name: str) -> bool:
+	"""True when Lab Test Template has Enable External Lab Print checked."""
+	name = (template_name or "").strip()
+	if not name or not frappe.db.exists("Lab Test Template", name):
+		return False
+	if not frappe.db.has_column("Lab Test Template", "enable_external_lab_print"):
+		return False
+	return bool(cint(frappe.db.get_value("Lab Test Template", name, "enable_external_lab_print")))

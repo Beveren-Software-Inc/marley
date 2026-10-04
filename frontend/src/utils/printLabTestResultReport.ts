@@ -1,19 +1,24 @@
 import { fetchLabRequestReview } from '../services/serviceRequests'
 
+export const LAB_TEST_PRINT_FORMAT = 'Lab Test Print'
+export const LAB_TEST_EXTERNAL_PRINT_FORMAT = 'Lab Test External Print'
+
 /**
- * Open the "Lab Test Print" (Laboratory Report) print view for a Lab Test.
+ * Open a Lab Test print view.
  *
- * The format renders every Lab Test on the parent Service Request — all groups
- * and child tests — so opening it with any member of a Lab Request prints the
- * whole request report (same output as Print inside the Lab Request review modal).
+ * ``Lab Test Print`` (Laboratory Report) and ``Lab Test External Print`` both
+ * expand to every Lab Test on the parent Service Request when present.
  */
-export function openLabTestResultReportPrint(labTestName: string): void {
+export function openLabTestResultReportPrint(
+  labTestName: string,
+  format: string = LAB_TEST_PRINT_FORMAT,
+): void {
   const name = (labTestName || '').trim()
   if (!name) return
   const params = new URLSearchParams({
     doctype: 'Lab Test',
     name,
-    format: 'Lab Test Print',
+    format: format || LAB_TEST_PRINT_FORMAT,
     trigger_print: '1',
     no_letterhead: '0',
   })
@@ -30,6 +35,7 @@ export function openLabTestResultReportPrint(labTestName: string): void {
  */
 export async function openLabRequestResultReportPrint(
   serviceRequestName: string,
+  format: string = LAB_TEST_PRINT_FORMAT,
 ): Promise<string | null> {
   const review = await fetchLabRequestReview(serviceRequestName)
   const labTestName =
@@ -40,6 +46,6 @@ export async function openLabRequestResultReportPrint(
       .find(Boolean) ||
     ''
   if (!labTestName) return null
-  openLabTestResultReportPrint(labTestName)
+  openLabTestResultReportPrint(labTestName, format)
   return labTestName
 }

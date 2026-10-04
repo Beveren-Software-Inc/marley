@@ -3816,6 +3816,7 @@ def get_lab_test_template_detail(name):
 		"is_multiple": cint(getattr(doc, "is_multiple", 0)),
 		"is_billable": doc.is_billable,
 		"disabled": doc.disabled,
+		"enable_external_lab_print": cint(getattr(doc, "enable_external_lab_print", 0)),
 		"nursing_checklist_template": doc.nursing_checklist_template,
 		# Billing
 		"item": doc.item,

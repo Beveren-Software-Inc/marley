@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type MouseEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
-import { ArrowDown, ArrowUp, ChevronDown, ChevronUp, Droplet, FlaskConical, Paperclip, Printer, X } from 'lucide-react'
+import { ArrowDown, ArrowUp, ChevronDown, ChevronUp, Droplet, FlaskConical, Paperclip, X } from 'lucide-react'
 import { fetchLabRequestReview,
   type LabRequestReview,
   type LabRequestReviewGroup,
@@ -31,8 +31,8 @@ import { LabTestSampleCollectionModal } from './LabTestSampleCollectionModal'
 import { LabTestEnterResultsModal } from './LabTestEnterResultsModal'
 import { AttachLabTestDocumentModal } from './AttachLabTestDocumentModal'
 import { openLabSampleBarcodePrint } from '../../utils/printLabSampleBarcodeLabel'
-import { openLabTestResultReportPrint } from '../../utils/printLabTestResultReport'
 import { showLabTestRuleFeedback } from '../../utils/labTestRuleFeedback'
+import { LabResultPrintButton } from './LabResultPrintButton'
 import {
   buildPatientFormulaContext,
   evaluateLabResultFormula,
@@ -326,14 +326,8 @@ export function LabRequestReviewModal({
     [requestFinished]
   )
 
-  const printGroup = useCallback((group: LabRequestReviewGroup) => {
-    const firstChild = (group.tests || []).find((t) => t.lab_test)?.lab_test
-    if (!firstChild) {
-      toast.error('No Lab Test available to print for this group.')
-      return
-    }
-    // "Lab Test Print" expands to every Lab Test on the Service Request (all groups).
-    openLabTestResultReportPrint(firstChild)
+  const firstLabTestName = useCallback((group: LabRequestReviewGroup) => {
+    return (group.tests || []).find((t) => t.lab_test)?.lab_test || ''
   }, [])
 
   const printBarcode = useCallback(() => {
@@ -968,16 +962,13 @@ export function LabRequestReviewModal({
                                             </span>
                                           </span>
                                         )}
-                                    {canPrint ? (
+                                    {canPrint && firstLabTestName(group) ? (
                                       <>
-                                        <button
-                                          type="button"
+                                        <LabResultPrintButton
+                                          labTestName={firstLabTestName(group)}
+                                          showExternalOption={Number(group.enable_external_lab_print) === 1}
                                           title="Print"
-                                          onClick={() => printGroup(group)}
-                                          className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-teal-300 bg-white text-teal-700 hover:bg-teal-50"
-                                        >
-                                          <Printer className="h-3.5 w-3.5" />
-                                        </button>
+                                        />
                                         <PrintBarcodeBtn onClick={() => printBarcode()} />
                                       </>
                                     ) : null}
@@ -1033,15 +1024,12 @@ export function LabRequestReviewModal({
                                           Finished
                                         </span>
                                       ) : null}
-                                      {canPrint ? (
-                                        <button
-                                          type="button"
+                                      {canPrint && firstLabTestName(group) ? (
+                                        <LabResultPrintButton
+                                          labTestName={firstLabTestName(group)}
+                                          showExternalOption={Number(group.enable_external_lab_print) === 1}
                                           title="Print results"
-                                          onClick={() => printGroup(group)}
-                                          className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-teal-300 bg-white text-teal-700 hover:bg-teal-50"
-                                        >
-                                          <Printer className="h-3.5 w-3.5" />
-                                        </button>
+                                        />
                                       ) : null}
                                       <PrintBarcodeBtn onClick={() => printBarcode()} />
                                       {!needsSample &&
@@ -1276,17 +1264,13 @@ export function LabRequestReviewModal({
                                     </ActionBtn>
                                     {sampleDone && labTestLineHasResult(test) && test.lab_test ? (
                                       <>
-                                        <button
-                                          type="button"
+                                        <LabResultPrintButton
+                                          labTestName={test.lab_test}
+                                          showExternalOption={
+                                            Number(selectedGroup?.enable_external_lab_print) === 1
+                                          }
                                           title="Print results"
-                                          onClick={() => {
-                                            if (!selectedGroup) return
-                                            printGroup(selectedGroup)
-                                          }}
-                                          className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-teal-300 bg-white text-teal-700 hover:bg-teal-50"
-                                        >
-                                          <Printer className="h-3.5 w-3.5" />
-                                        </button>
+                                        />
                                         <PrintBarcodeBtn onClick={() => printBarcode()} />
                                       </>
                                     ) : null}
