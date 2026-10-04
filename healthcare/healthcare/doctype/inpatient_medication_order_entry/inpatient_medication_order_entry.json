@@ -257,8 +257,11 @@
    "label": "Is PRN"
   },
   {
+   "allow_on_submit": 1,
    "fieldname": "medication_type",
    "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
    "label": "Prescription Type",
    "options": "\nSTAT\nPRN\nRegular - Psy (Active)\nRegular - Med (Active)\nRegular - Psy (Inactive)\nRegular - Med (Inactive)\nLong Acting Medicine\nFuture Plan"
   },
@@ -334,7 +337,6 @@
    "label": "Medicine No"
   },
   {
-   "allow_on_submit": 1,
    "fieldname": "written_frequency",
    "fieldtype": "Data",
    "label": "Written Frequency"
@@ -505,7 +507,7 @@
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2026-09-24 14:25:37.833980",
+ "modified": "2026-10-04 16:20:50.023216",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Inpatient Medication Order Entry",

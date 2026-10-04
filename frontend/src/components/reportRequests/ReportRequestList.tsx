@@ -16,6 +16,7 @@ import { viewPatientDocument } from '../ui/PatientDocumentAttachmentPreview'
 import { DashboardCard } from '../ui/DashboardCard'
 import { TruncatedName } from '../ui/dashboardCardListing'
 import { CreateReportRequestModal } from './CreateReportRequestModal'
+import { SendWhatsAppDoctorModal } from './SendWhatsAppDoctorModal'
 
 const statusColor: Record<string, string> = {
   Pending: 'warning',
@@ -50,6 +51,7 @@ export function ReportRequestList({
   const [detail, setDetail] = useState<ReportRequestRow | null>(null)
   const [remarks, setRemarks] = useState('')
   const [rejectReason, setRejectReason] = useState('')
+  const [whatsappTarget, setWhatsappTarget] = useState<ReportRequestRow | null>(null)
   const [busy, setBusy] = useState(false)
 
   const load = () => {
@@ -121,8 +123,11 @@ export function ReportRequestList({
         <table className={`w-full ${compact ? 'table-fixed' : 'min-w-[720px]'}`}>
           <thead className="bg-slate-50 border-b border-slate-200">
             <tr>
-              {['Date', 'Patient', 'Requester', 'Urgency', 'Recipient', 'Status'].map((h) => (
-                <th key={h} className="px-2 py-2 text-left text-[10px] font-semibold uppercase text-slate-600">
+              {['Date', 'Patient', 'Requester', 'Urgency', 'Recipient', 'Status', ''].map((h, i) => (
+                <th
+                  key={h || `actions-${i}`}
+                  className="px-2 py-2 text-left text-[10px] font-semibold uppercase text-slate-600"
+                >
                   {h}
                 </th>
               ))}
@@ -131,13 +136,13 @@ export function ReportRequestList({
           <tbody className="divide-y divide-slate-200">
             {loading ? (
               <tr>
-                <td colSpan={6} className="px-3 py-8 text-center text-sm text-slate-400">
+                <td colSpan={7} className="px-3 py-8 text-center text-sm text-slate-400">
                   Loading…
                 </td>
               </tr>
             ) : rows.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-3 py-8 text-center text-sm text-slate-400">
+                <td colSpan={7} className="px-3 py-8 text-center text-sm text-slate-400">
                   NO REPORT REQUESTS
                 </td>
               </tr>
@@ -189,6 +194,19 @@ export function ReportRequestList({
                   <td className="px-2 py-2">
                     <StatusPill compact={compact} status={row.status} color={statusColor[row.status] || 'default'} />
                   </td>
+                  <td className="px-2 py-2 text-right whitespace-nowrap">
+                    <button
+                      type="button"
+                      title="Notify the doctor on WhatsApp"
+                      className="rounded-md border border-emerald-300 px-2 py-1 text-[11px] font-semibold text-emerald-700 hover:bg-emerald-50"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setWhatsappTarget(row)
+                      }}
+                    >
+                      Notify Doctor
+                    </button>
+                  </td>
                 </tr>
               ))
             )}
@@ -206,6 +224,14 @@ export function ReportRequestList({
           setPage(1)
         }}
       />
+
+      {whatsappTarget && (
+        <SendWhatsAppDoctorModal
+          reportRequest={whatsappTarget}
+          onClose={() => setWhatsappTarget(null)}
+          onSuccess={load}
+        />
+      )}
 
       {detail && (
         <div className="fixed inset-0 z-[80] flex items-center justify-center bg-primary/15 p-4" onClick={() => setDetail(null)}>

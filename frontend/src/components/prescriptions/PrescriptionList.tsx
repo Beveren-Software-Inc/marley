@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef } from 'react'
-import { fetchPrescriptions, fetchPrescription, type Prescription, type PrescriptionFilters, type MedicationOrderEntry, mapOrderToDuplicateMedication, createPrescriptionSalesOrder } from '../../services/prescriptions'
+import { X } from 'lucide-react'
+import { fetchPrescriptions, fetchPrescription, saveMedicationOrderEntryStopReason, type Prescription, type PrescriptionFilters, type MedicationOrderEntry, mapOrderToDuplicateMedication, createPrescriptionSalesOrder } from '../../services/prescriptions'
 import { toast } from '../../hooks/useToast'
-import { fetchHealthcarePractitioners, getCurrentUserPractitioner, type LinkFieldOption } from '../../services/common'
+import { fetchHealthcarePractitioners, getCurrentUserPractitioner, getCurrentUserPractitionerOption, type LinkFieldOption } from '../../services/common'
+import { CM_BTN_CANCEL, CM_BTN_PRIMARY, CREATE_MODAL_OVERLAY, createModalShellClass } from '../ui/CreateModalChrome'
 import { StatusPill } from '../ui/StatusPill'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 import { PortalActionsMenu } from '../ui/PortalActionsMenu'
@@ -157,6 +159,17 @@ export const PrescriptionList = ({
   const [addMedicationTarget, setAddMedicationTarget] = useState<Prescription | null>(null)
   const [duplicateTarget, setDuplicateTarget] = useState<Prescription | null>(null)
   const menuRef = useRef<HTMLDivElement>(null)
+
+  // Stop / change-stop-reason a single medicine line straight from the row actions.
+  const [stopTarget, setStopTarget] = useState<{
+    prescription: Prescription
+    order: MedicationOrderEntry
+  } | null>(null)
+  const [stopModalMode, setStopModalMode] = useState<'stop' | 'edit'>('stop')
+  const [stopReasonDraft, setStopReasonDraft] = useState('')
+  const [stopSaving, setStopSaving] = useState(false)
+  const [stoppedByDraft, setStoppedByDraft] = useState('')
+  const [stopPractitionerOptions, setStopPractitionerOptions] = useState<LinkFieldOption[]>([])
 
   // Filters
   const cardFilters = useCardFilters()
@@ -382,6 +395,96 @@ export const PrescriptionList = ({
     if (!row.reference_document_name) return
     window.open(`/app/sales-order/${encodeURIComponent(row.reference_document_name)}`, '_blank')
     setOpenActionRow(null)
+  }
+
+  /**
+   * Load the "Stopped by" doctor list when the stop dialog opens and default it to
+   * the logged-in user's linked Healthcare Practitioner (same rule as Current Prescription).
+   */
+  useEffect(() => {
+    if (!stopTarget) return
+    let cancelled = false
+    ;(async () => {
+      try {
+        const [current, options] = await Promise.all([
+          getCurrentUserPractitionerOption(),
+          fetchHealthcarePractitioners(),
+        ])
+        if (cancelled) return
+        setStopPractitionerOptions(options)
+        if (current?.name) setStoppedByDraft((prev) => prev || current.name)
+      } catch {
+        /* doctor must pick the practitioner manually */
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [stopTarget])
+
+  const openStopModal = (
+    row: Prescription,
+    m: MedicationOrderEntry | null,
+    mode: 'stop' | 'edit',
+  ) => {
+    if (!m?.name) {
+      toast.error('This prescription has no medicine line to stop')
+      return
+    }
+    setOpenActionRow(null)
+    setStopModalMode(mode)
+    setStopReasonDraft(mode === 'edit' ? String(m.reason_stopped || '').trim() : '')
+    setStoppedByDraft(String(m.stoped_by || '').trim())
+    setStopTarget({ prescription: row, order: m })
+  }
+
+  const handleSaveStopReason = async () => {
+    if (!stopTarget) return
+    const text = stopReasonDraft.trim()
+    if (!text) {
+      toast.error('Please enter a stop reason.')
+      return
+    }
+    if (!stoppedByDraft.trim()) {
+      toast.error('Please select the doctor stopping this medicine (Stopped by).')
+      return
+    }
+    try {
+      setStopSaving(true)
+      await saveMedicationOrderEntryStopReason(
+        stopTarget.prescription.name,
+        stopTarget.order.name,
+        { reasonStopped: text, stoppedBy: stoppedByDraft.trim() },
+      )
+      toast.success(
+        stopModalMode === 'edit' ? 'Stop reason updated' : 'Medication marked as stopped',
+      )
+      setStopTarget(null)
+      load()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to save stop reason')
+    } finally {
+      setStopSaving(false)
+    }
+  }
+
+  /** Clear the stop on a line (line becomes active again). */
+  const handleResumeMedication = async (row: Prescription, m: MedicationOrderEntry | null) => {
+    if (!m?.name) {
+      toast.error('This prescription has no medicine line to resume')
+      return
+    }
+    if (!window.confirm('Clear the stop and resume this medication line?')) return
+    try {
+      setStopSaving(true)
+      await saveMedicationOrderEntryStopReason(row.name, m.name, { clear: true })
+      toast.success('Stop cleared — line active again')
+      load()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to clear stop')
+    } finally {
+      setStopSaving(false)
+    }
   }
 
   if (!defaultsReady || loading) {
@@ -672,6 +775,11 @@ export const PrescriptionList = ({
             const typeForDisplay = resolveMedicationTypeForDisplay(m?.medication_type, m?.is_prn)
             const typeLabel = getMedicationTypeLabel(typeForDisplay, m?.is_prn)
             const isPink = Boolean(row.is_pink || m?.is_pink)
+            // Stopped lines mirror the Current Prescription screen: struck-through
+            // name, a Stop chip and a small Reason / Stopped by note under the name.
+            const isStoppedLine = isMedicationStopped(m)
+            const reasonStopped = String(m?.reason_stopped || '').trim()
+            const stoppedByName = String(m?.stopped_by_name || m?.stoped_by || '').trim()
             return (
             <tr
               key={rowKey}
@@ -684,7 +792,14 @@ export const PrescriptionList = ({
               </td>
               <td className="px-3 py-2 text-slate-800">
                 <span className="inline-flex flex-wrap items-center gap-x-1.5 gap-y-1">
-                  <span>{m?.drug_name || '-'}</span>
+                  <span className={isStoppedLine ? 'text-slate-500 line-through' : undefined}>
+                    {m?.drug_name || '-'}
+                  </span>
+                  {isStoppedLine ? (
+                    <span className="inline-flex rounded px-1 py-px text-[9px] font-bold uppercase tracking-wide bg-rose-100 text-rose-800 border border-rose-200">
+                      Stopped
+                    </span>
+                  ) : null}
                   {isPink ? (
                     <span className="text-[10px] font-semibold text-pink-600">Pink</span>
                   ) : null}
@@ -698,6 +813,27 @@ export const PrescriptionList = ({
                   ) : null}
                 </span>
                 <CardRowMetaHint fields={metaFields} />
+                {isStoppedLine ? (
+                  <div
+                    className="mt-1.5 text-xs text-rose-800 bg-rose-50/80 border border-rose-100 rounded px-2 py-1 max-w-md"
+                    title={reasonStopped || undefined}
+                  >
+                    {reasonStopped ? (
+                      <>
+                        <span className="font-semibold text-rose-900">Reason: </span>
+                        {reasonStopped}
+                      </>
+                    ) : (
+                      <span className="font-semibold text-rose-900">Discontinued / stopped</span>
+                    )}
+                    {stoppedByName ? (
+                      <span className="block text-[11px] text-rose-700/90">
+                        <span className="font-semibold">Stopped by: </span>
+                        {stoppedByName}
+                      </span>
+                    ) : null}
+                  </div>
+                ) : null}
               </td>
               <td className="px-3 py-2 text-slate-700 whitespace-nowrap">
                 {m?.dosage ? `${m.dosage}${m.uom ? ` ${m.uom}` : ''}` : '-'}
@@ -791,6 +927,34 @@ export const PrescriptionList = ({
                             Add Medication
                           </button>
                         )}
+                      {m?.name && (
+                        <>
+                          <button
+                            type="button"
+                            disabled={isMedicationStopped(m)}
+                            onClick={() => guardClinicalEdit(() => openStopModal(row, m, 'stop'))}
+                            className="block w-full text-left px-3 py-2 text-sm text-slate-800 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                          >
+                            Stop medication…
+                          </button>
+                          <button
+                            type="button"
+                            disabled={!isMedicationStopped(m)}
+                            onClick={() => guardClinicalEdit(() => openStopModal(row, m, 'edit'))}
+                            className="block w-full text-left px-3 py-2 text-sm text-slate-800 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                          >
+                            Change stop reason…
+                          </button>
+                          <button
+                            type="button"
+                            disabled={!isMedicationStopped(m)}
+                            onClick={() => guardClinicalEdit(() => void handleResumeMedication(row, m))}
+                            className="block w-full text-left px-3 py-2 text-sm text-rose-700 hover:bg-rose-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                          >
+                            Resume medication
+                          </button>
+                        </>
+                      )}
                       <button
                         type="button"
                         onClick={() => {
@@ -920,6 +1084,113 @@ export const PrescriptionList = ({
           initialMedications={(duplicateTarget.medication_orders || []).map(mapOrderToDuplicateMedication)}
           initialPractitioner={duplicateTarget.practitioner}
         />
+      )}
+
+      {/* Stop / change stop reason for a single medicine line (row actions ⋮) */}
+      {stopTarget && (
+        <div
+          className={CREATE_MODAL_OVERLAY}
+          onClick={() => {
+            if (!stopSaving) setStopTarget(null)
+          }}
+          role="presentation"
+        >
+          <div
+            className={createModalShellClass('max-w-md w-full my-auto')}
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="stop-medication-title"
+          >
+            <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
+              <div className="min-w-0">
+                <h2 id="stop-medication-title" className="text-base font-semibold text-slate-900">
+                  {stopModalMode === 'edit' ? 'Change stop reason' : 'Stop medication'}
+                </h2>
+                <p className="mt-0.5 truncate text-xs text-slate-500">
+                  {stopTarget.order.drug_name || stopTarget.order.drug || 'Medicine line'}
+                  {' · '}
+                  <span className="font-mono">{stopTarget.prescription.name}</span>
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setStopTarget(null)}
+                disabled={stopSaving}
+                className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 disabled:opacity-50"
+                title="Close"
+                aria-label="Close"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="space-y-3 px-4 py-4">
+              <p className="text-xs text-slate-500">
+                {stopModalMode === 'edit'
+                  ? 'Update the reason documented for stopping this line.'
+                  : 'This line will show as stopped. Enter a clinical reason (required).'}
+              </p>
+
+              <div>
+                <label className="mb-1 block text-xs font-medium text-slate-600">
+                  Stopped by <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={stoppedByDraft}
+                  onChange={(e) => setStoppedByDraft(e.target.value)}
+                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                >
+                  <option value="">Select doctor…</option>
+                  {stopPractitionerOptions.map((p) => (
+                    <option key={p.name} value={p.name}>
+                      {p.label || p.name}
+                    </option>
+                  ))}
+                  {stoppedByDraft &&
+                    !stopPractitionerOptions.some((p) => p.name === stoppedByDraft) && (
+                      <option value={stoppedByDraft}>
+                        {stopPractitionerOptions.length ? stoppedByDraft : 'Loading…'}
+                      </option>
+                    )}
+                </select>
+              </div>
+
+              <div>
+                <label className="mb-1 block text-xs font-medium text-slate-600">
+                  Reason stopped <span className="text-red-500">*</span>
+                </label>
+                <textarea
+                  value={stopReasonDraft}
+                  onChange={(e) => setStopReasonDraft(e.target.value)}
+                  rows={4}
+                  autoFocus
+                  placeholder="e.g. Side effects, replaced by X, patient refused…"
+                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm transition placeholder:text-slate-400 focus:border-emerald-400/80 focus:outline-none focus:ring-2 focus:ring-emerald-500/25"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 border-t border-slate-200 px-4 py-3">
+              <button
+                type="button"
+                onClick={() => setStopTarget(null)}
+                disabled={stopSaving}
+                className={CM_BTN_CANCEL}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={stopSaving}
+                onClick={() => void handleSaveStopReason()}
+                className={CM_BTN_PRIMARY}
+              >
+                {stopSaving ? 'Saving…' : 'Save'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

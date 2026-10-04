@@ -368,10 +368,12 @@ const SIDEBAR_LINK =
 const SIDEBAR_LINK_IDLE = 'border-transparent'
 const SIDEBAR_LINK_ACTIVE = `${SIDEBAR_ACTIVE_BORDER} bg-white/10 text-white font-semibold`
 
+/** Folder (group) rows carry a soft light-blue fill so nested folders read as a
+ *  level below the plain blue top-level role rows. */
 const SIDEBAR_GROUP =
-  'flex items-center gap-1.5 w-full min-w-0 px-2 py-1.5 rounded-md text-xs font-semibold tracking-wide transition-colors text-left hover:bg-white/20 border'
-const SIDEBAR_GROUP_IDLE = 'border-transparent text-white/80'
-const SIDEBAR_GROUP_ACTIVE = `${SIDEBAR_ACTIVE_BORDER} text-white bg-white/10`
+  'flex items-center gap-1.5 w-full min-w-0 px-2 py-1.5 rounded-md text-xs font-semibold tracking-wide transition-colors text-left hover:bg-sky-100/35 border'
+const SIDEBAR_GROUP_IDLE = 'border-transparent text-white/90 bg-sky-100/25'
+const SIDEBAR_GROUP_ACTIVE = `${SIDEBAR_ACTIVE_BORDER} text-white bg-sky-100/30`
 
 const SIDEBAR_CHEVRON =
   'p-1 rounded flex-shrink-0 text-white/70 hover:bg-white/20 transition-colors'

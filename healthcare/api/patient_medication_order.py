@@ -261,6 +261,13 @@ def get_medication_orders(
 			entry_fields.append('healthcare_practitioner_name')
 		if frappe.db.has_column('Inpatient Medication Order Entry', 'effective_status'):
 			entry_fields.append('effective_status')
+		# Who stopped / held the medicine — the listing shows a small
+		# "Reason: … / Stopped by: …" note on stopped lines (same as the
+		# Current Prescription screen).
+		if frappe.db.has_column('Inpatient Medication Order Entry', 'stoped_by'):
+			entry_fields.append('stoped_by')
+		if frappe.db.has_column('Inpatient Medication Order Entry', 'stopped_by_name'):
+			entry_fields.append('stopped_by_name')
 		entries = frappe.get_all(
 			'Inpatient Medication Order Entry',
 			filters={
@@ -405,6 +412,32 @@ def get_medication_orders(
 						)
 						or e['healthcare_practitioner']
 					)
+
+	# Display name of whoever stopped / held each line — older rows only carry the
+	# ``stoped_by`` link, so resolve the practitioner name in one batched query.
+	stopped_by_ids = {
+		cstr(e.get('stoped_by') or '').strip()
+		for o in orders
+		for e in o['medication_orders']
+		if cstr(e.get('stoped_by') or '').strip()
+		and not cstr(e.get('stopped_by_name') or '').strip()
+	}
+	stopped_by_names = {}
+	if stopped_by_ids:
+		stopped_by_names = {
+			r.name: (r.practitioner_name or r.name)
+			for r in frappe.get_all(
+				'Healthcare Practitioner',
+				filters={'name': ['in', list(stopped_by_ids)]},
+				fields=['name', 'practitioner_name'],
+				limit_page_length=0,
+			)
+		}
+	for o in orders:
+		for e in o['medication_orders']:
+			stopped_by = cstr(e.get('stoped_by') or '').strip()
+			if stopped_by and not cstr(e.get('stopped_by_name') or '').strip():
+				e['stopped_by_name'] = stopped_by_names.get(stopped_by) or stopped_by
 
 	return orders
 
@@ -1669,6 +1702,19 @@ def _is_current_signed_clinical_pmo(row) -> bool:
 	return True
 
 
+def _is_live_clinical_pmo(row) -> bool:
+	"""Whether a submitted PMO is still live for Current Prescription, ignoring the signature.
+
+	Same exclusions as :func:`_is_current_signed_clinical_pmo` (Cancelled / Completed /
+	Stopped / Draft) but keeps Unsigned orders. Used as the OP (Patient Visit) fallback so a
+	freshly created but not-yet-signed prescription still appears on Current Prescription.
+	"""
+	status = cstr(
+		(row.get("status") if isinstance(row, dict) else getattr(row, "status", None)) or ""
+	).strip()
+	return status not in ("Cancelled", "Completed", "Stopped", "Draft")
+
+
 @frappe.whitelist()
 def get_medication_order_by_inpatient_or_encounter(inpatient_record=None, patient_encounter=None):
 	"""
@@ -1679,6 +1725,11 @@ def get_medication_order_by_inpatient_or_encounter(inpatient_record=None, patien
 	all of them are returned together so Current Prescription shows every active signed line.
 
 	The latest signed order remains the primary document for header actions (add / sign / edit Rx).
+
+	OP (Patient Visit): when the visit has no signed clinical order yet, the latest live order
+	for that visit is shown even while it is still Unsigned, so the doctor/nurse sees the
+	prescription they just created for the chosen OP. IP (Inpatient Admission) keeps the
+	signed-only behaviour.
 	"""
 	if not inpatient_record and not patient_encounter:
 		frappe.throw("Either Inpatient Record ID or Patient Encounter ID is required")
@@ -1704,6 +1755,17 @@ def get_medication_order_by_inpatient_or_encounter(inpatient_record=None, patien
 	)
 
 	active_names = [row.name for row in medication_orders if _is_current_signed_clinical_pmo(row)]
+
+	# OP visit without a signed order yet: fall back to the latest live order for the visit
+	# (even Unsigned) so Current Prescription shows the freshly created prescription instead
+	# of nothing. `medication_orders` is newest-first, so `next(...)` returns the latest.
+	if not active_names and patient_encounter and not inpatient_record:
+		latest_live = next(
+			(row for row in medication_orders if _is_live_clinical_pmo(row)),
+			None,
+		)
+		if latest_live:
+			active_names = [latest_live.name]
 
 	if not active_names:
 		frappe.msgprint("No medication order found")
