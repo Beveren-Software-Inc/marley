@@ -261,6 +261,13 @@ def get_medication_orders(
 			entry_fields.append('healthcare_practitioner_name')
 		if frappe.db.has_column('Inpatient Medication Order Entry', 'effective_status'):
 			entry_fields.append('effective_status')
+		# Who stopped / held the medicine — the listing shows a small
+		# "Reason: … / Stopped by: …" note on stopped lines (same as the
+		# Current Prescription screen).
+		if frappe.db.has_column('Inpatient Medication Order Entry', 'stoped_by'):
+			entry_fields.append('stoped_by')
+		if frappe.db.has_column('Inpatient Medication Order Entry', 'stopped_by_name'):
+			entry_fields.append('stopped_by_name')
 		entries = frappe.get_all(
 			'Inpatient Medication Order Entry',
 			filters={
@@ -405,6 +412,32 @@ def get_medication_orders(
 						)
 						or e['healthcare_practitioner']
 					)
+
+	# Display name of whoever stopped / held each line — older rows only carry the
+	# ``stoped_by`` link, so resolve the practitioner name in one batched query.
+	stopped_by_ids = {
+		cstr(e.get('stoped_by') or '').strip()
+		for o in orders
+		for e in o['medication_orders']
+		if cstr(e.get('stoped_by') or '').strip()
+		and not cstr(e.get('stopped_by_name') or '').strip()
+	}
+	stopped_by_names = {}
+	if stopped_by_ids:
+		stopped_by_names = {
+			r.name: (r.practitioner_name or r.name)
+			for r in frappe.get_all(
+				'Healthcare Practitioner',
+				filters={'name': ['in', list(stopped_by_ids)]},
+				fields=['name', 'practitioner_name'],
+				limit_page_length=0,
+			)
+		}
+	for o in orders:
+		for e in o['medication_orders']:
+			stopped_by = cstr(e.get('stoped_by') or '').strip()
+			if stopped_by and not cstr(e.get('stopped_by_name') or '').strip():
+				e['stopped_by_name'] = stopped_by_names.get(stopped_by) or stopped_by
 
 	return orders
 

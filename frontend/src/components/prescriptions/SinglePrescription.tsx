@@ -2388,6 +2388,10 @@ export const RxPage = ({ readOnly = false }: { readOnly?: boolean } = {}) => {
           _rx_start: rx.start_date,
           _rx_end: rx.end_date,
           _rx_status: rx.status,
+          // Care linkage so a history row can tell OP (Patient Visit) from IP (Inpatient Admission).
+          _rx_care_context: rx.care_context,
+          _rx_patient_encounter: rx.patient_encounter,
+          _rx_inpatient_record: rx.inpatient_record,
           _rx_practitioner: {
             healthcare_practitioner_name: rx.healthcare_practitioner_name,
             healthcare_practitioner: rx.healthcare_practitioner,
@@ -2451,6 +2455,21 @@ export const RxPage = ({ readOnly = false }: { readOnly?: boolean } = {}) => {
       History
     </button>
   )
+
+  /**
+   * OP vs IP follows the prescription's clinical linkage, never the open page:
+   *   • OP (outpatient) → linked to a Patient Visit       (`patient_encounter` / "Patient Visit")
+   *   • IP (inpatient)  → linked to an Inpatient Admission (`inpatient_record` / "Inpatient Admission")
+   * Only a record with no linkage at all falls back to the care episode open on the page.
+   */
+  const isOutpatientPrescription = (
+    rx?: { care_context?: string; patient_encounter?: string; inpatient_record?: string } | null,
+  ) => {
+    if (!rx) return false
+    if (rx.inpatient_record || rx.care_context === 'Inpatient Admission') return false
+    if (rx.patient_encounter || rx.care_context === 'Patient Visit') return true
+    return mode === 'OP'
+  }
 
   // ── History: same type filters, all prescriptions for this patient ──
   if (showHistory) {
@@ -2588,6 +2607,11 @@ export const RxPage = ({ readOnly = false }: { readOnly?: boolean } = {}) => {
                       parentStartDate={order._rx_start}
                       parentEndDate={order._rx_end}
                       historyPrescriptionName={order._rx_name}
+                      isOutpatient={isOutpatientPrescription({
+                        care_context: order._rx_care_context,
+                        patient_encounter: order._rx_patient_encounter,
+                        inpatient_record: order._rx_inpatient_record,
+                      })}
                     />
                   ))}
                 </tbody>
@@ -2678,8 +2702,7 @@ export const RxPage = ({ readOnly = false }: { readOnly?: boolean } = {}) => {
   const contextLabel = mode === 'OP' ? 'Outpatient visit' : 'Inpatient admission'
   const contextId = mode === 'OP' ? activeVisit : activeAdmission
 
-  const isIpPrescription = (rx?: Prescription | null) =>
-    Boolean(rx?.inpatient_record) || rx?.care_context === 'Inpatient Admission' || mode === 'IP'
+  const isIpPrescription = (rx?: Prescription | null) => !isOutpatientPrescription(rx)
 
   const canAddMedicationToPrescription = (rx?: Prescription | null) => {
     if (!rx || readOnly) return false
@@ -3137,7 +3160,7 @@ export const RxPage = ({ readOnly = false }: { readOnly?: boolean } = {}) => {
                     onEdit={() => guardClinicalEdit(() => setEditingOrder(order))}
                     readOnly={readOnly}
                     givenInfo={givenStatus[order.name]}
-                    isOutpatient={!isIpPrescription(prescription)}
+                    isOutpatient={isOutpatientPrescription(prescription)}
                     parentStartDate={prescription.start_date}
                     parentEndDate={prescription.end_date}
                     historyPrescriptionName={
