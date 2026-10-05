@@ -417,6 +417,33 @@ def create_ect_procedure(data):
 	}
 
 
+# ---- ECT dashboard form visibility ----------------------------------------
+# F046: expose per-doctype read permission so the ECT dashboard can show each
+# anesthesia sub-workflow card to anyone who may actually read its doctype
+# (e.g. Physician, Nurse, Healthcare Administrator), not just anesthesiologists.
+ECT_FORM_DOCTYPES = (
+	"ECT Anesthesia Consent",
+	"Pre Anesthesia Assessment",
+	"Anesthesia Record",
+	"Recovery Room Record",
+	"Modified Alderete Score",
+	"Time Out Procedure",
+	"Pre-ECT Checklist",
+	"ECT Admission",
+	"ECT Procedure Consent",
+	"ECT Procedure",
+	"ECT Details",
+)
 
 
+@frappe.whitelist()
+def get_ect_form_read_permissions():
+	"""Return ``{doctype: can_read}`` for the ECT dashboard's form doctypes.
 
+	Lets the dashboard gate its cards on the signed-in user's real DocType read
+	permission instead of a hard-coded role list.
+	"""
+	return {
+		doctype: bool(frappe.has_permission(doctype, "read"))
+		for doctype in ECT_FORM_DOCTYPES
+	}
