@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useAuth } from '../../providers/AuthProvider'
 import { useCareContext } from '../../providers/CareContextProvider'
 import { isAdmin } from '../../config/permissions'
+import { fetchECTFormReadPermissions } from '../../services/ectPermissions'
 import { ECTDetailsList } from './ECTDetailsList'
 import { ConsolidatedECTDetailsList } from './ConsolidatedECTDetailsList'
 import { ECTChart } from './ECTChart'
@@ -45,17 +46,51 @@ interface ECTDashboardProps {
 export function ECTDashboard({ selectedPatient }: ECTDashboardProps) {
   const [ectTab, setEctTab] = useState<EctTab>('anesthesia-consent')
 
-  // F046: only anesthesiologists/admins may see the anesthesia sub-workflow cards
-  // (Recovery Room / Alderete / Pre-ECT); their doctypes 403 for other roles.
+  // F046: the anesthesia sub-workflow cards (Recovery Room / Alderete / Pre-ECT)
+  // are not limited to anesthesiologists. A card is shown whenever the signed-in
+  // user actually holds read permission on its backing doctype, so doctors /
+  // physicians and any other permitted role see them too.
   const { user } = useAuth()
   const { activeAdmission } = useCareContext()
   const roles = user?.roles ?? []
-  const canSeeAnesthesia =
+
+  const ANESTHESIA_CARD_DOCTYPES: Partial<Record<EctTab, string>> = {
+    'recovery-room': 'Recovery Room Record',
+    'alderete': 'Modified Alderete Score',
+    'pre-ect': 'Pre-ECT Checklist',
+  }
+  // null = permissions not resolved yet (or the request failed) → role fallback.
+  const [ectFormReadPerms, setEctFormReadPerms] = useState<Record<string, boolean> | null>(null)
+  const legacyCanSeeAnesthesia =
     isAdmin(roles) ||
     roles.some((r) => {
       const rl = r.trim().toLowerCase()
       return rl.includes('anesthesiologist') || rl.includes('anaesthesiologist')
     })
+
+  useEffect(() => {
+    let cancelled = false
+    fetchECTFormReadPermissions()
+      .then((perms) => {
+        if (!cancelled) setEctFormReadPerms(perms)
+      })
+      .catch(() => {
+        // Keep null on failure so the legacy role fallback still applies.
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  // Show a card when the user has real read permission on its doctype; admins
+  // see everything; while permissions are loading fall back to the legacy check.
+  const canSeeCard = (id: EctTab): boolean => {
+    const doctype = ANESTHESIA_CARD_DOCTYPES[id]
+    if (!doctype) return true
+    if (isAdmin(roles)) return true
+    if (ectFormReadPerms === null) return legacyCanSeeAnesthesia
+    return ectFormReadPerms[doctype] === true
+  }
 
   // Modal show states
   const [showECTModal, setShowECTModal] = useState(false)
@@ -99,10 +134,7 @@ export function ECTDashboard({ selectedPatient }: ECTDashboardProps) {
     { id: 'ect-chart',          title: 'ECT Chart',           desc: 'Patient ECT session summary',    color: 'bg-fuchsia-50 text-fuchsia-700 border-fuchsia-200', dot: 'bg-fuchsia-500' },
   ]
 
-  const ANESTHESIA_ONLY: EctTab[] = ['recovery-room', 'alderete', 'pre-ect']
-  const CARDS: CardDef[] = ALL_CARDS.filter(
-    (c) => canSeeAnesthesia || !ANESTHESIA_ONLY.includes(c.id),
-  )
+  const CARDS: CardDef[] = ALL_CARDS.filter((c) => canSeeCard(c.id))
 
   const activeCard = CARDS.find(c => c.id === ectTab) ?? CARDS[0]
 
