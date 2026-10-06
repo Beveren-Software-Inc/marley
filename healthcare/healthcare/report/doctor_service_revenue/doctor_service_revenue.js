@@ -4,6 +4,17 @@
 frappe.query_reports["Doctor Service Revenue"] = {
 	filters: [
 		{
+			fieldname: "source",
+			label: __("Source"),
+			fieldtype: "Select",
+			options: "Sales Invoice\nSales Order",
+			default: "Sales Invoice",
+			reqd: 1,
+			on_change: function () {
+				frappe.query_report.refresh();
+			},
+		},
+		{
 			fieldname: "from_date",
 			label: __("From Date"),
 			fieldtype: "Date",

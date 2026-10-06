@@ -10,6 +10,7 @@ import { CM_BTN_CANCEL, CM_BTN_PRIMARY, CREATE_MODAL_BODY_GRADIENT, CREATE_MODAL
 import { parseToDatetimeLocalValue, toDatetimeLocalValue } from '../../utils/datetimeLocal'
 import { localDateInputValue } from '../../utils/formatDate'
 import { DateFilterInput } from '../ui/DateFilterInput'
+import { useCareContext } from '../../providers/CareContextProvider'
 
 // ─── Signature Pad ────────────────────────────────────────────────────────────
 
@@ -334,6 +335,9 @@ export const TimeOutProcedureModal = ({
   const [currentAdmission, setCurrentAdmission] = useState(admissionNo)
   const [currentPatient, setCurrentPatient] = useState(patient)
   const [currentPatientName, setCurrentPatientName] = useState(patientName || '')
+  const { mode } = useCareContext()
+  const isIPMode = mode === 'IP'
+  const isOPMode = mode === 'OP'
   const isLockedContext = Boolean(admissionNo) || isEdit
 
   useEffect(() => {
@@ -606,7 +610,7 @@ export const TimeOutProcedureModal = ({
                 <div>
                   <h3 className={sectionTitleClass}>Basic Information</h3>
                   <div className="grid grid-cols-2 gap-4">
-                    {isLockedContext ? (
+                    {!isOPMode && (isLockedContext ? (
                       <div>
                         <label className={labelClass}>Inpatient Admission</label>
                         <input type="text" value={currentAdmission} readOnly className={`${inputClass} bg-slate-100 cursor-not-allowed`} />
@@ -620,7 +624,8 @@ export const TimeOutProcedureModal = ({
                         fetchOptions={fetchAdmissionOpts}
                         placeholder="Search admissions..."
                       />
-                    )}
+                    ))}
+                    {!isIPMode && (
                     <LinkCombobox
                       label="Patient Visit"
                       value={patientVisitLabel}
@@ -628,7 +633,7 @@ export const TimeOutProcedureModal = ({
                       onClear={() => { setField('patient_visit', ''); setPatientVisitLabel('') }}
                       fetchOptions={fetchVisits}
                       placeholder="Search patient visits..."
-                    />
+                    />)}
                     {isLockedContext ? (
                       <div>
                         <label className={labelClass}>Patient</label>

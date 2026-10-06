@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Activity, ClipboardList, Pencil, Stethoscope, Trash2, Zap } from 'lucide-react'
+import { Activity, ClipboardList, Pencil, Stethoscope, Syringe, Trash2, Zap } from 'lucide-react'
 import { fetchDoc } from '../../services/common'
 import { deleteDoctypeRow } from '../../services/doctypeResource'
 import { useCareContext } from '../../providers/CareContextProvider'
@@ -260,6 +260,60 @@ export function ECTProcedureDetailPanel({
               ) : null}
             </div>
           </section>
+
+          {(hasValue(doc.propofol_detail) ||
+            hasValue(doc.strength) ||
+            hasValue(doc.succinylcholine_detail) ||
+            (Array.isArray(doc.energies) && (doc.energies as unknown[]).length > 0)) && (
+            <section className={MODAL_SECTION_CLASS}>
+              <h3 className={MODAL_SECTION_TITLE_CLASS}>
+                <Syringe className="h-4 w-4 text-sky-600" strokeWidth={2} />
+                Procedure Details
+              </h3>
+              {(hasValue(doc.propofol_detail) || hasValue(doc.strength) || hasValue(doc.succinylcholine_detail)) && (
+                <div className="mb-3 grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+                  {hasValue(doc.propofol_detail) ? (
+                    <DataTile label="Propofol" value={displayValue(doc.propofol_detail)} />
+                  ) : null}
+                  {hasValue(doc.succinylcholine_detail) ? (
+                    <DataTile label="Succinylcholine" value={displayValue(doc.succinylcholine_detail)} />
+                  ) : null}
+                  {hasValue(doc.strength) ? (
+                    <DataTile label="Strength" value={displayValue(doc.strength)} />
+                  ) : null}
+                </div>
+              )}
+              {Array.isArray(doc.energies) && (doc.energies as unknown[]).length > 0 ? (
+                <div>
+                  <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                    Energy / Duration / Strength
+                  </p>
+                  <div className="overflow-hidden rounded-lg border border-slate-200">
+                    <table className="w-full text-sm">
+                      <thead className="bg-slate-50 text-[11px] uppercase tracking-wide text-slate-500">
+                        <tr>
+                          <th className="px-3 py-2 text-left font-semibold">Energy</th>
+                          <th className="px-3 py-2 text-left font-semibold">Duration</th>
+                          <th className="px-3 py-2 text-left font-semibold">Strength</th>
+                          <th className="px-3 py-2 text-left font-semibold">GTCs for</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(doc.energies as Array<Record<string, unknown>>).map((row, i) => (
+                          <tr key={i} className="border-t border-slate-100">
+                            <td className="px-3 py-2 text-slate-800">{displayValue(row.energy)}</td>
+                            <td className="px-3 py-2 text-slate-800">{displayValue(row.duration)}</td>
+                            <td className="px-3 py-2 text-slate-800">{displayValue(row.strength)}</td>
+                            <td className="px-3 py-2 text-slate-800">{displayValue(row.gtcs_for)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              ) : null}
+            </section>
+          )}
 
           {(hasValue(doc.progress_plan) || hasValue(doc.other_complications)) && (
             <section className={MODAL_SECTION_CLASS}>

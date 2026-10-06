@@ -8315,6 +8315,77 @@ def process_ect_details_attribute_import_batch(offset: int = 0) -> None:
 
 
 @frappe.whitelist()
+def start_ect_details_to_procedure_transfer() -> dict:
+	"""Transfer every ECT Details row into an ECT Procedure (batched, idempotent)."""
+	_require_admin()
+	from healthcare.api.ect_details_to_procedure import preview_ect_details_to_procedure_transfer
+
+	job = "ect_details_to_procedure_transfer"
+	_acquire_lock(job)
+
+	preview = preview_ect_details_to_procedure_transfer()
+	_set_progress(
+		job,
+		0,
+		total_records=preview.get("total_details"),
+		already_transferred=preview.get("already_transferred"),
+	)
+	frappe.enqueue(
+		"healthcare.api.data_migration_jobs.process_ect_details_to_procedure_transfer_batch",
+		offset=0,
+		queue="long",
+		timeout=3600,
+		job_name="healthcare_ect_details_to_procedure_transfer",
+	)
+	return {
+		"ok": True,
+		"message": _("ECT Details → ECT Procedure transfer started ({0} ECT Details, {1} already transferred).").format(
+			preview.get("total_details") or 0,
+			preview.get("already_transferred") or 0,
+		),
+	}
+
+
+def process_ect_details_to_procedure_transfer_batch(offset: int = 0) -> None:
+	from healthcare.api.ect_details_to_procedure import run_ect_details_to_procedure_transfer_batch
+
+	job = "ect_details_to_procedure_transfer"
+	try:
+		result = run_ect_details_to_procedure_transfer_batch(offset=offset)
+		prev = frappe.cache().get_value(_job_progress_key(job)) or {}
+		processed = result.get("processed", offset)
+		merged = {
+			"created": cint(prev.get("created", 0)) + cint(result.get("created", 0)),
+			"skipped": cint(prev.get("skipped", 0)) + cint(result.get("skipped", 0)),
+			"errors": cint(prev.get("errors", 0)) + cint(result.get("errors", 0)),
+			"total_records": prev.get("total_records"),
+			"already_transferred": prev.get("already_transferred"),
+		}
+		_set_progress(job, processed, **merged)
+
+		if not result.get("done"):
+			frappe.enqueue(
+				"healthcare.api.data_migration_jobs.process_ect_details_to_procedure_transfer_batch",
+				offset=processed,
+				queue="long",
+				timeout=3600,
+				job_name=f"healthcare_ect_details_to_procedure_transfer_{processed}",
+			)
+		else:
+			_set_progress(job, processed, done=True, **merged)
+			_release_lock(job)
+			frappe.log_error(
+				title="ECT Details → ECT Procedure transfer complete",
+				message=frappe.as_json(frappe.cache().get_value(_job_progress_key(job)) or {}),
+			)
+	except Exception:
+		frappe.db.rollback()
+		_set_progress(job, cint(offset), done=True, error=frappe.get_traceback())
+		_release_lock(job)
+		raise
+
+
+@frappe.whitelist()
 def start_ip_grooming_chart_import_migration(file_url: str) -> dict:
 	_require_admin()
 	from healthcare.api.ip_grooming_chart_import import parse_and_cache_excel

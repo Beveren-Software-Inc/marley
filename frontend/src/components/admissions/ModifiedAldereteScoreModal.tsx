@@ -800,6 +800,26 @@ export const ModifiedAldereteScoreModal = ({
   const [currentPatient, setCurrentPatient] = useState(patient || contextPatient || '')
   const [currentPatientName, setCurrentPatientName] = useState(patientName || '')
 
+  // Resolve the patient's display name when only the patient id is available
+  // (several callers open this modal with patientName=""). Keeps the "Patient"
+  // field showing the name instead of the raw id.
+  useEffect(() => {
+    if (currentPatientName || !currentPatient) return
+    let cancelled = false
+    fetchDoc('Patient', currentPatient)
+      .then((doc) => {
+        if (cancelled) return
+        const name = String(doc.patient_name || '').trim()
+        if (name) setCurrentPatientName(name)
+      })
+      .catch(() => {
+        // Leave blank — the field falls back to the patient id.
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [currentPatient, currentPatientName])
+
   useEffect(() => {
     if (!editName?.trim()) return
     let cancelled = false
@@ -873,7 +893,12 @@ export const ModifiedAldereteScoreModal = ({
     }
   }, [])
 
-  const handleTemplateSelect = async (opt: LinkFieldOption) => {
+  const handleTemplateSelect = async (
+    opt: LinkFieldOption,
+    options?: { switchToScore?: boolean; silent?: boolean },
+  ) => {
+    const switchToScore = options?.switchToScore !== false
+    const silent = options?.silent === true
     setTemplateName(opt.name)
     setTemplateLabel(opt.label)
     setTemplateLoading(true)
@@ -906,15 +931,50 @@ export const ModifiedAldereteScoreModal = ({
         score: 0,
       })))
       
-      toast.success(`Loaded ${items.length} attribute${items.length !== 1 ? 's' : ''} from template.`)
-      // After loading template, switch to score tab
-      setActiveTab('score')
+      if (!silent) {
+        toast.success(`Loaded ${items.length} attribute${items.length !== 1 ? 's' : ''} from template.`)
+      }
+      // After loading a template, switch to the score tab (manual picks only).
+      if (switchToScore) setActiveTab('score')
     } catch {
       toast.error('Failed to load template.')
     } finally {
       setTemplateLoading(false)
     }
   }
+
+  // Auto-load the score template flagged as "Default" on new records so the user
+  // doesn't have to pick it again. Edit mode keeps the saved record's template.
+  useEffect(() => {
+    if (isEdit) return
+    let cancelled = false
+    ;(async () => {
+      try {
+        const params = new URLSearchParams({
+          doctype: 'Modified Alderete Score Template',
+          filters: JSON.stringify([['default', '=', 1]]),
+          fields: JSON.stringify(['name', 'template_name']),
+          limit_page_length: '1',
+          order_by: 'modified desc',
+        })
+        const res = await fetch(`/api/method/frappe.client.get_list?${params}`)
+        const data = await res.json()
+        const list = Array.isArray(data?.message) ? data.message : []
+        if (cancelled || list.length === 0) return
+        const tpl = list[0]
+        await handleTemplateSelect(
+          { name: tpl.name, label: tpl.template_name || tpl.name },
+          { switchToScore: false, silent: true },
+        )
+      } catch {
+        // Ignore — the user can still choose a template manually.
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isEdit])
 
   const addRow = () =>
     setRows(prev => [...prev, { 
@@ -1058,8 +1118,8 @@ export const ModifiedAldereteScoreModal = ({
                     {isOPMode && <span className="ml-2 text-xs font-normal text-green-600">(OP Mode Active)</span>}
                   </h3>
                   <div className="grid grid-cols-2 gap-4">
-                    {/* Inpatient Admission - disabled in OP mode, auto-filled in IP mode */}
-                    {isIPMode ? (
+                    {/* Inpatient Admission - hidden in patient visit (OP) context */}
+                    {isOPMode ? null : isIPMode ? (
                       <div>
                         <label className={labelClass}>Inpatient Admission *</label>
                         <input type="text" value={currentAdmission} readOnly
@@ -1078,8 +1138,8 @@ export const ModifiedAldereteScoreModal = ({
                       />
                     )}
 
-                    {/* Patient Visit - disabled in IP mode, auto-filled in OP mode */}
-                    {isOPMode ? (
+                    {/* Patient Visit - hidden in inpatient admission (IP) context */}
+                    {isIPMode ? null : isOPMode ? (
                       <div>
                         <label className={labelClass}>Patient Visit *</label>
                         <input type="text" value={patientVisitLabel || patientVisit} readOnly
@@ -1098,15 +1158,10 @@ export const ModifiedAldereteScoreModal = ({
                       />
                     )}
 
-                    {/* Patient field */}
+                    {/* Patient field - single row, shows the patient name (falls back to ID) */}
                     <div>
                       <label className={labelClass}>Patient *</label>
-                      <input type="text" value={currentPatient} readOnly
-                        className={`${inputClass} bg-slate-100 cursor-not-allowed`} />
-                    </div>
-                    <div>
-                      <label className={labelClass}>Patient Name</label>
-                      <input type="text" value={currentPatientName} readOnly
+                      <input type="text" value={currentPatientName || currentPatient} readOnly
                         className={`${inputClass} bg-slate-100 cursor-not-allowed`} />
                     </div>
                   </div>

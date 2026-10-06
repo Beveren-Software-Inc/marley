@@ -447,7 +447,6 @@ function GeneralTab({ form, setField, admissionNo, patient, patientName, fetchAd
   
   // Display labels for link fields
   const [anesthetistLabel, setAnesthetistLabel] = useState('')
-  const [psychiatristLabel, setPsychiatristLabel] = useState('')
   const [patientVisitLabel, setPatientVisitLabel] = useState('')
 
   // Auto-set patient visit from context if in OP mode
@@ -496,8 +495,8 @@ function GeneralTab({ form, setField, admissionNo, patient, patientName, fetchAd
           {isOPMode && <span className="ml-2 text-xs font-normal text-green-600">(OP Mode Active)</span>}
         </h3>
         <div className="grid grid-cols-2 gap-4">
-          {/* Inpatient Admission - disabled in OP mode, auto-filled in IP mode */}
-          {isIPMode ? (
+          {/* Inpatient Admission - hidden in patient visit (OP) context */}
+          {isOPMode ? null : isIPMode ? (
             <div>
               <label className={labelClass}>Inpatient Admission *</label>
               <input type="text" value={admissionNo} readOnly className={`${inputClass} bg-slate-100 cursor-not-allowed`} />
@@ -515,8 +514,8 @@ function GeneralTab({ form, setField, admissionNo, patient, patientName, fetchAd
             />
           )}
 
-          {/* Patient Visit - disabled in IP mode, auto-filled in OP mode */}
-          {isOPMode ? (
+          {/* Patient Visit - hidden in inpatient admission (IP) context */}
+          {isIPMode ? null : isOPMode ? (
             <div>
               <label className={labelClass}>Patient Visit *</label>
               <input type="text" value={patientVisitLabel || form.patient_visit} readOnly className={`${inputClass} bg-slate-100 cursor-not-allowed`} />
@@ -591,9 +590,9 @@ function GeneralTab({ form, setField, admissionNo, patient, patientName, fetchAd
       <div>
         <h3 className={sectionTitleClass}>Personnel</h3>
         <div className="grid grid-cols-2 gap-4">
-          {/* Anesthetist — searchable link to Healthcare Practitioner */}
+          {/* Anesthesia Doctor — searchable link to Healthcare Practitioner */}
           <LinkCombobox
-            label="Anesthetist"
+            label="Anesthesia Doctor"
             value={anesthetistLabel}
             onSelect={opt => {
               setField('anesthetist', opt.name)
@@ -608,42 +607,6 @@ function GeneralTab({ form, setField, admissionNo, patient, patientName, fetchAd
             fetchOptions={fetchPractitioners}
             placeholder="Search doctors..."
           />
-          <Field label="Anesthetist Full Name">
-            <input
-              type="text"
-              value={form.full_name}
-              onChange={e => setField('full_name', e.target.value)}
-              placeholder="Auto-filled on selection, or enter manually..."
-              className={inputClass}
-            />
-          </Field>
-
-          {/* Psychiatrist / Assistant Doctor — searchable link */}
-          <LinkCombobox
-            label="Psychiatrist / Assistant Doctor"
-            value={psychiatristLabel}
-            onSelect={opt => {
-              setField('psychiatrist__assistant_doctor', opt.name)
-              setField('psychiatrist__assistant', opt.label)
-              setPsychiatristLabel(opt.label)
-            }}
-            onClear={() => {
-              setField('psychiatrist__assistant_doctor', '')
-              setField('psychiatrist__assistant', '')
-              setPsychiatristLabel('')
-            }}
-            fetchOptions={fetchPractitioners}
-            placeholder="Search doctors..."
-          />
-          <Field label="Psychiatrist / Assistant Name">
-            <input
-              type="text"
-              value={form.psychiatrist__assistant}
-              onChange={e => setField('psychiatrist__assistant', e.target.value)}
-              placeholder="Auto-filled on selection, or enter manually..."
-              className={inputClass}
-            />
-          </Field>
         </div>
       </div>
 

@@ -5,10 +5,12 @@ import { ECTProcedureDetailPanel } from './ECTProcedureDetailPanel'
 
 interface ECTProcedureListProps {
   patient?: string
+  /** Bump to force a reload after a record is created/updated elsewhere. */
+  refreshKey?: number
   onPatientClick?: (patient: string) => void
 }
 
-export const ECTProcedureList = ({ patient, onPatientClick }: ECTProcedureListProps) => {
+export const ECTProcedureList = ({ patient, refreshKey = 0, onPatientClick }: ECTProcedureListProps) => {
   const [items, setItems] = useState<ECTProcedure[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
@@ -30,7 +32,7 @@ export const ECTProcedureList = ({ patient, onPatientClick }: ECTProcedureListPr
     }
 
     load()
-  }, [patient, listRefreshKey])
+  }, [patient, listRefreshKey, refreshKey])
 
   if (loading) {
     return (

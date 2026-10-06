@@ -1,12 +1,13 @@
 import { useEffect, useState, useCallback, memo } from 'react'
+import { Plus, Trash2 } from 'lucide-react'
 import {
   CREATE_MODAL_OVERLAY,
   createModalShellClass,
 } from '../ui/CreateModalChrome'
-import { createECTProcedure } from '../../services/ectProcedure'
+import { createECTProcedure, fetchNextECTSessionNo, type ECTProcedureEnergyRow } from '../../services/ectProcedure'
 import { updateDoctypeRow } from '../../services/doctypeResource'
 import { fetchDoc } from '../../services/common'
-import { searchPatients, fetchPatients, type PatientListItem } from '../../services/patients'
+import { searchPatients, fetchPatients, uploadPatientFile, type PatientListItem } from '../../services/patients'
 import { fetchHealthcarePractitioners, fetchAnaesthesiaTypes, type LinkFieldOption } from '../../services/common'
 import { toast } from '../../hooks/useToast'
 import {
@@ -14,6 +15,7 @@ import {
   useLockedLinkedPractitioner,
 } from '../../hooks/useLockedLinkedPractitioner'
 import { DateFilterInput } from '../ui/DateFilterInput'
+import { SignaturePad } from '../ui/SignaturePad'
 
 interface CreateECTProcedureModalProps {
   onClose: () => void
@@ -134,6 +136,9 @@ export const CreateECTProcedureModal = ({
     spo2: '',
     energy: '',
     gtcs_for: '',
+    propofol_detail: '',
+    strength: '',
+    succinylcholine_detail: '',
     bp_after: '',
     hr_after: '',
     resp_rate_after: '',
@@ -146,6 +151,16 @@ export const CreateECTProcedureModal = ({
   const [loading, setLoading] = useState(false)
   const [loadingEdit, setLoadingEdit] = useState(isEdit)
   const [error, setError] = useState<string | null>(null)
+
+  // Repeatable Energy rows (child table — one row per stimulation).
+  const [energies, setEnergies] = useState<ECTProcedureEnergyRow[]>([
+    { energy: '', duration: '', strength: '', gtcs_for: '' },
+  ])
+  // Doctor sign-off signatures (drawn on canvas or uploaded as an image).
+  const [doctorSignatureUrl, setDoctorSignatureUrl] = useState('')
+  const [doctorSignatureUploading, setDoctorSignatureUploading] = useState(false)
+  const [consultantSignatureUrl, setConsultantSignatureUrl] = useState('')
+  const [consultantSignatureUploading, setConsultantSignatureUploading] = useState(false)
 
   const [patientOptions, setPatientOptions] = useState<PatientListItem[]>([])
   const [patientOpen, setPatientOpen] = useState(false)
@@ -208,6 +223,9 @@ export const CreateECTProcedureModal = ({
           spo2: String(doc.spo2 || ''),
           energy: String(doc.energy || ''),
           gtcs_for: String(doc.gtcs_for || ''),
+          propofol_detail: String(doc.propofol_detail || ''),
+          strength: String(doc.strength || ''),
+          succinylcholine_detail: String(doc.succinylcholine_detail || ''),
           bp_after: String(doc.bp_after || ''),
           hr_after: String(doc.hr_after || ''),
           resp_rate_after: String(doc.resp_rate_after || ''),
@@ -222,6 +240,21 @@ export const CreateECTProcedureModal = ({
         setAssistantQuery(String(doc.assistant_doctor || ''))
         setAnaesthetistQuery(String(doc.anaesthetist || ''))
         setAnaesthesiaQuery(String(doc.type_of_anaesthesia || ''))
+        const loadedEnergies = Array.isArray(doc.energies)
+          ? (doc.energies as ECTProcedureEnergyRow[]).map((row) => ({
+              energy: String(row.energy || ''),
+              duration: String(row.duration || ''),
+              strength: String(row.strength || ''),
+              gtcs_for: String(row.gtcs_for || ''),
+            }))
+          : []
+        setEnergies(
+          loadedEnergies.length > 0
+            ? loadedEnergies
+            : [{ energy: '', duration: '', strength: '', gtcs_for: '' }],
+        )
+        setDoctorSignatureUrl(String(doc.doctor_signature || ''))
+        setConsultantSignatureUrl(String(doc.consultant_signature || ''))
       })
       .catch((e) => {
         if (!cancelled) {
@@ -266,6 +299,17 @@ export const CreateECTProcedureModal = ({
         spo2: formData.spo2 || undefined,
         energy: formData.energy || undefined,
         gtcs_for: formData.gtcs_for || undefined,
+        energies: energies
+          .map((row) => ({
+            energy: (row.energy || '').trim(),
+            duration: (row.duration || '').trim(),
+            strength: (row.strength || '').trim(),
+            gtcs_for: (row.gtcs_for || '').trim(),
+          }))
+          .filter((row) => row.energy || row.duration || row.strength || row.gtcs_for),
+        propofol_detail: formData.propofol_detail || undefined,
+        strength: formData.strength || undefined,
+        succinylcholine_detail: formData.succinylcholine_detail || undefined,
         bp_after: formData.bp_after || undefined,
         hr_after: formData.hr_after || undefined,
         resp_rate_after: formData.resp_rate_after || undefined,
@@ -274,6 +318,8 @@ export const CreateECTProcedureModal = ({
         other_complications: formData.other_complications || undefined,
         sign_date: formData.sign_date || undefined,
         consultant_sign_date: formData.consultant_sign_date || undefined,
+        doctor_signature: doctorSignatureUrl || undefined,
+        consultant_signature: consultantSignatureUrl || undefined,
       }
 
       if (isEdit && editName?.trim()) {
@@ -314,6 +360,27 @@ export const CreateECTProcedureModal = ({
       load()
     }
   }, [initialPatient])
+
+  // Auto-number the session: count this patient's existing ECT Procedures + 1.
+  useEffect(() => {
+    if (isEdit) return
+    const patient = formData.patient
+    if (!patient) return
+    let cancelled = false
+    fetchNextECTSessionNo(patient)
+      .then((next) => {
+        if (cancelled) return
+        setFormData((prev) =>
+          prev.patient === patient ? { ...prev, no_of_session: String(next) } : prev,
+        )
+      })
+      .catch(() => {
+        /* keep the manually entered value on failure */
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [formData.patient, isEdit])
 
   useEffect(() => {
     if (!patientOpen) return
@@ -445,6 +512,57 @@ export const CreateECTProcedureModal = ({
     setAnaesthesiaQuery(d.label)
     setAnaesthesiaOpen(false)
   }, [])
+
+  // ── Energy child rows ────────────────────────────────────────────────────
+  const emptyEnergyRow = (): ECTProcedureEnergyRow => ({
+    energy: '',
+    duration: '',
+    strength: '',
+    gtcs_for: '',
+  })
+
+  const addEnergyRow = useCallback(() => {
+    setEnergies((prev) => [...prev, emptyEnergyRow()])
+  }, [])
+
+  const updateEnergyRow = useCallback(
+    (index: number, field: keyof ECTProcedureEnergyRow, value: string) => {
+      setEnergies((prev) => prev.map((row, i) => (i === index ? { ...row, [field]: value } : row)))
+    },
+    [],
+  )
+
+  const removeEnergyRow = useCallback((index: number) => {
+    setEnergies((prev) => {
+      const next = prev.filter((_, i) => i !== index)
+      return next.length > 0 ? next : [emptyEnergyRow()]
+    })
+  }, [])
+
+  // ── Signature upload (draw / photo) ──────────────────────────────────────
+  const makeUploadHandler = useCallback(
+    (
+      fieldSetter: (url: string) => void,
+      uploadingSetter: (v: boolean) => void,
+      dateField: 'sign_date' | 'consultant_sign_date',
+    ) =>
+      async (file: File) => {
+        uploadingSetter(true)
+        try {
+          const url = await uploadPatientFile(file)
+          if (!url) throw new Error('No URL returned from upload')
+          fieldSetter(url)
+          // Auto-fill the sign date with today — the date the signature is saved.
+          handleChange(dateField, new Date().toISOString().slice(0, 10))
+          toast.success('Signature saved')
+        } catch (err) {
+          toast.error(err instanceof Error ? err.message : 'Failed to upload signature')
+        } finally {
+          uploadingSetter(false)
+        }
+      },
+    [handleChange],
+  )
 
   return (
     <div className={CREATE_MODAL_OVERLAY}>
@@ -599,6 +717,78 @@ export const CreateECTProcedureModal = ({
               </div>
             </section>
 
+            {/* Energy stimulations (child table) */}
+            <section className="border-t border-slate-200 pt-4">
+              <h3 className="text-sm font-semibold text-slate-900 mb-4 flex items-center gap-2">
+                <span className="inline-block w-1 h-5 bg-slate-400 rounded-full"></span>
+                Energy / Duration / Strength
+              </h3>
+              <div>
+                <div className="flex items-center justify-end mb-2">
+                  <button
+                    type="button"
+                    onClick={addEnergyRow}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 transition-colors"
+                  >
+                    <Plus className="w-4 h-4" /> Add stimulation
+                  </button>
+                </div>
+
+                {energies.length > 0 && (
+                  <div className="grid grid-cols-[1fr_1fr_1fr_1fr_auto] gap-2 mb-1 px-1">
+                    <span className="text-xs font-medium text-slate-500">Energy</span>
+                    <span className="text-xs font-medium text-slate-500">Duration</span>
+                    <span className="text-xs font-medium text-slate-500">Strength</span>
+                    <span className="text-xs font-medium text-slate-500">GTCs For</span>
+                    <span className="w-11" />
+                  </div>
+                )}
+
+                <div className="space-y-2">
+                  {energies.map((row, index) => (
+                    <div key={index} className="grid grid-cols-[1fr_1fr_1fr_1fr_auto] gap-2 items-center">
+                      <InputField
+                        value={row.energy || ''}
+                        onChange={(e) => updateEnergyRow(index, 'energy', e.target.value)}
+                        placeholder="e.g., 150"
+                      />
+                      <InputField
+                        value={row.duration || ''}
+                        onChange={(e) => updateEnergyRow(index, 'duration', e.target.value)}
+                        placeholder="e.g., 4"
+                      />
+                      <select
+                        value={row.strength || ''}
+                        onChange={(e) => updateEnergyRow(index, 'strength', e.target.value)}
+                        className={INPUT_FIELD_CLASS}
+                      >
+                        <option value="">—</option>
+                        <option value="Weak">Weak</option>
+                        <option value="Strong">Strong</option>
+                      </select>
+                      <InputField
+                        value={row.gtcs_for || ''}
+                        onChange={(e) => updateEnergyRow(index, 'gtcs_for', e.target.value)}
+                        placeholder="e.g., 45"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => removeEnergyRow(index)}
+                        disabled={energies.length <= 1}
+                        className="inline-flex h-[42px] w-11 items-center justify-center rounded-lg border border-slate-300 text-slate-500 hover:text-red-600 hover:border-red-300 hover:bg-red-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                        title="Remove energy row"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                <p className="mt-1.5 text-xs text-slate-500">
+                  Add one row per stimulation (usually up to three). ECT Chart shows each Energy / Duration / Strength across the row.
+                </p>
+              </div>
+            </section>
+
             {/* Stats - Before */}
             <section className="border-t border-slate-200 pt-4 bg-blue-50/40 p-4 rounded-lg">
               <h3 className="text-sm font-bold text-blue-900 mb-4 flex items-center gap-2 uppercase tracking-wide">
@@ -646,30 +836,6 @@ export const CreateECTProcedureModal = ({
               </div>
             </section>
 
-            {/* Procedure Details */}
-            <section className="border-t border-slate-200 pt-4">
-              <h3 className="text-sm font-semibold text-slate-900 mb-4 flex items-center gap-2">
-                <span className="inline-block w-1 h-5 bg-slate-400 rounded-full"></span>
-                Procedure Details
-              </h3>
-              <div className="grid grid-cols-2 gap-4">
-                <FormField label="Energy (Joules)">
-                  <InputField 
-                    value={formData.energy} 
-                    onChange={(e) => handleChange('energy', e.target.value)} 
-                    placeholder="e.g., 200 J" 
-                  />
-                </FormField>
-                <FormField label="GTCs For (seconds)">
-                  <InputField 
-                    value={formData.gtcs_for} 
-                    onChange={(e) => handleChange('gtcs_for', e.target.value)} 
-                    placeholder="e.g., 45 sec" 
-                  />
-                </FormField>
-              </div>
-            </section>
-
             {/* Stats - After */}
             <section className="border-t border-slate-200 pt-4 bg-amber-50/40 p-4 rounded-lg">
               <h3 className="text-sm font-bold text-amber-900 mb-4 flex items-center gap-2 uppercase tracking-wide">
@@ -710,6 +876,30 @@ export const CreateECTProcedureModal = ({
               </div>
             </section>
 
+            {/* Procedure Details */}
+            <section className="border-t border-slate-200 pt-4">
+              <h3 className="text-sm font-semibold text-slate-900 mb-4 flex items-center gap-2">
+                <span className="inline-block w-1 h-5 bg-slate-400 rounded-full"></span>
+                Procedure Details
+              </h3>
+              <div className="grid grid-cols-2 gap-4">
+                <FormField label="Propofol">
+                  <InputField
+                    value={formData.propofol_detail}
+                    onChange={(e) => handleChange('propofol_detail', e.target.value)}
+                    placeholder="e.g., 1 mg/kg"
+                  />
+                </FormField>
+                <FormField label="Succinylcholine">
+                  <InputField
+                    value={formData.succinylcholine_detail}
+                    onChange={(e) => handleChange('succinylcholine_detail', e.target.value)}
+                    placeholder="e.g., 0.5 mg/kg"
+                  />
+                </FormField>
+              </div>
+            </section>
+
             {/* Notes */}
             <section className="border-t border-slate-200 pt-4">
               <h3 className="text-sm font-semibold text-slate-900 mb-4 flex items-center gap-2">
@@ -740,25 +930,50 @@ export const CreateECTProcedureModal = ({
 
             {/* Sign Off */}
             <section className="border-t border-slate-200 pt-4">
-              <h3 className="text-sm font-semibold text-slate-900 mb-4 flex items-center gap-2">
+              <h3 className="text-sm font-semibold text-slate-900 mb-1 flex items-center gap-2">
                 <span className="inline-block w-1 h-5 bg-green-400 rounded-full"></span>
                 Sign Off
               </h3>
-              <div className="grid grid-cols-2 gap-4">
-                <FormField label="Procedure Sign Date">
-                  <InputField 
-                    value={formData.sign_date} 
-                    onChange={(e) => handleChange('sign_date', e.target.value)} 
-                    type="date" 
+              <p className="text-xs text-slate-500 mb-4">
+                Doctors can sign below or upload a signature image.
+              </p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <p className="mb-2 text-sm font-semibold text-slate-700">Assistant Doctor Signature</p>
+                  <SignaturePad
+                    onSave={makeUploadHandler(setDoctorSignatureUrl, setDoctorSignatureUploading, 'sign_date')}
+                    onClear={() => setDoctorSignatureUrl('')}
+                    existingUrl={doctorSignatureUrl}
+                    uploading={doctorSignatureUploading}
                   />
-                </FormField>
-                <FormField label="Consultant Sign Date">
-                  <InputField 
-                    value={formData.consultant_sign_date} 
-                    onChange={(e) => handleChange('consultant_sign_date', e.target.value)} 
-                    type="date" 
+                  <div className="mt-3">
+                    <FormField label="Procedure Sign Date">
+                      <InputField
+                        value={formData.sign_date}
+                        onChange={(e) => handleChange('sign_date', e.target.value)}
+                        type="date"
+                      />
+                    </FormField>
+                  </div>
+                </div>
+                <div>
+                  <p className="mb-2 text-sm font-semibold text-slate-700">Consultant Signature</p>
+                  <SignaturePad
+                    onSave={makeUploadHandler(setConsultantSignatureUrl, setConsultantSignatureUploading, 'consultant_sign_date')}
+                    onClear={() => setConsultantSignatureUrl('')}
+                    existingUrl={consultantSignatureUrl}
+                    uploading={consultantSignatureUploading}
                   />
-                </FormField>
+                  <div className="mt-3">
+                    <FormField label="Consultant Sign Date">
+                      <InputField
+                        value={formData.consultant_sign_date}
+                        onChange={(e) => handleChange('consultant_sign_date', e.target.value)}
+                        type="date"
+                      />
+                    </FormField>
+                  </div>
+                </div>
               </div>
             </section>
             </>
