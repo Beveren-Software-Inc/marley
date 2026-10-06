@@ -97,6 +97,7 @@ export function ECTDashboard({ selectedPatient }: ECTDashboardProps) {
   const [ectRefreshKey, setEctRefreshKey] = useState(0)
   const [showECTAdmissionModal, setShowECTAdmissionModal] = useState(false)
   const [showECTProcedureModal, setShowECTProcedureModal] = useState(false)
+  const [ectProcedureRefreshKey, setEctProcedureRefreshKey] = useState(0)
   const [showECTProcedureConsentModal, setShowECTProcedureConsentModal] = useState(false)
   const [ectProcedureConsentRefreshKey, setEctProcedureConsentRefreshKey] = useState(0)
   const [showECTPatientHealthHistoryModal, setShowECTPatientHealthHistoryModal] = useState(false)
@@ -151,7 +152,7 @@ export function ECTDashboard({ selectedPatient }: ECTDashboardProps) {
       case 'ect-admission':      return <ECTAdmissionList patient={selectedPatient} />
       case 'ect-procedure-consent': return <AdmissionAssessmentList doctype="ECT Procedure Consent" doctypeLabel="ECT Procedure Consent" patient={selectedPatient} refreshKey={ectProcedureConsentRefreshKey} />
       case 'ect-patient-health-history': return <AdmissionAssessmentList doctype="Patient Health History" doctypeLabel="Patient Health History" patient={selectedPatient} refreshKey={ectPatientHealthHistoryRefreshKey} />
-      case 'ect-procedure':      return <ECTProcedureList patient={selectedPatient} />
+      case 'ect-procedure':      return <ECTProcedureList patient={selectedPatient} refreshKey={ectProcedureRefreshKey} />
       case 'ect-details':        return <ECTDetailsList patient={selectedPatient} refreshKey={ectRefreshKey} />
       case 'consolidated-ect-details':
         return <ConsolidatedECTDetailsList patient={selectedPatient} refreshKey={ectRefreshKey} />
@@ -222,7 +223,7 @@ export function ECTDashboard({ selectedPatient }: ECTDashboardProps) {
       {showECTProcedureModal && (
         <CreateECTProcedureModal
           onClose={() => setShowECTProcedureModal(false)}
-          onSuccess={() => setShowECTProcedureModal(false)}
+          onSuccess={() => { setEctProcedureRefreshKey(p => p + 1); setShowECTProcedureModal(false) }}
           initialPatient={selectedPatient}
         />
       )}

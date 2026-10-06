@@ -3,18 +3,26 @@
 """
 Doctor Service Revenue — amounts attributed to doctors from all billed services.
 
-Data source: submitted Sales Orders linked to healthcare base docs
-(via custom_base_reference / custom_base_reference_name), with practitioner
-resolved from the base document.
+The ``Source`` filter selects where the report starts from:
+
+* **Sales Invoice** (default) — starts from submitted Sales Invoices; a service
+  is recognised as soon as it is invoiced.
+* **Sales Order** — starts from submitted Sales Orders (previous behaviour).
+
+In both cases the practitioner is resolved from the linked healthcare base
+document (``custom_base_reference`` / ``custom_base_reference_name``). Services
+with no resolvable doctor — no base document, or the base document has no
+practitioner attached — are grouped under **Others**, shown as the first row.
 
 By default stock items (medicines / dispensed drugs) are excluded — they are
 not doctor service income. Uncheck ``Exclude Medicines`` to include them.
 
-``Exclude Inpatient`` drops Sales Orders whose base document is an inpatient
-admission charge, IP service, or discharge.
+``Exclude Inpatient`` drops rows whose base document is an inpatient admission
+charge, IP service, or discharge.
 
-``Paid Only`` keeps orders that are fully collected via advance, or whose
-linked Sales Invoices have no outstanding.
+``Paid Only`` keeps Sales Orders that are fully collected via advance, or whose
+linked Sales Invoices have no outstanding; for the Sales Invoice source it keeps
+invoices that have no outstanding amount.
 """
 
 from __future__ import annotations
@@ -154,11 +162,19 @@ def get_summary_data(filters):
 	rows = list(by_doctor.values())
 	for row in rows:
 		row.pop("_orders", None)
-	return sorted(rows, key=lambda r: r["service_amount"], reverse=True)
+
+	# "Others" (unattributed services) is always shown as the first row.
+	others = [row for row in rows if row["practitioner"] is None]
+	named = [row for row in rows if row["practitioner"] is not None]
+	return others + sorted(named, key=lambda r: r["service_amount"], reverse=True)
 
 
 def get_detail_data(filters):
-	return build_earning_lines(filters)
+	rows = build_earning_lines(filters)
+	# "Others" (unattributed services) is always shown as the first row.
+	others = [row for row in rows if row["practitioner"] is None]
+	named = [row for row in rows if row["practitioner"] is not None]
+	return others + named
 
 
 def build_earning_lines(filters):
@@ -175,8 +191,8 @@ def build_earning_lines(filters):
 	for row in items:
 		key = (row.custom_base_reference, row.custom_base_reference_name)
 		practitioner = practitioner_by_base.get(key)
-		if not practitioner:
-			continue
+		# Services with no linked doctor (no base document, or the base document
+		# has no practitioner attached) fall through to the "Others" bucket.
 		if filter_practitioner and practitioner != filter_practitioner:
 			continue
 
@@ -187,8 +203,8 @@ def build_earning_lines(filters):
 		item_name = row.item_name or item_code
 		rows.append(
 			{
-				"doctor_id": details.get("doctors_id") or practitioner,
-				"doctor_name": details.get("practitioner_name") or practitioner,
+				"doctor_id": details.get("doctors_id") or (practitioner or ""),
+				"doctor_name": details.get("practitioner_name") or (practitioner or _("Others")),
 				"practitioner": practitioner,
 				"sales_order": row.sales_order,
 				"transaction_date": row.transaction_date,
@@ -210,6 +226,14 @@ def build_earning_lines(filters):
 
 
 def get_service_items(filters):
+	"""Return billed service lines from the selected ``Source`` (default Sales Invoice)."""
+	source = (filters.get("source") or "Sales Invoice").strip().lower()
+	if source.startswith("sales order"):
+		return get_sales_order_service_items(filters)
+	return get_sales_invoice_service_items(filters)
+
+
+def get_sales_order_service_items(filters):
 	conditions = [
 		"so.docstatus = 1",
 		"IFNULL(so.custom_base_reference, '') != ''",
@@ -299,6 +323,93 @@ def get_service_items(filters):
 		{invoice_join}
 		WHERE {" AND ".join(conditions)}
 		ORDER BY so.transaction_date DESC, so.name DESC, soi.idx ASC
+		""",
+		values,
+		as_dict=True,
+	)
+
+
+def get_sales_invoice_service_items(filters):
+	"""Billed service lines starting from submitted Sales Invoices.
+
+	Unlike the Sales Order source this does *not* require a base reference: an
+	invoice with no source (or whose source has no practitioner) is attributed to
+	**Others**. The base reference / patient is taken from the invoice itself and
+	falls back to the linked Sales Order when the invoice leaves it blank.
+	"""
+	# Sales Invoice stores the healthcare base reference directly; when the
+	# invoice was raised from a Sales Order we fall back to that order.
+	base_doctype_expr = (
+		"COALESCE(NULLIF(si.custom_base_reference, ''), so.custom_base_reference, '')"
+	)
+	base_name_expr = (
+		"COALESCE(NULLIF(si.custom_base_reference_name, ''), so.custom_base_reference_name, '')"
+	)
+	# `patient` / `custom_patient_name` may not be present on every site.
+	patient_expr = "si.patient" if frappe.db.has_column("Sales Invoice", "patient") else "NULL"
+	patient_name_expr = (
+		"si.custom_patient_name"
+		if frappe.db.has_column("Sales Invoice", "custom_patient_name")
+		else "NULL"
+	)
+
+	conditions = ["si.docstatus = 1"]
+	values = {}
+	# Medicines / dispensed stock are not doctor service income.
+	exclude_medicines = cint(filters.get("exclude_medicines"))
+	if exclude_medicines:
+		conditions.append("IFNULL(item.is_stock_item, 0) = 0")
+
+	# Inpatient admission / IP service / discharge charges.
+	if cint(filters.get("exclude_inpatient")):
+		conditions.append(f"{base_doctype_expr} NOT IN %(inpatient_base_doctypes)s")
+		values["inpatient_base_doctypes"] = INPATIENT_BASE_DOCTYPES
+
+	# A fully settled invoice (no outstanding amount) counts as paid.
+	paid_only = cint(filters.get("paid_only") if filters.get("paid_only") is not None else filters.get("paid"))
+	if paid_only:
+		conditions.append("IFNULL(si.outstanding_amount, 0) <= 0.00001")
+
+	if filters.get("from_date"):
+		conditions.append("si.posting_date >= %(from_date)s")
+		values["from_date"] = getdate(filters.from_date)
+	if filters.get("to_date"):
+		conditions.append("si.posting_date <= %(to_date)s")
+		values["to_date"] = getdate(filters.to_date)
+	if filters.get("company"):
+		conditions.append("si.company = %(company)s")
+		values["company"] = filters.company
+	if filters.get("cost_center"):
+		conditions.append("si.cost_center = %(cost_center)s")
+		values["cost_center"] = filters.cost_center
+	if filters.get("item_code"):
+		conditions.append("sii.item_code = %(item_code)s")
+		values["item_code"] = filters.item_code
+
+	item_join = ""
+	if exclude_medicines:
+		item_join = "INNER JOIN `tabItem` item ON item.name = sii.item_code"
+
+	return frappe.db.sql(
+		f"""
+		SELECT
+			si.name AS sales_order,
+			si.posting_date AS transaction_date,
+			COALESCE({patient_expr}, so.patient) AS patient,
+			COALESCE({patient_name_expr}, so.custom_patient_name) AS custom_patient_name,
+			{base_doctype_expr} AS custom_base_reference,
+			{base_name_expr} AS custom_base_reference_name,
+			sii.item_code,
+			sii.item_name,
+			sii.qty,
+			sii.amount
+		FROM `tabSales Invoice` si
+		INNER JOIN `tabSales Invoice Item` sii
+			ON sii.parent = si.name AND sii.parenttype = 'Sales Invoice'
+		LEFT JOIN `tabSales Order` so ON so.name = sii.sales_order
+		{item_join}
+		WHERE {" AND ".join(conditions)}
+		ORDER BY si.posting_date DESC, si.name DESC, sii.idx ASC
 		""",
 		values,
 		as_dict=True,

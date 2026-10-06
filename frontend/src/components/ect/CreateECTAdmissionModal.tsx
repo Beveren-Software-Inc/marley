@@ -288,6 +288,7 @@ export const CreateECTAdmissionModal = ({
             <>
             {(formData.inpatient_admission || formData.patient_visit) && (
               <div className="grid grid-cols-2 gap-3">
+                {formData.inpatient_admission && (
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">Inpatient Admission</label>
                   <input
@@ -297,6 +298,8 @@ export const CreateECTAdmissionModal = ({
                     className="w-full rounded-md border border-slate-300 bg-slate-100 px-3 py-2 text-sm text-slate-700"
                   />
                 </div>
+                )}
+                {formData.patient_visit && (
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">Patient Visit</label>
                   <input
@@ -306,6 +309,7 @@ export const CreateECTAdmissionModal = ({
                     className="w-full rounded-md border border-slate-300 bg-slate-100 px-3 py-2 text-sm text-slate-700"
                   />
                 </div>
+                )}
               </div>
             )}
 

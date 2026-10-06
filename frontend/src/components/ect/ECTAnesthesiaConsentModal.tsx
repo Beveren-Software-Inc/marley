@@ -1456,8 +1456,8 @@ export const ECTAnesthesiaConsentModal = ({
                     {isOPMode && <span className="ml-2 text-xs font-normal text-green-600">(OP Mode Active)</span>}
                   </h3>
                   <div className="grid grid-cols-2 gap-4">
-                    {/* Inpatient Admission - disabled in OP mode, auto-filled in IP mode */}
-                    {isIPMode ? (
+                    {/* Inpatient Admission - hidden in patient visit (OP) context */}
+                    {isOPMode ? null : isIPMode ? (
                       <div>
                         <label className={lc}>Inpatient Admission *</label>
                         <input 
@@ -1480,8 +1480,8 @@ export const ECTAnesthesiaConsentModal = ({
                       />
                     )}
                     
-                    {/* Patient Visit - disabled in IP mode, auto-filled in OP mode */}
-                    {isOPMode ? (
+                    {/* Patient Visit - hidden in inpatient admission (IP) context */}
+                    {isIPMode ? null : isOPMode ? (
                       <div>
                         <label className={lc}>Patient Visit *</label>
                         <input 

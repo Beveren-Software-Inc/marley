@@ -3253,6 +3253,37 @@ frappe.ui.form.on('Healthcare Settings', {
 			});
 		}, __('Direct Upload'));
 
+		frm.add_custom_button(__('Transfer ECT Details → ECT Procedure'), () => {
+			frappe.call({
+				method: 'healthcare.api.ect_details_to_procedure.preview_ect_details_to_procedure_transfer',
+				callback(preview) {
+					const counts = preview.message || {};
+					frappe.confirm(
+						__(
+							'Transfer all ECT Details into ECT Procedure?<br><br>'
+								+ 'ECT Details records: {0}<br>'
+								+ 'With a Patient: {1}<br>'
+								+ 'Already transferred: {2}<br>'
+								+ 'Pending: {3}<br><br>'
+								+ 'Each ECT Details row becomes one ECT Procedure and keeps every matching field. '
+								+ 'Re-running never duplicates a record. This runs in the background.<br><br>Continue?',
+							[
+								counts.total_details || 0,
+								counts.with_patient || 0,
+								counts.already_transferred || 0,
+								counts.pending || 0,
+							]
+						),
+						() => run_migration_job(
+							frm,
+							'start_ect_details_to_procedure_transfer',
+							'ect_details_to_procedure_transfer'
+						)
+					);
+				},
+			});
+		}, __('Data Maintenance'));
+
 		frm.add_custom_button(__('Practitioner Unavailability - APPOINTMENTS_HOLD_01'), () => {
 			open_direct_sync_excel_upload({
 				dialog_title: __('Practitioner Unavailability - APPOINTMENTS_HOLD_01'),
@@ -7375,6 +7406,11 @@ function poll_migration_status(jobKey) {
 								s.skipped || 0,
 								errN,
 							]
+						);
+					} else if (jobKey === 'ect_details_to_procedure_transfer') {
+						msg = __(
+							'{0} finished: {1} ECT Procedure(s) created, {2} skipped, {3} errors.',
+							[jobKey, s.created || 0, s.skipped || 0, errN]
 						);
 					} else if (jobKey === 'patient_visit_prescription_his_import') {
 						msg = __(

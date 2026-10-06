@@ -8,6 +8,7 @@ import { PenLine, Trash2, Check, ChevronDown, Plus, AlertCircle , ClipboardList 
 
 import { CM_BTN_CANCEL, CM_BTN_PRIMARY, CREATE_MODAL_BODY_GRADIENT, CREATE_MODAL_FOOTER_STICKY, CREATE_MODAL_OVERLAY, CreateModalHeader, createModalShellClass, createModalTabButtonClass } from '../ui/CreateModalChrome'
 import { DateFilterInput } from '../ui/DateFilterInput'
+import { useCareContext } from '../../providers/CareContextProvider'
 
 // ─── Signature Pad ────────────────────────────────────────────────────────────
 
@@ -337,6 +338,9 @@ export const PreEctChecklistModal = ({
   const [currentAdmission, setCurrentAdmission] = useState(admissionNo)
   const [currentPatient, setCurrentPatient] = useState(patient)
   const [currentPatientName, setCurrentPatientName] = useState(patientName || '')
+  const { mode } = useCareContext()
+  const isIPMode = mode === 'IP'
+  const isOPMode = mode === 'OP'
   const isLockedContext = Boolean(admissionNo) || isEdit
 
   useEffect(() => {
@@ -637,7 +641,7 @@ export const PreEctChecklistModal = ({
                         placeholder="Search patients..."
                       />
                     )}
-                    {isLockedContext ? (
+                    {!isOPMode && (isLockedContext ? (
                       <div>
                         <label className={labelClass}>Inpatient Admission</label>
                         <input type="text" value={currentAdmission} readOnly
@@ -652,7 +656,8 @@ export const PreEctChecklistModal = ({
                         fetchOptions={fetchAdmissionOpts}
                         placeholder="Search admissions..."
                       />
-                    )}
+                    ))}
+                    {!isIPMode && (
                     <LinkCombobox
                       label="Patient Visit"
                       value={patientVisitLabel}
@@ -660,7 +665,7 @@ export const PreEctChecklistModal = ({
                       onClear={() => { setField('patient_visit', ''); setPatientVisitLabel('') }}
                       fetchOptions={fetchVisits}
                       placeholder="Search patient visits..."
-                    />
+                    />)}
                     <div>
                       <label className={labelClass}>Date</label>
                       <DateFilterInput value={form.date} onChange={e => setField('date', e.target.value)}

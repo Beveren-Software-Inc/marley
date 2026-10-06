@@ -82,7 +82,7 @@
    "hidden": 0,
    "is_query_report": 0,
    "label": "Reports",
-   "link_count": 3,
+   "link_count": 4,
    "onboard": 0,
    "type": "Card Break"
   },
@@ -113,6 +113,16 @@
    "link_count": 0,
    "link_to": "Doctor Due Payment",
    "link_type": "Report",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Doctor Wise Income Analysis",
+   "link_count": 0,
+   "link_to": "Doctor Wise Income Analysis",
+   "link_type": "DocType",
    "onboard": 0,
    "type": "Link"
   }

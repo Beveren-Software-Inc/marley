@@ -56,6 +56,7 @@ export const AnesthesiologistPage = () => {
   const [suicidalRefreshKey, setSuicidalRefreshKey] = useState(0)
   const [showECTAdmissionModal, setShowECTAdmissionModal] = useState(false)
   const [showECTProcedureModal, setShowECTProcedureModal] = useState(false)
+  const [ectProcedureRefreshKey, setEctProcedureRefreshKey] = useState(0)
   const [showECTModal, setShowECTModal] = useState(false)
   const [ectRefreshKey, setEctRefreshKey] = useState(0)
   const [showPhysicalExamModal, setShowPhysicalExamModal] = useState(false)
@@ -324,12 +325,12 @@ export const AnesthesiologistPage = () => {
               {plusBtn(() => setShowECTProcedureModal(true), 'Add ECT Procedure')}
             </div>
             <p className="text-sm text-slate-600 mb-3">Capture procedure details for each ECT session including vitals and clinical notes.</p>
-            <ECTProcedureList patient={selectedPatient} onPatientClick={handlePatientSelect} />
+            <ECTProcedureList patient={selectedPatient} refreshKey={ectProcedureRefreshKey} onPatientClick={handlePatientSelect} />
           </section>
         </div>
         {showECTProcedureModal && (
           <CreateECTProcedureModal onClose={() => setShowECTProcedureModal(false)}
-            onSuccess={() => setShowECTProcedureModal(false)}
+            onSuccess={() => { setEctProcedureRefreshKey(p => p + 1); setShowECTProcedureModal(false) }}
             initialPatient={selectedPatient} />
         )}
       </div>

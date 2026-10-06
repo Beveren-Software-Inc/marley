@@ -39,6 +39,11 @@
   "hr_after",
   "resp_rate_after",
   "spo2_after",
+  "section_break_energy",
+  "energies",
+  "propofol_detail",
+  "strength",
+  "succinylcholine_detail",
   "psychiatry_section",
   "progress_plan",
   "section_break_vftj",
@@ -50,7 +55,68 @@
   "section_break_mnbw",
   "consultant_signature",
   "column_break_gfnd",
-  "consultant_sign_date"
+  "consultant_sign_date",
+  "legacy_ect_details_section",
+  "time",
+  "source",
+  "duration",
+  "_age",
+  "success",
+  "repeated",
+  "vitals",
+  "ecg",
+  "anathesiologist",
+  "assist_doctor",
+  "psychiatrist",
+  "nurse",
+  "doctors_name",
+  "ect_doctors_notes",
+  "date_and_time",
+  "nurse_name",
+  "ect_nurse_notes",
+  "n_date_and_time",
+  "cost_center",
+  "reference_doctype",
+  "reference_name",
+  "template",
+  "bp_1",
+  "bp_2",
+  "psychology_doctor",
+  "anaesthetic_doctor",
+  "max_bp_1",
+  "max_bp2",
+  "notes_cr_id",
+  "notes_cr_date",
+  "note_remarks",
+  "ect_details_attributes",
+  "trans_num",
+  "sr_num",
+  "inv_num",
+  "ip_op_source",
+  "visit_num",
+  "admission_num",
+  "cr_id",
+  "cr_date",
+  "up_id",
+  "up_date",
+  "remarks_cr_id",
+  "remarks_cr_date",
+  "gtcs_seconds2",
+  "gtcs_seconds3",
+  "energy_value2",
+  "energy_value3",
+  "bp_1_2",
+  "bp_2_2",
+  "strength1",
+  "strength2",
+  "strength3",
+  "next_plan_date",
+  "is_lock",
+  "extra_remarks",
+  "recep_remarks",
+  "p_detail",
+  "s_detail",
+  "source_ect_details"
  ],
  "fields": [
   {
@@ -247,6 +313,32 @@
    "label": "SPO2 after"
   },
   {
+   "fieldname": "section_break_energy",
+   "fieldtype": "Section Break",
+   "label": "Energy, GTCs & Anaesthesia"
+  },
+  {
+   "fieldname": "energies",
+   "fieldtype": "Table",
+   "label": "Energy & GTCs",
+   "options": "ECT Procedure Energy"
+  },
+  {
+   "fieldname": "propofol_detail",
+   "fieldtype": "Data",
+   "label": "Propofol"
+  },
+  {
+   "fieldname": "strength",
+   "fieldtype": "Data",
+   "label": "Strength"
+  },
+  {
+   "fieldname": "succinylcholine_detail",
+   "fieldtype": "Data",
+   "label": "Succinylcholine"
+  },
+  {
    "fieldname": "npo_since",
    "fieldtype": "Date",
    "label": "NPO Since"
@@ -278,12 +370,328 @@
    "fieldname": "consultant_sign_date",
    "fieldtype": "Date",
    "label": "Consultant Sign Date"
+  },
+  {
+   "fieldname": "legacy_ect_details_section",
+   "fieldtype": "Section Break",
+   "label": "Legacy (from ECT Details)"
+  },
+  {
+   "fieldname": "time",
+   "fieldtype": "Time",
+   "label": "Time"
+  },
+  {
+   "fieldname": "source",
+   "fieldtype": "Link",
+   "label": "Source",
+   "options": "Patient Source"
+  },
+  {
+   "fieldname": "duration",
+   "fieldtype": "Float",
+   "label": "Duration"
+  },
+  {
+   "fieldname": "_age",
+   "fieldtype": "Percent",
+   "label": "% Age"
+  },
+  {
+   "fieldname": "success",
+   "fieldtype": "Data",
+   "label": "Success"
+  },
+  {
+   "fieldname": "repeated",
+   "fieldtype": "Data",
+   "label": "Repeated"
+  },
+  {
+   "fieldname": "vitals",
+   "fieldtype": "Data",
+   "label": "Vitals"
+  },
+  {
+   "fieldname": "ecg",
+   "fieldtype": "Data",
+   "label": "ECG"
+  },
+  {
+   "fieldname": "anathesiologist",
+   "fieldtype": "Data",
+   "label": "Anathesiologist"
+  },
+  {
+   "fieldname": "assist_doctor",
+   "fieldtype": "Data",
+   "label": "Assist Doctor"
+  },
+  {
+   "fieldname": "psychiatrist",
+   "fieldtype": "Data",
+   "label": "Psychiatrist"
+  },
+  {
+   "fieldname": "nurse",
+   "fieldtype": "Data",
+   "label": "Nurse"
+  },
+  {
+   "fieldname": "doctors_name",
+   "fieldtype": "Data",
+   "label": "Doctors Name"
+  },
+  {
+   "fieldname": "ect_doctors_notes",
+   "fieldtype": "Small Text",
+   "label": "ECT Doctors Notes"
+  },
+  {
+   "fieldname": "date_and_time",
+   "fieldtype": "Datetime",
+   "label": "Date and Time"
+  },
+  {
+   "fieldname": "nurse_name",
+   "fieldtype": "Data",
+   "label": "Nurse Name"
+  },
+  {
+   "fieldname": "ect_nurse_notes",
+   "fieldtype": "Small Text",
+   "label": "ECT Nurse Notes"
+  },
+  {
+   "fieldname": "n_date_and_time",
+   "fieldtype": "Datetime",
+   "label": "Nurse Date and Time"
+  },
+  {
+   "fieldname": "cost_center",
+   "fieldtype": "Link",
+   "label": "Cost Center",
+   "options": "Cost Center"
+  },
+  {
+   "fieldname": "reference_doctype",
+   "fieldtype": "Link",
+   "label": "Reference Doctype",
+   "options": "DocType"
+  },
+  {
+   "fieldname": "reference_name",
+   "fieldtype": "Dynamic Link",
+   "label": "Reference Name",
+   "options": "reference_doctype"
+  },
+  {
+   "fieldname": "template",
+   "fieldtype": "Link",
+   "label": "Template",
+   "options": "Patient History Template"
+  },
+  {
+   "fieldname": "bp_1",
+   "fieldtype": "Data",
+   "label": "Min BP 1"
+  },
+  {
+   "fieldname": "bp_2",
+   "fieldtype": "Data",
+   "label": "Min BP 2"
+  },
+  {
+   "fieldname": "psychology_doctor",
+   "fieldtype": "Link",
+   "label": "Psychology Doctor",
+   "options": "Healthcare Practitioner"
+  },
+  {
+   "fieldname": "anaesthetic_doctor",
+   "fieldtype": "Link",
+   "label": "Anaesthetic Doctor",
+   "options": "Healthcare Practitioner"
+  },
+  {
+   "fieldname": "max_bp_1",
+   "fieldtype": "Data",
+   "label": "Max BP 1"
+  },
+  {
+   "fieldname": "max_bp2",
+   "fieldtype": "Data",
+   "label": "Max BP 2"
+  },
+  {
+   "fieldname": "notes_cr_id",
+   "fieldtype": "Data",
+   "label": "Notes CR ID"
+  },
+  {
+   "fieldname": "notes_cr_date",
+   "fieldtype": "Data",
+   "label": "Notes CR Date"
+  },
+  {
+   "fieldname": "note_remarks",
+   "fieldtype": "Text Editor",
+   "label": "Note Remarks"
+  },
+  {
+   "fieldname": "ect_details_attributes",
+   "fieldtype": "Table",
+   "label": "ECT Details Attributes",
+   "options": "ECT Details Attribute"
+  },
+  {
+   "fieldname": "trans_num",
+   "fieldtype": "Data",
+   "label": "Trans Num"
+  },
+  {
+   "fieldname": "sr_num",
+   "fieldtype": "Data",
+   "label": "SR Num"
+  },
+  {
+   "fieldname": "inv_num",
+   "fieldtype": "Data",
+   "label": "Invoice No"
+  },
+  {
+   "fieldname": "ip_op_source",
+   "fieldtype": "Data",
+   "label": "IP OP Source"
+  },
+  {
+   "fieldname": "visit_num",
+   "fieldtype": "Data",
+   "label": "Visit Num"
+  },
+  {
+   "fieldname": "admission_num",
+   "fieldtype": "Data",
+   "label": "Admission Num"
+  },
+  {
+   "fieldname": "cr_id",
+   "fieldtype": "Data",
+   "label": "CR ID"
+  },
+  {
+   "fieldname": "cr_date",
+   "fieldtype": "Data",
+   "label": "CR Date"
+  },
+  {
+   "fieldname": "up_id",
+   "fieldtype": "Data",
+   "label": "UP ID"
+  },
+  {
+   "fieldname": "up_date",
+   "fieldtype": "Data",
+   "label": "UP Date"
+  },
+  {
+   "fieldname": "remarks_cr_id",
+   "fieldtype": "Data",
+   "label": "Remarks CR ID"
+  },
+  {
+   "fieldname": "remarks_cr_date",
+   "fieldtype": "Data",
+   "label": "Remarks CR Date"
+  },
+  {
+   "fieldname": "gtcs_seconds2",
+   "fieldtype": "Float",
+   "label": "GTCS Seconds 2"
+  },
+  {
+   "fieldname": "gtcs_seconds3",
+   "fieldtype": "Float",
+   "label": "GTCS Seconds 3"
+  },
+  {
+   "fieldname": "energy_value2",
+   "fieldtype": "Data",
+   "label": "Energy Value 2"
+  },
+  {
+   "fieldname": "energy_value3",
+   "fieldtype": "Data",
+   "label": "Energy Value 3"
+  },
+  {
+   "fieldname": "bp_1_2",
+   "fieldtype": "Data",
+   "label": "Min BP 1 2"
+  },
+  {
+   "fieldname": "bp_2_2",
+   "fieldtype": "Data",
+   "label": "Min BP 2 2"
+  },
+  {
+   "fieldname": "strength1",
+   "fieldtype": "Data",
+   "label": "Strength 1"
+  },
+  {
+   "fieldname": "strength2",
+   "fieldtype": "Data",
+   "label": "Strength 2"
+  },
+  {
+   "fieldname": "strength3",
+   "fieldtype": "Data",
+   "label": "Strength 3"
+  },
+  {
+   "fieldname": "next_plan_date",
+   "fieldtype": "Date",
+   "label": "Next Plan Date"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_lock",
+   "fieldtype": "Check",
+   "label": "Is Lock"
+  },
+  {
+   "fieldname": "extra_remarks",
+   "fieldtype": "Small Text",
+   "label": "Extra Remarks"
+  },
+  {
+   "fieldname": "recep_remarks",
+   "fieldtype": "Small Text",
+   "label": "Reception Remarks"
+  },
+  {
+   "fieldname": "p_detail",
+   "fieldtype": "Small Text",
+   "label": "P Detail"
+  },
+  {
+   "fieldname": "s_detail",
+   "fieldtype": "Small Text",
+   "label": "S Detail"
+  },
+  {
+   "fieldname": "source_ect_details",
+   "fieldtype": "Link",
+   "label": "Source ECT Details",
+   "options": "ECT Details",
+   "read_only": 1
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-03-10 12:30:46.669216",
+ "modified": "2026-10-08 12:00:00.000000",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "ECT Procedure",

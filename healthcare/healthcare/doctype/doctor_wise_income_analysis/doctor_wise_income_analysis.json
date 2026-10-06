@@ -1,0 +1,216 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "naming_series:",
+ "creation": "2026-10-06 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "naming_series",
+  "status",
+  "column_break_1",
+  "from_date",
+  "to_date",
+  "section_filters",
+  "company",
+  "cost_center",
+  "column_break_2",
+  "source",
+  "paid_only",
+  "exclude_medicines",
+  "section_years",
+  "year_1",
+  "year_2",
+  "year_3",
+  "generated_on",
+  "section_rows",
+  "rows",
+  "section_print",
+  "print_html"
+ ],
+ "fields": [
+  {
+   "default": "DWIA-.YYYY.-",
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "label": "Series",
+   "options": "DWIA-.YYYY.-",
+   "reqd": 1
+  },
+  {
+   "default": "Draft",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Status",
+   "options": "Draft\nGenerated",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "from_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "From Date",
+   "reqd": 1
+  },
+  {
+   "fieldname": "to_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "To Date",
+   "reqd": 1
+  },
+  {
+   "fieldname": "section_filters",
+   "fieldtype": "Section Break",
+   "label": "Filters"
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "Company",
+   "options": "Company"
+  },
+  {
+   "description": "Leave blank for all branches (consolidated).",
+   "fieldname": "cost_center",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "Branch / Cost Center",
+   "options": "Cost Center"
+  },
+  {
+   "fieldname": "column_break_2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "Sales Invoice",
+   "description": "Same source options as Doctor Service Revenue.",
+   "fieldname": "source",
+   "fieldtype": "Select",
+   "label": "Source",
+   "options": "Sales Invoice\nSales Order"
+  },
+  {
+   "default": "1",
+   "fieldname": "paid_only",
+   "fieldtype": "Check",
+   "label": "Paid Only"
+  },
+  {
+   "default": "1",
+   "fieldname": "exclude_medicines",
+   "fieldtype": "Check",
+   "label": "Exclude Medicines"
+  },
+  {
+   "fieldname": "section_years",
+   "fieldtype": "Section Break",
+   "label": "Comparison Years"
+  },
+  {
+   "description": "Filled on Generate (To Date year and the two prior years).",
+   "fieldname": "year_1",
+   "fieldtype": "Int",
+   "label": "Year 1",
+   "read_only": 1
+  },
+  {
+   "fieldname": "year_2",
+   "fieldtype": "Int",
+   "label": "Year 2",
+   "read_only": 1
+  },
+  {
+   "fieldname": "year_3",
+   "fieldtype": "Int",
+   "label": "Year 3",
+   "read_only": 1
+  },
+  {
+   "fieldname": "generated_on",
+   "fieldtype": "Datetime",
+   "label": "Generated On",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_rows",
+   "fieldtype": "Section Break",
+   "label": "Doctor Rows"
+  },
+  {
+   "fieldname": "rows",
+   "fieldtype": "Table",
+   "label": "Rows",
+   "options": "Doctor Wise Income Analysis Row"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "section_print",
+   "fieldtype": "Section Break",
+   "label": "Print Preview"
+  },
+  {
+   "fieldname": "print_html",
+   "fieldtype": "HTML",
+   "label": "Print HTML"
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-10-06 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Healthcare",
+ "name": "Doctor Wise Income Analysis",
+ "naming_rule": "By \"Naming Series\" field",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Accounts Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Accounts User",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

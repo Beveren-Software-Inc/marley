@@ -214,45 +214,236 @@ def get_ect_admissions(limit=50, offset=0, patient=None):
 
 
 @frappe.whitelist()
-def get_ect_procedures(limit=50, offset=0, patient=None):
-	"""Get list of ECT Procedure"""
-	filters = {}
+def get_ect_procedures(
+	limit=50,
+	offset=0,
+	patient=None,
+	month=None,
+	from_date=None,
+	to_date=None,
+	anaesthetist=None,
+	file_no=None,
+):
+	"""Get list of ECT Procedure (for lists + ECT Chart).
 
+	Optional filters: ``from_date`` / ``to_date``, legacy ``month`` (YYYY-MM / YYYYMM),
+	``anaesthetist``, ``file_no``. Each row includes child ``energies`` and patient ``file_no``.
+	"""
+	from calendar import monthrange
+
+	from frappe.utils import getdate
+
+	filters = {}
 	if patient:
-		filters['patient'] = patient
+		filters["patient"] = patient
+	if anaesthetist:
+		filters["anaesthetist"] = anaesthetist
+
+	# Date range on date_of_session (preferred). Legacy month still supported.
+	or_filters = None
+	start = end = None
+	from_text = str(from_date or "").strip()
+	to_text = str(to_date or "").strip()
+	if from_text or to_text:
+		try:
+			if from_text:
+				start = getdate(from_text)
+			if to_text:
+				end = getdate(to_text)
+		except Exception:
+			start = end = None
+	else:
+		month_text = str(month or "").strip().replace("/", "-")
+		if month_text:
+			if len(month_text) == 6 and month_text.isdigit():
+				month_text = f"{month_text[:4]}-{month_text[4:]}"
+			try:
+				start = getdate(f"{month_text}-01") if len(month_text) == 7 else getdate(month_text)
+				last = monthrange(start.year, start.month)[1]
+				end = getdate(f"{start.year:04d}-{start.month:02d}-{last:02d}")
+			except Exception:
+				start = end = None
+
+	if start and end:
+		filters["date_of_session"] = ["between", [start, end]]
+	elif start:
+		filters["date_of_session"] = [">=", start]
+	elif end:
+		filters["date_of_session"] = ["<=", end]
+
+	# File no → patient names
+	if file_no and frappe.db.has_column("Patient", "file_no"):
+		patients = frappe.get_all(
+			"Patient",
+			filters={"file_no": ["like", f"%{str(file_no).strip()}%"]},
+			pluck="name",
+			limit=200,
+		)
+		if not patients:
+			return []
+		if patient:
+			if patient not in patients:
+				return []
+		else:
+			filters["patient"] = ["in", patients]
+
+	fieldnames = [
+		"name",
+		"patient",
+		"patient_name",
+		"date",
+		"date_of_session",
+		"no_of_session",
+		"bp",
+		"bp_after",
+		"hr",
+		"resp_rate",
+		"spo2",
+		"energy",
+		"gtcs_for",
+		"strength",
+		"propofol_detail",
+		"succinylcholine_detail",
+		"ecg",
+		"consultant_doctor",
+		"consultant_doctors_name",
+		"assistant_doctor",
+		"assistant_doctor_name",
+		"anaesthetist",
+		"anaesthetist_name",
+		"nurse_name",
+		"ect_nurse_notes",
+		"n_date_and_time",
+		"next_plan_date",
+		"psychology_doctor",
+		"psychiatrist",
+		"doctors_name",
+	]
+	meta = frappe.get_meta("ECT Procedure")
+	fields = [f for f in fieldnames if f == "name" or meta.has_field(f)]
 
 	procedures = frappe.get_all(
-		'ECT Procedure',
+		"ECT Procedure",
 		filters=filters,
-		fields=[
-			'name',
-			'patient',
-			'patient_name',
-			'date',
-			'date_of_session',
-			'no_of_session',
-			'bp',
-			'hr',
-			'resp_rate',
-			'spo2',
-			'energy',
-			'consultant_doctor',
-			'assistant_doctor',
-			'anaesthetist',
-		],
-		limit=limit,
-		limit_start=offset,
-		order_by='date_of_session desc, creation desc'
+		or_filters=or_filters,
+		fields=fields,
+		limit=cint(limit),
+		limit_start=cint(offset),
+		order_by="date_of_session desc, creation desc",
 	)
 
-	# Ensure patient_name populated
+	names = [p.name for p in procedures]
+	energies_by_parent = {n: [] for n in names}
+	if names and frappe.db.exists("DocType", "ECT Procedure Energy"):
+		energy_fields = ["parent", "idx", "energy", "gtcs_for"]
+		if frappe.db.has_column("ECT Procedure Energy", "duration"):
+			energy_fields.append("duration")
+		if frappe.db.has_column("ECT Procedure Energy", "strength"):
+			energy_fields.append("strength")
+		for row in frappe.get_all(
+			"ECT Procedure Energy",
+			filters={"parent": ["in", names], "parenttype": "ECT Procedure"},
+			fields=energy_fields,
+			order_by="parent asc, idx asc",
+		):
+			energies_by_parent.setdefault(row.parent, []).append(
+				{
+					"energy": row.get("energy"),
+					"duration": row.get("duration"),
+					"strength": row.get("strength"),
+					"gtcs_for": row.get("gtcs_for"),
+				}
+			)
+
+	patient_ids = list({p.patient for p in procedures if p.get("patient")})
+	file_by_patient = {}
+	doctor_ids = set()
+	if patient_ids and frappe.db.has_column("Patient", "file_no"):
+		for row in frappe.get_all(
+			"Patient",
+			filters={"name": ["in", patient_ids]},
+			fields=["name", "file_no", "patient_name"],
+		):
+			file_by_patient[row.name] = row
+
 	for proc in procedures:
-		if proc.get('patient') and not proc.get('patient_name'):
-			patient_name = frappe.db.get_value('Patient', proc['patient'], 'patient_name')
-			if patient_name:
-				proc['patient_name'] = patient_name
+		pid = proc.get("patient")
+		pinfo = file_by_patient.get(pid) or {}
+		if pid and not proc.get("patient_name"):
+			proc["patient_name"] = pinfo.get("patient_name") or frappe.db.get_value(
+				"Patient", pid, "patient_name"
+			)
+		proc["file_no"] = pinfo.get("file_no") or ""
+		proc["energies"] = energies_by_parent.get(proc.name) or []
+		# Fallback: synthesize one energy row from parent fields when child empty.
+		if not proc["energies"] and (proc.get("energy") or proc.get("gtcs_for") or proc.get("strength")):
+			proc["energies"] = [
+				{
+					"energy": proc.get("energy"),
+					"duration": proc.get("duration") or proc.get("gtcs_for"),
+					"strength": proc.get("strength"),
+					"gtcs_for": proc.get("gtcs_for"),
+				}
+			]
+		for key in (
+			"consultant_doctor",
+			"assistant_doctor",
+			"anaesthetist",
+			"psychology_doctor",
+			"psychiatrist",
+		):
+			if proc.get(key):
+				doctor_ids.add(proc[key])
+
+	# Practitioner display names / doctors_id
+	pract_map = {}
+	if doctor_ids:
+		pfields = ["name", "practitioner_name"]
+		if frappe.db.has_column("Healthcare Practitioner", "doctors_id"):
+			pfields.append("doctors_id")
+		for row in frappe.get_all(
+			"Healthcare Practitioner",
+			filters={"name": ["in", list(doctor_ids)]},
+			fields=pfields,
+		):
+			pract_map[row.name] = row
+
+	def _doc_label(name, fallback_name=None):
+		if not name:
+			return fallback_name or ""
+		row = pract_map.get(name) or {}
+		did = (row.get("doctors_id") or "").strip()
+		pname = (row.get("practitioner_name") or fallback_name or name or "").strip()
+		if did and pname:
+			return f"{did} {pname}"
+		return pname or name
+
+	for proc in procedures:
+		proc["psych_doctor_label"] = _doc_label(
+			proc.get("consultant_doctor") or proc.get("psychology_doctor") or proc.get("psychiatrist"),
+			proc.get("consultant_doctors_name") or proc.get("doctors_name"),
+		)
+		proc["assist_doctor_label"] = _doc_label(
+			proc.get("assistant_doctor"), proc.get("assistant_doctor_name")
+		)
+		proc["anaes_doctor_label"] = _doc_label(
+			proc.get("anaesthetist"), proc.get("anaesthetist_name")
+		)
 
 	return procedures
+
+
+@frappe.whitelist()
+def get_next_ect_procedure_session(patient):
+	"""Return the next session number for a patient's ECT Procedure.
+
+	Sessions accrue one per record, so the next number is the count of the
+	patient's existing ECT Procedure transactions plus one.
+	"""
+	if not patient:
+		return 1
+	existing = frappe.db.count("ECT Procedure", {"patient": patient})
+	return int(existing) + 1
 
 
 @frappe.whitelist()
@@ -398,6 +589,9 @@ def create_ect_procedure(data):
 		"spo2": data.get("spo2"),
 		"energy": data.get("energy"),
 		"gtcs_for": data.get("gtcs_for"),
+		"propofol_detail": data.get("propofol_detail"),
+		"strength": data.get("strength"),
+		"succinylcholine_detail": data.get("succinylcholine_detail"),
 		"bp_after": data.get("bp_after"),
 		"hr_after": data.get("hr_after"),
 		"resp_rate_after": data.get("resp_rate_after"),
@@ -406,7 +600,32 @@ def create_ect_procedure(data):
 		"other_complications": data.get("other_complications"),
 		"sign_date": data.get("sign_date"),
 		"consultant_sign_date": data.get("consultant_sign_date"),
+		"doctor_signature": data.get("doctor_signature"),
+		"consultant_signature": data.get("consultant_signature"),
 	})
+
+	# Energy / GTCs rows (repeatable child table — one row per stimulation).
+	energy_rows = data.get("energies")
+	if isinstance(energy_rows, str):
+		try:
+			energy_rows = json.loads(energy_rows)
+		except Exception:
+			energy_rows = []
+	if isinstance(energy_rows, list):
+		for row in energy_rows:
+			if not isinstance(row, dict):
+				continue
+			if row.get("energy") or row.get("gtcs_for") or row.get("duration") or row.get("strength"):
+				payload = {
+					"energy": row.get("energy"),
+					"gtcs_for": row.get("gtcs_for"),
+				}
+				if frappe.db.has_column("ECT Procedure Energy", "duration"):
+					payload["duration"] = row.get("duration")
+				if frappe.db.has_column("ECT Procedure Energy", "strength"):
+					payload["strength"] = row.get("strength")
+				doc.append("energies", payload)
+
 	doc.insert(ignore_permissions=True)
 
 	return {

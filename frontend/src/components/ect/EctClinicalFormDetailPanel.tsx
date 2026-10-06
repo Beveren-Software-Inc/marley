@@ -101,13 +101,7 @@ function AnesthesiaRecordBody({ doc }: { doc: DocRecord }) {
             <DataTile label="Oxygen support" value={displayValue(doc.oxygen_support)} />
           ) : null}
           {hasValue(doc.full_name || doc.anesthetist) ? (
-            <DataTile label="Anesthetist" value={displayValue(doc.full_name || doc.anesthetist)} />
-          ) : null}
-          {hasValue(doc.psychiatrist__assistant || doc.psychiatrist__assistant_doctor) ? (
-            <DataTile
-              label="Psychiatrist / Assistant"
-              value={displayValue(doc.psychiatrist__assistant || doc.psychiatrist__assistant_doctor)}
-            />
+            <DataTile label="Anesthesia Doctor" value={displayValue(doc.full_name || doc.anesthetist)} />
           ) : null}
         </div>
       </section>
