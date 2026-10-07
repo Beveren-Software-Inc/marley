@@ -293,7 +293,11 @@ def get_sales_order_service_items(filters):
 		conditions.append("so.company = %(company)s")
 		values["company"] = filters.company
 	if filters.get("cost_center"):
-		conditions.append("so.cost_center = %(cost_center)s")
+		# Sales Register filters the item cost center, not the order header.
+		# Fall back to the header when the line is blank.
+		conditions.append(
+			"COALESCE(NULLIF(soi.cost_center, ''), so.cost_center) = %(cost_center)s"
+		)
 		values["cost_center"] = filters.cost_center
 	if filters.get("item_code"):
 		conditions.append("soi.item_code = %(item_code)s")
@@ -382,7 +386,11 @@ def get_sales_invoice_service_items(filters):
 		conditions.append("si.company = %(company)s")
 		values["company"] = filters.company
 	if filters.get("cost_center"):
-		conditions.append("si.cost_center = %(cost_center)s")
+		# Sales Register filters Sales Invoice Item.cost_center (not the invoice header).
+		# Fall back to the header when the line cost center is blank.
+		conditions.append(
+			"COALESCE(NULLIF(sii.cost_center, ''), si.cost_center) = %(cost_center)s"
+		)
 		values["cost_center"] = filters.cost_center
 	if filters.get("item_code"):
 		conditions.append("sii.item_code = %(item_code)s")
