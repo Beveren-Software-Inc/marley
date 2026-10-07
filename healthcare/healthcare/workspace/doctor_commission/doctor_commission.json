@@ -17,6 +17,7 @@
    "is_query_report": 0,
    "label": "Operations",
    "link_count": 2,
+   "link_type": "DocType",
    "onboard": 0,
    "type": "Card Break"
   },
@@ -45,6 +46,7 @@
    "is_query_report": 0,
    "label": "Setup",
    "link_count": 3,
+   "link_type": "DocType",
    "onboard": 0,
    "type": "Card Break"
   },
@@ -82,7 +84,8 @@
    "hidden": 0,
    "is_query_report": 0,
    "label": "Reports",
-   "link_count": 4,
+   "link_count": 6,
+   "link_type": "DocType",
    "onboard": 0,
    "type": "Card Break"
   },
@@ -118,8 +121,28 @@
   },
   {
    "hidden": 0,
-   "is_query_report": 0,
+   "is_query_report": 1,
+   "label": "Income by Doctor Patient and Source",
+   "link_count": 0,
+   "link_to": "Income by Doctor Patient and Source",
+   "link_type": "Report",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 1,
    "label": "Doctor Wise Income Analysis",
+   "link_count": 0,
+   "link_to": "Doctor Wise Income Analysis",
+   "link_type": "Report",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Doctor Wise Income Analysis (Form)",
    "link_count": 0,
    "link_to": "Doctor Wise Income Analysis",
    "link_type": "DocType",
