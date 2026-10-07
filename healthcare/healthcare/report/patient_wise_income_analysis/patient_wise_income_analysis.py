@@ -56,12 +56,15 @@ def _field(period_key: str, metric: str) -> str:
 def _columns(analysis: dict) -> list[dict]:
 	cols = [
 		{"label": _("Rank"), "fieldname": "rank_no", "fieldtype": "Int", "width": 60},
+		{"label": _("File No"), "fieldname": "file_no", "fieldtype": "Data", "width": 100},
+		{"label": _("Patient ID"), "fieldname": "patient_id", "fieldtype": "Data", "width": 120},
 		{
 			"label": _("Patient"),
 			"fieldname": "patient",
 			"fieldtype": "Link",
 			"options": "Patient",
 			"width": 120,
+			"hidden": 1,
 		},
 		{"label": _("Patient Name"), "fieldname": "patient_name", "fieldtype": "Data", "width": 200},
 	]
@@ -81,7 +84,8 @@ def _columns(analysis: dict) -> list[dict]:
 					"label": f"{label} {short}",
 					"fieldname": _field(key, metric),
 					"fieldtype": "Currency",
-					"width": 90,
+					"width": 100,
+					"precision": 3,
 				}
 			)
 	return cols
@@ -94,6 +98,8 @@ def _rows(analysis: dict) -> list[dict]:
 		by_key = {p.get("key"): p for p in (item.get("periods") or [])}
 		row = {
 			"rank_no": cint(item.get("rank_no")) or None,
+			"file_no": item.get("file_no") or "",
+			"patient_id": item.get("patient_id") or "",
 			"patient": item.get("patient"),
 			"patient_name": item.get("patient_name"),
 		}

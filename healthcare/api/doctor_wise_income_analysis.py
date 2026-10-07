@@ -37,6 +37,13 @@ IOP_VISIT_TYPES = {"IOP", "IOOP"}
 OTHER_INCOME_KEY = "__other_income__"
 MAX_PERIODS = 36
 PERIOD_COLORS = ["#f8d7da", "#ffe0b2", "#bbdefb", "#c8e6c9", "#e1bee7", "#fff9c4"]
+# BHD (and Serene money displays): always three decimal places.
+MONEY_DECIMALS = 3
+
+
+def format_money_bhd(value) -> str:
+	"""Format amount with exactly 3 decimal places (e.g. 9.09 → 9.090)."""
+	return f"{flt(value):,.{MONEY_DECIMALS}f}"
 
 
 def _clip(start: date, end: date, range_start: date, range_end: date):
@@ -245,19 +252,106 @@ def classify_care_channel(base_doctype: str, base_name: str, visit_care_map: dic
 
 
 def _empty_bucket():
-	return {"ip": 0.0, "op": 0.0, "iop": 0.0, "total": 0.0, "discount": 0.0, "net": 0.0}
+	return {
+		"ip": 0.0,
+		"op": 0.0,
+		"iop": 0.0,
+		"total": 0.0,
+		"discount": 0.0,
+		"net": 0.0,
+		"tax": 0.0,
+	}
 
 
-def _accumulate(bucket, channel: str, net: float, discount: float):
-	gross = net + discount
+def _line_tax(row) -> float:
+	return flt(row.get("tax_amount"))
+
+
+def _enrich_items_with_tax(items, source: str):
+	"""Prorate parent document tax onto each line (Sales Register Grand Total = net + tax).
+
+	``tax_amount`` on each line = parent_tax * (line_amount / parent_net).
+	Sales Order uses the same idea when tax columns exist.
+	"""
+	if not items:
+		return items
+
+	is_invoice = not (source or "").strip().lower().startswith("sales order")
+	parenttype = "Sales Invoice" if is_invoice else "Sales Order"
+	names = list({(r.get("sales_order") or "") for r in items if r.get("sales_order")})
+	if not names:
+		for row in items:
+			row["tax_amount"] = 0.0
+		return items
+
+	tax_by_parent = {}
+	net_by_parent = {}
+	has_tax_col = frappe.db.has_column(parenttype, "total_taxes_and_charges")
+	# Prefer net_total; fall back to total / grand_total - tax
+	net_field = "net_total" if frappe.db.has_column(parenttype, "net_total") else "total"
+	tax_select = "IFNULL(total_taxes_and_charges, 0)" if has_tax_col else "0"
+	for i in range(0, len(names), 500):
+		chunk = names[i : i + 500]
+		rows = frappe.db.sql(
+			f"""
+			SELECT name,
+				IFNULL({net_field}, 0) AS net_total,
+				{tax_select} AS tax,
+				IFNULL(grand_total, 0) AS grand_total
+			FROM `tab{parenttype}`
+			WHERE name IN %s
+			""",
+			(tuple(chunk),),
+			as_dict=True,
+		)
+		for r in rows:
+			net = flt(r.net_total)
+			tax = flt(r.tax)
+			if has_tax_col and not tax and flt(r.grand_total) and net:
+				# Some sites store tax only as grand - net
+				tax = max(flt(r.grand_total) - net, 0.0)
+			tax_by_parent[r.name] = tax
+			net_by_parent[r.name] = net
+
+	# Sum line amounts per parent among *selected* items (respect exclude filters)
+	line_net_by_parent = defaultdict(float)
+	for row in items:
+		parent = row.get("sales_order") or ""
+		line_net_by_parent[parent] += flt(row.get("amount"))
+
+	for row in items:
+		parent = row.get("sales_order") or ""
+		parent_tax = flt(tax_by_parent.get(parent))
+		# Prorate on selected lines' net so allocated tax still sums to invoice tax
+		# when all lines are included; if medicines excluded, tax is proportional
+		# to remaining lines only (same share of tax as their share of bill).
+		base_net = flt(net_by_parent.get(parent)) or flt(line_net_by_parent.get(parent))
+		line_net = flt(row.get("amount"))
+		if parent_tax and base_net:
+			row["tax_amount"] = parent_tax * (line_net / base_net)
+		else:
+			row["tax_amount"] = 0.0
+	return items
+
+
+def _accumulate(bucket, channel: str, net: float, discount: float, tax: float = 0.0):
+	"""Accumulate line into care-channel bucket.
+
+	- IP / OP / IOP  → net + tax (so they sum to Grand Total)
+	- discount       → line discount (informational)
+	- net            → item amount (matches Sales Register Net Total)
+	- total          → Grand Total = net + tax (matches Sales Register Grand Total)
+	"""
+	grand = net + tax
 	if channel == "IP":
-		bucket["ip"] += gross
+		bucket["ip"] += grand
 	elif channel == "IOP":
-		bucket["iop"] += gross
+		bucket["iop"] += grand
 	else:
-		bucket["op"] += gross
+		bucket["op"] += grand
 	bucket["discount"] += discount
 	bucket["net"] += net
+	bucket["tax"] += tax
 	bucket["total"] = bucket["ip"] + bucket["op"] + bucket["iop"]
 
 
@@ -287,7 +381,9 @@ def build_analysis(doc_or_filters) -> dict:
 	)
 
 	items = get_service_items(filters)
-	items = _enrich_items_with_discount(items, filters.get("source") or "Sales Invoice")
+	billing_source = filters.get("source") or "Sales Invoice"
+	items = _enrich_items_with_discount(items, billing_source)
+	items = _enrich_items_with_tax(items, billing_source)
 
 	# doctor_key -> period_key -> bucket
 	matrix = defaultdict(lambda: defaultdict(_empty_bucket))
@@ -331,7 +427,13 @@ def build_analysis(doc_or_filters) -> dict:
 			channel = classify_care_channel(
 				row.custom_base_reference, row.custom_base_reference_name, visit_care_map
 			)
-			_accumulate(matrix[doctor_key][pkey], channel, flt(row.amount), _line_discount(row))
+			_accumulate(
+				matrix[doctor_key][pkey],
+				channel,
+				flt(row.amount),
+				_line_discount(row),
+				_line_tax(row),
+			)
 
 	# Rank by total net across all periods (desc). Other Income first.
 	def total_net(doctor_key):
@@ -496,11 +598,15 @@ def build_source_income_summary(doc_or_filters) -> dict:
 		}
 	)
 
-	# channel -> period_key -> {total, discount, net}
-	matrix = defaultdict(lambda: defaultdict(lambda: {"total": 0.0, "discount": 0.0, "net": 0.0}))
+	# channel -> period_key -> {total=grand, discount, net, tax}
+	matrix = defaultdict(
+		lambda: defaultdict(lambda: {"total": 0.0, "discount": 0.0, "net": 0.0, "tax": 0.0})
+	)
 
+	billing_source = filters.get("source") or "Sales Invoice"
 	items = get_service_items(filters)
-	items = _enrich_items_with_discount(items, filters.get("source") or "Sales Invoice")
+	items = _enrich_items_with_discount(items, billing_source)
+	items = _enrich_items_with_tax(items, billing_source)
 	if items:
 		visit_names = {
 			(row.custom_base_reference_name or "").strip()
@@ -517,10 +623,12 @@ def build_source_income_summary(doc_or_filters) -> dict:
 			)
 			net = flt(row.amount)
 			discount = _line_discount(row)
+			tax = _line_tax(row)
 			bucket = matrix[channel][pkey]
-			bucket["total"] += net + discount
+			bucket["total"] += net + tax  # Grand Total (Sales Register)
 			bucket["discount"] += discount
 			bucket["net"] += net
+			bucket["tax"] += tax
 
 	sources = ("IP", "OP", "IOP")
 	periods = [
@@ -528,25 +636,33 @@ def build_source_income_summary(doc_or_filters) -> dict:
 		for w in windows
 	]
 	rows = []
-	grand = {"total": 0.0, "discount": 0.0, "net": 0.0}
+	grand = {"total": 0.0, "discount": 0.0, "net": 0.0, "tax": 0.0}
 	pie_values = []
 	for channel in sources:
-		row = {"source": channel, "total": 0.0, "discount": 0.0, "net": 0.0, "periods": []}
+		row = {"source": channel, "total": 0.0, "discount": 0.0, "net": 0.0, "tax": 0.0, "periods": []}
 		for w in windows:
-			b = matrix[channel].get(w["key"]) or {"total": 0.0, "discount": 0.0, "net": 0.0}
+			b = matrix[channel].get(w["key"]) or {
+				"total": 0.0,
+				"discount": 0.0,
+				"net": 0.0,
+				"tax": 0.0,
+			}
 			cell = {
 				"key": w["key"],
 				"total": flt(b["total"]),
 				"discount": flt(b["discount"]),
 				"net": flt(b["net"]),
+				"tax": flt(b.get("tax")),
 			}
 			row["periods"].append(cell)
 			row["total"] += cell["total"]
 			row["discount"] += cell["discount"]
 			row["net"] += cell["net"]
+			row["tax"] += cell["tax"]
 		grand["total"] += row["total"]
 		grand["discount"] += row["discount"]
 		grand["net"] += row["net"]
+		grand["tax"] += row["tax"]
 		pie_values.append(flt(row["net"]))
 		rows.append(row)
 
@@ -609,7 +725,7 @@ def render_source_pie_svg(summary: dict) -> str:
 		legend += (
 			f'<rect x="260" y="{ly}" width="14" height="14" fill="{color}" rx="2"/>'
 			f'<text x="282" y="{ly + 12}" font-size="12" fill="#334155">'
-			f"{frappe.utils.escape_html(str(label))}: {val:,.0f} ({pct:.1f}%)</text>"
+			f"{frappe.utils.escape_html(str(label))}: {format_money_bhd(val)} ({pct:.1f}%)</text>"
 		)
 		angle = end
 
@@ -635,11 +751,7 @@ def render_source_income_html(doc_or_filters=None, summary=None) -> str:
 	period_label = summary.get("period") or ctx.get("period") or "Yearly"
 	generated = format_datetime_safe(ctx.get("generated_on") or now_datetime())
 
-	def money(v):
-		n = flt(v)
-		if abs(n - round(n)) < 0.001:
-			return f"{n:,.0f}"
-		return f"{n:,.3f}".rstrip("0").rstrip(".")
+	money = format_money_bhd
 
 	amt_w = "90px"
 	th = (
@@ -657,7 +769,7 @@ def render_source_income_html(doc_or_filters=None, summary=None) -> str:
 			f'<th colspan="3" style="background:{bg};text-align:center;border:1px solid #333;'
 			f'padding:4px;font-weight:bold;">{label}</th>'
 		)
-		for lbl in ("Total", "Discount", "Net"):
+		for lbl in (_("Total"), _("Discount"), _("Net")):
 			period_sub += f'<th style="background:{bg};{th}">{lbl}</th>'
 
 	body = ""
@@ -733,7 +845,7 @@ def render_source_income_html(doc_or_filters=None, summary=None) -> str:
 				<tr>
 					<th rowspan="2" style="border:1px solid #333;padding:4px;background:#eee;width:80px;vertical-align:middle;">Source</th>
 					{period_headers}
-					<th colspan="3" style="border:1px solid #333;padding:4px;background:#eee;text-align:center;font-weight:bold;">{_("Grand")}</th>
+					<th colspan="3" style="border:1px solid #333;padding:4px;background:#eee;text-align:center;font-weight:bold;">{_("Total")}</th>
 				</tr>
 				<tr>
 					{period_sub}
@@ -824,10 +936,10 @@ def render_chart_html(analysis: dict) -> str:
 	def money_short(v):
 		nval = flt(v)
 		if abs(nval) >= 1_000_000:
-			return f"{nval/1_000_000:.1f}M"
+			return f"{nval/1_000_000:.{MONEY_DECIMALS}f}M"
 		if abs(nval) >= 1_000:
-			return f"{nval/1_000:.1f}K"
-		return f"{nval:,.0f}"
+			return f"{nval/1_000:.{MONEY_DECIMALS}f}K"
+		return format_money_bhd(nval)
 
 	# Axis line
 	axis_y = top + plot_h
@@ -910,11 +1022,7 @@ def render_analysis_html(doc_or_filters=None, analysis=None, include_chart=True)
 	generated = format_datetime_safe(ctx.get("generated_on") or now_datetime())
 	period_label = analysis.get("period") or ctx.get("period") or "Yearly"
 
-	def money(v):
-		n = flt(v)
-		if abs(n - round(n)) < 0.001:
-			return f"{n:,.0f}"
-		return f"{n:,.3f}".rstrip("0").rstrip(".")
+	money = format_money_bhd
 
 	# One band per period: IP | OP | IOP | Total | Discount | Net Total
 	period_cols = ("ip", "op", "iop", "total", "discount", "net")

@@ -25,7 +25,6 @@ from healthcare.api.doctor_wise_income_analysis import (
 from healthcare.api.patient_wise_income_analysis import (
 	DEFAULT_LIMIT,
 	build_patient_analysis,
-	build_patient_frappe_chart,
 	render_patient_income_html,
 )
 
@@ -120,7 +119,8 @@ def _doctor_columns(analysis: dict) -> list[dict]:
 					"label": f"{label} {short}",
 					"fieldname": _field(key, metric),
 					"fieldtype": "Currency",
-					"width": 90,
+					"width": 100,
+					"precision": 3,
 				}
 			)
 	return cols
@@ -151,22 +151,25 @@ def _doctor_rows(analysis: dict) -> list[dict]:
 def _execute_patient(filters):
 	analysis = build_patient_analysis(filters)
 	filters.generated_on = now_datetime()
+	# Patient SVG chart lives inside the HTML only — no second IP/OP/IOP widget.
 	html = render_patient_income_html(filters, analysis)
 	columns = _patient_columns(analysis)
 	data = _patient_rows(analysis)
-	chart = build_patient_frappe_chart(analysis)
-	return columns, data, html, chart
+	return columns, data, html, None
 
 
 def _patient_columns(analysis: dict) -> list[dict]:
 	cols = [
 		{"label": _("Rank"), "fieldname": "rank_no", "fieldtype": "Int", "width": 60},
+		{"label": _("File No"), "fieldname": "file_no", "fieldtype": "Data", "width": 100},
+		{"label": _("Patient ID"), "fieldname": "patient_id", "fieldtype": "Data", "width": 120},
 		{
 			"label": _("Patient"),
 			"fieldname": "patient",
 			"fieldtype": "Link",
 			"options": "Patient",
 			"width": 120,
+			"hidden": 1,
 		},
 		{"label": _("Patient Name"), "fieldname": "patient_name", "fieldtype": "Data", "width": 200},
 	]
@@ -186,7 +189,8 @@ def _patient_columns(analysis: dict) -> list[dict]:
 					"label": f"{label} {short}",
 					"fieldname": _field(key, metric),
 					"fieldtype": "Currency",
-					"width": 90,
+					"width": 100,
+					"precision": 3,
 				}
 			)
 	return cols
@@ -199,6 +203,8 @@ def _patient_rows(analysis: dict) -> list[dict]:
 		by_key = {p.get("key"): p for p in (item.get("periods") or [])}
 		row = {
 			"rank_no": cint(item.get("rank_no")) or None,
+			"file_no": item.get("file_no") or "",
+			"patient_id": item.get("patient_id") or "",
 			"patient": item.get("patient"),
 			"patient_name": item.get("patient_name"),
 		}
@@ -217,11 +223,11 @@ def _patient_rows(analysis: dict) -> list[dict]:
 def _execute_source(filters):
 	summary = build_source_income_summary(filters)
 	filters.generated_on = now_datetime()
+	# Pie chart lives in the HTML only — no second Frappe pie below the table.
 	html = render_source_income_html(filters, summary)
 	columns = _source_columns(summary)
 	data = _source_rows(summary)
-	chart = _source_chart(summary)
-	return columns, data, html, chart
+	return columns, data, html, None
 
 
 def _source_columns(summary: dict) -> list[dict]:
@@ -238,13 +244,14 @@ def _source_columns(summary: dict) -> list[dict]:
 					"fieldname": _field(key, metric),
 					"fieldtype": "Currency",
 					"width": 110,
+					"precision": 3,
 				}
 			)
 	cols.extend(
 		[
-			{"label": _("Grand Total"), "fieldname": "grand_total", "fieldtype": "Currency", "width": 120},
-			{"label": _("Grand Discount"), "fieldname": "grand_discount", "fieldtype": "Currency", "width": 120},
-			{"label": _("Grand Net"), "fieldname": "grand_net", "fieldtype": "Currency", "width": 120},
+			{"label": _("Total"), "fieldname": "grand_total", "fieldtype": "Currency", "width": 120, "precision": 3},
+			{"label": _("Discount"), "fieldname": "grand_discount", "fieldtype": "Currency", "width": 120, "precision": 3},
+			{"label": _("Net"), "fieldname": "grand_net", "fieldtype": "Currency", "width": 120, "precision": 3},
 		]
 	)
 	return cols
@@ -269,20 +276,3 @@ def _source_rows(summary: dict) -> list[dict]:
 			row[_field(key, "net")] = flt(cell.get("net"))
 		rows.append(row)
 	return rows
-
-
-def _source_chart(summary: dict) -> dict | None:
-	pie = summary.get("pie") or {}
-	labels = pie.get("labels") or []
-	values = [flt(v) for v in (pie.get("values") or [])]
-	if not labels or not any(values):
-		return None
-	return {
-		"data": {
-			"labels": labels,
-			"datasets": [{"name": _("Net Income"), "values": values}],
-		},
-		"type": "pie",
-		"height": 300,
-		"colors": ["#1e88e5", "#43a047", "#fb8c00"],
-	}

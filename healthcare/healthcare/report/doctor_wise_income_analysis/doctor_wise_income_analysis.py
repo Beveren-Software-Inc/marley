@@ -15,7 +15,6 @@ from frappe.utils import cint, flt, getdate, now_datetime
 
 from healthcare.api.doctor_wise_income_analysis import (
 	build_analysis,
-	build_frappe_chart,
 	render_analysis_html,
 )
 
@@ -26,12 +25,12 @@ def execute(filters=None):
 
 	analysis = build_analysis(filters)
 	filters.generated_on = now_datetime()
+	# Doctor SVG chart lives inside the HTML only — no second IP/OP/IOP widget.
 	html = render_analysis_html(filters, analysis, include_chart=True)
 
 	columns = _columns(analysis)
 	data = _rows(analysis)
-	chart = build_frappe_chart(analysis)
-	return columns, data, html, chart
+	return columns, data, html, None
 
 
 def _validate(filters):
@@ -74,7 +73,8 @@ def _columns(analysis: dict) -> list[dict]:
 					"label": f"{label} {short}",
 					"fieldname": _field(key, metric),
 					"fieldtype": "Currency",
-					"width": 90,
+					"width": 100,
+					"precision": 3,
 				}
 			)
 	return cols

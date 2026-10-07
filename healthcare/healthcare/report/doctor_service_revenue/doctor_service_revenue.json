@@ -4,14 +4,15 @@
  "columns": [],
  "creation": "2026-07-15 19:15:11.141511",
  "disable_prepared_report_automation": 0,
- "disabled": 0,
+ "disabled": 1,
  "docstatus": 0,
  "doctype": "Report",
+ "doctype_to_sync": [],
  "filters": [],
  "idx": 0,
  "is_standard": "Yes",
  "letter_head": null,
- "modified": "2026-07-15 19:17:37.464930",
+ "modified": "2026-10-08 00:19:15.283817",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Doctor Service Revenue",
@@ -40,5 +41,6 @@
    "role": "Reception"
   }
  ],
+ "snapshot_report": 0,
  "timeout": 0
 }
