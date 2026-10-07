@@ -58,10 +58,12 @@ frappe.query_reports["Income by Doctor Patient and Source"] = {
 			fieldname: "limit",
 			label: __("Limit"),
 			fieldtype: "Int",
-			default: 100,
+			default: 50,
 			depends_on:
 				"eval:frappe.query_report.get_filter_value('group_by')==='Patient'",
-			description: __("Top patients by net (Patient view only)"),
+			description: __(
+				"Top patients by net (HTML shows ~50 rows; scroll for the rest)"
+			),
 		},
 		{
 			fieldname: "paid_only",

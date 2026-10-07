@@ -50,9 +50,11 @@ frappe.query_reports["Patient Wise Income Analysis"] = {
 			fieldname: "limit",
 			label: __("Limit"),
 			fieldtype: "Int",
-			default: 100,
+			default: 50,
 			reqd: 1,
-			description: __("Top patients by net income (scroll table for loaded rows)"),
+			description: __(
+				"Top patients by net (HTML shows ~50 rows; scroll for the rest)"
+			),
 		},
 		{
 			fieldname: "paid_only",

@@ -60,13 +60,14 @@ def _columns(summary: dict) -> list[dict]:
 					"fieldname": _field(key, metric),
 					"fieldtype": "Currency",
 					"width": 110,
+					"precision": 3,
 				}
 			)
 	cols.extend(
 		[
-			{"label": _("Grand Total"), "fieldname": "grand_total", "fieldtype": "Currency", "width": 120},
-			{"label": _("Grand Discount"), "fieldname": "grand_discount", "fieldtype": "Currency", "width": 120},
-			{"label": _("Grand Net"), "fieldname": "grand_net", "fieldtype": "Currency", "width": 120},
+			{"label": _("Total"), "fieldname": "grand_total", "fieldtype": "Currency", "width": 120, "precision": 3},
+			{"label": _("Discount"), "fieldname": "grand_discount", "fieldtype": "Currency", "width": 120, "precision": 3},
+			{"label": _("Net"), "fieldname": "grand_net", "fieldtype": "Currency", "width": 120, "precision": 3},
 		]
 	)
 	return cols

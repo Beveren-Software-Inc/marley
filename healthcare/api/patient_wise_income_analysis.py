@@ -13,19 +13,23 @@ from collections import defaultdict
 
 import frappe
 from frappe import _
-from frappe.utils import cint, flt, getdate, now_datetime
+from frappe.utils import cint, cstr, flt, getdate, now_datetime
 
 from healthcare.api.doctor_wise_income_analysis import (
+	MONEY_DECIMALS,
 	PERIOD_COLORS,
 	_accumulate,
 	_empty_bucket,
 	_enrich_items_with_discount,
+	_enrich_items_with_tax,
 	_fmt_short_date,
 	_line_discount,
+	_line_tax,
 	_load_visit_care_map,
 	_period_key_for_date,
 	classify_care_channel,
 	format_datetime_safe,
+	format_money_bhd,
 	period_windows,
 )
 from healthcare.healthcare.report.doctor_service_revenue.doctor_service_revenue import (
@@ -33,11 +37,48 @@ from healthcare.healthcare.report.doctor_service_revenue.doctor_service_revenue 
 )
 
 UNKNOWN_PATIENT_KEY = "__unknown_patient__"
-DEFAULT_LIMIT = 100
+OTHER_PATIENTS_KEY = "__other_patients__"
+WALKIN_PREFIX = "__walkin__:"
+DEFAULT_LIMIT = 50
+# Visible rows in the HTML table before scrolling (keeps the report compact).
+HTML_VISIBLE_ROWS = 50
+HTML_ROW_HEIGHT_PX = 22
+
+
+def _walkin_key(customer: str | None, display_name: str) -> str:
+	"""Stable key for walk-in / cash customers (no Patient link)."""
+	cust = (customer or "").strip()
+	if cust:
+		return f"{WALKIN_PREFIX}{cust}"
+	name = (display_name or "").strip() or _("Unknown Patient")
+	return f"{WALKIN_PREFIX}{name}"
+
+
+def _periods_from_bucket_map(bucket_by_period: dict, windows: list[dict]) -> list[dict]:
+	periods = []
+	for w in windows:
+		b = bucket_by_period.get(w["key"]) or _empty_bucket()
+		periods.append(
+			{
+				"key": w["key"],
+				"ip": flt(b["ip"]),
+				"op": flt(b["op"]),
+				"iop": flt(b["iop"]),
+				"total": flt(b["total"]),
+				"discount": flt(b["discount"]),
+				"net": flt(b["net"]),
+			}
+		)
+	return periods
 
 
 def build_patient_analysis(doc_or_filters) -> dict:
-	"""Build period × patient analysis (IP / OP / IOP / Total / Discount / Net)."""
+	"""Build period × patient analysis (IP / OP / IOP / Total / Discount / Net).
+
+	Walk-in / invoices with no Patient are forced to OP and shown with customer
+	details. Column totals include every patient (plus an Other Patients row for
+	anyone beyond Limit) so totals match Doctor / Source / Sales Register.
+	"""
 	src = frappe._dict(doc_or_filters or {})
 	windows = period_windows(src.from_date, src.to_date, src.get("period") or "Yearly")
 	limit = cint(src.get("limit") or DEFAULT_LIMIT)
@@ -57,8 +98,10 @@ def build_patient_analysis(doc_or_filters) -> dict:
 		}
 	)
 
+	billing_source = filters.get("source") or "Sales Invoice"
 	items = get_service_items(filters)
-	items = _enrich_items_with_discount(items, filters.get("source") or "Sales Invoice")
+	items = _enrich_items_with_discount(items, billing_source)
+	items = _enrich_items_with_tax(items, billing_source)
 
 	# patient_key -> period_key -> bucket
 	matrix = defaultdict(lambda: defaultdict(_empty_bucket))
@@ -79,64 +122,111 @@ def build_patient_analysis(doc_or_filters) -> dict:
 
 			patient = (row.get("patient") or "").strip()
 			patient_name = (row.get("custom_patient_name") or "").strip()
+			customer = (row.get("customer") or "").strip()
+			customer_name = (row.get("customer_name") or "").strip()
+
 			if patient:
 				patient_key = patient
 				if patient_key not in meta:
 					meta[patient_key] = {
 						"patient": patient,
 						"patient_name": patient_name or patient,
+						"file_no": "",
+						"patient_id": "",
 						"is_unknown": 0,
+						"is_other": 0,
 					}
-				elif patient_name and not meta[patient_key].get("patient_name"):
+				elif patient_name and (
+					not meta[patient_key].get("patient_name")
+					or meta[patient_key].get("patient_name") == patient_key
+				):
 					meta[patient_key]["patient_name"] = patient_name
+				channel = classify_care_channel(
+					row.custom_base_reference, row.custom_base_reference_name, visit_care_map
+				)
 			else:
-				patient_key = UNKNOWN_PATIENT_KEY
+				# Walk-in / cash customer — no Patient link. Always OP; show name details.
+				display = patient_name or customer_name or _("Unknown Patient")
+				if customer or patient_name or customer_name:
+					patient_key = _walkin_key(customer, display)
+				else:
+					patient_key = UNKNOWN_PATIENT_KEY
 				if patient_key not in meta:
 					meta[patient_key] = {
 						"patient": None,
-						"patient_name": patient_name or _("Unknown Patient"),
+						"patient_name": display,
+						"file_no": "",
+						"patient_id": "",
 						"is_unknown": 1,
+						"is_other": 0,
 					}
-				elif patient_name and meta[patient_key]["patient_name"] == _("Unknown Patient"):
-					meta[patient_key]["patient_name"] = patient_name
+				elif display and meta[patient_key]["patient_name"] in (
+					_("Unknown Patient"),
+					patient_key,
+				):
+					meta[patient_key]["patient_name"] = display
+				# Walking customers are outpatient sales
+				channel = "OP"
 
-			channel = classify_care_channel(
-				row.custom_base_reference, row.custom_base_reference_name, visit_care_map
+			_accumulate(
+				matrix[patient_key][pkey],
+				channel,
+				flt(row.amount),
+				_line_discount(row),
+				_line_tax(row),
 			)
-			_accumulate(matrix[patient_key][pkey], channel, flt(row.amount), _line_discount(row))
 
-	# Fill missing patient names from Patient master
-	need_names = [
+	# File No / Patient ID / name from Patient master
+	named_keys = [
 		k
 		for k, m in meta.items()
-		if k != UNKNOWN_PATIENT_KEY and (not m.get("patient_name") or m.get("patient_name") == k)
+		if not cint(m.get("is_unknown"))
+		and not str(k).startswith(WALKIN_PREFIX)
+		and k not in (UNKNOWN_PATIENT_KEY, OTHER_PATIENTS_KEY)
 	]
-	if need_names:
-		for i in range(0, len(need_names), 500):
-			chunk = need_names[i : i + 500]
+	if named_keys:
+		has_file_no = frappe.db.has_column("Patient", "file_no")
+		has_id_number = frappe.db.has_column("Patient", "id_number")
+		fields = ["name", "patient_name"]
+		if has_file_no:
+			fields.append("file_no")
+		if has_id_number:
+			fields.append("id_number")
+		for i in range(0, len(named_keys), 500):
+			chunk = named_keys[i : i + 500]
 			for row in frappe.get_all(
 				"Patient",
 				filters={"name": ["in", chunk]},
-				fields=["name", "patient_name"],
+				fields=fields,
 				ignore_permissions=True,
 			):
-				if row.patient_name and row.name in meta:
-					meta[row.name]["patient_name"] = row.patient_name
+				if row.name not in meta:
+					continue
+				m = meta[row.name]
+				if row.patient_name and (not m.get("patient_name") or m.get("patient_name") == row.name):
+					m["patient_name"] = row.patient_name
+				file_no = (row.get("file_no") if has_file_no else None) or row.name
+				m["file_no"] = cstr(file_no).strip()
+				m["patient_id"] = cstr(row.get("id_number") if has_id_number else "").strip()
 
 	def total_net(patient_key):
 		return sum(flt(matrix[patient_key][w["key"]]["net"]) for w in windows)
 
-	all_keys = set(matrix.keys()) | set(meta.keys())
-	unknowns = [UNKNOWN_PATIENT_KEY] if UNKNOWN_PATIENT_KEY in all_keys else []
-	ranked = sorted(
-		[k for k in all_keys if k != UNKNOWN_PATIENT_KEY],
-		key=total_net,
-		reverse=True,
-	)
-	total_patients = len(unknowns) + len(ranked)
-	# Unknown first (like Other Income), then top N named patients by net
-	named_slots = max(limit - len(unknowns), 0) if unknowns else limit
-	selected = unknowns + ranked[:named_slots]
+	all_keys = sorted(set(matrix.keys()) | set(meta.keys()), key=total_net, reverse=True)
+	total_patients = len(all_keys)
+
+	# Full-period totals first (matches Doctor / Source / Sales Register Grand)
+	col_totals = []
+	for w in windows:
+		t = _empty_bucket()
+		for patient_key in all_keys:
+			b = matrix[patient_key].get(w["key"]) or _empty_bucket()
+			for k in ("ip", "op", "iop", "total", "discount", "net", "tax"):
+				t[k] += flt(b.get(k))
+		col_totals.append({"key": w["key"], **{k: flt(t[k]) for k in t}})
+
+	selected = all_keys[:limit]
+	remainder = all_keys[limit:]
 
 	patients = []
 	rank = 1
@@ -144,44 +234,56 @@ def build_patient_analysis(doc_or_filters) -> dict:
 		m = meta.get(patient_key) or {
 			"patient": None if patient_key == UNKNOWN_PATIENT_KEY else patient_key,
 			"patient_name": _("Unknown Patient") if patient_key == UNKNOWN_PATIENT_KEY else patient_key,
-			"is_unknown": 1 if patient_key == UNKNOWN_PATIENT_KEY else 0,
+			"is_unknown": 1 if patient_key == UNKNOWN_PATIENT_KEY or str(patient_key).startswith(WALKIN_PREFIX) else 0,
+			"is_other": 0,
 		}
-		is_unknown = patient_key == UNKNOWN_PATIENT_KEY or cint(m.get("is_unknown"))
-		periods = []
-		for w in windows:
-			b = matrix[patient_key].get(w["key"]) or _empty_bucket()
-			periods.append(
-				{
-					"key": w["key"],
-					"ip": flt(b["ip"]),
-					"op": flt(b["op"]),
-					"iop": flt(b["iop"]),
-					"total": flt(b["total"]),
-					"discount": flt(b["discount"]),
-					"net": flt(b["net"]),
-				}
-			)
+		is_unknown = cint(m.get("is_unknown")) or patient_key == UNKNOWN_PATIENT_KEY or str(
+			patient_key
+		).startswith(WALKIN_PREFIX)
+		display_name = m.get("patient_name") or patient_key
+		if is_unknown and not str(display_name).startswith("("):
+			# Clarify walk-in rows in the table
+			if patient_key == UNKNOWN_PATIENT_KEY:
+				display_name = _("Unknown Patient (Walk-in / OP)")
+			elif _("Walk-in") not in str(display_name):
+				display_name = _("{0} (Walk-in / OP)").format(display_name)
+
 		patients.append(
 			{
 				"rank_no": 0 if is_unknown else rank,
 				"patient": m.get("patient"),
-				"patient_name": m.get("patient_name"),
+				"file_no": m.get("file_no") or "",
+				"patient_id": m.get("patient_id") or "",
+				"patient_name": display_name,
 				"is_unknown": 1 if is_unknown else 0,
-				"periods": periods,
+				"is_other": 0,
+				"periods": _periods_from_bucket_map(matrix[patient_key], windows),
 			}
 		)
 		if not is_unknown:
 			rank += 1
 
-	# Column totals for the *shown* rows (matches add_total_row on limited set)
-	col_totals = []
-	for i, w in enumerate(windows):
-		t = _empty_bucket()
-		for prow in patients:
-			p = prow["periods"][i]
-			for k in ("ip", "op", "iop", "total", "discount", "net"):
-				t[k] += flt(p[k])
-		col_totals.append({"key": w["key"], **{k: flt(t[k]) for k in t}})
+	# Fold everyone beyond Limit into one row so listed rows still sum to Total
+	if remainder:
+		other_map = defaultdict(_empty_bucket)
+		for patient_key in remainder:
+			for w in windows:
+				b = matrix[patient_key].get(w["key"]) or _empty_bucket()
+				ob = other_map[w["key"]]
+				for k in ("ip", "op", "iop", "total", "discount", "net", "tax"):
+					ob[k] += flt(b.get(k))
+		patients.append(
+			{
+				"rank_no": 0,
+				"patient": None,
+				"file_no": "",
+				"patient_id": "",
+				"patient_name": _("Other Patients ({0})").format(len(remainder)),
+				"is_unknown": 0,
+				"is_other": 1,
+				"periods": _periods_from_bucket_map(other_map, windows),
+			}
+		)
 
 	return {
 		"period": (src.get("period") or "Yearly"),
@@ -209,6 +311,8 @@ def build_patient_frappe_chart(analysis: dict, chart_limit: int = 12) -> dict | 
 	"""Stacked bar of top patients by net (IP / OP / IOP)."""
 	rows = []
 	for p in analysis.get("patients") or []:
+		if cint(p.get("is_other")):
+			continue
 		ip = op = iop = net = 0.0
 		for cell in p.get("periods") or []:
 			ip += flt(cell.get("ip"))
@@ -289,10 +393,10 @@ def render_patient_chart_html(analysis: dict, chart_limit: int = 12) -> str:
 	def money_short(v):
 		nval = flt(v)
 		if abs(nval) >= 1_000_000:
-			return f"{nval / 1_000_000:.1f}M"
+			return f"{nval / 1_000_000:.{MONEY_DECIMALS}f}M"
 		if abs(nval) >= 1_000:
-			return f"{nval / 1_000:.1f}K"
-		return f"{nval:,.0f}"
+			return f"{nval / 1_000:.{MONEY_DECIMALS}f}K"
+		return format_money_bhd(nval)
 
 	axis_y = top + plot_h
 	bars = (
@@ -362,11 +466,7 @@ def render_patient_income_html(doc_or_filters=None, analysis=None) -> str:
 	shown = cint(analysis.get("shown_patients"))
 	total_pts = cint(analysis.get("total_patients"))
 
-	def money(v):
-		n = flt(v)
-		if abs(n - round(n)) < 0.001:
-			return f"{n:,.0f}"
-		return f"{n:,.3f}".rstrip("0").rstrip(".")
+	money = format_money_bhd
 
 	amt_w = "72px"
 	amt_style = (
@@ -376,18 +476,20 @@ def render_patient_income_html(doc_or_filters=None, analysis=None) -> str:
 	period_cols = ("ip", "op", "iop", "total", "discount", "net")
 	period_labels = ("IP", "OP", "IOP", "Total", "Discount", "Net Total")
 
+	th_sticky_top = "position:sticky;top:0;z-index:2;"
+	th_sticky_sub = "position:sticky;top:24px;z-index:2;"
 	period_headers = ""
 	period_sub = ""
 	for i, p in enumerate(periods):
 		bg = PERIOD_COLORS[i % len(PERIOD_COLORS)]
 		label = frappe.utils.escape_html(p.get("label") or p.get("key") or "")
 		period_headers += (
-			f'<th colspan="6" style="background:{bg};text-align:center;border:1px solid #333;'
+			f'<th colspan="6" style="{th_sticky_top}background:{bg};text-align:center;border:1px solid #333;'
 			f'padding:4px;font-weight:bold;">{label}</th>'
 		)
 		for lbl in period_labels:
 			period_sub += (
-				f'<th style="background:{bg};border:1px solid #333;padding:3px 4px;text-align:center;'
+				f'<th style="{th_sticky_sub}background:{bg};border:1px solid #333;padding:3px 4px;text-align:center;'
 				f'font-size:10px;white-space:nowrap;width:{amt_w};min-width:{amt_w};max-width:{amt_w};">{lbl}</th>'
 			)
 
@@ -399,39 +501,66 @@ def render_patient_income_html(doc_or_filters=None, analysis=None) -> str:
 			out += f'<td style="{amt_style}color:{color};">{money(bucket.get(k))}</td>'
 		return out
 
+	id_cell = (
+		"border:1px solid #333;padding:2px 4px;text-align:left;white-space:nowrap;"
+		"overflow:hidden;text-overflow:ellipsis;"
+	)
+	name_cell = (
+		"border:1px solid #333;padding:2px 6px;text-align:left;max-width:200px;"
+		"width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"
+	)
+
 	body = ""
 	for r in patients:
 		by_key = {p.get("key"): p for p in (r.get("periods") or [])}
 		rank = cint(r.get("rank_no"))
-		rank_html = "" if cint(r.get("is_unknown")) else str(rank)
+		rank_html = "" if cint(r.get("is_unknown")) or cint(r.get("is_other")) else str(rank)
+		file_no = frappe.utils.escape_html(r.get("file_no") or "")
+		patient_id = frappe.utils.escape_html(r.get("patient_id") or "")
+		pname = frappe.utils.escape_html(r.get("patient_name") or "")
 		body += "<tr>"
 		body += f'<td style="border:1px solid #333;padding:2px 4px;text-align:center;">{rank_html}</td>'
-		body += (
-			f'<td style="border:1px solid #333;padding:2px 6px;text-align:left;max-width:220px;'
-			f'width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"'
-			f' title="{frappe.utils.escape_html(r.get("patient_name") or "")}">'
-			f'{frappe.utils.escape_html(r.get("patient_name") or "")}</td>'
-		)
+		body += f'<td style="{id_cell}width:80px;">{file_no}</td>'
+		body += f'<td style="{id_cell}width:100px;">{patient_id}</td>'
+		body += f'<td style="{name_cell}" title="{pname}">{pname}</td>'
 		for p in periods:
 			body += _amt_cells(by_key.get(p["key"]))
 		body += "</tr>"
 
 	tot_by_key = {t.get("key"): t for t in col_totals}
-	footer = '<tr style="font-weight:bold;background:#f5f5f5;">'
-	footer += f'<td colspan="2" style="border:1px solid #333;padding:3px 6px;">{_("Total")}</td>'
+	tf_label = (
+		"position:sticky;bottom:0;z-index:3;background:#f5f5f5;"
+		"border:1px solid #333;padding:3px 6px;"
+	)
+	tf_amt = f"position:sticky;bottom:0;z-index:3;background:#f5f5f5;{amt_style}"
+	footer = '<tr style="font-weight:bold;">'
+	footer += f'<td colspan="4" style="{tf_label}">{_("Total")}</td>'
 	for p in periods:
-		footer += _amt_cells(tot_by_key.get(p["key"]))
+		bucket = tot_by_key.get(p["key"]) or {}
+		for k in period_cols:
+			color = "#c62828" if k == "discount" else "#000"
+			footer += f'<td style="{tf_amt}color:{color};">{money(bucket.get(k))}</td>'
 	footer += "</tr>"
 
 	from_s = _fmt_short_date(analysis.get("from_date") or ctx.get("from_date"))
 	to_s = _fmt_short_date(analysis.get("to_date") or ctx.get("to_date"))
 	chart_html = render_patient_chart_html(analysis)
-	note = ""
+	n_rows = len(patients)
+	# Header (~48px) + ~50 body rows + sticky total — remaining patients scroll inside.
+	scroll_max_h = 48 + (HTML_VISIBLE_ROWS * HTML_ROW_HEIGHT_PX) + 28
+	note_parts = []
 	if total_pts > shown:
+		note_parts.append(_("Showing top {0} of {1} patients").format(shown, total_pts))
+	if n_rows > HTML_VISIBLE_ROWS:
+		note_parts.append(_("First {0} rows visible — scroll for more").format(HTML_VISIBLE_ROWS))
+	note = ""
+	if note_parts:
 		note = (
 			f'<div style="font-size:11px;color:#64748b;margin:0 0 8px;text-align:center;">'
-			f'{_("Showing top {0} of {1} patients").format(shown, total_pts)}</div>'
+			f'{" · ".join(note_parts)}</div>'
 		)
+
+	th_sticky = "position:sticky;top:0;z-index:2;"
 
 	return f"""
 	<div class="pwia-report" style="font-family:Arial,Helvetica,sans-serif;font-size:11px;color:#000;">
@@ -455,20 +584,24 @@ def render_patient_income_html(doc_or_filters=None, analysis=None) -> str:
 			</tr>
 		</table>
 		{chart_html}
-		<div style="overflow:auto;max-width:100%;">
+		<div style="overflow:auto;max-height:{scroll_max_h}px;max-width:100%;border:1px solid #ccc;">
 		<table style="width:100%;border-collapse:collapse;table-layout:fixed;font-size:10px;min-width:720px;">
 			<thead>
 				<tr>
-					<th rowspan="2" style="border:1px solid #333;padding:4px;background:#eee;width:48px;vertical-align:middle;">Rank<br>No.</th>
-					<th rowspan="2" style="border:1px solid #333;padding:4px;background:#eee;width:220px;max-width:220px;vertical-align:middle;">{_("Patient Name")}</th>
+					<th rowspan="2" style="{th_sticky}border:1px solid #333;padding:4px;background:#eee;width:48px;vertical-align:middle;">Rank<br>No.</th>
+					<th rowspan="2" style="{th_sticky}border:1px solid #333;padding:4px;background:#eee;width:80px;vertical-align:middle;">{_("File No")}</th>
+					<th rowspan="2" style="{th_sticky}border:1px solid #333;padding:4px;background:#eee;width:100px;vertical-align:middle;">{_("Patient ID")}</th>
+					<th rowspan="2" style="{th_sticky}border:1px solid #333;padding:4px;background:#eee;width:200px;max-width:200px;vertical-align:middle;">{_("Patient Name")}</th>
 					{period_headers}
 				</tr>
 				<tr>{period_sub}</tr>
 			</thead>
 			<tbody>
 				{body}
-				{footer}
 			</tbody>
+			<tfoot>
+				{footer}
+			</tfoot>
 		</table>
 		</div>
 	</div>
