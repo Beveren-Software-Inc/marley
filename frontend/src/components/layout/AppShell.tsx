@@ -21,7 +21,7 @@ import { getVisibleMainLinks, type MainLinkItem, type ScreenGroup } from '../../
 import type { ScreenItem } from '../../config/doctorScreens'
 import { SHOW_EMPLOYEE_PORTAL } from '../../config/features'
 import { careScopeFromCostCenterField, filterDoctorScreenGroups, filterNurseScreenGroups, filterReceptionScreenGroups } from '../../config/costCenterCareScope'
-import sereneLogo from '../../assets/serene-logo.png'
+import { AppBrandLogo } from './AppBrandLogo'
 import {
   DOCTOR_DISCHARGE_SCREEN_ID,
   isInpatientDischargeRoute,
@@ -630,14 +630,7 @@ export const AppShell = ({ children }: { children: ReactNode }) => {
           >
             <PanelLeftClose className="h-4 w-4" strokeWidth={2} />
           </button>
-          <div className="rounded-md bg-white shadow-sm px-2 py-1 flex items-center justify-center overflow-hidden shrink-0 max-h-9">
-            <img
-              src={sereneLogo}
-              alt="Serene Psychiatric Hospital"
-              className="block h-7 w-auto max-w-[100px] object-contain object-center select-none"
-              draggable={false}
-            />
-          </div>
+          <AppBrandLogo />
         </div>
 
         <SidebarCareModePicker />
