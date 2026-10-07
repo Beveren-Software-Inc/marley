@@ -34,6 +34,20 @@ def _by_nurse_lab_test_template_names():
 
 	return list(direct)
 
+@frappe.whitelist(allow_guest=True)
+def get_app_branding():
+	"""Return Website Settings branding for the healthcare portal UI.
+
+	``app_logo`` is the Attach Image path from Website Settings (may be blank).
+	"""
+	logo = (frappe.db.get_single_value("Website Settings", "app_logo") or "").strip()
+	app_name = (frappe.db.get_single_value("Website Settings", "app_name") or "").strip()
+	return {
+		"app_logo": logo,
+		"app_name": app_name or _("Healthcare"),
+	}
+
+
 @frappe.whitelist()
 def get_current_user_roles():
 	"""Return list of role names for the current user (for UI permissions)."""

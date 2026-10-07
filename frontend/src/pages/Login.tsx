@@ -2,6 +2,7 @@ import { useState, useEffect, type FormEvent } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../providers/AuthProvider'
 import { getDefaultRouteForUser, hasHealthcareRole } from '../config/permissions'
+import { AppBrandLogo } from '../components/layout/AppBrandLogo'
 
 /** Frappe desk URL for users who are not in a healthcare role (Doctor, Nurse, Lab, Pharmacist, Reception). Same as hack_smith: redirect to /app/home. */
 const FRAPPE_DESK_URL = '/app/home'
@@ -129,12 +130,14 @@ export const LoginPage = () => {
       <div className="relative z-10 w-full max-w-sm">
         {/* Login Card */}
         <div className="bg-white/95 rounded-2xl shadow-2xl p-6 backdrop-blur-sm dark:bg-gray-800/95">
-          {/* Logo Section */}
+          {/* Logo Section — Website Settings App Logo, else H */}
           <div className="text-center mb-6">
             <div className="flex justify-center mb-4">
-              <div className="w-16 h-16 bg-primary rounded-full flex items-center justify-center shadow-lg">
-                <span className="text-white font-bold text-2xl">H</span>
-              </div>
+              <AppBrandLogo
+                className="w-16 h-16 rounded-full bg-primary shadow-lg flex items-center justify-center overflow-hidden"
+                imgClassName="block h-10 w-auto max-w-[52px] object-contain bg-white rounded-full p-1 select-none"
+                fallbackClassName="text-white font-bold text-2xl leading-none select-none"
+              />
             </div>
             <h1 className="text-3xl font-bold text-primary dark:text-white">Healthcare</h1>
             <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">Management System</p>
