@@ -1,7 +1,7 @@
 {
  "charts": [],
  "content": "[{\"id\":\"dc_hdr_1\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Doctor Commission</b></span>\",\"col\":12}},{\"id\":\"dc_sc_period\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Commission Payroll\",\"col\":3}},{\"id\":\"dc_sc_rule\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Commission Rules\",\"col\":3}},{\"id\":\"dc_sc_source\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Commission Sources\",\"col\":3}},{\"id\":\"dc_sc_pract\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Practitioners\",\"col\":3}},{\"id\":\"dc_sc_payslip\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Commission Payslips\",\"col\":3}},{\"id\":\"dc_sp_1\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"dc_hdr_2\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h5\\\">Masters &amp; Reports</span>\",\"col\":12}},{\"id\":\"dc_card_ops\",\"type\":\"card\",\"data\":{\"card_name\":\"Operations\",\"col\":4}},{\"id\":\"dc_card_setup\",\"type\":\"card\",\"data\":{\"card_name\":\"Setup\",\"col\":4}},{\"id\":\"dc_card_reports\",\"type\":\"card\",\"data\":{\"card_name\":\"Reports\",\"col\":4}}]",
- "creation": "2026-07-13 14:00:00.000000",
+ "creation": "2026-07-13 14:00:00",
  "custom_blocks": [],
  "docstatus": 0,
  "doctype": "Workspace",
@@ -138,19 +138,9 @@
    "link_type": "Report",
    "onboard": 0,
    "type": "Link"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "Doctor Wise Income Analysis (Form)",
-   "link_count": 0,
-   "link_to": "Doctor Wise Income Analysis",
-   "link_type": "DocType",
-   "onboard": 0,
-   "type": "Link"
   }
  ],
- "modified": "2026-07-13 14:00:00.000000",
+ "modified": "2026-10-08 00:50:52.349896",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Doctor Commission",
