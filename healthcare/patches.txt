@@ -34,6 +34,8 @@ healthcare.patches.v16_0.ensure_discharge_finance_checklist_page
 healthcare.patches.v16_0.create_item_scientific_name_field
 healthcare.patches.v16_0.seed_doctor_commission_sources
 healthcare.patches.v16_0.ensure_doctor_commission_workspace
+healthcare.patches.v16_0.add_income_reports_to_financial_reports_workspace
+healthcare.patches.v16_0.consolidate_income_analysis_workspace_links
 
 healthcare.patches.v16_0.normalize_lab_test_sample_statuses
 
