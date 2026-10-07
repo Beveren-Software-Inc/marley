@@ -1,7 +1,7 @@
 # Copyright (c) 2026, Healthcare and contributors
 # For license information, please see license.txt
 """
-Doctor Wise Income Analysis — Single form report.
+Doctor Wise Income Analysis — shared period analysis for the script reports.
 
 Breaks the selected From–To range into Yearly / Quarterly / Monthly periods
 and shows IP / OP / IOP / Net Total (+ Total / Discount) per doctor per period.
@@ -1124,37 +1124,3 @@ def render_analysis_html(doc_or_filters=None, analysis=None, include_chart=True)
 		</div>
 	</div>
 	"""
-
-
-def generate_doctor_wise_income_analysis(doc):
-	analysis = build_analysis(doc)
-	doc.analysis_json = analysis
-	doc.generated_on = now_datetime()
-	doc.status = "Generated"
-	# Clear legacy child rows if the field still exists on older metas.
-	if hasattr(doc, "rows"):
-		doc.set("rows", [])
-	doc.save(ignore_permissions=True)
-	frappe.db.commit()
-
-	n_docs = len(analysis.get("doctors") or [])
-	n_periods = len(analysis.get("periods") or [])
-	return {
-		"doctors": n_docs,
-		"periods": n_periods,
-		"period": analysis.get("period"),
-		"html": render_analysis_html(doc, analysis),
-		"message": _("Generated {0} doctors across {1} {2} period(s)").format(
-			n_docs, n_periods, (analysis.get("period") or "Yearly").lower()
-		),
-	}
-
-
-@frappe.whitelist()
-def render_doctor_wise_income_analysis(doc=None):
-	"""Jinja print / Single form HTML preview."""
-	if not doc or doc == "Doctor Wise Income Analysis":
-		doc = frappe.get_single("Doctor Wise Income Analysis")
-	elif isinstance(doc, str):
-		doc = frappe.get_doc("Doctor Wise Income Analysis", doc)
-	return render_analysis_html(doc)
