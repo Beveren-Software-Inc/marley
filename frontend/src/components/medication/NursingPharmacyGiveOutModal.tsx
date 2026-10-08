@@ -9,7 +9,7 @@ import {
   CreateModalHeader,
   createModalShellClass,
 } from '../ui/CreateModalChrome'
-import { fetchPrescriptionItems, fetchStandardUoms, filterItemsInStock, fetchHealthcarePractitioners, getCurrentUserPractitioner, type LinkFieldOption } from '../../services/common'
+import { fetchPrescriptionItems, fetchStandardUoms, filterItemsInStock, fetchHealthcarePractitioners, getCurrentUserPractitionerOption, type LinkFieldOption } from '../../services/common'
 import {
   createNursingPharmacyGiveOut,
   fetchPrescriptionByInpatientOrEncounter,
@@ -601,34 +601,42 @@ export function NursingPharmacyGiveOutModal({
         }
 
         setSourcePrescription(currentRx.name)
-        const rxPractitioner = currentRx.practitioner || ''
-        setPractitioner(rxPractitioner)
-        setPractQuery(
-          currentRx.healthcare_practitioner_name ||
-            rxPractitioner ||
-            ''
-        )
-        if (!rxPractitioner) {
-          try {
-            const currentUserPractitioner = await getCurrentUserPractitioner()
-            if (currentUserPractitioner && !cancelled) {
-              setPractitioner(currentUserPractitioner)
-              setPractQuery(currentUserPractitioner)
-            }
-          } catch {
-            // optional default
-          }
-        } else if (!currentRx.healthcare_practitioner_name) {
-          try {
-            const opts = await fetchHealthcarePractitioners(rxPractitioner)
-            if (!cancelled) {
-              const match = opts.find((opt) => opt.name === rxPractitioner)
-              if (match) {
-                setPractQuery(match.label || match.practitioner_name || match.name)
+
+        // Attribute the give-out to the person actually doing it: if the logged-in
+        // user is linked to a Healthcare Practitioner, default the Doctor /
+        // Practitioner field to them. Only fall back to the prescribing doctor on
+        // the prescription when the user has no linked practitioner.
+        let currentUserPractitioner: LinkFieldOption | null = null
+        try {
+          currentUserPractitioner = await getCurrentUserPractitionerOption()
+        } catch {
+          currentUserPractitioner = null
+        }
+        if (cancelled) return
+
+        if (currentUserPractitioner?.name) {
+          setPractitioner(currentUserPractitioner.name)
+          setPractQuery(currentUserPractitioner.label || currentUserPractitioner.name)
+        } else {
+          const rxPractitioner = currentRx.practitioner || ''
+          setPractitioner(rxPractitioner)
+          setPractQuery(
+            currentRx.healthcare_practitioner_name ||
+              rxPractitioner ||
+              ''
+          )
+          if (rxPractitioner && !currentRx.healthcare_practitioner_name) {
+            try {
+              const opts = await fetchHealthcarePractitioners(rxPractitioner)
+              if (!cancelled) {
+                const match = opts.find((opt) => opt.name === rxPractitioner)
+                if (match) {
+                  setPractQuery(match.label || match.practitioner_name || match.name)
+                }
               }
+            } catch {
+              // keep practitioner id as display fallback
             }
-          } catch {
-            // keep practitioner id as display fallback
           }
         }
 
