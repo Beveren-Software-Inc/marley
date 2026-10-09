@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { ChevronDown, ChevronRight } from 'lucide-react'
+import { ChevronDown, ChevronRight, PenLine } from 'lucide-react'
 import {
   CM_BTN_CANCEL,
   CM_BTN_PRIMARY,
@@ -7,6 +7,7 @@ import {
   createModalShellClass,
 } from '../ui/CreateModalChrome'
 import { DocumentTypeSelect } from '../ui/DocumentTypeSelect'
+import { SignaturePad, attachFileDisplayUrl } from '../ui/SignaturePad'
 import { PatientDocumentAttachmentPreview } from '../ui/PatientDocumentAttachmentPreview'
 import { fetchDocumentTypes } from '../../services/common'
 import { fetchPatientDoc, updatePatientDoc, uploadPatientFile, type PatientDocumentRow } from '../../services/patients'
@@ -18,6 +19,19 @@ export type UploadDocumentsTarget =
   | { doctype: 'Patient Visit'; name: string; label?: string }
   | { doctype: 'Inpatient Admission'; name: string; label?: string }
   | { doctype: 'Patient'; name: string; label?: string }
+
+/** True when the selected Document Type is a "Signature" type (ignores "Legacy Signature"). */
+function isSignatureDocumentType(
+  value: string | undefined,
+  types: { name: string; document_name?: string }[],
+): boolean {
+  const raw = (value || '').trim()
+  if (!raw) return false
+  const match = types.find((t) => t.name === raw)
+  const name = (match?.name || raw).trim().toLowerCase()
+  const label = (match?.document_name || '').trim().toLowerCase()
+  return name === 'signature' || label === 'signature'
+}
 
 interface UploadPatientDocumentsModalProps {
   target: UploadDocumentsTarget
@@ -33,6 +47,7 @@ export function UploadPatientDocumentsModal({
   const [documents, setDocuments] = useState<PatientDocumentRow[]>([])
   const [documentTypes, setDocumentTypes] = useState<{ name: string; document_name?: string }[]>([])
   const [documentUploading, setDocumentUploading] = useState<number | null>(null)
+  const [documentSignatureUploading, setDocumentSignatureUploading] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [existingCount, setExistingCount] = useState(0)
@@ -149,6 +164,29 @@ export function UploadPatientDocumentsModal({
     }
   }
 
+  /** Upload a drawn/scanned signature for a row whose Document Type is "Signature". */
+  const handleDocumentSignatureFile = async (idx: number, file: File) => {
+    setDocumentSignatureUploading(idx)
+    try {
+      const file_url = await uploadPatientFile(file)
+      if (!file_url) throw new Error('No URL returned from signature upload')
+      setDocuments((prev) => {
+        const next = [...prev]
+        next[idx] = {
+          ...next[idx],
+          document: file_url,
+          file_name: next[idx].file_name?.trim() || file.name,
+        }
+        return next
+      })
+      toast.success('Signature saved')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Signature upload failed')
+    } finally {
+      setDocumentSignatureUploading(null)
+    }
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setSaving(true)
@@ -191,6 +229,7 @@ export function UploadPatientDocumentsModal({
           <h2 className="text-lg font-semibold text-slate-900">{title}</h2>
           <p className="text-sm text-slate-500 mt-0.5">
             Add a new file below. Existing documents stay collapsed so they are not removed by mistake.
+            Choosing the Signature document type reveals a pad to draw or upload a signature.
           </p>
         </div>
 
@@ -228,9 +267,11 @@ export function UploadPatientDocumentsModal({
                             canRemove={documents.length > 1}
                             documentTypes={documentTypes}
                             documentUploading={documentUploading}
+                            documentSignatureUploading={documentSignatureUploading}
                             onTypesUpdated={setDocumentTypes}
                             onChange={updateDocumentRow}
                             onFile={handleDocumentFile}
+                            onSignatureFile={handleDocumentSignatureFile}
                             onRemove={removeDocumentRow}
                           />
                         ))}
@@ -251,9 +292,11 @@ export function UploadPatientDocumentsModal({
                       canRemove={documents.length > 1}
                       documentTypes={documentTypes}
                       documentUploading={documentUploading}
+                      documentSignatureUploading={documentSignatureUploading}
                       onTypesUpdated={setDocumentTypes}
                       onChange={updateDocumentRow}
                       onFile={handleDocumentFile}
+                      onSignatureFile={handleDocumentSignatureFile}
                       onRemove={removeDocumentRow}
                     />
                   )
@@ -296,9 +339,11 @@ function DocumentRowEditor({
   canRemove,
   documentTypes,
   documentUploading,
+  documentSignatureUploading,
   onTypesUpdated,
   onChange,
   onFile,
+  onSignatureFile,
   onRemove,
 }: {
   row: PatientDocumentRow
@@ -307,9 +352,11 @@ function DocumentRowEditor({
   canRemove: boolean
   documentTypes: { name: string; document_name?: string }[]
   documentUploading: number | null
+  documentSignatureUploading: number | null
   onTypesUpdated: (types: { name: string; document_name?: string }[]) => void
   onChange: (idx: number, field: keyof PatientDocumentRow, value: string) => void
   onFile: (idx: number, file: File | null) => void
+  onSignatureFile: (idx: number, file: File) => void
   onRemove: (idx: number) => void
 }) {
   return (
@@ -377,6 +424,26 @@ function DocumentRowEditor({
           )}
         </div>
       </div>
+
+      {isSignatureDocumentType(row.document_type, documentTypes) && (
+        <div className="rounded-md border border-emerald-200 bg-emerald-50/40 p-3 space-y-2">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <PenLine className="w-3.5 h-3.5 text-slate-400" />
+            <span className="text-xs font-medium text-slate-600">
+              Signature <span className="text-red-500">*</span>
+            </span>
+            <span className="text-xs text-slate-400">Draw on screen or upload a signature image</span>
+          </div>
+          <div className="max-w-md">
+            <SignaturePad
+              onSave={(file) => onSignatureFile(idx, file)}
+              onClear={() => onChange(idx, 'document', '')}
+              existingUrl={attachFileDisplayUrl(row.document)}
+              uploading={documentSignatureUploading === idx}
+            />
+          </div>
+        </div>
+      )}
     </div>
   )
 }

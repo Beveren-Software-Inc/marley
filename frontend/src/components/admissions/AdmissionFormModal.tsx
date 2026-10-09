@@ -277,6 +277,19 @@ function resolveSignatureDocumentType(
   return exact?.name || DEFAULT_SIGNATURE_DOC_TYPE
 }
 
+/** True when a document row's selected Document Type is the admission "Signature" type. */
+function isSignatureDocumentType(
+  value: string | undefined,
+  types: { name: string; document_name?: string }[],
+): boolean {
+  const raw = (value || '').trim()
+  if (!raw) return false
+  const match = types.find((t) => t.name === raw)
+  const name = (match?.name || raw).trim().toLowerCase()
+  const label = (match?.document_name || '').trim().toLowerCase()
+  return name === 'signature' || label === 'signature'
+}
+
 export const AdmissionFormModal = ({
   admissionNo,
   selectedPackage,
@@ -332,6 +345,7 @@ export const AdmissionFormModal = ({
   const [documentTypes, setDocumentTypes] = useState<{ name: string; document_name?: string }[]>([])
   const [documentUploading, setDocumentUploading] = useState<number | null>(null)
   const [signatureUploading, setSignatureUploading] = useState<number | null>(null)
+  const [documentSignatureUploading, setDocumentSignatureUploading] = useState<number | null>(null)
   const signatureDocType = useMemo(
     () => resolveSignatureDocumentType(documentTypes),
     [documentTypes],
@@ -906,6 +920,29 @@ export const AdmissionFormModal = ({
     }
   }
 
+  /** Upload a drawn/scanned signature for a document row whose type is "Signature". */
+  const handleDocumentSignatureFile = async (idx: number, file: File) => {
+    setDocumentSignatureUploading(idx)
+    try {
+      const file_url = await uploadPatientFile(file)
+      if (!file_url) throw new Error('No URL returned from signature upload')
+      setDocuments((prev) => {
+        const next = [...prev]
+        next[idx] = {
+          ...next[idx],
+          document: file_url,
+          file_name: next[idx].file_name?.trim() || file.name,
+        }
+        return next
+      })
+      toast.success('Signature saved')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Signature upload failed')
+    } finally {
+      setDocumentSignatureUploading(null)
+    }
+  }
+
   const handleSignatureFile = async (idx: number, file: File) => {
     setSignatureUploading(idx)
     try {
@@ -966,11 +1003,8 @@ export const AdmissionFormModal = ({
       setActiveTab('medical_supervision')
       return
     }
+    // Room / bed is optional — the selected Room Type resolves the quotation item.
     const quotationSu = resolveQuotationServiceUnit()
-    if (!quotationSu) {
-      setError(new Error('Select at least one room or a bed (with a room) to create a quotation'))
-      return
-    }
     try {
       setCreatingSalesOrder(true)
       setError(null)
@@ -979,7 +1013,7 @@ export const AdmissionFormModal = ({
         selectedPackage.name,
         days,
         discountedPrice,
-        quotationSu,
+        quotationSu || undefined,
         formData.ipCaseManagement === 1 && combineAdmissionAndCaseManagement
           ? {
               services: caseManagementServices.map((s) => ({
@@ -989,7 +1023,8 @@ export const AdmissionFormModal = ({
               template: caseManagementServices[0]?.template,
               amount: caseManagementTotal,
             }
-          : undefined
+          : undefined,
+        selectedRoomType.name
       )
       const quotationName = (result as any).quotation_name || (result as any).sales_order_name || null
       if (quotationName) {
@@ -1798,7 +1833,8 @@ export const AdmissionFormModal = ({
             {activeTab === 'documents' && (
               <div>
                 <p className="text-sm text-slate-500 mb-4">
-                  Attach admission documents (photo, PDF, etc.). Use the Signatures tab for digital signing.
+                  Attach admission documents (photo, PDF, etc.). Choosing the Signature document type
+                  reveals a signature pad to draw or upload. Use the Signatures tab for full e-signatures.
                 </p>
                 <div className="space-y-4">
                   {documents.length === 0 && (
@@ -1867,6 +1903,28 @@ export const AdmissionFormModal = ({
                           )}
                         </div>
                       </div>
+
+                      {isSignatureDocumentType(row.document_type, documentTypes) && (
+                        <div className="border-t border-slate-200 bg-white p-4 space-y-2">
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <PenLine className="w-3.5 h-3.5 text-slate-400" />
+                            <span className="text-xs font-medium text-slate-600">
+                              Signature <span className="text-red-500">*</span>
+                            </span>
+                            <span className="text-xs text-slate-400">
+                              Draw on screen or upload a signature image
+                            </span>
+                          </div>
+                          <div className="max-w-md">
+                            <SignaturePad
+                              onSave={(file) => handleDocumentSignatureFile(idx, file)}
+                              onClear={() => updateDocumentRow(idx, 'document', '')}
+                              existingUrl={attachFileDisplayUrl(row.document)}
+                              uploading={documentSignatureUploading === idx}
+                            />
+                          </div>
+                        </div>
+                      )}
                     </div>
                   ))}
 
