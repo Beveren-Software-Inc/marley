@@ -893,19 +893,11 @@ def get_available_slots(practitioner_doc, date):
 
 
 def validate_practitioner_schedules(schedule_entry, practitioner):
-	if schedule_entry.schedule:
-		if not schedule_entry.service_unit:
-			frappe.throw(
-				_(
-					"Practitioner {0} does not have a Service Unit set against the Practitioner Schedule {1}."
-				).format(
-					get_link_to_form("Healthcare Practitioner", practitioner),
-					frappe.bold(schedule_entry.schedule),
-				),
-				title=_("Service Unit Not Found"),
-			)
-
-	else:
+	# Only the Schedule is required. A Service Unit is optional: rows without one
+	# are valid and their slots are resolved for the practitioner alone
+	# (see get_available_slots). Requiring a Service Unit here blocked booking for
+	# practitioners that only have a schedule assigned.
+	if not schedule_entry.schedule:
 		frappe.throw(
 			_("Practitioner {0} does not have a Practitioner Schedule assigned.").format(
 				get_link_to_form("Healthcare Practitioner", practitioner)
