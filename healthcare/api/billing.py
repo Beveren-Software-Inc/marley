@@ -2184,7 +2184,14 @@ def _get_or_create_employee_customer(employee_id):
 
     legacy_name = frappe.db.get_value("Customer", {"customer_name": display_name}, "name")
     if legacy_name and legacy_name != employee_id:
-        frappe.rename_doc("Customer", legacy_name, employee_id, force=True, merge=False)
+        frappe.rename_doc(
+            "Customer",
+            legacy_name,
+            employee_id,
+            force=True,
+            merge=False,
+            show_alert=False,
+        )
         return employee_id
 
     customer_doc = frappe.get_doc(
@@ -2198,12 +2205,10 @@ def _get_or_create_employee_customer(employee_id):
             or "All Territories",
         }
     )
-    customer_doc.insert(ignore_permissions=True)
-
-    if customer_doc.name != employee_id:
-        frappe.rename_doc("Customer", customer_doc.name, employee_id, force=True, merge=False)
-
-    return employee_id
+    # Name the customer with the Employee ID on insert. Renaming afterwards
+    # raises a "Document renamed" alert that the POS shows as the failure.
+    customer_doc.insert(ignore_permissions=True, set_name=employee_id)
+    return customer_doc.name
 
 
 def _template_display_name(template_dt, template_dn):
