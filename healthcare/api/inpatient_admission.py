@@ -2197,9 +2197,17 @@ def _item_code_from_healthcare_service_unit(service_unit: str) -> str | None:
 	return _item_code_from_healthcare_service_unit_type(service_unit_type)
 
 
-def _resolve_package_quotation_item(admission, service_unit: str | None = None) -> dict:
-	"""Item for package quotation lines: Service Unit Type Item (not the room/unit itself)."""
+def _resolve_package_quotation_item(
+	admission, service_unit: str | None = None, service_unit_type: str | None = None
+) -> dict:
+	"""Item for package quotation lines: Service Unit Type Item (not the room/unit itself).
+
+	``service_unit`` (room/bed) is optional. When it is not provided, the Room Type
+	(Healthcare Service Unit Type) is used — first the explicit ``service_unit_type``,
+	then the one saved on the admission.
+	"""
 	service_unit = (service_unit or "").strip() or None
+	explicit_type = (service_unit_type or "").strip() or None
 	service_unit_type = None
 	room_label = None
 
@@ -2215,7 +2223,9 @@ def _resolve_package_quotation_item(admission, service_unit: str | None = None) 
 			service_unit_type = (su_row.service_unit_type or "").strip() or None
 
 	if not service_unit_type:
-		service_unit_type = (admission.get("admission_service_unit_type") or "").strip() or None
+		service_unit_type = (
+			explicit_type or (admission.get("admission_service_unit_type") or "").strip() or None
+		)
 
 	item_code = None
 	if service_unit:
@@ -3799,6 +3809,7 @@ def create_admission_quotation(
 	case_management_template=None,
 	case_management_amount=None,
 	case_management_services=None,
+	service_unit_type=None,
 ):
 	"""Create a Draft Quotation for admission with package.
 
@@ -3821,9 +3832,11 @@ def create_admission_quotation(
 		frappe.throw(_("Total amount must be greater than 0"))
 
 	service_unit = _resolve_quotation_service_unit(admission_name, explicit_service_unit=service_unit)
+	# Room / bed is optional: the selected Room Type (service unit type) resolves the item.
+	explicit_type = (service_unit_type or "").strip() or None
 	# Service unit is preferred to resolve the type, but type+Item on admission is enough.
 	if not service_unit:
-		adm_type = frappe.db.get_value(
+		adm_type = explicit_type or frappe.db.get_value(
 			"Inpatient Admission", admission_name, "admission_service_unit_type"
 		)
 		if not adm_type or not _item_code_from_healthcare_service_unit_type(adm_type):
@@ -3855,7 +3868,9 @@ def create_admission_quotation(
 	package = None if is_custom else frappe.get_doc('Inpatient Package', package_name)
 
 	# Bill the Service Unit Type Item (not the room / service unit itself)
-	item_info = _resolve_package_quotation_item(admission, service_unit)
+	item_info = _resolve_package_quotation_item(
+		admission, service_unit, service_unit_type=explicit_type
+	)
 	item_code = item_info["item_code"]
 	item_name = item_info["item_name"]
 	room_label = item_info["room_label"]

@@ -11,7 +11,7 @@ import {
 } from '../ui/CreateModalChrome'
 import { SignaturePad, attachFileDisplayUrl } from '../ui/SignaturePad'
 import { PatientDocumentAttachmentPreview } from '../ui/PatientDocumentAttachmentPreview'
-import { Check } from 'lucide-react'
+import { Check, PenLine } from 'lucide-react'
 import { searchPatients, fetchPatients, fetchPatientDoc, uploadPatientFile, type PatientListItem, type PatientDocumentRow } from '../../services/patients'
 import { toast } from '../../hooks/useToast'
 import { apiRequest } from '../../services/apiClient'
@@ -122,6 +122,19 @@ function resolveSignatureUrl(sig?: string | null): string | undefined {
   if (sig.startsWith('data:') || sig.startsWith('http')) return sig
   if (sig.startsWith('/')) return attachFileDisplayUrl(sig)
   return `data:image/png;base64,${sig}`
+}
+
+/** True when the selected Document Type is the admission "Signature" type (ignores "Legacy Signature"). */
+function isSignatureDocumentType(
+  value: string | undefined,
+  types: { name: string; document_name?: string }[],
+): boolean {
+  const raw = (value || '').trim()
+  if (!raw) return false
+  const match = types.find((t) => t.name === raw)
+  const name = (match?.name || raw).trim().toLowerCase()
+  const label = (match?.document_name || '').trim().toLowerCase()
+  return name === 'signature' || label === 'signature'
 }
 
 function fileToDataUrl(file: File): Promise<string> {
@@ -254,6 +267,7 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
   const [documents, setDocuments] = useState<PatientDocumentRow[]>([])
   const [documentTypes, setDocumentTypes] = useState<{ name: string; document_name?: string }[]>([])
   const [documentUploading, setDocumentUploading] = useState<number | null>(null)
+  const [documentSignatureUploading, setDocumentSignatureUploading] = useState<number | null>(null)
 
   const [observationForm, setObservationForm] = useState<ObservationFormState>(() => ({
     addObservation: '',
@@ -1028,6 +1042,29 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
       toast.error(err instanceof Error ? err.message : 'File upload failed')
     } finally {
       setDocumentUploading(null)
+    }
+  }
+
+  /** Upload a drawn/scanned signature for a document row whose type is "Signature". */
+  const handleDocumentSignatureFile = async (idx: number, file: File) => {
+    setDocumentSignatureUploading(idx)
+    try {
+      const file_url = await uploadPatientFile(file)
+      if (!file_url) throw new Error('No URL returned from signature upload')
+      setDocuments((prev) => {
+        const next = [...prev]
+        next[idx] = {
+          ...next[idx],
+          document: file_url,
+          file_name: next[idx].file_name?.trim() || file.name,
+        }
+        return next
+      })
+      toast.success('Signature saved')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Signature upload failed')
+    } finally {
+      setDocumentSignatureUploading(null)
     }
   }
 
@@ -2071,6 +2108,26 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
                       )}
                     </div>
                   </div>
+
+                  {isSignatureDocumentType(row.document_type, documentTypes) && (
+                    <div className="rounded-md border border-emerald-200 bg-white p-3 space-y-2">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <PenLine className="w-3.5 h-3.5 text-slate-400" />
+                        <span className="text-xs font-medium text-slate-600">
+                          Signature <span className="text-red-500">*</span>
+                        </span>
+                        <span className="text-xs text-slate-400">Draw on screen or upload a signature image</span>
+                      </div>
+                      <div className="max-w-md">
+                        <SignaturePad
+                          onSave={(file) => handleDocumentSignatureFile(idx, file)}
+                          onClear={() => updateDocumentRow(idx, 'document', '')}
+                          existingUrl={attachFileDisplayUrl(row.document)}
+                          uploading={documentSignatureUploading === idx}
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
               ))}
               <button

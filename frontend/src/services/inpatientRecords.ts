@@ -621,7 +621,8 @@ export async function createAdmissionQuotation(
     template?: string | null
     amount?: number | null
     services?: Array<{ template: string; amount?: number | null }>
-  }
+  },
+  serviceUnitType?: string | null
 ): Promise<{
   success: boolean
   sales_order_name?: string
@@ -648,6 +649,7 @@ export async function createAdmissionQuotation(
         days: days,
         total_amount: totalAmount,
         service_unit: serviceUnit || null,
+        service_unit_type: serviceUnitType || null,
         case_management_template: caseManagement?.template || null,
         case_management_amount: caseManagement?.amount ?? null,
         case_management_services: caseManagement?.services?.length
