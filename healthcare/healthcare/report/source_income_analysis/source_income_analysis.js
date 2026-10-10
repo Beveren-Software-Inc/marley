@@ -58,6 +58,15 @@ frappe.query_reports["Source Income Analysis"] = {
 			fieldtype: "Check",
 			default: 0,
 		},
+		{
+			fieldname: "detailed",
+			label: __("Detailed"),
+			fieldtype: "Check",
+			default: 0,
+			description: __(
+				"Show each billed service (rooms, visits, therapy). Lab becomes Lab Income. Leave off for IP / OP / IOP only."
+			),
+		},
 	],
 
 	onload(report) {

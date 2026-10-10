@@ -77,6 +77,16 @@ frappe.query_reports["Income by Doctor Patient and Source"] = {
 			fieldtype: "Check",
 			default: 0,
 		},
+		{
+			fieldname: "detailed",
+			label: __("Detailed"),
+			fieldtype: "Check",
+			default: 0,
+			depends_on: "eval:frappe.query_report.get_filter_value('group_by')==='Source'",
+			description: __(
+				"Show each billed service (rooms, visits, therapy). Lab becomes Lab Income. Leave off for IP / OP / IOP only."
+			),
+		},
 	],
 
 	onload(report) {
