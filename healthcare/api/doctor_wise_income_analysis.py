@@ -575,6 +575,42 @@ def _chart_doctors(analysis: dict, limit: int = 12) -> list[dict]:
 	return out
 
 
+# Named healthcare services keep their item name (IP-SINGLE ROOM, Regular Visit, …).
+# Lab tests roll into Lab Income. Stock / pharmacy lines roll into Inventory Sales Income.
+_SERVICE_ITEM_GROUPS = {
+	"Healthcare Services",
+	"OP Services",
+	"Services",
+	"Other Services",
+	"HR Service",
+}
+_LAB_ITEM_GROUPS = {"Lab Test", "Laboratory"}
+
+
+def _lab_item_codes() -> set[str]:
+	if not frappe.db.exists("DocType", "Lab Test Template"):
+		return set()
+	if not frappe.db.has_column("Lab Test Template", "item"):
+		return set()
+	return {
+		code
+		for code in frappe.get_all("Lab Test Template", pluck="item")
+		if code
+	}
+
+
+def _detailed_service_label(row, channel: str, lab_items: set[str]) -> str:
+	"""Row label for Detailed source income (only services that were billed)."""
+	name = (row.get("item_name") or row.get("item_code") or _("Other")).strip() or _("Other")
+	group = (row.get("item_group") or "").strip()
+	code = (row.get("item_code") or "").strip()
+	if code in lab_items or group in _LAB_ITEM_GROUPS:
+		return _("Lab Income ({0})").format(channel)
+	if cint(row.get("is_stock_item")) or (group and group not in _SERVICE_ITEM_GROUPS):
+		return _("Inventory Sales Income ({0})").format(channel)
+	return name
+
+
 def build_source_income_summary(doc_or_filters) -> dict:
 	"""Aggregate income by care source (IP / OP / IOP) across period windows.
 
@@ -582,8 +618,13 @@ def build_source_income_summary(doc_or_filters) -> dict:
 	- IP  → Inpatient Admission (and related IP charge docs)
 	- OP  → Patient Visit (non-IOP) and other non-IP bases
 	- IOP → Patient Visit with Visit Type IOP
+
+	When ``detailed`` is set, each billed service is its own row (rooms, visits,
+	therapy, …). Lab tests collapse to Lab Income and stock items to Inventory
+	Sales Income, split by care channel. Rows with no income are omitted.
 	"""
 	src = frappe._dict(doc_or_filters or {})
+	detailed = cint(src.get("detailed"))
 	windows = period_windows(src.from_date, src.to_date, src.get("period") or "Yearly")
 	filters = frappe._dict(
 		{
@@ -598,7 +639,7 @@ def build_source_income_summary(doc_or_filters) -> dict:
 		}
 	)
 
-	# channel -> period_key -> {total=grand, discount, net, tax}
+	# source label -> period_key -> {total=grand, discount, net, tax}
 	matrix = defaultdict(
 		lambda: defaultdict(lambda: {"total": 0.0, "discount": 0.0, "net": 0.0, "tax": 0.0})
 	)
@@ -607,6 +648,7 @@ def build_source_income_summary(doc_or_filters) -> dict:
 	items = get_service_items(filters)
 	items = _enrich_items_with_discount(items, billing_source)
 	items = _enrich_items_with_tax(items, billing_source)
+	lab_items = _lab_item_codes() if detailed else set()
 	if items:
 		visit_names = {
 			(row.custom_base_reference_name or "").strip()
@@ -621,16 +663,19 @@ def build_source_income_summary(doc_or_filters) -> dict:
 			channel = classify_care_channel(
 				row.custom_base_reference, row.custom_base_reference_name, visit_care_map
 			)
+			label = _detailed_service_label(row, channel, lab_items) if detailed else channel
 			net = flt(row.amount)
 			discount = _line_discount(row)
 			tax = _line_tax(row)
-			bucket = matrix[channel][pkey]
+			bucket = matrix[label][pkey]
 			bucket["total"] += net + tax  # Grand Total (Sales Register)
 			bucket["discount"] += discount
 			bucket["net"] += net
 			bucket["tax"] += tax
 
 	sources = ("IP", "OP", "IOP")
+	if detailed:
+		sources = sorted(matrix.keys(), key=lambda name: sum(flt(matrix[name][w["key"]]["net"]) for w in windows), reverse=True)
 	periods = [
 		{"key": w["key"], "label": w["label"], "start": str(w["start"]), "end": str(w["end"])}
 		for w in windows
@@ -659,6 +704,8 @@ def build_source_income_summary(doc_or_filters) -> dict:
 			row["discount"] += cell["discount"]
 			row["net"] += cell["net"]
 			row["tax"] += cell["tax"]
+		if detailed and not (row["total"] or row["discount"] or row["net"]):
+			continue
 		grand["total"] += row["total"]
 		grand["discount"] += row["discount"]
 		grand["net"] += row["net"]
@@ -671,10 +718,11 @@ def build_source_income_summary(doc_or_filters) -> dict:
 		"from_date": str(getdate(src.from_date)),
 		"to_date": str(getdate(src.to_date)),
 		"cost_center": src.get("cost_center"),
+		"detailed": detailed,
 		"periods": periods,
 		"rows": rows,
 		"totals": grand,
-		"pie": {"labels": list(sources), "values": pie_values},
+		"pie": {"labels": [r["source"] for r in rows], "values": pie_values},
 	}
 
 
@@ -704,7 +752,7 @@ def render_source_pie_svg(summary: dict) -> str:
 			f'background:#f8fafc;color:#64748b;font-size:12px;">{_("No income to chart.")}</div>'
 		)
 
-	colors = ["#1e88e5", "#43a047", "#fb8c00"]
+	colors = ["#1e88e5", "#43a047", "#fb8c00", "#8e24aa", "#00897b", "#e53935", "#6d4c41", "#3949ab", "#c0ca33", "#00acc1"]
 	cx, cy, r = 120, 120, 95
 	# Start from top (-pi/2)
 	angle = -math.pi / 2
@@ -752,6 +800,8 @@ def render_source_income_html(doc_or_filters=None, summary=None) -> str:
 	generated = format_datetime_safe(ctx.get("generated_on") or now_datetime())
 
 	money = format_money_bhd
+	detailed = cint(summary.get("detailed"))
+	source_w = "280px" if detailed else "80px"
 
 	amt_w = "90px"
 	th = (
@@ -816,7 +866,8 @@ def render_source_income_html(doc_or_filters=None, summary=None) -> str:
 
 	from_s = _fmt_short_date(summary.get("from_date") or ctx.get("from_date"))
 	to_s = _fmt_short_date(summary.get("to_date") or ctx.get("to_date"))
-	pie_html = render_source_pie_svg(summary)
+	pie_html = "" if detailed else render_source_pie_svg(summary)
+	source_heading = _("Service") if detailed else _("Source")
 
 	return f"""
 	<div class="sia-report" style="font-family:Arial,Helvetica,sans-serif;font-size:11px;color:#000;">
@@ -843,7 +894,7 @@ def render_source_income_html(doc_or_filters=None, summary=None) -> str:
 		<table style="width:100%;border-collapse:collapse;table-layout:fixed;font-size:10px;min-width:640px;">
 			<thead>
 				<tr>
-					<th rowspan="2" style="border:1px solid #333;padding:4px;background:#eee;width:80px;vertical-align:middle;">Source</th>
+					<th rowspan="2" style="border:1px solid #333;padding:4px;background:#eee;width:{source_w};vertical-align:middle;">{source_heading}</th>
 					{period_headers}
 					<th colspan="3" style="border:1px solid #333;padding:4px;background:#eee;text-align:center;font-weight:bold;">{_("Total")}</th>
 				</tr>

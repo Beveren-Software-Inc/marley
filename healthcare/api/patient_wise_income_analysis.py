@@ -453,6 +453,20 @@ def render_patient_chart_html(analysis: dict, chart_limit: int = 12) -> str:
 	"""
 
 
+def patient_period_metrics(period: str) -> list[tuple[str, str]]:
+	"""Columns per period. Monthly drops IP / OP / IOP so the grid stays readable."""
+	if (period or "").strip().lower() == "monthly":
+		return [("total", _("Total"))]
+	return [
+		("ip", _("IP")),
+		("op", _("OP")),
+		("iop", _("IOP")),
+		("total", _("Total")),
+		("discount", _("Discount")),
+		("net", _("Net")),
+	]
+
+
 def render_patient_income_html(doc_or_filters=None, analysis=None) -> str:
 	"""Serene-style HTML for Patient view (same band layout as Doctor Wise)."""
 	ctx = frappe._dict(doc_or_filters or {})
@@ -473,8 +487,10 @@ def render_patient_income_html(doc_or_filters=None, analysis=None) -> str:
 		f"border:1px solid #333;padding:2px 4px;text-align:right;white-space:nowrap;"
 		f"width:{amt_w};min-width:{amt_w};max-width:{amt_w};"
 	)
-	period_cols = ("ip", "op", "iop", "total", "discount", "net")
-	period_labels = ("IP", "OP", "IOP", "Total", "Discount", "Net Total")
+	metrics = patient_period_metrics(period_label)
+	period_cols = tuple(key for key, _lbl in metrics)
+	period_labels = tuple(lbl for _key, lbl in metrics)
+	monthly = (period_label or "").strip().lower() == "monthly"
 
 	th_sticky_top = "position:sticky;top:0;z-index:2;"
 	th_sticky_sub = "position:sticky;top:24px;z-index:2;"
@@ -484,7 +500,7 @@ def render_patient_income_html(doc_or_filters=None, analysis=None) -> str:
 		bg = PERIOD_COLORS[i % len(PERIOD_COLORS)]
 		label = frappe.utils.escape_html(p.get("label") or p.get("key") or "")
 		period_headers += (
-			f'<th colspan="6" style="{th_sticky_top}background:{bg};text-align:center;border:1px solid #333;'
+			f'<th colspan="{len(period_cols)}" style="{th_sticky_top}background:{bg};text-align:center;border:1px solid #333;'
 			f'padding:4px;font-weight:bold;">{label}</th>'
 		)
 		for lbl in period_labels:
@@ -544,7 +560,7 @@ def render_patient_income_html(doc_or_filters=None, analysis=None) -> str:
 
 	from_s = _fmt_short_date(analysis.get("from_date") or ctx.get("from_date"))
 	to_s = _fmt_short_date(analysis.get("to_date") or ctx.get("to_date"))
-	chart_html = render_patient_chart_html(analysis)
+	chart_html = "" if monthly else render_patient_chart_html(analysis)
 	n_rows = len(patients)
 	# Header (~48px) + ~50 body rows + sticky total — remaining patients scroll inside.
 	scroll_max_h = 48 + (HTML_VISIBLE_ROWS * HTML_ROW_HEIGHT_PX) + 28

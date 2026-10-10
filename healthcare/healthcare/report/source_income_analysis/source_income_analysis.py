@@ -38,6 +38,7 @@ def _validate(filters):
 	filters.period = period
 	filters.paid_only = cint(filters.get("paid_only"))
 	filters.exclude_medicines = cint(filters.get("exclude_medicines"))
+	filters.detailed = cint(filters.get("detailed"))
 	if not filters.get("source"):
 		filters.source = "Sales Invoice"
 
@@ -47,8 +48,10 @@ def _field(period_key: str, metric: str) -> str:
 
 
 def _columns(summary: dict) -> list[dict]:
+	source_label = _("Service") if cint(summary.get("detailed")) else _("Source")
+	source_width = 280 if cint(summary.get("detailed")) else 100
 	cols = [
-		{"label": _("Source"), "fieldname": "source", "fieldtype": "Data", "width": 100},
+		{"label": source_label, "fieldname": "source", "fieldtype": "Data", "width": source_width},
 	]
 	for p in summary.get("periods") or []:
 		key = p.get("key") or ""
@@ -100,6 +103,21 @@ def _chart(summary: dict) -> dict | None:
 	values = [flt(v) for v in (pie.get("values") or [])]
 	if not labels or not any(values):
 		return None
+	if cint(summary.get("detailed")):
+		# Bar of the largest services, same idea as the Oracle pack.
+		top = sorted(zip(labels, values), key=lambda pair: pair[1], reverse=True)[:15]
+		top = [(label, val) for label, val in top if val]
+		if not top:
+			return None
+		return {
+			"data": {
+				"labels": [label for label, _val in top],
+				"datasets": [{"name": _("Net"), "values": [val for _label, val in top]}],
+			},
+			"type": "bar",
+			"height": 320,
+			"colors": ["#1e88e5"],
+		}
 	return {
 		"data": {
 			"labels": labels,

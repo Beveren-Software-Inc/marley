@@ -18,6 +18,7 @@ from healthcare.api.patient_wise_income_analysis import (
 	DEFAULT_LIMIT,
 	build_patient_analysis,
 	build_patient_frappe_chart,
+	patient_period_metrics,
 )
 
 
@@ -28,7 +29,8 @@ def execute(filters=None):
 	analysis = build_patient_analysis(filters)
 	columns = _columns(analysis)
 	data = _rows(analysis)
-	chart = build_patient_frappe_chart(analysis)
+	monthly = (filters.get("period") or "").strip().lower() == "monthly"
+	chart = None if monthly else build_patient_frappe_chart(analysis)
 	message = _message(analysis)
 	return columns, data, message, chart
 
@@ -68,17 +70,11 @@ def _columns(analysis: dict) -> list[dict]:
 		},
 		{"label": _("Patient Name"), "fieldname": "patient_name", "fieldtype": "Data", "width": 200},
 	]
+	metrics = patient_period_metrics(analysis.get("period") or "")
 	for p in analysis.get("periods") or []:
 		key = p.get("key") or ""
 		label = p.get("label") or key
-		for metric, short in (
-			("ip", "IP"),
-			("op", "OP"),
-			("iop", "IOP"),
-			("total", "Total"),
-			("discount", "Discount"),
-			("net", "Net"),
-		):
+		for metric, short in metrics:
 			cols.append(
 				{
 					"label": f"{label} {short}",
@@ -103,10 +99,11 @@ def _rows(analysis: dict) -> list[dict]:
 			"patient": item.get("patient"),
 			"patient_name": item.get("patient_name"),
 		}
+		metrics = patient_period_metrics(analysis.get("period") or "")
 		for p in periods:
 			key = p.get("key") or ""
 			cell = by_key.get(key) or {}
-			for metric in ("ip", "op", "iop", "total", "discount", "net"):
+			for metric, _short in metrics:
 				row[_field(key, metric)] = flt(cell.get(metric))
 		rows.append(row)
 	return rows

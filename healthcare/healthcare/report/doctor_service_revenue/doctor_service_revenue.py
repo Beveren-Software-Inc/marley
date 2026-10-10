@@ -303,9 +303,7 @@ def get_sales_order_service_items(filters):
 		conditions.append("soi.item_code = %(item_code)s")
 		values["item_code"] = filters.item_code
 
-	item_join = ""
-	if exclude_medicines:
-		item_join = "INNER JOIN `tabItem` item ON item.name = soi.item_code"
+	item_join = "LEFT JOIN `tabItem` item ON item.name = soi.item_code"
 
 	return frappe.db.sql(
 		f"""
@@ -320,6 +318,8 @@ def get_sales_order_service_items(filters):
 			so.custom_base_reference_name,
 			soi.item_code,
 			soi.item_name,
+			IFNULL(item.item_group, '') AS item_group,
+			IFNULL(item.is_stock_item, 0) AS is_stock_item,
 			soi.qty,
 			soi.amount
 		FROM `tabSales Order` so
@@ -396,9 +396,7 @@ def get_sales_invoice_service_items(filters):
 		conditions.append("sii.item_code = %(item_code)s")
 		values["item_code"] = filters.item_code
 
-	item_join = ""
-	if exclude_medicines:
-		item_join = "INNER JOIN `tabItem` item ON item.name = sii.item_code"
+	item_join = "LEFT JOIN `tabItem` item ON item.name = sii.item_code"
 
 	return frappe.db.sql(
 		f"""
@@ -413,6 +411,8 @@ def get_sales_invoice_service_items(filters):
 			{base_name_expr} AS custom_base_reference_name,
 			sii.item_code,
 			sii.item_name,
+			IFNULL(item.item_group, '') AS item_group,
+			IFNULL(item.is_stock_item, 0) AS is_stock_item,
 			sii.qty,
 			sii.amount
 		FROM `tabSales Invoice` si

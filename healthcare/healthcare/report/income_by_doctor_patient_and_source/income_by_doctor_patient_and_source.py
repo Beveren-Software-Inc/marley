@@ -25,6 +25,7 @@ from healthcare.api.doctor_wise_income_analysis import (
 from healthcare.api.patient_wise_income_analysis import (
 	DEFAULT_LIMIT,
 	build_patient_analysis,
+	patient_period_metrics,
 	render_patient_income_html,
 )
 
@@ -61,6 +62,7 @@ def _validate(filters):
 
 	filters.paid_only = cint(filters.get("paid_only") if filters.get("paid_only") is not None else filters.get("paid"))
 	filters.exclude_medicines = cint(filters.get("exclude_medicines"))
+	filters.detailed = cint(filters.get("detailed"))
 	filters.limit = cint(filters.get("limit") or DEFAULT_LIMIT) or DEFAULT_LIMIT
 	if not filters.get("billing_source"):
 		# Prefer billing_source; fall back to legacy "source" if it is Invoice/Order
@@ -173,17 +175,11 @@ def _patient_columns(analysis: dict) -> list[dict]:
 		},
 		{"label": _("Patient Name"), "fieldname": "patient_name", "fieldtype": "Data", "width": 200},
 	]
+	metrics = patient_period_metrics(analysis.get("period") or "")
 	for p in analysis.get("periods") or []:
 		key = p.get("key") or ""
 		label = p.get("label") or key
-		for metric, short in (
-			("ip", "IP"),
-			("op", "OP"),
-			("iop", "IOP"),
-			("total", "Total"),
-			("discount", "Discount"),
-			("net", "Net"),
-		):
+		for metric, short in metrics:
 			cols.append(
 				{
 					"label": f"{label} {short}",
@@ -208,10 +204,11 @@ def _patient_rows(analysis: dict) -> list[dict]:
 			"patient": item.get("patient"),
 			"patient_name": item.get("patient_name"),
 		}
+		metrics = patient_period_metrics(analysis.get("period") or "")
 		for p in periods:
 			key = p.get("key") or ""
 			cell = by_key.get(key) or {}
-			for metric in ("ip", "op", "iop", "total", "discount", "net"):
+			for metric, _short in metrics:
 				row[_field(key, metric)] = flt(cell.get(metric))
 		rows.append(row)
 	return rows
@@ -231,8 +228,10 @@ def _execute_source(filters):
 
 
 def _source_columns(summary: dict) -> list[dict]:
+	source_label = _("Service") if cint(summary.get("detailed")) else _("Source")
+	source_width = 280 if cint(summary.get("detailed")) else 100
 	cols = [
-		{"label": _("Source"), "fieldname": "care_source", "fieldtype": "Data", "width": 100},
+		{"label": source_label, "fieldname": "care_source", "fieldtype": "Data", "width": source_width},
 	]
 	for p in summary.get("periods") or []:
 		key = p.get("key") or ""
