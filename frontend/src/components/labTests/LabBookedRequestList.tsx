@@ -410,12 +410,16 @@ export function LabBookedRequestList({
               ''
             ).trim()
             const showReviewDoctor = vs === 'pending-review' || vs === 'reviewed'
+            const testName = sr.template_name || sr.template_dn || 'Lab Request'
+            const patientLabel = sr.patient_name || sr.patient || '—'
+            const orderedLabel = sr.order_date ? formatDashboardDate(sr.order_date) : ''
             const metaFields = [
+              ['Date', orderedLabel || '—'],
+              ['Patient', patientLabel],
+              ['Test', testName],
               ['Request', sr.name],
-              ['Patient', sr.patient_name || sr.patient],
               ['Doctor', doctorName],
               Number(sr.by_nurse) === 1 ? (['Nursing', 'Yes'] as const) : null,
-              ['Ordered', formatDashboardDate(sr.order_date)],
               ['Status', vLabel],
               ['Tests', childCount || groupCount || '—'],
               !hideAmount ? (['Total', formatMoney(amount)] as const) : null,
@@ -447,9 +451,27 @@ export function LabBookedRequestList({
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className="truncate text-sm font-semibold text-slate-900">
-                          {sr.template_name || sr.template_dn || 'Lab Request'}
-                        </span>
+                        {orderedLabel ? (
+                          <span className="shrink-0 text-sm font-semibold text-slate-900">
+                            {orderedLabel}
+                          </span>
+                        ) : null}
+                        {onPatientClick && sr.patient ? (
+                          <button
+                            type="button"
+                            className="truncate text-sm font-semibold text-primary hover:underline"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              onPatientClick(sr.patient)
+                            }}
+                          >
+                            {patientLabel}
+                          </button>
+                        ) : (
+                          <span className="truncate text-sm font-semibold text-slate-900">
+                            {patientLabel}
+                          </span>
+                        )}
                         {vs !== 'booked' ? (
                           <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-medium text-slate-500">
                             New Request
@@ -466,28 +488,9 @@ export function LabBookedRequestList({
                         <StatusPill status={vLabel} color={vColor} />
                       </div>
                       <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-slate-500">
-                        <span className="font-mono text-slate-600">{sr.name}</span>
+                        <span className="font-medium text-slate-700">{testName}</span>
                         <span>·</span>
-                        {onPatientClick && sr.patient ? (
-                          <button
-                            type="button"
-                            className="text-primary hover:underline"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              onPatientClick(sr.patient)
-                            }}
-                          >
-                            {sr.patient_name || sr.patient}
-                          </button>
-                        ) : (
-                          <span>{sr.patient_name || sr.patient}</span>
-                        )}
-                        {sr.order_date ? (
-                          <>
-                            <span>·</span>
-                            <span>{formatDashboardDate(sr.order_date)}</span>
-                          </>
-                        ) : null}
+                        <span className="font-mono text-slate-600">{sr.name}</span>
                         {(childCount > 0 || groupCount > 0) && (
                           <>
                             <span>·</span>
