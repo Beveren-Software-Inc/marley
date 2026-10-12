@@ -2736,7 +2736,10 @@ def save_and_submit_lab_test(
         male_max = template_doc.get("male_max_range")
         template_min = template_doc.get("min_range")
         template_max = template_doc.get("max_range")
-        is_multiple_template = cint(template_doc.get("is_multiple"))
+        # Display One Result: enter a single value even though the template is Multiple.
+        is_multiple_template = cint(template_doc.get("is_multiple")) and not cint(
+            template_doc.get("display_one_result")
+        )
         if is_multiple_template:
             for mr in (template_doc.get("multiple_result_type") or []):
                 key = (getattr(mr, "test_unit", None) or getattr(mr, "uom", None) or "").strip()

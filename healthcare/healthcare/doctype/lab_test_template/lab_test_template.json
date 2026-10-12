@@ -71,6 +71,7 @@
   "section_break_fiwl",
   "is_multiple",
   "multiple_result_type",
+  "display_one_result",
   "section_break_compound",
   "normal_test_templates",
   "section_break_special",
@@ -101,7 +102,8 @@
   "column_break_34",
   "change_in_item",
   "service_pricing_section",
-  "service_pricing"
+  "service_pricing",
+  "enable_external_lab_print"
  ],
  "fields": [
   {
@@ -673,6 +675,12 @@
    "fieldname": "price_included_in_group",
    "fieldtype": "Check",
    "label": "Price Included in Group"
+  },
+  {
+   "default": "0",
+   "fieldname": "display_one_result",
+   "fieldtype": "Check",
+   "label": "Display One Result"
   }
  ],
  "grid_page_length": 50,
@@ -683,7 +691,7 @@
    "link_fieldname": "template"
   }
  ],
- "modified": "2026-09-16 00:54:36.279901",
+ "modified": "2026-10-12 18:23:01.646612",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Lab Test Template",

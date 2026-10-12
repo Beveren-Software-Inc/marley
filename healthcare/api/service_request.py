@@ -955,7 +955,10 @@ def _pick_template_min_max(row, patient_sex=None):
 	return _parse_normal_range_bounds(row.get("lab_test_normal_range"))
 
 
-def _lab_result_type_label(template_type=None, is_multiple=0):
+def _lab_result_type_label(template_type=None, is_multiple=0, display_one_result=0):
+	# Multiple template that should be entered as one result (lab request inline field).
+	if cint(is_multiple) and cint(display_one_result):
+		return "Single"
 	if cint(is_multiple):
 		return "Multiple"
 	tt = (template_type or "").strip()
@@ -977,7 +980,10 @@ def _resolve_multiple_use_status_flag(template, result_value, patient_sex=None):
 	)
 
 	is_multiple = cint(frappe.db.get_value("Lab Test Template", template, "is_multiple"))
-	if not is_multiple:
+	display_one = 0
+	if frappe.db.has_column("Lab Test Template", "display_one_result"):
+		display_one = cint(frappe.db.get_value("Lab Test Template", template, "display_one_result"))
+	if not is_multiple or display_one:
 		return ""
 	doc = frappe.get_doc("Lab Test Template", template)
 	rows = list(doc.get("multiple_result_type") or [])
@@ -1020,6 +1026,7 @@ def _template_review_fields(template_names, patient_sex=None, patient_care_type=
 		"lab_test_rate",
 		"op_rate",
 		"is_multiple",
+		"display_one_result",
 		"min_range",
 		"max_range",
 		"male_min_range",
@@ -1061,7 +1068,9 @@ def _template_review_fields(template_names, patient_sex=None, patient_care_type=
 			"min_value": min_v,
 			"max_value": max_v,
 			"result_type": _lab_result_type_label(
-				row.get("lab_test_template_type"), row.get("is_multiple")
+				row.get("lab_test_template_type"),
+				row.get("is_multiple"),
+				row.get("display_one_result"),
 			),
 			"template_type": row.get("lab_test_template_type") or "",
 			"price_included_in_group": included,
