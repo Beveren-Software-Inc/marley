@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, memo } from 'react'
+import { useEffect, useRef, useState, useCallback, memo } from 'react'
 import { Plus, Trash2 } from 'lucide-react'
 import {
   CREATE_MODAL_OVERLAY,
@@ -64,8 +64,24 @@ const InputField = memo(({ value, onChange, type = "text", placeholder = "", dis
 InputField.displayName = 'InputField'
 
 // Memoized ComboboxField
-const ComboboxField = memo(({ query, onQueryChange, onFocus, isOpen, isLoading, options, onSelect, placeholder = "", locked = false }: any) => (
-  <div className="relative">
+const ComboboxField = memo(({ query, onQueryChange, onFocus, onClose, isOpen, isLoading, options, onSelect, placeholder = "", locked = false }: any) => {
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  // Close the suggestion list when clicking anywhere outside the field — even
+  // without picking an option (e.g. clicking another field or blank space).
+  useEffect(() => {
+    if (!isOpen || locked) return
+    const handler = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        onClose?.()
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [isOpen, locked, onClose])
+
+  return (
+  <div className="relative" ref={containerRef}>
     <input
       type="text"
       value={query}
@@ -107,7 +123,8 @@ const ComboboxField = memo(({ query, onQueryChange, onFocus, isOpen, isLoading, 
       </div>
     )}
   </div>
-))
+  )
+})
 ComboboxField.displayName = 'ComboboxField'
 
 export const CreateECTProcedureModal = ({
@@ -181,8 +198,11 @@ export const CreateECTProcedureModal = ({
   const [assistantQuery, setAssistantQuery] = useState('')
   const [anaesthetistQuery, setAnaesthetistQuery] = useState('')
   const [anaesthesiaQuery, setAnaesthesiaQuery] = useState('')
+  // ECT Procedure is an exception to the "linked doctor cannot change the
+  // practitioner field" rule: the linked practitioner is only used as the
+  // default Consultant Doctor, and Consultant / Assistant / Anaesthetist
+  // remain freely editable.
   const {
-    locked: practitionerLocked,
     practitionerId: linkedPractitionerId,
     practitionerLabel: linkedPractitionerLabel,
   } = useLockedLinkedPractitioner()
@@ -243,7 +263,9 @@ export const CreateECTProcedureModal = ({
         const loadedEnergies = Array.isArray(doc.energies)
           ? (doc.energies as ECTProcedureEnergyRow[]).map((row) => ({
               energy: String(row.energy || ''),
-              duration: String(row.duration || ''),
+              // Older records may only have "GTCs For" captured — show it as the
+              // Duration value (they are the same thing).
+              duration: String(row.duration || row.gtcs_for || ''),
               strength: String(row.strength || ''),
               gtcs_for: String(row.gtcs_for || ''),
             }))
@@ -300,12 +322,18 @@ export const CreateECTProcedureModal = ({
         energy: formData.energy || undefined,
         gtcs_for: formData.gtcs_for || undefined,
         energies: energies
-          .map((row) => ({
-            energy: (row.energy || '').trim(),
-            duration: (row.duration || '').trim(),
-            strength: (row.strength || '').trim(),
-            gtcs_for: (row.gtcs_for || '').trim(),
-          }))
+          .map((row) => {
+            const duration = (row.duration || '').trim()
+            return {
+              energy: (row.energy || '').trim(),
+              duration,
+              strength: (row.strength || '').trim(),
+              // "GTCs For" is no longer captured separately in the UI — it is the
+              // same value as Duration. Keeping it in sync means the ECT Chart /
+              // detail view / print keep showing it (legacy values fall back).
+              gtcs_for: duration || (row.gtcs_for || '').trim(),
+            }
+          })
           .filter((row) => row.energy || row.duration || row.strength || row.gtcs_for),
         propofol_detail: formData.propofol_detail || undefined,
         strength: formData.strength || undefined,
@@ -453,6 +481,31 @@ export const CreateECTProcedureModal = ({
     )
     setConsultantQuery((q) => q.trim() || linkedPractitionerLabel || linkedPractitionerId)
   }, [linkedPractitionerId, linkedPractitionerLabel])
+
+  // Default the anaesthetist to the first active Healthcare Practitioner flagged
+  // "Is anaesthetist" (practitioner master → Is anaesthetist). It is only a
+  // starting value: the user can change it, and the saved value is never
+  // overwritten when editing an existing ECT Procedure.
+  useEffect(() => {
+    if (isEdit) return
+    let cancelled = false
+    void (async () => {
+      try {
+        const options = await fetchHealthcarePractitioners(undefined, undefined, {
+          anaesthetistsOnly: true,
+        })
+        const first = options[0]
+        if (cancelled || !first) return
+        setFormData((prev) => (prev.anaesthetist ? prev : { ...prev, anaesthetist: first.name }))
+        setAnaesthetistQuery((q) => q.trim() || first.label || first.name)
+      } catch {
+        // No default available — the user can pick the anaesthetist manually.
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [isEdit])
 
   useEffect(() => {
     if (!anaesthesiaOpen) return
@@ -613,6 +666,7 @@ export const CreateECTProcedureModal = ({
                     isLoading={patientLoading}
                     options={patientOptions}
                     onSelect={handlePatientSelect}
+                    onClose={() => setPatientOpen(false)}
                     placeholder="Search patient..."
                   />
                 </FormField>
@@ -652,6 +706,7 @@ export const CreateECTProcedureModal = ({
                     isOpen={anaesthesiaOpen}
                     options={anaesthesiaOptions}
                     onSelect={handleAnaesthesiaSelect}
+                    onClose={() => setAnaesthesiaOpen(false)}
                     placeholder="Search type of anaesthesia..."
                   />
                 </FormField>
@@ -688,8 +743,8 @@ export const CreateECTProcedureModal = ({
                     isOpen={consultantOpen}
                     options={consultantOptions}
                     onSelect={handleConsultantSelect}
+                    onClose={() => setConsultantOpen(false)}
                     placeholder="Search consultant..."
-                    locked={practitionerLocked}
                   />
                 </FormField>
                 <FormField label="Assistant Doctor">
@@ -700,6 +755,7 @@ export const CreateECTProcedureModal = ({
                     isOpen={assistantOpen}
                     options={assistantOptions}
                     onSelect={handleAssistantSelect}
+                    onClose={() => setAssistantOpen(false)}
                     placeholder="Search assistant..."
                   />
                 </FormField>
@@ -711,6 +767,7 @@ export const CreateECTProcedureModal = ({
                     isOpen={anaesthetistOpen}
                     options={anaesthetistOptions}
                     onSelect={handleAnaesthetistSelect}
+                    onClose={() => setAnaesthetistOpen(false)}
                     placeholder="Search anaesthetist..."
                   />
                 </FormField>
@@ -735,18 +792,17 @@ export const CreateECTProcedureModal = ({
                 </div>
 
                 {energies.length > 0 && (
-                  <div className="grid grid-cols-[1fr_1fr_1fr_1fr_auto] gap-2 mb-1 px-1">
+                  <div className="grid grid-cols-[1fr_1fr_1fr_auto] gap-2 mb-1 px-1">
                     <span className="text-xs font-medium text-slate-500">Energy</span>
                     <span className="text-xs font-medium text-slate-500">Duration</span>
                     <span className="text-xs font-medium text-slate-500">Strength</span>
-                    <span className="text-xs font-medium text-slate-500">GTCs For</span>
                     <span className="w-11" />
                   </div>
                 )}
 
                 <div className="space-y-2">
                   {energies.map((row, index) => (
-                    <div key={index} className="grid grid-cols-[1fr_1fr_1fr_1fr_auto] gap-2 items-center">
+                    <div key={index} className="grid grid-cols-[1fr_1fr_1fr_auto] gap-2 items-center">
                       <InputField
                         value={row.energy || ''}
                         onChange={(e) => updateEnergyRow(index, 'energy', e.target.value)}
@@ -766,11 +822,6 @@ export const CreateECTProcedureModal = ({
                         <option value="Weak">Weak</option>
                         <option value="Strong">Strong</option>
                       </select>
-                      <InputField
-                        value={row.gtcs_for || ''}
-                        onChange={(e) => updateEnergyRow(index, 'gtcs_for', e.target.value)}
-                        placeholder="e.g., 45"
-                      />
                       <button
                         type="button"
                         onClick={() => removeEnergyRow(index)}

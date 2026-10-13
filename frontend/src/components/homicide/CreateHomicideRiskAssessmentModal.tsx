@@ -9,6 +9,7 @@ import {
 } from '../ui/CreateModalChrome'
 import { Shield, AlertTriangle, Brain, Heart, Users, FileText, Clock, Target, PenLine } from 'lucide-react'
 import { createHomicideRiskAssessment, type ContactRow } from '../../services/homicideRisk'
+import { notifyRiskGapsChanged } from '../../services/generalRisk'
 import { searchPatients, fetchPatients, uploadPatientFile, type PatientListItem } from '../../services/patients'
 import {
   fetchInpatientAdmissionOptions,
@@ -369,6 +370,8 @@ export const CreateHomicideRiskAssessmentModal = ({
       })
       
       if (result.success) {
+        // Clears the red sidebar outline raised by a flagged General Risk item.
+        notifyRiskGapsChanged()
         onSuccess()
       } else {
         setError(result.message || 'Failed to create assessment')

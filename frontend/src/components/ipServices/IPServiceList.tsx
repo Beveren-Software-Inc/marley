@@ -1,10 +1,18 @@
 import { useState, useEffect, useRef } from 'react'
-import { fetchIPServices, deleteIPService, type IPServiceRow } from '../../services/ipServices'
+import {
+  fetchIPServices,
+  deleteIPService,
+  type IPServiceRow,
+  type IPServiceCareType,
+  type IPServiceDateField,
+} from '../../services/ipServices'
 import { toast } from '../../hooks/useToast'
+import { formatDate } from '../../utils/formatDate'
 import { PortalActionsMenu } from '../ui/PortalActionsMenu'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 import { DetailSlideOver } from '../ui/DetailSlideOver'
 import { IPServiceDetailView } from './IPServiceDetailView'
+import { ECTFormMenuItems, ECTFormModals, type ECTFormActionId } from '../ect/ECTFormCreateActions'
 
 interface IPServiceListProps {
   patient?: string
@@ -14,6 +22,17 @@ interface IPServiceListProps {
   onPatientClick?: (patient: string) => void
   /** Nurse ECT view — hide amounts; show therapy names only in detail. */
   hidePricing?: boolean
+  /** ECT Service page: From date (YYYY-MM-DD, inclusive). */
+  dateFrom?: string
+  /** ECT Service page: To date (YYYY-MM-DD, inclusive). */
+  dateTo?: string
+  /**
+   * Which date `dateFrom`/`dateTo` filter on: 'service' (default) = the ECT
+   * session / encounter date shown on the record, 'creation' = when it was raised.
+   */
+  dateField?: IPServiceDateField
+  /** ECT Service page: 'All' shows every care type, ignoring the navbar OP/IP context. */
+  careType?: IPServiceCareType
 }
 
 const normalizeCategory = (category?: string) => (category || '').trim()
@@ -25,6 +44,10 @@ export const IPServiceList = ({
   category,
   onPatientClick,
   hidePricing = false,
+  dateFrom,
+  dateTo,
+  dateField = 'service',
+  careType,
 }: IPServiceListProps) => {
   const [list, setList] = useState<IPServiceRow[]>([])
   const [loading, setLoading] = useState(true)
@@ -32,6 +55,12 @@ export const IPServiceList = ({
   const [openActionRow, setOpenActionRow] = useState<string | null>(null)
   const [detailName, setDetailName] = useState<string | null>(null)
   const [deletingName, setDeletingName] = useState<string | null>(null)
+  /** ECT form started from a row's three-dot actions menu (null = no modal open). */
+  const [ectForm, setEctForm] = useState<{
+    form: ECTFormActionId
+    patient?: string
+    admissionNo?: string
+  } | null>(null)
   const actionMenuRef = useRef<HTMLDivElement>(null)
 
   // Close action menu when clicking outside
@@ -52,7 +81,17 @@ export const IPServiceList = ({
     let cancelled = false
     setError(null)
     setLoading(true)
-    fetchIPServices(50, 0, patient, admission_no)
+    fetchIPServices(
+      50,
+      0,
+      patient,
+      admission_no,
+      undefined,
+      careType && careType !== 'All' ? careType : undefined,
+      dateFrom || undefined,
+      dateTo || undefined,
+      dateField,
+    )
       .then((data) => {
         if (!cancelled) {
           let filtered = data
@@ -76,7 +115,7 @@ export const IPServiceList = ({
     return () => {
       cancelled = true
     }
-  }, [patient, admission_no, refreshKey, category])
+  }, [patient, admission_no, refreshKey, category, careType, dateFrom, dateTo, dateField])
 
   const handleView = (name: string) => {
     setDetailName(name)
@@ -86,6 +125,16 @@ export const IPServiceList = ({
   const handleEdit = (name: string) => {
     window.open(`/app/ip-service/${encodeURIComponent(name)}`, '_blank')
     setOpenActionRow(null)
+  }
+
+  /** Opens the chosen ECT form modal, scoped to the row the menu was opened on. */
+  const handleCreateEctForm = (form: ECTFormActionId, row: IPServiceRow) => {
+    setOpenActionRow(null)
+    setEctForm({
+      form,
+      patient: patient || row.file_number,
+      admissionNo: row.admission_no || undefined,
+    })
   }
 
   const handleDelete = async (name: string) => {
@@ -113,7 +162,17 @@ export const IPServiceList = ({
   }
 
   const doRefetch = () => {
-    fetchIPServices(50, 0, patient, admission_no)
+    fetchIPServices(
+      50,
+      0,
+      patient,
+      admission_no,
+      undefined,
+      careType && careType !== 'All' ? careType : undefined,
+      dateFrom || undefined,
+      dateTo || undefined,
+      dateField,
+    )
       .then((data) => {
         let filtered = data
         if (category === 'Other Service') {
@@ -148,9 +207,12 @@ export const IPServiceList = ({
   }
 
   if (list.length === 0) {
-    const emptyMessage = category === 'Other Service'
-      ? 'No Other Services found. Create one with the + button.'
-      : 'No ECT Services found. Create one with the + button.'
+    const hasFilters = Boolean(dateFrom || dateTo || (careType && careType !== 'All'))
+    const emptyMessage = hasFilters
+      ? 'No ECT Services match the selected filters. Use Clear Filter to see all.'
+      : category === 'Other Service'
+        ? 'No Other Services found. Create one with the + button.'
+        : 'No ECT Services found. Create one with the + button.'
     return (
       <div className="flex items-center justify-center p-6 text-slate-500 text-sm">
         {emptyMessage}
@@ -165,6 +227,7 @@ export const IPServiceList = ({
           <thead>
             <tr className="border-b border-slate-200 text-left text-slate-600 font-medium">
               <th className="py-2 pr-2">Name</th>
+              <th className="py-2 pr-2">Date</th>
               <th className="py-2 pr-2">Admission</th>
               {!patient && (
                 <th className="py-2 pr-2">Patient</th>
@@ -185,6 +248,12 @@ export const IPServiceList = ({
                 >
                   {row.name}
                 </td>
+                <td
+                  className="py-2 pr-2 cursor-pointer whitespace-nowrap"
+                  onClick={() => handleView(row.name)}
+                >
+                  {row.service_date ? formatDate(row.service_date) : '–'}
+                </td>
                 <td 
                   className="py-2 pr-2 cursor-pointer"
                   onClick={() => handleView(row.name)}
@@ -193,10 +262,15 @@ export const IPServiceList = ({
                 </td>
                 {!patient && (
                   <td
-                    className="py-2 pr-2 cursor-pointer"
+                    className={`py-2 pr-2 ${onPatientClick ? 'cursor-pointer' : ''}`}
                     onClick={() => row.file_number && onPatientClick?.(row.file_number)}
                   >
-                    <span className="font-medium text-primary hover:underline">{row.patient_full_name ?? row.file_number ?? '–'}</span>
+                    <span
+                      className={`font-medium text-primary ${onPatientClick ? 'hover:underline' : ''}`}
+                      title={onPatientClick ? 'Select this patient' : undefined}
+                    >
+                      {row.patient_full_name ?? row.file_number ?? '–'}
+                    </span>
                   </td>
                 )}
                 <td 
@@ -233,7 +307,8 @@ export const IPServiceList = ({
                         open={openActionRow === row.name}
                         onClose={() => setOpenActionRow(null)}
                         triggerRef={actionMenuRef}
-                        minWidth={160}
+                        minWidth={200}
+                        maxHeight={340}
                       >
                         <button
                           type="button"
@@ -249,6 +324,7 @@ export const IPServiceList = ({
                         >
                           Edit
                         </button>
+                        <ECTFormMenuItems onSelect={(id) => handleCreateEctForm(id, row)} />
                         <button
                           type="button"
                           onClick={() => void handleDelete(row.name)}
@@ -286,6 +362,14 @@ export const IPServiceList = ({
           <IPServiceDetailView name={detailName} onUpdate={doRefetch} hidePricing={hidePricing} />
         </DetailSlideOver>
       )}
+
+      {/* ECT form modals started from a row's three-dot actions menu */}
+      <ECTFormModals
+        form={ectForm?.form ?? null}
+        patient={ectForm?.patient}
+        admissionNo={ectForm?.admissionNo}
+        onClose={() => setEctForm(null)}
+      />
     </>
   )
 }

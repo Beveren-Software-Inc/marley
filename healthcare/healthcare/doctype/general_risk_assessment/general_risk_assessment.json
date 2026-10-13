@@ -1,0 +1,300 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "GRA-.#####",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "section_basic_info",
+  "patient",
+  "patient_name",
+  "assessment_date",
+  "practitioner",
+  "practitioner_name",
+  "column_break_basic",
+  "inpatient_admission",
+  "patient_visit",
+  "cost_center",
+  "section_risk_self",
+  "self_harm",
+  "self_harm_reason",
+  "suicidal_risk",
+  "suicidal_risk_reason",
+  "section_risk_others",
+  "others_bullying",
+  "others_bullying_reason",
+  "others_violence",
+  "others_violence_reason",
+  "others_homicide",
+  "others_homicide_reason",
+  "section_risk_from_others",
+  "from_bullying",
+  "from_bullying_reason",
+  "from_neglect",
+  "from_neglect_reason",
+  "from_violence",
+  "from_violence_reason",
+  "section_notes",
+  "notes"
+ ],
+ "fields": [
+  {
+   "fieldname": "section_basic_info",
+   "fieldtype": "Section Break",
+   "label": "Basic Information"
+  },
+  {
+   "fieldname": "patient",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Patient",
+   "options": "Patient",
+   "reqd": 1
+  },
+  {
+   "fetch_from": "patient.patient_name",
+   "fieldname": "patient_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Patient Name",
+   "read_only": 1
+  },
+  {
+   "default": "Today",
+   "fieldname": "assessment_date",
+   "fieldtype": "Date",
+   "label": "Assessment Date",
+   "reqd": 1
+  },
+  {
+   "fieldname": "practitioner",
+   "fieldtype": "Link",
+   "label": "Practitioner",
+   "options": "Healthcare Practitioner"
+  },
+  {
+   "fetch_from": "practitioner.practitioner_name",
+   "fieldname": "practitioner_name",
+   "fieldtype": "Data",
+   "label": "Practitioner Name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_basic",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "inpatient_admission",
+   "fieldtype": "Link",
+   "label": "Inpatient Admission",
+   "options": "Inpatient Admission"
+  },
+  {
+   "fieldname": "patient_visit",
+   "fieldtype": "Link",
+   "label": "Patient Visit",
+   "options": "Patient Visit"
+  },
+  {
+   "fieldname": "cost_center",
+   "fieldtype": "Link",
+   "label": "Cost Center",
+   "options": "Cost Center"
+  },
+  {
+   "fieldname": "section_risk_self",
+   "fieldtype": "Section Break",
+   "label": "Risk Towards Self"
+  },
+  {
+   "fieldname": "self_harm",
+   "fieldtype": "Select",
+   "label": "Self-harm",
+   "options": "Yes\nNo"
+  },
+  {
+   "depends_on": "eval:doc.self_harm=='Yes'",
+   "fieldname": "self_harm_reason",
+   "fieldtype": "Small Text",
+   "label": "Self-harm - Reason"
+  },
+  {
+   "fieldname": "suicidal_risk",
+   "fieldtype": "Select",
+   "label": "Suicidal Risk",
+   "options": "Yes\nNo"
+  },
+  {
+   "depends_on": "eval:doc.suicidal_risk=='Yes'",
+   "fieldname": "suicidal_risk_reason",
+   "fieldtype": "Small Text",
+   "label": "Suicidal Risk - Reason"
+  },
+  {
+   "fieldname": "section_risk_others",
+   "fieldtype": "Section Break",
+   "label": "Risk Towards Others"
+  },
+  {
+   "fieldname": "others_bullying",
+   "fieldtype": "Select",
+   "label": "Bullying",
+   "options": "Yes\nNo"
+  },
+  {
+   "depends_on": "eval:doc.others_bullying=='Yes'",
+   "fieldname": "others_bullying_reason",
+   "fieldtype": "Small Text",
+   "label": "Bullying - Reason"
+  },
+  {
+   "fieldname": "others_violence",
+   "fieldtype": "Select",
+   "label": "Violence and Aggression",
+   "options": "Yes\nNo"
+  },
+  {
+   "depends_on": "eval:doc.others_violence=='Yes'",
+   "fieldname": "others_violence_reason",
+   "fieldtype": "Small Text",
+   "label": "Violence and Aggression - Reason"
+  },
+  {
+   "fieldname": "others_homicide",
+   "fieldtype": "Select",
+   "label": "Homicide",
+   "options": "Yes\nNo"
+  },
+  {
+   "depends_on": "eval:doc.others_homicide=='Yes'",
+   "fieldname": "others_homicide_reason",
+   "fieldtype": "Small Text",
+   "label": "Homicide - Reason"
+  },
+  {
+   "fieldname": "section_risk_from_others",
+   "fieldtype": "Section Break",
+   "label": "Risk From Others"
+  },
+  {
+   "fieldname": "from_bullying",
+   "fieldtype": "Select",
+   "label": "Bullying",
+   "options": "Yes\nNo"
+  },
+  {
+   "depends_on": "eval:doc.from_bullying=='Yes'",
+   "fieldname": "from_bullying_reason",
+   "fieldtype": "Small Text",
+   "label": "Bullying - Reason"
+  },
+  {
+   "fieldname": "from_neglect",
+   "fieldtype": "Select",
+   "label": "Neglect",
+   "options": "Yes\nNo"
+  },
+  {
+   "depends_on": "eval:doc.from_neglect=='Yes'",
+   "fieldname": "from_neglect_reason",
+   "fieldtype": "Small Text",
+   "label": "Neglect - Reason"
+  },
+  {
+   "fieldname": "from_violence",
+   "fieldtype": "Select",
+   "label": "Violence and Aggression",
+   "options": "Yes\nNo"
+  },
+  {
+   "depends_on": "eval:doc.from_violence=='Yes'",
+   "fieldname": "from_violence_reason",
+   "fieldtype": "Small Text",
+   "label": "Violence and Aggression - Reason"
+  },
+  {
+   "fieldname": "section_notes",
+   "fieldtype": "Section Break",
+   "label": "Notes"
+  },
+  {
+   "fieldname": "notes",
+   "fieldtype": "Small Text",
+   "label": "Additional Notes"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "module": "Healthcare",
+ "name": "General Risk Assessment",
+ "naming_rule": "Expression",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Doctor",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Nurse",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Psychologist",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Healthcare Administrator",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": []
+}

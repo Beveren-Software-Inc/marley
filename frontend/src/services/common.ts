@@ -148,13 +148,14 @@ export async function fetchAnaesthesiaTypes(search?: string): Promise<LinkFieldO
 export async function fetchHealthcarePractitioners(
   search?: string,
   department?: string,
-  opts?: { appointmentOnly?: boolean; consultantsOnly?: boolean },
+  opts?: { appointmentOnly?: boolean; consultantsOnly?: boolean; anaesthetistsOnly?: boolean },
 ): Promise<LinkFieldOption[]> {
   const params = new URLSearchParams()
   if (search) params.append('search', search)
   if (department) params.append('department', department)
   if (opts?.appointmentOnly) params.append('appointment_only', '1')
   if (opts?.consultantsOnly) params.append('consultants_only', '1')
+  if (opts?.anaesthetistsOnly) params.append('anaesthetists_only', '1')
 
   const url = `/api/method/healthcare.api.common.get_healthcare_practitioners${params.toString() ? `?${params.toString()}` : ''}`
 

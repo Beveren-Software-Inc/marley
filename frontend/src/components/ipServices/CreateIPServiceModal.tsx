@@ -12,6 +12,7 @@ import {
 } from '../ui/linkComboboxStyles'
 import {
   createIPService,
+  fetchECTDefaultServices,
   fetchIPServiceType,
   fetchIPServiceTypes,
   type CreateIPServiceInput,
@@ -107,6 +108,50 @@ export const CreateIPServiceModal = ({
     }
     setVisitLabel(effectiveVisit)
   }, [effectiveVisit])
+
+  // Pre-select the default ECT service configured for the active OP/IP context
+  // (Healthcare Settings → Default ECT OP Service / Default ECT IP Service).
+  const prefilledForRef = useRef('')
+  useEffect(() => {
+    const contextKey = hasCareContext ? (isIPMode ? 'IP' : 'OP') : ''
+    if (!contextKey || prefilledForRef.current === contextKey) return
+    prefilledForRef.current = contextKey
+
+    let cancelled = false
+    fetchECTDefaultServices()
+      .then(async (defaults) => {
+        const fallback = isIPMode ? defaults.ip : defaults.op
+        if (!fallback?.name || cancelled) return
+
+        let label = fallback.service_name || fallback.name
+        let amount = ''
+        try {
+          const template = await fetchIPServiceType(fallback.name, patientCareType)
+          if (template?.service_name) label = template.service_name
+          if (template?.rate != null) amount = String(template.rate)
+        } catch {
+          // Rate is resolved again on submit.
+        }
+        if (cancelled) return
+
+        setItems((prev) => {
+          const first = prev[0]
+          // Never overwrite a row the user has already filled in.
+          if (!first || first.service_type.trim()) return prev
+          return [
+            { ...first, service_type: fallback.name, template_label: label, amount },
+            ...prev.slice(1),
+          ]
+        })
+      })
+      .catch(() => {
+        // No defaults configured — the user picks the service manually.
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [hasCareContext, isIPMode, patientCareType])
 
   const addItemRow = () => {
     setItems((prev) => [...prev, emptyItemRow()])

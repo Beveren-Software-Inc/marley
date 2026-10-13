@@ -3,7 +3,11 @@
 import frappe
 from frappe import _
 
-from healthcare.api.assessment_portal_utils import ensure_assessment_read_permission
+from healthcare.api.assessment_portal_utils import (
+    ensure_assessment_read_permission,
+    is_yes_answer,
+    yes_no_answer,
+)
 
 ASSESSMENT_DOCTYPE = "Clinical Suicide Risk Assessment"
 
@@ -51,28 +55,30 @@ def create_suicide_risk_assessment(data):
 
         fill_assessment_cost_center_from_care_context(doc)
         # Section 1: Suicidal Ideation
-        doc.has_ideation = data.get("has_ideation", 0)
-        if doc.has_ideation:
+        # Answers are stored as "Yes" / "No"; a question the clinician leaves
+        # unanswered stays blank (never assumed to be a "No").
+        doc.has_ideation = yes_no_answer(data.get("has_ideation"))
+        if doc.has_ideation == "Yes":
             doc.ideation_frequency = data.get("ideation_frequency")
             doc.ideation_duration = data.get("ideation_duration")
             doc.ideation_increasing = data.get("ideation_increasing")
-            doc.ideation_24h = data.get("ideation_24h", 0)
+            doc.ideation_24h = yes_no_answer(data.get("ideation_24h"))
         
         # Section 2: Current Plan
-        doc.has_plan = data.get("has_plan", 0)
-        if doc.has_plan:
+        doc.has_plan = yes_no_answer(data.get("has_plan"))
+        if doc.has_plan == "Yes":
             doc.plan_method = data.get("plan_method")
             doc.plan_location = data.get("plan_location")
             doc.plan_immediacy = data.get("plan_immediacy")
-            doc.access_lethal_means = data.get("access_lethal_means", 0)
+            doc.access_lethal_means = yes_no_answer(data.get("access_lethal_means"))
         
-        doc.risk_behavior = data.get("risk_behavior", 0)
-        if doc.risk_behavior:
+        doc.risk_behavior = yes_no_answer(data.get("risk_behavior"))
+        if doc.risk_behavior == "Yes":
             doc.risk_behavior_details = data.get("risk_behavior_details")
         
         # Section 3: History / Previous Attempts
-        doc.has_history = data.get("has_history", 0)
-        if doc.has_history:
+        doc.has_history = yes_no_answer(data.get("has_history"))
+        if doc.has_history == "Yes":
             doc.attempt_count = data.get("attempt_count")
             doc.last_attempt = data.get("last_attempt")
         
@@ -81,18 +87,18 @@ def create_suicide_risk_assessment(data):
             doc.prior_psychiatric_diagnosis = data.get("prior_psychiatric_diagnosis")
         
         # Section 4: Current Stressors
-        doc.has_stressors = data.get("has_stressors", 0)
-        if doc.has_stressors:
+        doc.has_stressors = yes_no_answer(data.get("has_stressors"))
+        if doc.has_stressors == "Yes":
             doc.stressors_description = data.get("stressors_description")
         
         # Section 5: Protective Factors - People
-        doc.has_support = data.get("has_support", 0)
-        if doc.has_support:
+        doc.has_support = yes_no_answer(data.get("has_support"))
+        if doc.has_support == "Yes":
             doc.support_people = data.get("support_people")
         
         # Section 6: Protective Factors - Coping
-        doc.has_coping = data.get("has_coping", 0)
-        if doc.has_coping:
+        doc.has_coping = yes_no_answer(data.get("has_coping"))
+        if doc.has_coping == "Yes":
             doc.coping_strategies = data.get("coping_strategies")
         
         doc.reasons_to_live = data.get("reasons_to_live")
@@ -119,7 +125,7 @@ def calculate_risk_score(data):
     score = 0
     
     # Ideation factors (max 40 points)
-    if data.get("has_ideation"):
+    if is_yes_answer(data.get("has_ideation")):
         score += 10
         
         # Frequency (0-10)
@@ -143,11 +149,11 @@ def calculate_risk_score(data):
             score += 5
         
         # Past 24 hours (0-10)
-        if data.get("ideation_24h"):
+        if is_yes_answer(data.get("ideation_24h")):
             score += 10
     
     # Plan factors (max 30 points)
-    if data.get("has_plan"):
+    if is_yes_answer(data.get("has_plan")):
         score += 15
         
         # Immediacy (0-15)
@@ -162,15 +168,15 @@ def calculate_risk_score(data):
             score += 4
         
         # Access to lethal means (0-10)
-        if data.get("access_lethal_means"):
+        if is_yes_answer(data.get("access_lethal_means")):
             score += 10
     
     # Risk behavior (0-10)
-    if data.get("risk_behavior"):
+    if is_yes_answer(data.get("risk_behavior")):
         score += 10
     
     # History factors (max 20 points)
-    if data.get("has_history"):
+    if is_yes_answer(data.get("has_history")):
         score += 10
         
         # Multiple attempts (0-10)
@@ -194,13 +200,13 @@ def calculate_risk_score(data):
         score += 5
     
     # Stressors (0-10)
-    if data.get("has_stressors"):
+    if is_yes_answer(data.get("has_stressors")):
         score += 10
     
     # Protective factors (negative points)
-    if data.get("has_support"):
+    if is_yes_answer(data.get("has_support")):
         score -= 10
-    if data.get("has_coping"):
+    if is_yes_answer(data.get("has_coping")):
         score -= 10
     if data.get("reasons_to_live"):
         score -= 5

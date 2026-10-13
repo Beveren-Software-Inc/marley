@@ -94,13 +94,13 @@
    "label": "1. Suicidal Ideation"
   },
   {
-   "default": "0",
    "fieldname": "has_ideation",
-   "fieldtype": "Check",
-   "label": "Evidence of suicidal ideation"
+   "fieldtype": "Select",
+   "label": "Evidence of suicidal ideation",
+   "options": "Yes\nNo"
   },
   {
-   "depends_on": "has_ideation",
+   "depends_on": "eval:doc.has_ideation=='Yes'",
    "fieldname": "ideation_details",
    "fieldtype": "Section Break",
    "label": "Ideation Details"
@@ -122,10 +122,10 @@
    "options": "Yes\nNo"
   },
   {
-   "default": "0",
    "fieldname": "ideation_24h",
-   "fieldtype": "Check",
-   "label": "Thoughts in past 24 hours"
+   "fieldtype": "Select",
+   "label": "Thoughts in past 24 hours",
+   "options": "Yes\nNo"
   },
   {
    "fieldname": "section_plan",
@@ -133,13 +133,13 @@
    "label": "2. Current Plan"
   },
   {
-   "default": "0",
    "fieldname": "has_plan",
-   "fieldtype": "Check",
-   "label": "Current plan to take own life"
+   "fieldtype": "Select",
+   "label": "Current plan to take own life",
+   "options": "Yes\nNo"
   },
   {
-   "depends_on": "has_plan",
+   "depends_on": "eval:doc.has_plan=='Yes'",
    "fieldname": "plan_details",
    "fieldtype": "Section Break",
    "label": "Plan Details"
@@ -161,19 +161,19 @@
    "options": "Immediate\nNext 24 hours\nWeek\nNonspecific\nOther"
   },
   {
-   "default": "0",
    "fieldname": "access_lethal_means",
-   "fieldtype": "Check",
-   "label": "Access to lethal means"
+   "fieldtype": "Select",
+   "label": "Access to lethal means",
+   "options": "Yes\nNo"
   },
   {
-   "default": "0",
    "fieldname": "risk_behavior",
-   "fieldtype": "Check",
-   "label": "Taking more risks lately (substance use, reckless behavior)"
+   "fieldtype": "Select",
+   "label": "Taking more risks lately (substance use, reckless behavior)",
+   "options": "Yes\nNo"
   },
   {
-   "depends_on": "risk_behavior",
+   "depends_on": "eval:doc.risk_behavior=='Yes'",
    "fieldname": "risk_behavior_details",
    "fieldtype": "Small Text",
    "label": "Risk behavior details"
@@ -184,13 +184,13 @@
    "label": "3. History / Previous Attempts"
   },
   {
-   "default": "0",
    "fieldname": "has_history",
-   "fieldtype": "Check",
-   "label": "History of previous attempts"
+   "fieldtype": "Select",
+   "label": "History of previous attempts",
+   "options": "Yes\nNo"
   },
   {
-   "depends_on": "has_history",
+   "depends_on": "eval:doc.has_history=='Yes'",
    "fieldname": "history_details",
    "fieldtype": "Section Break",
    "label": "History Details"
@@ -223,13 +223,13 @@
    "label": "4. Current Stressors"
   },
   {
-   "default": "0",
    "fieldname": "has_stressors",
-   "fieldtype": "Check",
-   "label": "Current stressors present"
+   "fieldtype": "Select",
+   "label": "Current stressors present",
+   "options": "Yes\nNo"
   },
   {
-   "depends_on": "has_stressors",
+   "depends_on": "eval:doc.has_stressors=='Yes'",
    "fieldname": "stressors_details",
    "fieldtype": "Section Break",
    "label": "Stressors Details"
@@ -245,13 +245,13 @@
    "label": "5. Protective Factors - People"
   },
   {
-   "default": "0",
    "fieldname": "has_support",
-   "fieldtype": "Check",
-   "label": "Has support system"
+   "fieldtype": "Select",
+   "label": "Has support system",
+   "options": "Yes\nNo"
   },
   {
-   "depends_on": "has_support",
+   "depends_on": "eval:doc.has_support=='Yes'",
    "fieldname": "support_details",
    "fieldtype": "Section Break",
    "label": "Support Details"
@@ -267,13 +267,13 @@
    "label": "6. Protective Factors - Coping"
   },
   {
-   "default": "0",
    "fieldname": "has_coping",
-   "fieldtype": "Check",
-   "label": "Has coping strategies"
+   "fieldtype": "Select",
+   "label": "Has coping strategies",
+   "options": "Yes\nNo"
   },
   {
-   "depends_on": "has_coping",
+   "depends_on": "eval:doc.has_coping=='Yes'",
    "fieldname": "coping_details",
    "fieldtype": "Section Break",
    "label": "Coping Details"

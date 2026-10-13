@@ -15,8 +15,11 @@ import { NotificationBell } from '../notifications/NotificationBell'
 import { SidebarCareModePicker } from './SidebarCareModePicker'
 import { PortalBlankWorkspace } from './PortalBlankWorkspace'
 import { doctorScreenGroups, assessmentScreens } from '../../config/doctorScreens'
+import { foldersFirst } from '../../config/navGroups'
 import { useAuth } from '../../providers/AuthProvider'
 import { useCareContext } from '../../providers/CareContextProvider'
+import { useRiskAssessmentGaps } from '../../hooks/useRiskAssessmentGaps'
+import { HOMICIDE_RISK_SCREEN_ID, SUICIDAL_RISK_SCREEN_ID } from '../../services/generalRisk'
 import { getVisibleMainLinks, type MainLinkItem, type ScreenGroup } from '../../config/permissions'
 import type { ScreenItem } from '../../config/doctorScreens'
 import { SHOW_EMPLOYEE_PORTAL } from '../../config/features'
@@ -82,16 +85,17 @@ const nurseScreenGroups: ScreenGroup[] = [
     ],
   },
   {
-    groupTitle: '',
-    screens: [{ id: 'n-ect', title: 'ECT Forms' }],
+    // ECT folder: mirrors the doctor sidebar — ECT Service (hub) + ECT Forms.
+    groupTitle: 'ECT',
+    hubScreenId: 'n-ip-services',
+    screens: [
+      { id: 'n-ip-services', title: 'ECT Service' },
+      { id: 'n-ect', title: 'ECT Forms' },
+    ],
   },
   {
     groupTitle: '',
     screens: [{ id: 'n-lab', title: 'Laboratory' }],
-  },
-  {
-    groupTitle: '',
-    screens: [{ id: 'n-ip-services', title: 'ECT Service' }],
   },
   {
     groupTitle: '',
@@ -303,6 +307,9 @@ const nutritionistScreenGroups: ScreenGroup[] = [
 
 // ─── Main links ───────────────────────────────────────────────────────────────
 
+/** Nurse sidebar id for the suicide risk screen (see `nurseScreenGroups`). */
+const NURSE_SUICIDAL_RISK_SCREEN_ID = 'n-suicide-risk'
+
 const ALL_MAIN_LINKS: MainLinkItem[] = [
   { to: '/doctor',           label: 'Doctor',           screenGroups: doctorScreenGroups,     prefix: '/doctor' },
   { to: '/nurse',            label: 'Nurse',            screenGroups: nurseScreenGroups,       prefix: '/nurse' },
@@ -370,18 +377,18 @@ const SIDEBAR_LINK_ACTIVE = `${SIDEBAR_ACTIVE_BORDER} bg-white/10 text-white fon
 
 /** Folder (group) rows carry a soft light-blue fill so nested folders read as a
  *  level below the plain blue top-level role rows. */
-const SIDEBAR_GROUP =
-  'flex items-center gap-1.5 w-full min-w-0 px-2 py-1.5 rounded-md text-xs font-semibold tracking-wide transition-colors text-left hover:bg-sky-100/35 border'
+const SIDEBAR_GROUP_SHAPE =
+  'flex items-center gap-1.5 w-full min-w-0 px-2 py-1.5 rounded-md text-xs font-semibold tracking-wide transition-colors text-left border'
 const SIDEBAR_GROUP_IDLE = 'border-transparent text-white/90 bg-sky-100/25'
 const SIDEBAR_GROUP_ACTIVE = `${SIDEBAR_ACTIVE_BORDER} text-white bg-sky-100/30`
 
 const SIDEBAR_CHEVRON =
   'p-1 rounded flex-shrink-0 text-white/70 hover:bg-white/20 transition-colors'
 
-const SIDEBAR_SCREEN =
-  'px-3 py-1.5 rounded-md text-xs bg-white/10 text-white border hover:bg-white/20 transition-colors'
-const SIDEBAR_SCREEN_IDLE = 'border-transparent'
-const SIDEBAR_SCREEN_ACTIVE = `${SIDEBAR_ACTIVE_BORDER} bg-white/10 text-white font-medium`
+const SIDEBAR_SCREEN_SHAPE =
+  'px-3 py-1.5 rounded-md text-xs border transition-colors'
+const SIDEBAR_SCREEN_IDLE = 'border-transparent bg-white/10 text-white hover:bg-white/20'
+const SIDEBAR_SCREEN_ACTIVE = `${SIDEBAR_ACTIVE_BORDER} bg-white/10 text-white font-medium hover:bg-white/20`
 
 const OBSERVATION_SCREEN_IDS = new Set(['n-ob', 'r-observation', 'obs'])
 const OBSERVATION_GROUP_TITLES = new Set(['Observation & Monitoring', 'Observation'])
@@ -389,31 +396,62 @@ const OBSERVATION_GROUP_TITLES = new Set(['Observation & Monitoring', 'Observati
 const SIDEBAR_OBSERVATION_ACTIVE =
   'bg-emerald-200/90 text-emerald-950 border border-emerald-400 font-medium'
 
-function sidebarScreenClass(screenId: string, isActive: boolean): string {
-  if (!isActive) return `${SIDEBAR_SCREEN} ${SIDEBAR_SCREEN_IDLE}`
+/**
+ * A flagged risk assessment still has no follow-up for the focused care episode —
+ * a red outline flags the screen (and its folder) so the gap is impossible to miss.
+ */
+const SIDEBAR_ATTENTION_BORDER = 'border-red-500 ring-1 ring-red-300/80 shadow-sm'
+const SIDEBAR_SCREEN_ATTENTION =
+  `${SIDEBAR_ATTENTION_BORDER} bg-red-500/25 text-white font-semibold hover:bg-red-500/35`
+const SIDEBAR_GROUP_ATTENTION =
+  `${SIDEBAR_ATTENTION_BORDER} text-white bg-red-500/20 hover:bg-red-500/30`
+
+function sidebarScreenClass(
+  screenId: string,
+  isActive: boolean,
+  needsAttention = false,
+): string {
+  if (needsAttention) return `${SIDEBAR_SCREEN_SHAPE} ${SIDEBAR_SCREEN_ATTENTION}`
+  if (!isActive) return `${SIDEBAR_SCREEN_SHAPE} ${SIDEBAR_SCREEN_IDLE}`
   if (OBSERVATION_SCREEN_IDS.has(screenId)) {
-    return `${SIDEBAR_SCREEN} ${SIDEBAR_OBSERVATION_ACTIVE}`
+    return `${SIDEBAR_SCREEN_SHAPE} ${SIDEBAR_OBSERVATION_ACTIVE}`
   }
-  return `${SIDEBAR_SCREEN} ${SIDEBAR_SCREEN_ACTIVE}`
+  return `${SIDEBAR_SCREEN_SHAPE} ${SIDEBAR_SCREEN_ACTIVE}`
 }
 
-function sidebarGroupClass(groupTitle: string, isActive: boolean): string {
-  if (!isActive) return `${SIDEBAR_GROUP} ${SIDEBAR_GROUP_IDLE}`
+function sidebarGroupClass(
+  groupTitle: string,
+  isActive: boolean,
+  needsAttention = false,
+): string {
+  if (needsAttention) return `${SIDEBAR_GROUP_SHAPE} ${SIDEBAR_GROUP_ATTENTION}`
+  if (!isActive) return `${SIDEBAR_GROUP_SHAPE} ${SIDEBAR_GROUP_IDLE}`
   if (OBSERVATION_GROUP_TITLES.has(groupTitle)) {
-    return `${SIDEBAR_GROUP} ${SIDEBAR_OBSERVATION_ACTIVE}`
+    return `${SIDEBAR_GROUP_SHAPE} ${SIDEBAR_OBSERVATION_ACTIVE}`
   }
-  return `${SIDEBAR_GROUP} ${SIDEBAR_GROUP_ACTIVE}`
+  return `${SIDEBAR_GROUP_SHAPE} ${SIDEBAR_GROUP_ACTIVE}`
 }
 
 function sidebarRoleClass(isActive: boolean): string {
   return `${SIDEBAR_LINK} ${isActive ? SIDEBAR_LINK_ACTIVE : SIDEBAR_LINK_IDLE}`
 }
 
+/** Tooltip for a red-outlined sidebar screen (missing follow-up risk assessment). */
+function riskAttentionTooltip(screenId: string): string {
+  if (screenId === SUICIDAL_RISK_SCREEN_ID || screenId === NURSE_SUICIDAL_RISK_SCREEN_ID) {
+    return 'Suicidal risk flagged on the General Risk Assessment — no Suicide Risk Assessment recorded for this episode yet.'
+  }
+  if (screenId === HOMICIDE_RISK_SCREEN_ID) {
+    return 'Homicide flagged on the General Risk Assessment — no Homicide Risk Assessment recorded for this episode yet.'
+  }
+  return ''
+}
+
 // ─── AppShell ─────────────────────────────────────────────────────────────────
 
 export const AppShell = ({ children }: { children: ReactNode }) => {
   const { user } = useAuth()
-  const { selectedPatient, costCenterPatientCareType, mode, clearCareWorkspace } = useCareContext()
+  const { selectedPatient, costCenterPatientCareType, mode, clearCareWorkspace, activeAdmission, activeVisit } = useCareContext()
   const ccScope = careScopeFromCostCenterField(costCenterPatientCareType)
   const location = useLocation()
   const navigate = useNavigate()
@@ -424,6 +462,24 @@ export const AppShell = ({ children }: { children: ReactNode }) => {
   const sidebarModeForDoctor = modeForInpatientDischargeScreens(mode, ccScope, inDoctorDischargeRoute)
   const showBlankWorkspace = isBlankWorkspaceSearch(location.search)
   const roleClickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Flagged General Risk Assessment items with no follow-up assessment yet —
+  // their sidebar screens (Suicide / Homicide Risk Assessment) get a red outline.
+  const riskAssessmentGaps = useRiskAssessmentGaps({
+    patient: selectedPatient,
+    inpatientAdmission: activeAdmission,
+    patientVisit: activeVisit,
+  })
+  const riskAttentionScreens = useMemo(() => {
+    const screens = new Set<string>()
+    if (riskAssessmentGaps?.needs_suicidal_risk_assessment) {
+      screens.add(SUICIDAL_RISK_SCREEN_ID)
+      // Nurse sidebar mirrors the same assessment under its own screen id.
+      screens.add(NURSE_SUICIDAL_RISK_SCREEN_ID)
+    }
+    if (riskAssessmentGaps?.needs_homicide_risk_assessment) screens.add(HOMICIDE_RISK_SCREEN_ID)
+    return screens
+  }, [riskAssessmentGaps])
 
   // Derive the active screen id from the current URL query param
   const activeScreen = urlSearch.get('screen')
@@ -510,7 +566,11 @@ export const AppShell = ({ children }: { children: ReactNode }) => {
       }
       return link
     })
-    const visible = getVisibleMainLinks(links, roles)
+    // Sidebar layout rule: folders (titled groups) first, then the loose items — every role.
+    const orderedLinks = links.map((link) =>
+      link.screenGroups ? { ...link, screenGroups: foldersFirst(link.screenGroups) } : link,
+    )
+    const visible = getVisibleMainLinks(orderedLinks, roles)
     if (SHOW_EMPLOYEE_PORTAL) return visible
     return visible.filter((link) => link.to !== '/employee')
   }, [
@@ -732,9 +792,13 @@ export const AppShell = ({ children }: { children: ReactNode }) => {
                                 key={s.id}
                                 to={buildScreenPath(link.to, s.id, location.search)}
                                 onClick={closeSidebar}
+                                title={
+                                  riskAttentionScreens.has(s.id) ? riskAttentionTooltip(s.id) : undefined
+                                }
                                 className={sidebarScreenClass(
                                   s.id,
                                   isScreenNavActive(rolePrefix, s.id),
+                                  riskAttentionScreens.has(s.id),
                                 )}
                               >
                                 {s.title}
@@ -768,7 +832,11 @@ export const AppShell = ({ children }: { children: ReactNode }) => {
                                 }
                                 toggleGroup(link.to, group.groupTitle)
                               }}
-                              className={sidebarGroupClass(group.groupTitle, groupIsActive)}
+                              className={sidebarGroupClass(
+                                group.groupTitle,
+                                groupIsActive,
+                                group.screens.some((s) => riskAttentionScreens.has(s.id)),
+                              )}
                             >
                               <Folder className="w-3.5 h-3.5 flex-shrink-0 opacity-70" />
                               <span className="flex-1 truncate">{group.groupTitle}</span>
@@ -782,9 +850,15 @@ export const AppShell = ({ children }: { children: ReactNode }) => {
                                   key={s.id}
                                   to={buildScreenPath(link.to, s.id, location.search)}
                                   onClick={closeSidebar}
+                                  title={
+                                    riskAttentionScreens.has(s.id)
+                                      ? riskAttentionTooltip(s.id)
+                                      : undefined
+                                  }
                                   className={sidebarScreenClass(
                                     s.id,
                                     isScreenNavActive(rolePrefix, s.id),
+                                    riskAttentionScreens.has(s.id),
                                   )}
                                 >
                                   {s.title}
@@ -806,9 +880,11 @@ export const AppShell = ({ children }: { children: ReactNode }) => {
                         key={s.id}
                         to={buildScreenPath(link.to, s.id, location.search)}
                         onClick={closeSidebar}
+                        title={riskAttentionScreens.has(s.id) ? riskAttentionTooltip(s.id) : undefined}
                         className={sidebarScreenClass(
                           s.id,
                           isScreenNavActive(rolePrefix, s.id),
+                          riskAttentionScreens.has(s.id),
                         )}
                       >
                         {s.title}

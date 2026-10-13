@@ -27,6 +27,8 @@ import { CreateGAD7AssessmentModal } from '../components/gad7/CreateGAD7Assessme
 import { GAD7AssessmentList } from '../components/gad7/GAD7AssessmentList'
 import { CreateHomicideRiskAssessmentModal } from '../components/homicide/CreateHomicideRiskAssessmentModal'
 import { HomicideRiskAssessmentList } from '../components/homicide/HomicideRiskAssessmentList'
+import { CreateGeneralRiskAssessmentModal } from '../components/generalRisk/CreateGeneralRiskAssessmentModal'
+import { GeneralRiskAssessmentList } from '../components/generalRisk/GeneralRiskAssessmentList'
 import { IOPDayListWithHeader } from '../components/iop/IOPDayList'
 import { IOPEnrollmentListWithHeader } from '../components/iop/IOPEnrollmentList'
 import { LabTestList } from '../components/labTests/LabTestList'
@@ -57,6 +59,7 @@ import { MentalStateList } from '../components/nursing/MentalStateList'
 import { CreateMentalStateModal } from '../components/nursing/CreateMentalStateModal'
 import { IPServiceList } from '../components/ipServices/IPServiceList'
 import { CreateIPServiceModal } from '../components/ipServices/CreateIPServiceModal'
+import { ECTServiceFilterBar } from '../components/ipServices/ECTServiceFilterBar'
 import { TherapySessionPanel } from '../components/therapy/TherapySessionPanel'
 import { CreatePatientModal } from '../components/patients/CreatePatientModal'
 import { PatientList } from '../components/patients/PatientList'
@@ -104,6 +107,8 @@ import {
   isInpatientDischargeRoute,
   modeForInpatientDischargeScreens,
 } from '../utils/inpatientDischargeRoute'
+import type { IPServiceCareType } from '../services/ipServices'
+import { localDateInputValue } from '../utils/formatDate'
 import { AdmissionPage } from './Admission'
 import { PatientVisitPage } from './PatientVisit'
 
@@ -266,6 +271,8 @@ export const DoctorPage = () => {
   const [suicideRiskRefreshKey, setSuicideRiskRefreshKey] = useState(0)
   const [showCreateHomicideRiskModal, setShowCreateHomicideRiskModal] = useState(false)
   const [homicideRiskRefreshKey, setHomicideRiskRefreshKey] = useState(0)
+  const [showCreateGeneralRiskModal, setShowCreateGeneralRiskModal] = useState(false)
+  const [generalRiskRefreshKey, setGeneralRiskRefreshKey] = useState(0)
   const [showCreateYBOCSModal, setShowCreateYBOCSModal] = useState(false)
   const [ybocsRefreshKey, setYbocsRefreshKey] = useState(0)
   const [showCreateYMRSModal, setShowCreateYMRSModal] = useState(false)
@@ -280,6 +287,20 @@ export const DoctorPage = () => {
   const [mentalStateRefreshKey, setMentalStateRefreshKey] = useState(0)
   const [showCreateIPServiceModal, setShowCreateIPServiceModal] = useState(false)
   const [ipServiceRefreshKey, setIpServiceRefreshKey] = useState(0)
+  // ECT Service listing filters — From/To default to today and match the ECT session
+  // (service) date, i.e. the Patient Visit encounter date shown on each service. The
+  // care type follows the navbar OP/IP context; the only override is "All", which
+  // shows every care type.
+  const [ectServiceDateFrom, setEctServiceDateFrom] = useState<string>(() => localDateInputValue())
+  const [ectServiceDateTo, setEctServiceDateTo] = useState<string>(() => localDateInputValue())
+  const [ectServiceCareTypeOverride, setEctServiceCareTypeOverride] = useState<IPServiceCareType | null>(null)
+  const ectServiceCareType: IPServiceCareType =
+    ectServiceCareTypeOverride ?? (mode === 'OP' || mode === 'IP' ? mode : 'All')
+  const clearEctServiceFilters = () => {
+    setEctServiceDateFrom('')
+    setEctServiceDateTo('')
+    setEctServiceCareTypeOverride('All')
+  }
   const [sessionScheduleRefreshKey, setSessionScheduleRefreshKey] = useState(0)
   const [showSuicidalModal, setShowSuicidalModal] = useState(false)
   const [suicidalRefreshKey, setSuicidalRefreshKey] = useState(0)
@@ -1525,7 +1546,7 @@ export const DoctorPage = () => {
         <div className="p-4 flex-1 min-h-0 flex flex-col">
           <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col min-h-[420px] overflow-hidden min-w-0">
             <div className="font-semibold mb-2 flex items-center justify-between flex-shrink-0">
-              <span>ECT</span>
+              <span>ECT Service</span>
               <button
                 type="button"
                 onClick={() => guardClinicalCreate(() => setShowCreateIPServiceModal(true))}
@@ -1535,11 +1556,24 @@ export const DoctorPage = () => {
                 +
               </button>
             </div>
+            <ECTServiceFilterBar
+              dateFrom={ectServiceDateFrom}
+              dateTo={ectServiceDateTo}
+              onDateFromChange={setEctServiceDateFrom}
+              onDateToChange={setEctServiceDateTo}
+              careType={ectServiceCareType}
+              onCareTypeChange={setEctServiceCareTypeOverride}
+              onClear={clearEctServiceFilters}
+            />
             <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
               <IPServiceList
                 patient={selectedPatient}
                 refreshKey={ipServiceRefreshKey}
                 hidePricing
+                dateFrom={ectServiceDateFrom}
+                dateTo={ectServiceDateTo}
+                careType={ectServiceCareType}
+                onPatientClick={handlePatientSelect}
               />
             </div>
           </section>
@@ -2281,6 +2315,41 @@ export const DoctorPage = () => {
               setShowCreateSuicideRiskModal(false)
               setSuicideRiskRefreshKey((prev) => prev + 1)
               toast.success('Suicide Risk Assessment created successfully')
+            }}
+          />
+        )}
+      </div>
+    )
+  }
+
+  // Show General Risk Assessments
+  if (screen === 'general-risk') {
+    return (
+      <div className="flex flex-col">
+        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
+        <div className="p-4">
+          <DashboardCard
+            title="General Risk Assessments"
+            onAdd={() => guardClinicalCreate(() => setShowCreateGeneralRiskModal(true))}
+            addButtonTitle="Create General Risk Assessment"
+          >
+            <GeneralRiskAssessmentList
+              patient={selectedPatient}
+              refreshKey={generalRiskRefreshKey}
+              onPatientClick={handlePatientSelect}
+            />
+          </DashboardCard>
+        </div>
+        {showCreateGeneralRiskModal && (
+          <CreateGeneralRiskAssessmentModal
+            patient={selectedPatient}
+            defaultAdmission={activeAdmission || undefined}
+            defaultVisit={activeVisit || undefined}
+            onClose={() => setShowCreateGeneralRiskModal(false)}
+            onSuccess={() => {
+              setShowCreateGeneralRiskModal(false)
+              setGeneralRiskRefreshKey((prev) => prev + 1)
+              toast.success('General Risk Assessment created successfully')
             }}
           />
         )}

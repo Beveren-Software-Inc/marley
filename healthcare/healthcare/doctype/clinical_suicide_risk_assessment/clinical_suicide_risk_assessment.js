@@ -11,12 +11,14 @@ frappe.ui.form.on('Clinical Risk Assessment', {
     validate(frm) {
         let score = 0;
 
-        if (frm.doc.has_ideation) score++;
-        if (frm.doc.has_plan) score++;
-        if (frm.doc.has_history) score++;
-        if (frm.doc.has_stressors) score++;
-        if (!frm.doc.has_support) score++;
-        if (!frm.doc.has_coping) score++;
+        // Answers are Select fields: only an explicit Yes/No scores, an
+        // unanswered question (blank) is never counted as a No.
+        if (frm.doc.has_ideation === 'Yes') score++;
+        if (frm.doc.has_plan === 'Yes') score++;
+        if (frm.doc.has_history === 'Yes') score++;
+        if (frm.doc.has_stressors === 'Yes') score++;
+        if (frm.doc.has_support === 'No') score++;
+        if (frm.doc.has_coping === 'No') score++;
 
         frm.set_value('risk_score', score);
 

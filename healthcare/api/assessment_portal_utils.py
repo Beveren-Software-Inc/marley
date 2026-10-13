@@ -20,6 +20,37 @@ ASSESSMENT_PORTAL_READ_ROLES = frozenset(
 )
 
 
+# ── Yes/No answers ────────────────────────────────────────────────────────────
+# The "Yes or No" questions on the risk assessments are Select fields holding
+# "Yes" / "No". A blank value means the clinician has not answered the question
+# yet and must never be reported as (or counted as) a "No".
+
+YES_ANSWERS = ("1", "1.0", "true", "yes", "on")
+NO_ANSWERS = ("0", "0.0", "false", "no", "off")
+
+
+def yes_no_answer(value) -> str:
+	"""Normalise a stored answer or a UI payload value to "Yes" / "No" / ""."""
+	if value is None:
+		return ""
+	if isinstance(value, bool):
+		return "Yes" if value else "No"
+	if isinstance(value, str) and not value.strip():
+		return ""
+
+	normalised = str(value).strip().lower()
+	if normalised in YES_ANSWERS:
+		return "Yes"
+	if normalised in NO_ANSWERS:
+		return "No"
+	return ""
+
+
+def is_yes_answer(value) -> bool:
+	"""True only when the question was explicitly answered "Yes"."""
+	return yes_no_answer(value) == "Yes"
+
+
 def user_can_read_assessment_portal() -> bool:
 	if frappe.session.user in ("Guest", ""):
 		return False

@@ -27,6 +27,8 @@ import { CreateGAD7AssessmentModal } from '../components/gad7/CreateGAD7Assessme
 import { GAD7AssessmentList } from '../components/gad7/GAD7AssessmentList'
 import { CreateHomicideRiskAssessmentModal } from '../components/homicide/CreateHomicideRiskAssessmentModal'
 import { HomicideRiskAssessmentList } from '../components/homicide/HomicideRiskAssessmentList'
+import { CreateGeneralRiskAssessmentModal } from '../components/generalRisk/CreateGeneralRiskAssessmentModal'
+import { GeneralRiskAssessmentList } from '../components/generalRisk/GeneralRiskAssessmentList'
 import { CreateMoodDisorderAssessmentModal } from '../components/mood_disorder/CreateMoodDisorderAssessmentModal'
 import { MoodDisorderAssessmentList } from '../components/mood_disorder/MoodDisorderAssessmentList'
 import { CreatePANSSAssessmentModal } from '../components/panss/CreatePANSSAssessmentModal'
@@ -50,6 +52,7 @@ const ASSESSMENT_SCREENS: Record<string, { title: string; List: ComponentType<an
   mood: { title: 'Mood Disorder Assessments', List: MoodDisorderAssessmentList, CreateModal: CreateMoodDisorderAssessmentModal },
   gad7: { title: 'GAD7 Assessments', List: GAD7AssessmentList, CreateModal: CreateGAD7AssessmentModal },
   phq9: { title: 'PHQ9 Assessments', List: PHQ9AssessmentList, CreateModal: CreatePHQ9AssessmentModal },
+  'general-risk': { title: 'General Risk Assessments', List: GeneralRiskAssessmentList, CreateModal: CreateGeneralRiskAssessmentModal },
   'homicide-risk': { title: 'Homicide Risk Assessments', List: HomicideRiskAssessmentList, CreateModal: CreateHomicideRiskAssessmentModal },
   ybocs: { title: 'YBOCS Assessments', List: YBOCSAssessmentList, CreateModal: CreateYBOCSAssessmentModal },
   ymrs: { title: 'YMRS Assessments', List: YMRSAssessmentList, CreateModal: CreateYMRSAssessmentModal },
