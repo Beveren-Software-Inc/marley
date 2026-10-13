@@ -1,5 +1,7 @@
 // services/suicideRisk.ts
 
+import type { RiskYesNo } from './riskYesNo'
+
 export interface SuicideRiskAssessmentRow {
   name: string
   patient: string
@@ -15,28 +17,28 @@ export interface SuicideRiskAssessmentRow {
 }
 
 export interface SuicideRiskAssessmentDetail extends SuicideRiskAssessmentRow {
-  has_ideation?: number | boolean
+  has_ideation?: RiskYesNo
   ideation_frequency?: string
   ideation_duration?: string
   ideation_increasing?: string
-  ideation_24h?: number | boolean
-  has_plan?: number | boolean
+  ideation_24h?: RiskYesNo
+  has_plan?: RiskYesNo
   plan_method?: string
   plan_location?: string
   plan_immediacy?: string
-  access_lethal_means?: number | boolean
-  risk_behavior?: number | boolean
+  access_lethal_means?: RiskYesNo
+  risk_behavior?: RiskYesNo
   risk_behavior_details?: string
-  has_history?: number | boolean
+  has_history?: RiskYesNo
   attempt_count?: number
   last_attempt?: string
   psychiatric_history?: string
   prior_psychiatric_diagnosis?: string
-  has_stressors?: number | boolean
+  has_stressors?: RiskYesNo
   stressors_description?: string
-  has_support?: number | boolean
+  has_support?: RiskYesNo
   support_people?: string
-  has_coping?: number | boolean
+  has_coping?: RiskYesNo
   coping_strategies?: string
   reasons_to_live?: string
   personal_strengths?: string
@@ -50,39 +52,40 @@ export interface CreateSuicideRiskAssessmentInput {
   inpatient_admission?: string
   patient_visit?: string
 
+  // Answers are "Yes" / "No"; a question left blank stays unanswered.
   // Section 1: Suicidal Ideation
-  has_ideation: boolean
+  has_ideation: RiskYesNo
   ideation_frequency?: string
   ideation_duration?: string
   ideation_increasing?: string
-  ideation_24h?: boolean
+  ideation_24h?: RiskYesNo
 
   // Section 2: Current Plan
-  has_plan: boolean
+  has_plan: RiskYesNo
   plan_method?: string
   plan_location?: string
   plan_immediacy?: string
-  access_lethal_means?: boolean
-  risk_behavior?: boolean
+  access_lethal_means?: RiskYesNo
+  risk_behavior?: RiskYesNo
   risk_behavior_details?: string
 
   // Section 3: History
-  has_history: boolean
+  has_history: RiskYesNo
   attempt_count?: number
   last_attempt?: string
   psychiatric_history?: string
   prior_psychiatric_diagnosis?: string
 
   // Section 4: Stressors
-  has_stressors: boolean
+  has_stressors: RiskYesNo
   stressors_description?: string
 
   // Section 5: Support
-  has_support: boolean
+  has_support: RiskYesNo
   support_people?: string
 
   // Section 6: Coping
-  has_coping: boolean
+  has_coping: RiskYesNo
   coping_strategies?: string
   reasons_to_live?: string
   personal_strengths?: string

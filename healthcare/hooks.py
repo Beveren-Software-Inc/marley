@@ -418,6 +418,9 @@ doc_events = {
 	"Clinical Suicide Risk Assessment": {
 		"validate": "healthcare.healthcare.care_episode_guard.validate_care_episode_open",
 	},
+	"General Risk Assessment": {
+		"validate": "healthcare.healthcare.care_episode_guard.validate_care_episode_open",
+	},
 	"Patient History": {
 		"validate": "healthcare.healthcare.care_episode_guard.validate_care_episode_open",
 	},
@@ -526,6 +529,7 @@ for _dt in (
 	"PANSS Assessment",
 	"Mood Disorder Assessment",
 	"Homicide Risk Assessment",
+	"General Risk Assessment",
 	"Clinical Suicide Risk Assessment",
 	"Pre Anesthesia Assessment",
 	"Suicidal Patient Assessment",

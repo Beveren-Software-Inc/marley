@@ -425,17 +425,20 @@ def require_op_lab_assigned_consultant(data):
 
 
 @frappe.whitelist()
-def get_healthcare_practitioners(search=None, department=None, appointment_only=None, consultants_only=None):
+def get_healthcare_practitioners(search=None, department=None, appointment_only=None, consultants_only=None, anaesthetists_only=None):
 	"""Get list of active Healthcare Practitioners. Search by ID, doctors_id, or name.
 
 	When appointment_only is truthy, only practitioners with the Appointment checkbox set.
 	When consultants_only is truthy, only practitioners whose Medical Role has Consultants checked.
+	When anaesthetists_only is truthy, only practitioners with the Is anaesthetist checkbox set.
 	"""
 	filters = {'status': 'Active'}
 	if department:
 		filters['department'] = department
 	if frappe.utils.cint(appointment_only):
 		filters['appointment'] = 1
+	if frappe.utils.cint(anaesthetists_only):
+		filters['is_anaesthetist'] = 1
 	if frappe.utils.cint(consultants_only):
 		consultant_roles = [
 			r.name

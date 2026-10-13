@@ -64,7 +64,8 @@ export const doctorScreenGroups: ScreenGroup[] = [
     groupTitle: 'Patient Overview',
     screens: [
       { id: 'patient-history', title: 'Patient History Form' },
-      { id: 'homicide-risk', title: 'Risk Assessment' },
+      { id: 'general-risk', title: 'General Risk Assessment' },
+      { id: 'homicide-risk', title: 'Homicide Risk Assessment' },
       { id: 'clinical-suicide-risk', title: 'Suicidal Risk Assessment' },
       { id: 'physical-exam', title: 'Physical Examination' },
       { id: 'mh', title: 'Past Medical History' },
@@ -142,8 +143,12 @@ export const doctorScreenGroups: ScreenGroup[] = [
     screens: [{ id: 'obs', title: 'Observation Level' }],
   },
   {
-    groupTitle: '',
-    screens: [{ id: 'd-ect-service', title: 'ECT' }],
+    groupTitle: 'ECT',
+    hubScreenId: 'd-ect-service',
+    screens: [
+      { id: 'd-ect-service', title: 'ECT Service' },
+      { id: 'ect', title: 'ECT Forms' },
+    ],
   },
   {
     groupTitle: '',
@@ -175,10 +180,6 @@ export const doctorScreenGroups: ScreenGroup[] = [
   },
   {
     groupTitle: '',
-    screens: [{ id: 'ect', title: 'ECT Forms' }],
-  },
-  {
-    groupTitle: '',
     screens: [{ id: 'd-ip-warnings', title: 'Current IP Warnings & Allergies' }],
   },
 ]
@@ -190,6 +191,7 @@ export const assessmentScreens: ScreenItem[] = [
   { id: 'mood', title: 'Mood Disorder Assessment' },
   { id: 'gad7', title: 'GAD7 Assessment' },
   { id: 'phq9', title: 'PHQ9 Assessment' },
+  { id: 'general-risk', title: 'General Risk Assessment' },
   { id: 'homicide-risk', title: 'Homicide Risk Assessment' },
   { id: 'ybocs', title: 'YBOCS Assessment' },
   { id: 'ymrs', title: 'YMRS Assessment' },

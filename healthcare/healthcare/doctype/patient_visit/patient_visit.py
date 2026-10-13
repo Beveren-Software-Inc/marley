@@ -146,6 +146,19 @@ class PatientVisit(Document):
 	def after_insert(self):
 		self._track_insurance_visit()
 		self._sync_appointment_patient_visit_link()
+		self._create_ect_service_if_requested()
+
+	def _create_ect_service_if_requested(self):
+		"""Raise the ECT Service Request + ECT Service when the visit type is Is ECT Request."""
+		from healthcare.api.patient_visit_ect import (
+			create_ect_service_for_visit,
+			is_ect_request_visit_type,
+		)
+
+		if not is_ect_request_visit_type(self.visit_type):
+			return
+
+		create_ect_service_for_visit(self)
 
 	def on_update(self):
 		self._sync_appointment_patient_visit_link()

@@ -143,8 +143,9 @@
   "print_settings_section",
   "ui_print_formats",
   "default_letter_head",
-  "hospital_stamp",
+  "column_break_zfym",
   "discharge_stamp",
+  "hospital_stamp",
   "section_break_mmer",
   "send_whatsap_notification_on_lab_test_creation",
   "section_break_pfnl",
@@ -177,7 +178,11 @@
   "column_break_yhdd",
   "mode_of_payment_for_commission",
   "default_payable_account",
-  "default_expense_account"
+  "default_expense_account",
+  "ect_section",
+  "default_ect_op_service",
+  "column_break_nuqx",
+  "default_ect_ip_service"
  ],
  "fields": [
   {
@@ -1214,11 +1219,36 @@
    "fieldtype": "Link",
    "label": "Default Expense Account",
    "options": "Account"
+  },
+  {
+   "fieldname": "column_break_zfym",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "ect_section",
+   "fieldtype": "Section Break",
+   "label": "ECT"
+  },
+  {
+   "fieldname": "default_ect_op_service",
+   "fieldtype": "Link",
+   "label": "Default ECT OP Service",
+   "options": "Healthcare Service Template"
+  },
+  {
+   "fieldname": "column_break_nuqx",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "default_ect_ip_service",
+   "fieldtype": "Link",
+   "label": "Default ECT IP Service",
+   "options": "Healthcare Service Template"
   }
  ],
  "issingle": 1,
  "links": [],
- "modified": "2026-09-28 01:19:50.261505",
+ "modified": "2026-10-13 12:30:22.352221",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Healthcare Settings",

@@ -9,9 +9,11 @@
   "visit_type",
   "is_default",
   "no_charges",
+  "column_break_hsrw",
   "lab_visit",
   "disabled",
   "display_on_pharmacy_pos",
+  "is_ect_request",
   "services_section",
   "service_charge",
   "services"
@@ -77,12 +79,22 @@
    "fieldname": "display_on_pharmacy_pos",
    "fieldtype": "Check",
    "label": "Display On Pharmacy POS"
+  },
+  {
+   "fieldname": "column_break_hsrw",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_ect_request",
+   "fieldtype": "Check",
+   "label": "Is ECT Request"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-08-19 20:20:18.870339",
+ "modified": "2026-10-13 12:32:19.233451",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Patient Visit Type",

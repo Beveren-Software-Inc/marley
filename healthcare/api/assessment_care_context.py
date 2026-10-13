@@ -14,6 +14,7 @@ ASSESSMENT_COST_CENTER_DOCTYPES = (
 	"PANSS Assessment",
 	"Mood Disorder Assessment",
 	"Homicide Risk Assessment",
+	"General Risk Assessment",
 	"Clinical Suicide Risk Assessment",
 	"Pre Anesthesia Assessment",
 	"Suicidal Patient Assessment",

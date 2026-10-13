@@ -8,6 +8,8 @@ export interface IPServiceRow {
   category?: string
   cost_center?: string
   first_service?: string
+  /** Date of the first service line — the ECT session / encounter date. */
+  service_date?: string | null
   total_amount?: number
   creation?: string
 }
@@ -44,12 +46,26 @@ export interface CreateIPServiceInput {
   services: IPServiceLineInput[]
 }
 
+/** Care-type filter for the ECT Service list. 'All' ignores the navbar OP/IP context. */
+export type IPServiceCareType = 'All' | 'OP' | 'IP'
+
+/**
+ * Which date the From/To range is matched against: 'service' = the service line
+ * date (ECT session / Patient Visit encounter date, the date shown on the ECT
+ * Service), 'creation' = the day the record was raised (default).
+ */
+export type IPServiceDateField = 'creation' | 'service'
+
 export async function fetchIPServices(
   limit: number = 50,
   offset: number = 0,
   patient?: string,
   admission_no?: string,
   patient_visit?: string,
+  patient_care_type?: 'OP' | 'IP',
+  date_from?: string,
+  date_to?: string,
+  date_field?: IPServiceDateField,
 ): Promise<IPServiceRow[]> {
   const params = new URLSearchParams()
   params.append('limit', limit.toString())
@@ -57,6 +73,10 @@ export async function fetchIPServices(
   if (patient) params.append('patient', patient)
   if (admission_no) params.append('admission_no', admission_no)
   if (patient_visit) params.append('patient_visit', patient_visit)
+  if (patient_care_type) params.append('patient_care_type', patient_care_type)
+  if (date_from) params.append('date_from', date_from)
+  if (date_to) params.append('date_to', date_to)
+  if (date_field) params.append('date_field', date_field)
 
   const data = await apiRequest<IPServiceRow[]>(
     `/api/method/healthcare.api.ip_service.get_ip_services?${params.toString()}`
@@ -121,6 +141,27 @@ export async function fetchIPServiceTypes(
   )
   
   return Array.isArray(data) ? data : []
+}
+
+export interface ECTDefaultService {
+  name: string
+  service_name: string
+}
+
+export interface ECTDefaultServices {
+  op: ECTDefaultService | null
+  ip: ECTDefaultService | null
+}
+
+/** Default ECT services from Healthcare Settings (used to pre-select OP / IP service). */
+export async function fetchECTDefaultServices(): Promise<ECTDefaultServices> {
+  const data = await apiRequest<ECTDefaultServices>(
+    '/api/method/healthcare.api.ip_service.get_ect_default_services'
+  )
+  return {
+    op: data?.op ?? null,
+    ip: data?.ip ?? null,
+  }
 }
 
 export async function fetchIPServiceType(

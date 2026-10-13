@@ -27,6 +27,7 @@
   "appointment",
   "receive_commision",
   "doctor",
+  "is_anaesthetist",
   "expense_account",
   "employee_and_user_details_section",
   "practitioner_type",
@@ -429,6 +430,12 @@
    "fieldtype": "Link",
    "label": "Expense Account",
    "options": "Account"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_anaesthetist",
+   "fieldtype": "Check",
+   "label": "Is anaesthetist"
   }
  ],
  "image_field": "image",
@@ -459,7 +466,7 @@
    "link_fieldname": "practitioner"
   }
  ],
- "modified": "2026-09-28 01:20:43.507761",
+ "modified": "2026-10-13 12:14:03.761699",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Healthcare Practitioner",

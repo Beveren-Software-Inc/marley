@@ -3284,6 +3284,113 @@ frappe.ui.form.on('Healthcare Settings', {
 			});
 		}, __('Data Maintenance'));
 
+		frm.add_custom_button(__('ECT Conversion'), () => {
+			const dialog = new frappe.ui.Dialog({
+				title: __('ECT Conversion'),
+				fields: [
+					{
+						fieldname: 'from_date',
+						label: __('From Encounter Date'),
+						fieldtype: 'Date',
+						reqd: 1,
+					},
+					{
+						fieldname: 'to_date',
+						label: __('To Encounter Date'),
+						fieldtype: 'Date',
+						reqd: 1,
+					},
+				],
+				primary_action_label: __('Preview & Convert'),
+				primary_action(values) {
+					if (values.from_date > values.to_date) {
+						frappe.msgprint({
+							title: __('Invalid date range'),
+							message: __('From Encounter Date must be on or before To Encounter Date.'),
+							indicator: 'orange',
+						});
+						return;
+					}
+					frappe.call({
+						method: 'healthcare.api.ect_conversion.preview_ect_conversion',
+						args: {
+							from_date: values.from_date,
+							to_date: values.to_date,
+						},
+						freeze: true,
+						freeze_message: __('Counting ECT request visits…'),
+						callback(preview) {
+							const counts = preview.message || {};
+							if (!counts.pending) {
+								frappe.msgprint({
+									title: __('ECT Conversion'),
+									indicator: 'green',
+									message: __(
+										'Nothing to convert: each of the {0} ECT-request Patient Visit(s) with an encounter date between {1} and {2} already has an ECT Service.',
+										[
+											counts.visits || 0,
+											counts.from_date,
+											counts.to_date,
+										]
+									),
+								});
+								return;
+							}
+							frappe.confirm(
+								__(
+									'Convert ECT requests into ECT Services?<br><br>'
+										+ 'Patient Visit encounter dates: {0} → {1}<br>'
+										+ 'ECT-request visits in range: {2} (OP {3}, IP {4})<br>'
+										+ 'Already have an ECT Service: {5}<br>'
+										+ '<b>To convert: {6}</b><br>'
+										+ 'Visits without a practitioner: {7}<br><br>'
+										+ 'Each visit gets the same draft ECT Service Request + ECT Service it would get when created, '
+										+ 'using the default ECT OP service ({8}) and ECT IP service ({9}). '
+										+ 'Every ECT Service is dated with its Patient Visit encounter date, not with today. '
+										+ 'Visits that already have an ECT Service are skipped, so this can be re-run safely. '
+										+ 'The conversion runs in the background.<br><br>Continue?',
+									[
+										counts.from_date,
+										counts.to_date,
+										counts.visits || 0,
+										counts.op_visits || 0,
+										counts.ip_visits || 0,
+										counts.already_converted || 0,
+										counts.pending || 0,
+										counts.without_practitioner || 0,
+										counts.default_op_service || __('not set'),
+										counts.default_ip_service || __('not set'),
+									]
+								),
+								() => {
+									frappe.call({
+										method: 'healthcare.api.ect_conversion.start_ect_conversion',
+										args: {
+											from_date: values.from_date,
+											to_date: values.to_date,
+										},
+										freeze: true,
+										freeze_message: __('Starting background job…'),
+										callback(r) {
+											if (r.message?.ok) {
+												dialog.hide();
+												frappe.show_alert({
+													message: r.message.message || __('Job started'),
+													indicator: 'green',
+												});
+												poll_migration_status('ect_conversion');
+											}
+										},
+									});
+								}
+							);
+						},
+					});
+				},
+			});
+			dialog.show();
+		}, __('ECT'));
+
 		frm.add_custom_button(__('Practitioner Unavailability - APPOINTMENTS_HOLD_01'), () => {
 			open_direct_sync_excel_upload({
 				dialog_title: __('Practitioner Unavailability - APPOINTMENTS_HOLD_01'),
@@ -7412,6 +7519,24 @@ function poll_migration_status(jobKey) {
 							'{0} finished: {1} ECT Procedure(s) created, {2} skipped, {3} errors.',
 							[jobKey, s.created || 0, s.skipped || 0, errN]
 						);
+					} else if (jobKey === 'ect_conversion') {
+						msg = __(
+							'{0} finished: {1} ECT Service(s) created, {2} already had an ECT Service, {3} skipped (no practitioner), {4} skipped (no default ECT service), {5} skipped (no patient), {6} could not be raised, {7} errors.',
+							[
+								jobKey,
+								s.created || 0,
+								s.skipped_existing || 0,
+								s.skipped_no_practitioner || 0,
+								s.skipped_no_default_service || 0,
+								s.skipped_no_patient || 0,
+								s.failed || 0,
+								errN,
+							]
+						);
+						const samples = (s.samples || []).join(', ');
+						if (samples) {
+							msg += ' ' + __('Visits needing attention: {0}.', [samples]);
+						}
 					} else if (jobKey === 'patient_visit_prescription_his_import') {
 						msg = __(
 							'{0} finished: {1} Patient Medication Order(s) created, {2} updated, {3} medicine line(s), {4} skipped, {5} errors.',

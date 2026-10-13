@@ -14,7 +14,25 @@ def _compute_total_amount(doc):
 	doc.total_amount = flt(total, 2)
 
 
-def _build_services_from_service_request(service_request_name):
+def _resolve_service_date(*candidates):
+	"""First usable date among ``candidates``, else today.
+
+	A service line belongs to the day it was ordered — the Patient Visit encounter
+	date, or the Service Request order date — not to the day the record happened to
+	be raised (a converted ECT request for a 3-week-old visit must keep that visit's
+	date, not today's).
+	"""
+	for value in candidates:
+		if not value:
+			continue
+		try:
+			return getdate(value)
+		except Exception:
+			continue
+	return getdate()
+
+
+def _build_services_from_service_request(service_request_name, service_date=None):
 	if not service_request_name or not frappe.db.exists("Service Request", service_request_name):
 		return []
 
@@ -27,6 +45,10 @@ def _build_services_from_service_request(service_request_name):
 	template_doc = frappe.get_doc("Healthcare Service Template", template_dn)
 	default_amount = flt(getattr(sr, "grand_total", None) or getattr(sr, "cost", None) or getattr(sr, "amount", None) or 0, 2)
 
+	# Date the lines with the visit's encounter date (or the request's order date)
+	# instead of the day the ECT Service is being raised.
+	row_date = _resolve_service_date(service_date, sr.get("order_date"))
+
 	rows = []
 	pricing_rows = template_doc.get("pricing") or []
 	for row in pricing_rows:
@@ -34,7 +56,7 @@ def _build_services_from_service_request(service_request_name):
 		price = flt(getattr(row, "price", None) or 0, 2)
 		rows.append(
 			{
-				"date": getdate(),
+				"date": row_date,
 				"service_type": template_dn,
 				"service_code": service_code,
 				"amount": price,
@@ -49,7 +71,7 @@ def _build_services_from_service_request(service_request_name):
 	if service_code or default_amount:
 		return [
 			{
-				"date": getdate(),
+				"date": row_date,
 				"service_type": template_dn,
 				"service_code": service_code,
 				"amount": default_amount,
@@ -181,8 +203,30 @@ def _create_ip_service_sales_order(doc):
 
 
 @frappe.whitelist()
-def get_ip_services(limit=50, offset=0, patient=None, admission_no=None, patient_visit=None):
-	"""Get list of IP Service documents. Optionally filter by patient, admission, or visit."""
+def get_ip_services(
+	limit=50,
+	offset=0,
+	patient=None,
+	admission_no=None,
+	patient_visit=None,
+	patient_care_type=None,
+	date_from=None,
+	date_to=None,
+	date_field=None,
+):
+	"""Get list of IP Service documents.
+
+	Optionally filter by patient, admission, visit, care type and a date range.
+	``patient_care_type`` accepts "OP" (rows created from a patient visit) or "IP"
+	(rows created from an inpatient admission); anything else — including "All" —
+	applies no care-type filter.
+
+	``date_field`` picks the date the ``date_from`` / ``date_to`` range
+	(``YYYY-MM-DD``, inclusive) is matched against: ``"service"`` matches the date
+	of the service line — the ECT session / Patient Visit encounter date, i.e. the
+	date shown on the ECT Service — while anything else (default) matches the day
+	the document was created.
+	"""
 	from healthcare.api.common import get_permitted_cost_centers
 	if not frappe.db.exists("DocType", "IP Service"):
 		return []
@@ -194,6 +238,44 @@ def get_ip_services(limit=50, offset=0, patient=None, admission_no=None, patient
 		filters["admission_no"] = admission_no
 	if patient_visit:
 		filters["patient_visit"] = patient_visit
+
+	# Care type — OP rows carry a patient visit, IP rows an admission number.
+	care_type = (patient_care_type or "").strip().upper()
+	if care_type == "OP" and not patient_visit:
+		filters["patient_visit"] = ["is", "set"]
+	elif care_type == "IP" and not admission_no:
+		filters["admission_no"] = ["is", "set"]
+
+	# Date range (inclusive). The ECT Service list filters on the service line date
+	# (the ECT session / Patient Visit encounter date) so a service converted from an
+	# older visit is listed under that visit's date instead of the day it was raised.
+	date_from = (date_from or "").strip()
+	date_to = (date_to or "").strip()
+	if date_from or date_to:
+		if (date_field or "").strip().lower() == "service":
+			line_filters = {}
+			if date_from and date_to:
+				line_filters["date"] = ["between", [date_from, date_to]]
+			elif date_from:
+				line_filters["date"] = [">=", date_from]
+			else:
+				line_filters["date"] = ["<=", date_to]
+
+			parents = frappe.get_all(
+				"IP Service Detail",
+				filters=line_filters,
+				pluck="parent",
+				limit_page_length=0,
+			)
+			if not parents:
+				return []
+			filters["name"] = ["in", list(set(parents))]
+		elif date_from and date_to:
+			filters["creation"] = ["between", [f"{date_from} 00:00:00", f"{date_to} 23:59:59"]]
+		elif date_from:
+			filters["creation"] = [">=", f"{date_from} 00:00:00"]
+		else:
+			filters["creation"] = ["<=", f"{date_to} 23:59:59"]
 
 	# ── Cost-centre User Permission enforcement ──────────────────────────────
 	permitted_cc = get_permitted_cost_centers()
@@ -296,7 +378,7 @@ def _attach_first_service_item(services):
 	parent_names = [row.name for row in services]
 	child_rows = frappe.db.sql(
 		"""
-		SELECT parent, service_type, service_name, service_code, idx
+		SELECT parent, service_type, service_name, service_code, date, idx
 		FROM `tabIP Service Detail`
 		WHERE parent IN %(parents)s
 		ORDER BY parent, idx ASC
@@ -326,7 +408,9 @@ def _attach_first_service_item(services):
 		first = first_by_parent.get(row.name)
 		if not first:
 			row["first_service"] = None
+			row["service_date"] = None
 			continue
+		row["service_date"] = first.get("date")
 		template_name = first.get("service_type")
 		row["first_service"] = (
 			template_labels.get(template_name)
@@ -345,9 +429,16 @@ def create_ip_service(
 	patient_visit=None,
 	service_request=None,
 	services=None,
+	service_date=None,
 	**kwargs,
 ):
-	"""Create IP Service from admission (IP) or patient visit (OP). Cost center resolves from context when omitted."""
+	"""Create IP Service from admission (IP) or patient visit (OP). Cost center resolves from context when omitted.
+
+	``service_date`` dates the service lines; callers that know when the service was
+	ordered (Patient Visit encounter date) must pass it. When a ``service_request`` is
+	booked the request's ``order_date`` is used, and only if neither is available do
+	the lines fall back to today.
+	"""
 	if not frappe.db.exists("DocType", "IP Service"):
 		frappe.throw(_("IP Service doctype is not available."))
 
@@ -405,7 +496,7 @@ def create_ip_service(
 
 	current_user = frappe.session.user
 	if (not services or not isinstance(services, list) or len(services) == 0) and service_request:
-		services = _build_services_from_service_request(service_request)
+		services = _build_services_from_service_request(service_request, service_date=service_date)
 
 	appended = 0
 	if services and isinstance(services, list):
@@ -438,11 +529,9 @@ def create_ip_service(
 			if not amount:
 				frappe.throw(_("Amount is required for each service line."))
 
-			row_date = row.get("date")
-			try:
-				date_val = getdate(row_date) if row_date else getdate()
-			except Exception:
-				date_val = getdate()
+			# Rows created from a request/template carry the service date; explicit
+			# rows keep their own date and only fall back to it when blank.
+			date_val = _resolve_service_date(row.get("date"), service_date)
 
 			doc.append(
 				"services",
@@ -546,5 +635,32 @@ def get_ip_service_type(template_name, patient_care_type=None):
                 "rate": row.rate,
                 "note": row.note
             })
-    
+
     return result
+
+
+@frappe.whitelist()
+def get_ect_default_services():
+    """Default ECT Healthcare Service Templates configured on Healthcare Settings.
+
+    Returns ``{"op": {...} | None, "ip": {...} | None}`` so the ECT Service form can
+    pre-select the right service for the active OP/IP care context. The user can
+    always change the selection afterwards.
+    """
+    settings = frappe.get_cached_doc("Healthcare Settings")
+
+    def _payload(template_name):
+        name = (template_name or "").strip()
+        if not name or not frappe.db.exists("Healthcare Service Template", name):
+            return None
+        return {
+            "name": name,
+            "service_name": (
+                frappe.db.get_value("Healthcare Service Template", name, "service_name") or name
+            ),
+        }
+
+    return {
+        "op": _payload(settings.get("default_ect_op_service")),
+        "ip": _payload(settings.get("default_ect_ip_service")),
+    }

@@ -43,6 +43,9 @@ import { ServiceRequestList } from '../components/serviceRequests/ServiceRequest
 import { CreateServiceRequestModal } from '../components/serviceRequests/CreateServiceRequestModal'
 import { IPServiceList } from '../components/ipServices/IPServiceList'
 import { CreateIPServiceModal } from '../components/ipServices/CreateIPServiceModal'
+import { ECTServiceFilterBar } from '../components/ipServices/ECTServiceFilterBar'
+import type { IPServiceCareType } from '../services/ipServices'
+import { localDateInputValue } from '../utils/formatDate'
 import { PrescriptionList } from '../components/prescriptions/PrescriptionList'
 import { CreateMedicineGivenModal } from '../components/medication/CreateMedicineGivenModal'
 import { NursingPharmacyGiveOutModal } from '../components/medication/NursingPharmacyGiveOutModal'
@@ -168,6 +171,20 @@ export const NursePage = () => {
   const [serviceRequestRefreshKey, setServiceRequestRefreshKey] = useState(0)
   const [labCardTab, setLabCardTab] = useState<'reports' | 'requests'>('reports')
   const [ipServiceRefreshKey, setIpServiceRefreshKey] = useState(0)
+  // ECT Service listing filters — From/To default to today and match the ECT session
+  // (service) date, i.e. the Patient Visit encounter date shown on each service. The
+  // care type follows the navbar OP/IP context; the only override is "All", which
+  // shows every care type.
+  const [ectServiceDateFrom, setEctServiceDateFrom] = useState<string>(() => localDateInputValue())
+  const [ectServiceDateTo, setEctServiceDateTo] = useState<string>(() => localDateInputValue())
+  const [ectServiceCareTypeOverride, setEctServiceCareTypeOverride] = useState<IPServiceCareType | null>(null)
+  const ectServiceCareType: IPServiceCareType =
+    ectServiceCareTypeOverride ?? (mode === 'OP' || mode === 'IP' ? mode : 'All')
+  const clearEctServiceFilters = () => {
+    setEctServiceDateFrom('')
+    setEctServiceDateTo('')
+    setEctServiceCareTypeOverride('All')
+  }
   const [showCreateIPServiceModal, setShowCreateIPServiceModal] = useState(false)
   const [prescriptionRefreshKey] = useState(0)
   const [showPsychNoteModal, setShowPsychNoteModal] = useState(false)
@@ -1335,11 +1352,24 @@ export const NursePage = () => {
             <p className="text-sm text-slate-600 mb-3 flex-shrink-0">
               Record medical services for the selected patient using Healthcare Service Templates. Branch is taken from the active admission or patient visit.
             </p>
+            <ECTServiceFilterBar
+              dateFrom={ectServiceDateFrom}
+              dateTo={ectServiceDateTo}
+              onDateFromChange={setEctServiceDateFrom}
+              onDateToChange={setEctServiceDateTo}
+              careType={ectServiceCareType}
+              onCareTypeChange={setEctServiceCareTypeOverride}
+              onClear={clearEctServiceFilters}
+            />
             <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
               <IPServiceList
                 patient={selectedPatient}
                 refreshKey={ipServiceRefreshKey}
                 hidePricing
+                dateFrom={ectServiceDateFrom}
+                dateTo={ectServiceDateTo}
+                careType={ectServiceCareType}
+                onPatientClick={handlePatientSelect}
               />
             </div>
           </section>

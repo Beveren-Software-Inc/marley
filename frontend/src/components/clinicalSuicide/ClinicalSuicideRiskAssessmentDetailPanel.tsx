@@ -16,6 +16,7 @@ import {
   type SuicideRiskAssessmentDetail,
   type SuicideRiskAssessmentRow,
 } from '../../services/suicideRisk'
+import { isRiskYes, riskYesNoLabel } from '../../services/riskYesNo'
 import { DetailSlideOver } from '../ui/DetailSlideOver'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 import { RichTextContent } from '../ui/RichTextContent'
@@ -42,12 +43,13 @@ function formatDate(value?: string): string {
   }
 }
 
-function isTruthy(value: unknown): boolean {
-  return value === 1 || value === true || value === '1'
+function isYesAnswer(value: unknown): boolean {
+  return isRiskYes(value)
 }
 
 function yesNo(value: unknown): string {
-  return isTruthy(value) ? 'Yes' : 'No'
+  // Answers are "Yes" / "No"; a question the clinician left unanswered shows "—".
+  return riskYesNoLabel(value)
 }
 
 function riskClassName(level?: string): string {
@@ -236,7 +238,7 @@ export function ClinicalSuicideRiskAssessmentDetailPanel({
             icon={<Brain className="h-4 w-4 text-emerald-600" strokeWidth={2} />}
           >
             <FieldRow label="Evidence of suicidal ideation" value={yesNo(detail?.has_ideation)} />
-            {isTruthy(detail?.has_ideation) ? (
+            {isYesAnswer(detail?.has_ideation) ? (
               <>
                 <FieldRow label="How often" value={displayValue(detail?.ideation_frequency)} />
                 <FieldRow label="How long" value={displayValue(detail?.ideation_duration)} />
@@ -251,7 +253,7 @@ export function ClinicalSuicideRiskAssessmentDetailPanel({
             icon={<Target className="h-4 w-4 text-emerald-600" strokeWidth={2} />}
           >
             <FieldRow label="Current plan to take own life" value={yesNo(detail?.has_plan)} />
-            {isTruthy(detail?.has_plan) ? (
+            {isYesAnswer(detail?.has_plan) ? (
               <>
                 <FieldRow label="Planned method" value={displayValue(detail?.plan_method)} />
                 <FieldRow label="Where would it occur" value={displayValue(detail?.plan_location)} />
@@ -260,7 +262,7 @@ export function ClinicalSuicideRiskAssessmentDetailPanel({
               </>
             ) : null}
             <FieldRow label="Taking more risks lately" value={yesNo(detail?.risk_behavior)} />
-            {isTruthy(detail?.risk_behavior) && detail?.risk_behavior_details ? (
+            {isYesAnswer(detail?.risk_behavior) && detail?.risk_behavior_details ? (
               <FieldRow label="Risk behavior details" value={displayValue(detail.risk_behavior_details)} />
             ) : null}
           </AssessmentSection>
@@ -270,7 +272,7 @@ export function ClinicalSuicideRiskAssessmentDetailPanel({
             icon={<ClipboardList className="h-4 w-4 text-emerald-600" strokeWidth={2} />}
           >
             <FieldRow label="History of previous attempts" value={yesNo(detail?.has_history)} />
-            {isTruthy(detail?.has_history) ? (
+            {isYesAnswer(detail?.has_history) ? (
               <>
                 <FieldRow label="Number of attempts" value={displayValue(detail?.attempt_count)} />
                 <FieldRow label="How long ago" value={displayValue(detail?.last_attempt)} />

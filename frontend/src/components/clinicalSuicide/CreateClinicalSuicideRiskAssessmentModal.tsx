@@ -11,6 +11,7 @@ import {
 } from '../ui/CreateModalChrome'
 import { Shield, AlertTriangle, Heart, Brain, Users, Target, Activity } from 'lucide-react'
 import { createSuicideRiskAssessment } from '../../services/suicideRisk'
+import { notifyRiskGapsChanged } from '../../services/generalRisk'
 import { searchPatients, fetchPatients, type PatientListItem } from '../../services/patients'
 import {
   fetchHealthcarePractitioners,
@@ -23,6 +24,8 @@ import {
   useLockedLinkedPractitioner,
 } from '../../hooks/useLockedLinkedPractitioner'
 import { DateFilterInput } from '../ui/DateFilterInput'
+import { YesNoSelect } from '../ui/YesNoSelect'
+import { selectFromYesNo, type YesNoChoice } from '../ui/yesNoValue'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -74,38 +77,38 @@ export const CreateSuicideRiskAssessmentModal = ({
   const [patientVisitLabel, setPatientVisitLabel] = useState('')
 
   // Section 1: Suicidal Ideation
-  const [hasIdeation, setHasIdeation] = useState(false)
+  const [hasIdeation, setHasIdeation] = useState<YesNoChoice>('')
   const [ideationFrequency, setIdeationFrequency] = useState('')
   const [ideationDuration, setIdeationDuration] = useState('')
   const [ideationIncreasing, setIdeationIncreasing] = useState('')
-  const [ideation24h, setIdeation24h] = useState(false)
+  const [ideation24h, setIdeation24h] = useState<YesNoChoice>('')
 
   // Section 2: Current Plan
-  const [hasPlan, setHasPlan] = useState(false)
+  const [hasPlan, setHasPlan] = useState<YesNoChoice>('')
   const [planMethod, setPlanMethod] = useState('')
   const [planLocation, setPlanLocation] = useState('')
   const [planImmediacy, setPlanImmediacy] = useState('')
-  const [accessLethalMeans, setAccessLethalMeans] = useState(false)
-  const [riskBehavior, setRiskBehavior] = useState(false)
+  const [accessLethalMeans, setAccessLethalMeans] = useState<YesNoChoice>('')
+  const [riskBehavior, setRiskBehavior] = useState<YesNoChoice>('')
   const [riskBehaviorDetails, setRiskBehaviorDetails] = useState('')
 
   // Section 3: History
-  const [hasHistory, setHasHistory] = useState(false)
+  const [hasHistory, setHasHistory] = useState<YesNoChoice>('')
   const [attemptCount, setAttemptCount] = useState('')
   const [lastAttempt, setLastAttempt] = useState('')
   const [psychiatricHistory, setPsychiatricHistory] = useState('')
   const [priorPsychiatricDiagnosis, setPriorPsychiatricDiagnosis] = useState('')
 
   // Section 4: Stressors
-  const [hasStressors, setHasStressors] = useState(false)
+  const [hasStressors, setHasStressors] = useState<YesNoChoice>('')
   const [stressorsDescription, setStressorsDescription] = useState('')
 
   // Section 5: Support
-  const [hasSupport, setHasSupport] = useState(false)
+  const [hasSupport, setHasSupport] = useState<YesNoChoice>('')
   const [supportPeople, setSupportPeople] = useState('')
 
   // Section 6: Coping
-  const [hasCoping, setHasCoping] = useState(false)
+  const [hasCoping, setHasCoping] = useState<YesNoChoice>('')
   const [copingStrategies, setCopingStrategies] = useState('')
   const [reasonsToLive, setReasonsToLive] = useState('')
   const [personalStrengths, setPersonalStrengths] = useState('')
@@ -198,21 +201,22 @@ export const CreateSuicideRiskAssessmentModal = ({
         inpatient_admission: inpatientAdmission || undefined,
         patient_visit: patientVisit || undefined,
         
-        has_ideation: hasIdeation,
+        has_ideation: selectFromYesNo(hasIdeation),
         ideation_frequency: ideationFrequency || undefined,
         ideation_duration: ideationDuration || undefined,
         ideation_increasing: ideationIncreasing || undefined,
-        ideation_24h: ideation24h || undefined,
+        ideation_24h: selectFromYesNo(ideation24h),
         
-        has_plan: hasPlan,
+        has_plan: selectFromYesNo(hasPlan),
         plan_method: planMethod || undefined,
         plan_location: planLocation || undefined,
         plan_immediacy: planImmediacy || undefined,
-        access_lethal_means: accessLethalMeans || undefined,
-        risk_behavior: riskBehavior || undefined,
-        risk_behavior_details: riskBehavior ? riskBehaviorDetails.trim() || undefined : undefined,
+        access_lethal_means: selectFromYesNo(accessLethalMeans),
+        risk_behavior: selectFromYesNo(riskBehavior),
+        risk_behavior_details:
+          riskBehavior === 'yes' ? riskBehaviorDetails.trim() || undefined : undefined,
         
-        has_history: hasHistory,
+        has_history: selectFromYesNo(hasHistory),
         attempt_count:
           attemptCount.trim() === '' ? undefined : parseInt(attemptCount, 10) || undefined,
         last_attempt: lastAttempt || undefined,
@@ -220,13 +224,13 @@ export const CreateSuicideRiskAssessmentModal = ({
         prior_psychiatric_diagnosis:
           psychiatricHistory === 'Yes' ? priorPsychiatricDiagnosis.trim() || undefined : undefined,
         
-        has_stressors: hasStressors,
+        has_stressors: selectFromYesNo(hasStressors),
         stressors_description: stressorsDescription || undefined,
         
-        has_support: hasSupport,
+        has_support: selectFromYesNo(hasSupport),
         support_people: supportPeople || undefined,
         
-        has_coping: hasCoping,
+        has_coping: selectFromYesNo(hasCoping),
         coping_strategies: copingStrategies || undefined,
         reasons_to_live: reasonsToLive || undefined,
         personal_strengths: personalStrengths || undefined,
@@ -235,6 +239,8 @@ export const CreateSuicideRiskAssessmentModal = ({
       })
       
       if (result.success) {
+        // Clears the red sidebar outline raised by a flagged General Risk item.
+        notifyRiskGapsChanged()
         onSuccess()
       } else {
         setError(result.message || 'Failed to create assessment')
@@ -412,18 +418,13 @@ export const CreateSuicideRiskAssessmentModal = ({
                   <AlertTriangle className="w-4 h-4 text-amber-500" />
                   1. Suicidal Ideation
                 </h3>
-                <label className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={hasIdeation}
-                    onChange={(e) => setHasIdeation(e.target.checked)}
-                    className="rounded border-slate-300 text-primary focus:ring-primary"
-                  />
+                <div className="flex flex-wrap items-center gap-3">
                   <span className="text-sm text-slate-600">Evidence of suicidal ideation</span>
-                </label>
+                  <YesNoSelect compact value={hasIdeation} onChange={setHasIdeation} />
+                </div>
               </div>
               
-              {hasIdeation && (
+              {hasIdeation === 'yes' && (
                 <div className="space-y-4 mt-4 pl-6 border-l-2 border-amber-200">
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">How often do you have these thoughts?</label>
@@ -457,15 +458,10 @@ export const CreateSuicideRiskAssessmentModal = ({
                       <option value="No">No</option>
                     </select>
                   </div>
-                  <label className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      checked={ideation24h}
-                      onChange={(e) => setIdeation24h(e.target.checked)}
-                      className="rounded border-slate-300 text-primary focus:ring-primary"
-                    />
+                  <div className="flex flex-wrap items-center gap-3">
                     <span className="text-sm text-slate-600">Thoughts in past 24 hours</span>
-                  </label>
+                    <YesNoSelect compact value={ideation24h} onChange={setIdeation24h} />
+                  </div>
                 </div>
               )}
             </div>
@@ -477,18 +473,13 @@ export const CreateSuicideRiskAssessmentModal = ({
                   <Target className="w-4 h-4 text-red-500" />
                   2. Current Plan
                 </h3>
-                <label className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={hasPlan}
-                    onChange={(e) => setHasPlan(e.target.checked)}
-                    className="rounded border-slate-300 text-primary focus:ring-primary"
-                  />
+                <div className="flex flex-wrap items-center gap-3">
                   <span className="text-sm text-slate-600">Current plan to take own life</span>
-                </label>
+                  <YesNoSelect compact value={hasPlan} onChange={setHasPlan} />
+                </div>
               </div>
               
-              {hasPlan && (
+              {hasPlan === 'yes' && (
                 <div className="space-y-4 mt-4 pl-6 border-l-2 border-red-200">
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Planned method</label>
@@ -529,28 +520,24 @@ export const CreateSuicideRiskAssessmentModal = ({
               )}
               
               <div className="mt-4 space-y-2">
-                <label className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={accessLethalMeans}
-                    onChange={(e) => setAccessLethalMeans(e.target.checked)}
-                    className="rounded border-slate-300 text-primary focus:ring-primary"
-                  />
+                <div className="flex flex-wrap items-center justify-between gap-3">
                   <span className="text-sm text-slate-600">Access to lethal means</span>
-                </label>
-                <label className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={riskBehavior}
-                    onChange={(e) => {
-                      setRiskBehavior(e.target.checked)
-                      if (!e.target.checked) setRiskBehaviorDetails('')
+                  <YesNoSelect compact value={accessLethalMeans} onChange={setAccessLethalMeans} />
+                </div>
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <span className="text-sm text-slate-600">
+                    Taking more risks lately (substance use, reckless behavior)
+                  </span>
+                  <YesNoSelect
+                    compact
+                    value={riskBehavior}
+                    onChange={(value) => {
+                      setRiskBehavior(value)
+                      if (value !== 'yes') setRiskBehaviorDetails('')
                     }}
-                    className="rounded border-slate-300 text-primary focus:ring-primary"
                   />
-                  <span className="text-sm text-slate-600">Taking more risks lately (substance use, reckless behavior)</span>
-                </label>
-                {riskBehavior && (
+                </div>
+                {riskBehavior === 'yes' && (
                   <input
                     type="text"
                     value={riskBehaviorDetails}
@@ -569,18 +556,13 @@ export const CreateSuicideRiskAssessmentModal = ({
                   <Brain className="w-4 h-4 text-purple-500" />
                   3. History / Previous Attempts
                 </h3>
-                <label className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={hasHistory}
-                    onChange={(e) => setHasHistory(e.target.checked)}
-                    className="rounded border-slate-300 text-primary focus:ring-primary"
-                  />
+                <div className="flex flex-wrap items-center gap-3">
                   <span className="text-sm text-slate-600">History of previous attempts</span>
-                </label>
+                  <YesNoSelect compact value={hasHistory} onChange={setHasHistory} />
+                </div>
               </div>
               
-              {hasHistory && (
+              {hasHistory === 'yes' && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4 pl-6 border-l-2 border-purple-200">
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">How many attempts?</label>
@@ -644,18 +626,13 @@ export const CreateSuicideRiskAssessmentModal = ({
                   <AlertTriangle className="w-4 h-4 text-orange-500" />
                   4. Current Stressors
                 </h3>
-                <label className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={hasStressors}
-                    onChange={(e) => setHasStressors(e.target.checked)}
-                    className="rounded border-slate-300 text-primary focus:ring-primary"
-                  />
+                <div className="flex flex-wrap items-center gap-3">
                   <span className="text-sm text-slate-600">Current stressors present</span>
-                </label>
+                  <YesNoSelect compact value={hasStressors} onChange={setHasStressors} />
+                </div>
               </div>
               
-              {hasStressors && (
+              {hasStressors === 'yes' && (
                 <div className="mt-4 pl-6 border-l-2 border-orange-200">
                   <textarea
                     rows={3}
@@ -675,18 +652,13 @@ export const CreateSuicideRiskAssessmentModal = ({
                   <Users className="w-4 h-4 text-green-500" />
                   5. Protective Factors - Support System
                 </h3>
-                <label className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={hasSupport}
-                    onChange={(e) => setHasSupport(e.target.checked)}
-                    className="rounded border-slate-300 text-primary focus:ring-primary"
-                  />
+                <div className="flex flex-wrap items-center gap-3">
                   <span className="text-sm text-slate-600">Has support system</span>
-                </label>
+                  <YesNoSelect compact value={hasSupport} onChange={setHasSupport} />
+                </div>
               </div>
               
-              {hasSupport && (
+              {hasSupport === 'yes' && (
                 <div className="mt-4 pl-6 border-l-2 border-green-200">
                   <textarea
                     rows={2}
@@ -706,19 +678,14 @@ export const CreateSuicideRiskAssessmentModal = ({
                   <Heart className="w-4 h-4 text-teal-500" />
                   6. Protective Factors - Coping
                 </h3>
-                <label className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={hasCoping}
-                    onChange={(e) => setHasCoping(e.target.checked)}
-                    className="rounded border-slate-300 text-primary focus:ring-primary"
-                  />
+                <div className="flex flex-wrap items-center gap-3">
                   <span className="text-sm text-slate-600">Has coping strategies</span>
-                </label>
+                  <YesNoSelect compact value={hasCoping} onChange={setHasCoping} />
+                </div>
               </div>
               
               <div className="space-y-4">
-                {hasCoping && (
+                {hasCoping === 'yes' && (
                   <div className="pl-6 border-l-2 border-teal-200">
                     <textarea
                       rows={2}
