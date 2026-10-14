@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { DateFilterInput } from '../ui/DateFilterInput'
 import {
   fetchInpatientAdmissionOptions,
@@ -9,8 +9,43 @@ import { apiRequest } from '../../services/apiClient'
 import { toast } from '../../hooks/useToast'
 import { useCareContext } from '../../providers/CareContextProvider'
 import { resolveAdmissionDateTime } from '../../utils/admissionDateTime'
+import {
+  readPersistedListFilters,
+  writePersistedListFilters,
+} from '../../utils/persistedListFilters'
 
 type ReportId = 'receipts' | 'ip-payments' | 'soa' | 'soa-op'
+
+const RECEPTION_REPORT_FILTERS_KEY = 'healthcare:receptionReportFilters'
+
+type PersistedReceptionFilters = {
+  report: ReportId
+  fromDate: string
+  toDate: string
+  admission: string
+  admissionQuery: string
+  visit: string
+  visitQuery: string
+}
+
+function isReportId(value: unknown): value is ReportId {
+  return value === 'receipts' || value === 'ip-payments' || value === 'soa' || value === 'soa-op'
+}
+
+function readReceptionReportFilters(): PersistedReceptionFilters | null {
+  const raw = readPersistedListFilters<PersistedReceptionFilters>(RECEPTION_REPORT_FILTERS_KEY)
+  if (!raw || !isReportId(raw.report)) return null
+  const text = (value: unknown) => (typeof value === 'string' ? value : '')
+  return {
+    report: raw.report,
+    fromDate: text(raw.fromDate),
+    toDate: text(raw.toDate),
+    admission: text(raw.admission),
+    admissionQuery: text(raw.admissionQuery),
+    visit: text(raw.visit),
+    visitQuery: text(raw.visitQuery),
+  }
+}
 
 function toInputDate(d: Date): string {
   const y = d.getFullYear()
@@ -445,16 +480,21 @@ function openDocument(
 }
 
 export function ReceptionReports() {
-  const { activeAdmission, activeVisit, selectedPatient } = useCareContext()
-  const [report, setReport] = useState<ReportId>('receipts')
-  const [fromDate, setFromDate] = useState('')
-  const [toDate, setToDate] = useState('')
-  const [admission, setAdmission] = useState('')
-  const [admissionQuery, setAdmissionQuery] = useState('')
+  const { activeAdmission, activeVisit, selectedPatient, userCostCenter } = useCareContext()
+  const [savedFilters] = useState(() => readReceptionReportFilters())
+  // Branch changes reload the page. Skip the first date/visit autofill so a
+  // restored filter set is not immediately overwritten.
+  const skipDateAutofill = useRef(Boolean(savedFilters && (savedFilters.fromDate || savedFilters.toDate)))
+  const skipVisitPrefill = useRef(savedFilters?.report === 'soa-op')
+  const [report, setReport] = useState<ReportId>(savedFilters?.report || 'receipts')
+  const [fromDate, setFromDate] = useState(savedFilters?.fromDate || '')
+  const [toDate, setToDate] = useState(savedFilters?.toDate || '')
+  const [admission, setAdmission] = useState(savedFilters?.admission || '')
+  const [admissionQuery, setAdmissionQuery] = useState(savedFilters?.admissionQuery || '')
   const [admissionOptions, setAdmissionOptions] = useState<LinkFieldOption[]>([])
   const [admissionOpen, setAdmissionOpen] = useState(false)
-  const [visit, setVisit] = useState('')
-  const [visitQuery, setVisitQuery] = useState('')
+  const [visit, setVisit] = useState(savedFilters?.visit || '')
+  const [visitQuery, setVisitQuery] = useState(savedFilters?.visitQuery || '')
   const [visitOptions, setVisitOptions] = useState<LinkFieldOption[]>([])
   const [visitOpen, setVisitOpen] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -491,8 +531,24 @@ export function ReceptionReports() {
     setAdmissionQuery(headerCaseLabel || activeAdmission)
   }, [activeAdmission, headerCaseLabel])
 
+  useEffect(() => {
+    writePersistedListFilters(RECEPTION_REPORT_FILTERS_KEY, {
+      report,
+      fromDate,
+      toDate,
+      admission,
+      admissionQuery,
+      visit,
+      visitQuery,
+    } satisfies PersistedReceptionFilters)
+  }, [report, fromDate, toDate, admission, admissionQuery, visit, visitQuery])
+
   // Prefill visit from care context when the active visit changes; user can still clear it.
   useEffect(() => {
+    if (skipVisitPrefill.current) {
+      skipVisitPrefill.current = false
+      return
+    }
     if (!activeVisit) return
     setVisit(activeVisit)
     setVisitQuery(headerVisitLabel || activeVisit)
@@ -501,6 +557,10 @@ export function ReceptionReports() {
   // SOA (IP): From Date = admission date, To Date = today
   useEffect(() => {
     if (report !== 'soa') return
+    if (skipDateAutofill.current && savedFilters?.report === 'soa') {
+      skipDateAutofill.current = false
+      return
+    }
 
     setToDate(todayInputDate())
 
@@ -547,6 +607,10 @@ export function ReceptionReports() {
   // Visit blank → From Date = patient's first visit ever.
   useEffect(() => {
     if (report !== 'soa-op') return
+    if (skipDateAutofill.current && savedFilters?.report === 'soa-op') {
+      skipDateAutofill.current = false
+      return
+    }
 
     setToDate(todayInputDate())
 
@@ -608,6 +672,7 @@ export function ReceptionReports() {
       const params = new URLSearchParams()
       if (fromDate) params.append('from_date', fromDate)
       if (toDate) params.append('to_date', toDate)
+      if (report === 'receipts' && userCostCenter) params.append('cost_center', userCostCenter)
       if (needsAdmission) params.append('admission', resolvedAdmission)
       if (isSoaOp) {
         if (resolvedVisit) params.append('visit', resolvedVisit)

@@ -100,6 +100,7 @@ def get_patient_receipts_summary(from_date, to_date, cost_center=None):
 	resolved_cc = resolve_cost_center_filter(cost_center)
 	if resolved_cc is False:
 		return {"op": [], "payment_only": [], "ip": [], "summary": {}, "grand_total": 0}
+	requested_cc = (cost_center or "").strip()
 
 	entries = frappe.get_all(
 		"Payment Entry",
@@ -110,7 +111,7 @@ def get_patient_receipts_summary(from_date, to_date, cost_center=None):
 		},
 		fields=[
 			"name", "posting_date", "mode_of_payment", "party", "paid_amount",
-			"reference_no", "reference_date", "owner", "creation",
+			"reference_no", "reference_date", "owner", "creation", "cost_center",
 		],
 		order_by="posting_date, creation",
 		limit_page_length=0,
@@ -148,8 +149,15 @@ def get_patient_receipts_summary(from_date, to_date, cost_center=None):
 			if base_ref:
 				break
 
-		if allowed_cc is not None and so_cc and so_cc not in allowed_cc:
-			continue
+		# Navbar branch is the payment's branch. Fall back to the sales order
+		# when an older receipt has no cost center of its own.
+		payment_cc = (e.cost_center or "").strip() or (so_cc or "").strip()
+		if allowed_cc is not None:
+			if requested_cc:
+				if payment_cc not in allowed_cc:
+					continue
+			elif payment_cc and payment_cc not in allowed_cc:
+				continue
 
 		patient = so_patient or _patient_for_customer(e.party, cust_cache)
 		pdisp = _patient_display(patient, pat_cache)
