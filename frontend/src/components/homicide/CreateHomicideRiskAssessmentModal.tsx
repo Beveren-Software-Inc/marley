@@ -8,7 +8,7 @@ import {
   createModalShellClass,
 } from '../ui/CreateModalChrome'
 import { Shield, AlertTriangle, Brain, Heart, Users, FileText, Clock, Target, PenLine } from 'lucide-react'
-import { createHomicideRiskAssessment, type ContactRow } from '../../services/homicideRisk'
+import { createHomicideRiskAssessment, fetchHomicideRiskAssessment, updateHomicideRiskAssessment, type ContactRow } from '../../services/homicideRisk'
 import { notifyRiskGapsChanged } from '../../services/generalRisk'
 import { searchPatients, fetchPatients, uploadPatientFile, type PatientListItem } from '../../services/patients'
 import {
@@ -23,6 +23,8 @@ import {
   LOCKED_PRACTITIONER_INPUT_CLASS,
   useLockedLinkedPractitioner,
 } from '../../hooks/useLockedLinkedPractitioner'
+import { useBlockIfEditingLocked } from '../../hooks/useBlockIfEditingLocked'
+import { useRejectEditModeWhenLocked } from '../../hooks/useRejectEditModeWhenLocked'
 import { SignaturePad, attachFileDisplayUrl } from '../ui/SignaturePad'
 import { toast } from '../../hooks/useToast'
 import { DateFilterInput } from '../ui/DateFilterInput'
@@ -43,6 +45,8 @@ interface CreateHomicideRiskAssessmentModalProps {
   patient?: string
   defaultAdmission?: string
   defaultVisit?: string
+  /** When set, the modal edits this Homicide Risk Assessment instead of creating one. */
+  editName?: string
 }
 
 export const CreateHomicideRiskAssessmentModal = ({
@@ -51,6 +55,7 @@ export const CreateHomicideRiskAssessmentModal = ({
   patient,
   defaultAdmission,
   defaultVisit,
+  editName,
 }: CreateHomicideRiskAssessmentModalProps) => {
   const {
     mode,
@@ -68,9 +73,17 @@ export const CreateHomicideRiskAssessmentModal = ({
   const hideInpatientAdmission = isOPMode
   const resolvedPatient = patient || contextPatient || ''
 
+  const isEdit = Boolean(editName?.trim())
+
+  // An existing record may only be touched while its 24-hour window is open,
+  // and never while Healthcare Settings locks clinical editing.
+  useRejectEditModeWhenLocked(isEdit, onClose)
+  const blockIfEditingLocked = useBlockIfEditingLocked()
+
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<TabType>('basic')
+  const [loadingRecord, setLoadingRecord] = useState(isEdit)
 
   const [patientId, setPatientId] = useState(resolvedPatient)
   const [patientName, setPatientName] = useState('')
@@ -196,12 +209,16 @@ export const CreateHomicideRiskAssessmentModal = ({
   }, [practitionerQuery, practitionerOpen])
 
   useEffect(() => {
+    // Edits keep the admission already stored on the record.
+    if (isEdit) return
     if (lockedAdmission) setInpatientAdmission(lockedAdmission)
-  }, [lockedAdmission])
+  }, [isEdit, lockedAdmission])
 
   useEffect(() => {
+    // Edits keep the visit already stored on the record.
+    if (isEdit) return
     if (lockedVisit) setPatientVisit(lockedVisit)
-  }, [lockedVisit])
+  }, [isEdit, lockedVisit])
 
   useEffect(() => {
     if (!resolvedPatient) return
@@ -247,6 +264,104 @@ export const CreateHomicideRiskAssessmentModal = ({
     const t = setTimeout(run, patientQuery.trim() ? 300 : 0)
     return () => { cancelled = true; clearTimeout(t) }
   }, [patientQuery, patientOpen])
+
+  // ── Load the record being edited ───────────────────────────────────────────
+  useEffect(() => {
+    const name = editName?.trim()
+    if (!name) return
+    let cancelled = false
+    setLoadingRecord(true)
+    setError(null)
+    fetchHomicideRiskAssessment(name)
+      .then((doc) => {
+        if (cancelled) return
+        setPatientId(doc.patient || patient || contextPatient || '')
+        if (doc.patient_name) {
+          setPatientQuery(doc.patient_name)
+          setPatientName(doc.patient_name)
+        }
+        setAssessmentDate(doc.assessment_date || nowDate())
+        setInpatientAdmission(doc.inpatient_admission || '')
+        setPatientVisit(doc.patient_visit || '')
+        const practitionerId = doc.practitioner || doc.clinician || ''
+        const practitionerText = doc.practitioner_name || practitionerId
+        setPractitioner(practitionerId)
+        setPractitionerLabel(practitionerText)
+        setPractitionerQuery(practitionerText)
+
+        setReasonClinician(Boolean(doc.reason_clinician))
+        setReasonReferral(Boolean(doc.reason_referral))
+        setReasonSocial(Boolean(doc.reason_social))
+        setReasonIntake(Boolean(doc.reason_intake))
+        setReasonCrisis(Boolean(doc.reason_crisis))
+        setReasonCurrent(Boolean(doc.reason_current))
+        setReasonRecentEvent(Boolean(doc.reason_recent_event))
+        setReasonOtherCheck(Boolean(doc.reason_other_check))
+        setOtherReason(doc.other_reason || '')
+        setReasonFor(doc.reason_for || '')
+
+        setIntentSubjective(doc.intent_subjective || '')
+        setIntentObjective(doc.intent_objective || '')
+        setPlanWhen(doc.plan_when || '')
+        setPlanWhere(doc.plan_where || '')
+        setPlanHow(doc.plan_how || '')
+        setIntendedVictim(doc.intended_victim || '')
+        setAccessToMeans(doc.access_to_means || '')
+        setPreparation(doc.preparation || '')
+        setRehearsal(doc.rehearsal || '')
+
+        setFrequency(doc.frequency || '')
+        setIntensity(doc.intensity || '')
+        setDuration(doc.duration || '')
+
+        setHistorySelfHarm(doc.history_self_harm || '')
+        setHistoryViolence(doc.history_violence || '')
+        setRecentDischarge(doc.recent_discharge || '')
+
+        setDepression(doc.depression == null ? '' : String(doc.depression))
+        setAnxiety(doc.anxiety == null ? '' : String(doc.anxiety))
+        setAnger(doc.anger == null ? '' : String(doc.anger))
+        setAgitation(doc.agitation == null ? '' : String(doc.agitation))
+        setInsomnia(doc.insomnia == null ? '' : String(doc.insomnia))
+        setHopelessness(doc.hopelessness == null ? '' : String(doc.hopelessness))
+        setBurdensomeness(doc.burdensomeness == null ? '' : String(doc.burdensomeness))
+        setImpulsivity(doc.impulsivity == null ? '' : String(doc.impulsivity))
+
+        setSubjectiveReport(doc.subjective_report || '')
+        setObjectiveSigns(doc.objective_signs || '')
+        setChronicRisk(doc.chronic_risk || '')
+        setChronicSummary(doc.chronic_summary || '')
+
+        setTherapeuticAlliance(doc.therapeutic_alliance || '')
+        setRiskLevel(doc.risk_level || '')
+
+        setPastSafetyStrategies(doc.past_safety_strategies || '')
+        setCopingStrategies(doc.coping_strategies || '')
+        setTreatmentPreferences(doc.treatment_preferences || '')
+        setStaffResponsibilities(doc.staff_responsibilities || '')
+
+        setContacts((doc.contacts ?? []).map((c) => ({ ...c })))
+
+        setClientSignature(doc.client_signature || '')
+        setStaffSignature(doc.staff_signature || '')
+        setGuardianSignature(doc.guardian_signature || '')
+        setWitnessSignature(doc.witness_signature || '')
+
+        setFollowupDate(doc.followup_date || '')
+        setFollowupTime(doc.followup_time || '')
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : 'Failed to load assessment')
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingRecord(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [editName, patient, contextPatient])
 
   // Add contact
   const addContact = () => {
@@ -295,11 +410,18 @@ export const CreateHomicideRiskAssessmentModal = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!patientId) { setError('Patient is required'); return }
-    
+    if (isEdit) {
+      // Healthcare Settings may lock all edits to existing records.
+      try {
+        blockIfEditingLocked()
+      } catch {
+        return
+      }
+    }
+
     setSaving(true); setError(null)
     try {
-      const result = await createHomicideRiskAssessment({
-        patient: patientId,
+      const payload = {
         assessment_date: assessmentDate,
         practitioner: practitioner || undefined,
         inpatient_admission: inpatientAdmission || undefined,
@@ -367,17 +489,30 @@ export const CreateHomicideRiskAssessmentModal = ({
         
         followup_date: followupDate || undefined,
         followup_time: followupTime || undefined,
-      })
-      
+      }
+
+      const result =
+        isEdit && editName
+          ? await updateHomicideRiskAssessment({ name: editName.trim(), ...payload })
+          : await createHomicideRiskAssessment({ patient: patientId, ...payload })
+
       if (result.success) {
         // Clears the red sidebar outline raised by a flagged General Risk item.
         notifyRiskGapsChanged()
         onSuccess()
       } else {
-        setError(result.message || 'Failed to create assessment')
+        setError(
+          result.message || (isEdit ? 'Failed to update assessment' : 'Failed to create assessment')
+        )
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create assessment')
+      setError(
+        err instanceof Error
+          ? err.message
+          : isEdit
+            ? 'Failed to update assessment'
+            : 'Failed to create assessment'
+      )
     } finally {
       setSaving(false)
     }
@@ -406,7 +541,7 @@ export const CreateHomicideRiskAssessmentModal = ({
         <div className="relative shrink-0 border-b border-emerald-100/60 bg-gradient-to-r from-emerald-100 via-teal-50 to-sky-100 px-5 py-4 sm:px-6 flex flex-shrink-0 items-center justify-between">
           <div className="flex items-center gap-2.5">
             <Shield className="w-5 h-5 text-primary" />
-            <h2 className="text-lg font-semibold tracking-tight text-emerald-950">Homicide Risk Assessment</h2>
+            <h2 className="text-lg font-semibold tracking-tight text-emerald-950">{isEdit ? 'Edit Homicide Risk Assessment' : 'Homicide Risk Assessment'}</h2>
           </div>
           <button type="button" onClick={onClose} className="shrink-0 rounded-lg p-2 text-emerald-800/70 transition hover:bg-emerald-200/50 hover:text-emerald-950">
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -415,6 +550,12 @@ export const CreateHomicideRiskAssessmentModal = ({
           </button>
         </div>
 
+        {loadingRecord ? (
+          <div className="flex flex-1 items-center justify-center py-16 text-sm text-slate-500">
+            Loading assessment…
+          </div>
+        ) : (
+          <>
         {/* Patient and Date - Always visible */}
         <div className="p-4 border-b border-slate-200 bg-slate-50">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -1212,14 +1353,16 @@ export const CreateHomicideRiskAssessmentModal = ({
               </button>
               <button
                 type="submit"
-                disabled={saving}
+                disabled={saving || loadingRecord}
                 className={CM_BTN_PRIMARY}
               >
-                {saving ? 'Creating…' : 'Create Assessment'}
+                {saving ? 'Saving…' : isEdit ? 'Save Changes' : 'Create Assessment'}
               </button>
             </div>
           </div>
         </form>
+          </>
+        )}
       </div>
     </div>
   )

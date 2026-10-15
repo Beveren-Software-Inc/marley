@@ -3951,10 +3951,48 @@ def get_nursing_pharmacy_giveout_warehouses(inpatient_record=None, patient_visit
 		resolve_pharmacy_giveout_default_warehouse,
 	)
 
+	# Practitioner in charge of this episode, in order of preference. The give-out modal
+	# uses it to default the Doctor / Practitioner field, including give-outs made when
+	# the admission has no current prescription yet.
+	attending_practitioner = None
 	if inpatient_record:
-		cost_center = frappe.db.get_value("Inpatient Admission", inpatient_record, "cost_center")
+		admission_row = (
+			frappe.db.get_value(
+				"Inpatient Admission",
+				inpatient_record,
+				["cost_center", "primary_practitioner", "secondary_practitioner", "admission_practitioner", "admission_by_doctor"],
+				as_dict=True,
+			)
+			or {}
+		)
+		cost_center = admission_row.get("cost_center")
+		# Mirrors the practitioner fallback used when the give-out is saved, so the
+		# doctor defaulted in the UI matches the one stored on the give-out.
+		attending_practitioner = (
+			admission_row.get("primary_practitioner")
+			or admission_row.get("secondary_practitioner")
+			or admission_row.get("admission_practitioner")
+			or admission_row.get("admission_by_doctor")
+		)
 	else:
-		cost_center = frappe.db.get_value("Patient Visit", patient_visit, "cost_center")
+		visit_row = (
+			frappe.db.get_value(
+				"Patient Visit",
+				patient_visit,
+				["cost_center", "practitioner"],
+				as_dict=True,
+			)
+			or {}
+		)
+		cost_center = visit_row.get("cost_center")
+		attending_practitioner = visit_row.get("practitioner")
+
+	attending_practitioner_name = (
+		frappe.db.get_value("Healthcare Practitioner", attending_practitioner, "practitioner_name")
+		if attending_practitioner
+		else None
+	)
+
 	warehouses = get_pharmacy_giveout_warehouses()
 	default_warehouse, _allowed = resolve_pharmacy_giveout_default_warehouse(cost_center)
 	mini_warehouse = get_warehouse_for_cost_center(cost_center) if cost_center else None
@@ -3965,6 +4003,8 @@ def get_nursing_pharmacy_giveout_warehouses(inpatient_record=None, patient_visit
 		"default_warehouse": default_warehouse,
 		"mini_warehouse": mini_warehouse,
 		"pharmacy_warehouse": pharmacy_warehouse,
+		"attending_practitioner": attending_practitioner,
+		"attending_practitioner_name": attending_practitioner_name,
 		"cost_center": cost_center,
 		"display_batch_and_lot_on_pharmacy_giveout": _display_batch_and_lot_on_pharmacy_giveout(),
 	}

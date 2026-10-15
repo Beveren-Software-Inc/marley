@@ -18,11 +18,16 @@ export interface HomicideRiskAssessmentRow {
   patient_name?: string
   assessment_date: string
   clinician?: string
+  /** Practitioner link; the list serializer falls back to `clinician`. */
+  practitioner?: string
   practitioner_name?: string
   risk_level: string
   docstatus: number
   inpatient_admission?: string
   patient_visit?: string
+  /** Needed by the portal list to decide whether the 24-hour edit window is open. */
+  creation?: string
+  modified?: string
 }
 
 export interface HomicideRiskAssessmentDetail extends HomicideRiskAssessmentRow {
@@ -143,18 +148,80 @@ export interface CreateHomicideRiskAssessmentInput {
   followup_time?: string
 }
 
+/** Update payload — same fields as create, plus the record name; patient is fixed. */
+export interface UpdateHomicideRiskAssessmentInput
+  extends Omit<CreateHomicideRiskAssessmentInput, 'patient'> {
+  /** Name (ID) of the Homicide Risk Assessment being updated. */
+  name: string
+}
+
 export async function createHomicideRiskAssessment(
   input: CreateHomicideRiskAssessmentInput
 ): Promise<{ success: boolean; name?: string; message?: string }> {
+  const { ensureCSRF } = await import('./apiClient')
+  const csrf = await ensureCSRF()
+
   const res = await fetch(
     '/api/method/healthcare.api.homicide_risk_assessment.create_homicide_risk_assessment',
     {
       method: 'POST',
+      credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
-        'X-Frappe-CSRF-Token': (window as any).csrf_token || '',
+        Accept: 'application/json',
+        ...(csrf ? { 'X-Frappe-CSRF-Token': csrf } : {}),
       },
       body: JSON.stringify({ data: JSON.stringify(input) }),
+    }
+  )
+  const data = await res.json()
+  const msg = data?.message
+  return msg ?? { success: false, message: 'Unknown error' }
+}
+
+// ── Update assessment (24-hour window) ────────────────────────────────────────
+export async function updateHomicideRiskAssessment(
+  input: UpdateHomicideRiskAssessmentInput
+): Promise<{ success: boolean; name?: string; message?: string }> {
+  const { ensureCSRF } = await import('./apiClient')
+  const csrf = await ensureCSRF()
+
+  const res = await fetch(
+    '/api/method/healthcare.api.homicide_risk_assessment.update_homicide_risk_assessment',
+    {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+        ...(csrf ? { 'X-Frappe-CSRF-Token': csrf } : {}),
+      },
+      body: JSON.stringify({ data: JSON.stringify(input) }),
+    }
+  )
+  const data = await res.json()
+  const msg = data?.message
+  return msg ?? { success: false, message: 'Unknown error' }
+}
+
+// ── Delete assessment (24-hour window) ────────────────────────────────────────
+export async function deleteHomicideRiskAssessment(
+  name: string
+): Promise<{ success: boolean; name?: string; message?: string }> {
+  const { ensureCSRF } = await import('./apiClient')
+  const csrf = await ensureCSRF()
+
+  const res = await fetch(
+    '/api/method/healthcare.api.homicide_risk_assessment.delete_homicide_risk_assessment',
+    {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+        ...(csrf ? { 'X-Frappe-CSRF-Token': csrf } : {}),
+      },
+      body: JSON.stringify({ name }),
     }
   )
   const data = await res.json()

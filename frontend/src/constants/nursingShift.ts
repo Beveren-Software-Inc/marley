@@ -113,3 +113,21 @@ export const DAILY_ROUTINE_EDIT_LOCKED_MESSAGE =
 export const VITAL_SIGN_EDIT_LOCKED_MESSAGE =
   'This vital sign can no longer be edited. Records are locked 24 hours after creation.'
 
+export const GENERAL_RISK_EDIT_LOCKED_MESSAGE =
+  'This general risk assessment can no longer be edited or deleted. Records are locked 24 hours after creation.'
+
+/** Alias for the general-risk edit/delete window (creation-based, like clinical notes). */
+export const isGeneralRiskEditable = isClinicalNoteEditableWithin24h
+
+export const SUICIDE_RISK_EDIT_LOCKED_MESSAGE =
+  'This suicide risk assessment can no longer be edited or deleted. Records are locked 24 hours after creation.'
+
+/** Alias for the suicide-risk edit/delete window (creation-based, like clinical notes). */
+export const isSuicideRiskEditable = isClinicalNoteEditableWithin24h
+
+export const HOMICIDE_RISK_EDIT_LOCKED_MESSAGE =
+  'This homicide risk assessment can no longer be edited or deleted. Records are locked 24 hours after creation.'
+
+/** Alias for the homicide-risk edit/delete window (creation-based, like clinical notes). */
+export const isHomicideRiskEditable = isClinicalNoteEditableWithin24h
+

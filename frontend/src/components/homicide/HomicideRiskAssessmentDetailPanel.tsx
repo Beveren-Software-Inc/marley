@@ -6,13 +6,16 @@ import {
   ClipboardList,
   Clock,
   Heart,
+  Pencil,
   Shield,
   Stethoscope,
   Target,
+  Trash2,
   User,
   Users,
 } from 'lucide-react'
 import {
+  deleteHomicideRiskAssessment,
   fetchHomicideRiskAssessment,
   type HomicideRiskAssessmentDetail,
   type HomicideRiskAssessmentRow,
@@ -22,12 +25,24 @@ import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 import { RichTextContent } from '../ui/RichTextContent'
 import { attachFileDisplayUrl } from '../ui/SignaturePad'
 import { MODAL_SECTION_CLASS, MODAL_SECTION_TITLE_CLASS } from '../ui/CreateModalChrome'
+import { ConfirmDialog } from '../ui/ConfirmDialog'
+import { CreateHomicideRiskAssessmentModal } from './CreateHomicideRiskAssessmentModal'
+import {
+  HOMICIDE_RISK_EDIT_LOCKED_MESSAGE,
+  isHomicideRiskEditable,
+} from '../../constants/nursingShift'
+import { useCareContext } from '../../providers/CareContextProvider'
+import { toast } from '../../hooks/useToast'
 
 interface HomicideRiskAssessmentDetailPanelProps {
   name: string
   onClose: () => void
   preview?: HomicideRiskAssessmentRow
   onPatientClick?: (patient: string) => void
+  /** Called after this record was changed/deleted elsewhere (e.g. the list actions). */
+  onChanged?: () => void
+  /** Bump to re-fetch the panel (used after an edit made from the list). */
+  refreshKey?: number
 }
 
 function displayValue(value: unknown): string {
@@ -162,10 +177,17 @@ export function HomicideRiskAssessmentDetailPanel({
   onClose,
   preview,
   onPatientClick,
+  onChanged,
+  refreshKey = 0,
 }: HomicideRiskAssessmentDetailPanelProps) {
+  const { guardClinicalEdit, lockEditingData } = useCareContext()
   const [doc, setDoc] = useState<HomicideRiskAssessmentDetail | null>(preview ?? null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [showEdit, setShowEdit] = useState(false)
+  const [showDelete, setShowDelete] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [reloadKey, setReloadKey] = useState(0)
 
   useEffect(() => {
     let cancelled = false
@@ -186,10 +208,55 @@ export function HomicideRiskAssessmentDetailPanel({
     return () => {
       cancelled = true
     }
-  }, [name])
+  }, [name, refreshKey, reloadKey])
 
   const source = doc ?? preview
   const detail = doc ?? (preview as HomicideRiskAssessmentDetail | undefined)
+
+  /**
+   * Always enforce the 24-hour creation window for edit/delete. The Healthcare
+   * Settings "Lock Editing Data" switch is enforced in `openEdit` / `openDelete`
+   * (`guardClinicalEdit`) instead of hiding the buttons before the window closes.
+   */
+  const canMutate =
+    Boolean(source?.creation) && isHomicideRiskEditable(String(source?.creation || ''), true)
+
+  const lockedMessage = () =>
+    lockEditingData ? 'Editing is locked in Healthcare Settings.' : HOMICIDE_RISK_EDIT_LOCKED_MESSAGE
+
+  const openEdit = () => {
+    if (!canMutate) {
+      toast.error(lockedMessage())
+      return
+    }
+    guardClinicalEdit(() => setShowEdit(true))
+  }
+
+  const openDelete = () => {
+    if (!canMutate) {
+      toast.error(lockedMessage())
+      return
+    }
+    guardClinicalEdit(() => setShowDelete(true))
+  }
+
+  const confirmDelete = async () => {
+    setDeleting(true)
+    try {
+      const result = await deleteHomicideRiskAssessment(name)
+      if (!result.success) {
+        throw new Error(result.message || 'Failed to delete assessment')
+      }
+      toast.success('Homicide Risk Assessment deleted')
+      setShowDelete(false)
+      onChanged?.()
+      onClose()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to delete assessment')
+    } finally {
+      setDeleting(false)
+    }
+  }
 
   const headerSubtitle = useMemo(() => {
     if (!source) return name
@@ -268,7 +335,8 @@ export function HomicideRiskAssessmentDetailPanel({
   const hasFollowUp = hasText(detail?.followup_date) || hasText(detail?.followup_time)
 
   return (
-    <DetailSlideOver
+    <>
+      <DetailSlideOver
       title="Homicide Risk Assessment"
       subtitle={headerSubtitle}
       icon={<Shield className="h-5 w-5 text-emerald-700" strokeWidth={2} />}
@@ -276,6 +344,36 @@ export function HomicideRiskAssessmentDetailPanel({
       maxWidthClass="max-w-2xl"
       headerActions={
         <div className="flex items-center gap-2">
+          {canMutate ? (
+            <>
+              <button
+                type="button"
+                onClick={openEdit}
+                className="inline-flex h-9 items-center gap-1 rounded-lg border border-emerald-200/80 bg-white/80 px-2.5 text-xs font-semibold text-emerald-800 shadow-sm transition hover:bg-emerald-50"
+                title={
+                  lockEditingData
+                    ? 'Editing is locked in Healthcare Settings.'
+                    : 'Edit (within 24 hours of creation)'
+                }
+              >
+                <Pencil className="h-3.5 w-3.5" strokeWidth={2} />
+                Edit
+              </button>
+              <button
+                type="button"
+                onClick={openDelete}
+                className="inline-flex h-9 items-center gap-1 rounded-lg border border-red-200 bg-white/80 px-2.5 text-xs font-semibold text-red-700 shadow-sm transition hover:bg-red-50"
+                title={
+                  lockEditingData
+                    ? 'Editing is locked in Healthcare Settings.'
+                    : 'Delete (within 24 hours of creation)'
+                }
+              >
+                <Trash2 className="h-3.5 w-3.5" strokeWidth={2} />
+                Delete
+              </button>
+            </>
+          ) : null}
           {source?.risk_level ? (
             <span className={`text-xs font-medium px-2 py-0.5 rounded-full border ${riskClassName(source.risk_level)}`}>
               {source.risk_level}
@@ -566,6 +664,32 @@ export function HomicideRiskAssessmentDetailPanel({
           ) : null}
         </div>
       ) : null}
-    </DetailSlideOver>
+      </DetailSlideOver>
+
+      {showEdit && (
+        <CreateHomicideRiskAssessmentModal
+          editName={name}
+          onClose={() => setShowEdit(false)}
+          onSuccess={() => {
+            setShowEdit(false)
+            setReloadKey((n) => n + 1)
+            onChanged?.()
+          }}
+        />
+      )}
+
+      {showDelete && (
+        <ConfirmDialog
+          open
+          title="Delete Homicide Risk Assessment?"
+          message={`Delete ${name}? This cannot be undone.`}
+          confirmLabel="Delete"
+          variant="danger"
+          loading={deleting}
+          onCancel={() => setShowDelete(false)}
+          onConfirm={confirmDelete}
+        />
+      )}
+    </>
   )
 }

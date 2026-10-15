@@ -7,6 +7,13 @@ export interface PharmacyGiveOutWarehouseOptions {
   cost_center?: string
   /** When true, nurses must pick batch / dispensing lot on the give-out form. */
   display_batch_and_lot_on_pharmacy_giveout?: boolean
+  /**
+   * Practitioner in charge of the admission / visit. Used to default the give-out
+   * Doctor / Practitioner field, including when there is no current prescription.
+   */
+  attending_practitioner?: string
+  /** Display label for {@link attending_practitioner}. */
+  attending_practitioner_name?: string
 }
 
 export async function fetchPharmacyGiveOutWarehouses(

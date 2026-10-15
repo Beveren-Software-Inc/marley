@@ -6,10 +6,33 @@ from frappe import _
 from healthcare.api.assessment_portal_utils import (
     ensure_assessment_read_permission,
     is_yes_answer,
+    user_can_read_assessment_portal,
     yes_no_answer,
 )
 
 ASSESSMENT_DOCTYPE = "Clinical Suicide Risk Assessment"
+
+LIST_FIELDS = [
+    "name",
+    "patient",
+    "assessment_date",
+    "clinician",
+    "inpatient_admission",
+    "patient_visit",
+    "cost_center",
+    "risk_score",
+    "risk_level",
+    "docstatus",
+    # Needed by the portal list to decide whether the 24-hour edit/delete window
+    # is still open for each row.
+    "creation",
+    "modified",
+]
+
+# Edit / delete share the portal 24-hour creation window (see healthcare.editing_lock).
+SUICIDE_RISK_EDIT_LOCKED_MESSAGE = _(
+    "This suicide risk assessment can no longer be edited or deleted. Records are locked 24 hours after creation."
+)
 
 
 def _serialize_suicide_risk_assessment(doc) -> dict:
@@ -33,91 +56,180 @@ def get_suicide_risk_assessment(name: str | None = None):
 	doc = ensure_assessment_read_permission(ASSESSMENT_DOCTYPE, name)
 	return _serialize_suicide_risk_assessment(doc)
 
+
+def _apply_suicide_payload(doc, data: dict) -> None:
+    """Apply the create/update payload (basic info, answers, score and actions).
+
+    The patient is deliberately not touched here — an existing assessment keeps
+    its patient, and the create endpoint sets it before calling this helper.
+    """
+    doc.assessment_date = data.get("assessment_date")
+    doc.clinician = data.get("clinician")
+    doc.inpatient_admission = data.get("inpatient_admission")
+    doc.patient_visit = data.get("patient_visit")
+    if data.get("cost_center") is not None:
+        doc.cost_center = data.get("cost_center") or None
+
+    from healthcare.api.assessment_care_context import fill_assessment_cost_center_from_care_context
+
+    fill_assessment_cost_center_from_care_context(doc)
+    # Section 1: Suicidal Ideation
+    # Answers are stored as "Yes" / "No"; a question the clinician leaves
+    # unanswered stays blank (never assumed to be a "No").
+    doc.has_ideation = yes_no_answer(data.get("has_ideation"))
+    if doc.has_ideation == "Yes":
+        doc.ideation_frequency = data.get("ideation_frequency")
+        doc.ideation_duration = data.get("ideation_duration")
+        doc.ideation_increasing = data.get("ideation_increasing")
+        doc.ideation_24h = yes_no_answer(data.get("ideation_24h"))
+    
+    # Section 2: Current Plan
+    doc.has_plan = yes_no_answer(data.get("has_plan"))
+    if doc.has_plan == "Yes":
+        doc.plan_method = data.get("plan_method")
+        doc.plan_location = data.get("plan_location")
+        doc.plan_immediacy = data.get("plan_immediacy")
+        doc.access_lethal_means = yes_no_answer(data.get("access_lethal_means"))
+    
+    doc.risk_behavior = yes_no_answer(data.get("risk_behavior"))
+    if doc.risk_behavior == "Yes":
+        doc.risk_behavior_details = data.get("risk_behavior_details")
+    
+    # Section 3: History / Previous Attempts
+    doc.has_history = yes_no_answer(data.get("has_history"))
+    if doc.has_history == "Yes":
+        doc.attempt_count = data.get("attempt_count")
+        doc.last_attempt = data.get("last_attempt")
+    
+    doc.psychiatric_history = data.get("psychiatric_history")
+    if doc.psychiatric_history == "Yes":
+        doc.prior_psychiatric_diagnosis = data.get("prior_psychiatric_diagnosis")
+    
+    # Section 4: Current Stressors
+    doc.has_stressors = yes_no_answer(data.get("has_stressors"))
+    if doc.has_stressors == "Yes":
+        doc.stressors_description = data.get("stressors_description")
+    
+    # Section 5: Protective Factors - People
+    doc.has_support = yes_no_answer(data.get("has_support"))
+    if doc.has_support == "Yes":
+        doc.support_people = data.get("support_people")
+    
+    # Section 6: Protective Factors - Coping
+    doc.has_coping = yes_no_answer(data.get("has_coping"))
+    if doc.has_coping == "Yes":
+        doc.coping_strategies = data.get("coping_strategies")
+    
+    doc.reasons_to_live = data.get("reasons_to_live")
+    doc.personal_strengths = data.get("personal_strengths")
+    
+    # Calculate Risk Score and Level
+    risk_score = calculate_risk_score(data)
+    doc.risk_score = risk_score
+    doc.risk_level = get_risk_level(risk_score)
+    
+    # Actions
+    doc.actions_required = data.get("actions_required")
+
+
+def assert_suicide_risk_editable(name: str) -> None:
+    """Reject portal edit/delete once the 24-hour window from creation has closed."""
+    from healthcare.healthcare.editing_lock import (
+        assert_editing_allowed,
+        creation_edit_window_expired,
+    )
+
+    assert_editing_allowed()
+    creation = frappe.db.get_value(ASSESSMENT_DOCTYPE, name, "creation")
+    if creation_edit_window_expired(creation):
+        frappe.throw(
+            SUICIDE_RISK_EDIT_LOCKED_MESSAGE,
+            title=_("Not allowed"),
+            exc=frappe.ValidationError,
+        )
+
+
+def _assert_assessment_mutation_access(action: str) -> None:
+    """Portal clinical roles (or a role with the matching permission) may mutate."""
+    if user_can_read_assessment_portal() or frappe.has_permission(ASSESSMENT_DOCTYPE, action):
+        return
+    frappe.throw(
+        _("Not permitted to {0} {1}").format(action, ASSESSMENT_DOCTYPE),
+        frappe.PermissionError,
+    )
+
+
 @frappe.whitelist()
 def create_suicide_risk_assessment(data):
     """Create a new Clinical Suicide Risk Assessment record."""
     try:
         if isinstance(data, str):
             data = frappe.parse_json(data)
-        
-        doc = frappe.new_doc("Clinical Suicide Risk Assessment")
-        
-        # Basic Information
+
+        doc = frappe.new_doc(ASSESSMENT_DOCTYPE)
         doc.patient = data.get("patient")
-        doc.assessment_date = data.get("assessment_date")
-        doc.clinician = data.get("clinician")
-        doc.inpatient_admission = data.get("inpatient_admission")
-        doc.patient_visit = data.get("patient_visit")
-        if data.get("cost_center") is not None:
-            doc.cost_center = data.get("cost_center") or None
+        _apply_suicide_payload(doc, data)
 
-        from healthcare.api.assessment_care_context import fill_assessment_cost_center_from_care_context
-
-        fill_assessment_cost_center_from_care_context(doc)
-        # Section 1: Suicidal Ideation
-        # Answers are stored as "Yes" / "No"; a question the clinician leaves
-        # unanswered stays blank (never assumed to be a "No").
-        doc.has_ideation = yes_no_answer(data.get("has_ideation"))
-        if doc.has_ideation == "Yes":
-            doc.ideation_frequency = data.get("ideation_frequency")
-            doc.ideation_duration = data.get("ideation_duration")
-            doc.ideation_increasing = data.get("ideation_increasing")
-            doc.ideation_24h = yes_no_answer(data.get("ideation_24h"))
-        
-        # Section 2: Current Plan
-        doc.has_plan = yes_no_answer(data.get("has_plan"))
-        if doc.has_plan == "Yes":
-            doc.plan_method = data.get("plan_method")
-            doc.plan_location = data.get("plan_location")
-            doc.plan_immediacy = data.get("plan_immediacy")
-            doc.access_lethal_means = yes_no_answer(data.get("access_lethal_means"))
-        
-        doc.risk_behavior = yes_no_answer(data.get("risk_behavior"))
-        if doc.risk_behavior == "Yes":
-            doc.risk_behavior_details = data.get("risk_behavior_details")
-        
-        # Section 3: History / Previous Attempts
-        doc.has_history = yes_no_answer(data.get("has_history"))
-        if doc.has_history == "Yes":
-            doc.attempt_count = data.get("attempt_count")
-            doc.last_attempt = data.get("last_attempt")
-        
-        doc.psychiatric_history = data.get("psychiatric_history")
-        if doc.psychiatric_history == "Yes":
-            doc.prior_psychiatric_diagnosis = data.get("prior_psychiatric_diagnosis")
-        
-        # Section 4: Current Stressors
-        doc.has_stressors = yes_no_answer(data.get("has_stressors"))
-        if doc.has_stressors == "Yes":
-            doc.stressors_description = data.get("stressors_description")
-        
-        # Section 5: Protective Factors - People
-        doc.has_support = yes_no_answer(data.get("has_support"))
-        if doc.has_support == "Yes":
-            doc.support_people = data.get("support_people")
-        
-        # Section 6: Protective Factors - Coping
-        doc.has_coping = yes_no_answer(data.get("has_coping"))
-        if doc.has_coping == "Yes":
-            doc.coping_strategies = data.get("coping_strategies")
-        
-        doc.reasons_to_live = data.get("reasons_to_live")
-        doc.personal_strengths = data.get("personal_strengths")
-        
-        # Calculate Risk Score and Level
-        risk_score = calculate_risk_score(data)
-        doc.risk_score = risk_score
-        doc.risk_level = get_risk_level(risk_score)
-        
-        # Actions
-        doc.actions_required = data.get("actions_required")
-        
         doc.insert(ignore_permissions=True)
         frappe.db.commit()
         return {"success": True, "name": doc.name}
     except Exception as e:
         frappe.logger().error(f"Error creating suicide risk assessment: {str(e)}")
         return {"success": False, "message": str(e)}
+
+
+@frappe.whitelist()
+def update_suicide_risk_assessment(data):
+    """Update an existing Clinical Suicide Risk Assessment inside its 24-hour window."""
+    try:
+        if isinstance(data, str):
+            data = frappe.parse_json(data)
+        data = data or {}
+
+        name = (data.get("name") or "").strip()
+        if not name:
+            frappe.throw(_("Clinical Suicide Risk Assessment is required"))
+
+        if not frappe.db.exists(ASSESSMENT_DOCTYPE, name):
+            frappe.throw(_("Clinical Suicide Risk Assessment {0} not found").format(name))
+
+        _assert_assessment_mutation_access("write")
+
+        doc = frappe.get_doc(ASSESSMENT_DOCTYPE, name)
+        assert_suicide_risk_editable(doc.name)
+
+        _apply_suicide_payload(doc, data)
+
+        doc.save(ignore_permissions=True)
+        frappe.db.commit()
+        return {"success": True, "name": doc.name}
+    except Exception as e:
+        frappe.logger().error(f"Error updating suicide risk assessment: {str(e)}")
+        return {"success": False, "message": str(e)}
+
+
+@frappe.whitelist()
+def delete_suicide_risk_assessment(name):
+    """Delete a Clinical Suicide Risk Assessment inside its 24-hour window."""
+    try:
+        name = (name or "").strip()
+        if not name:
+            frappe.throw(_("Clinical Suicide Risk Assessment is required"))
+
+        if not frappe.db.exists(ASSESSMENT_DOCTYPE, name):
+            frappe.throw(_("Clinical Suicide Risk Assessment {0} not found").format(name))
+
+        _assert_assessment_mutation_access("delete")
+
+        assert_suicide_risk_editable(name)
+
+        frappe.delete_doc(ASSESSMENT_DOCTYPE, name, ignore_permissions=True)
+        frappe.db.commit()
+        return {"success": True, "name": name}
+    except Exception as e:
+        frappe.logger().error(f"Error deleting suicide risk assessment: {str(e)}")
+        return {"success": False, "message": str(e)}
+
 
 
 def calculate_risk_score(data):
@@ -249,19 +361,8 @@ def get_suicide_risk_assessments(
         filters.append(["inpatient_admission", "=", admission])
 
     assessments = frappe.get_list(
-        "Clinical Suicide Risk Assessment",
-        fields=[
-            "name",
-            "patient",
-            "assessment_date",
-            "clinician",
-            "inpatient_admission",
-            "patient_visit",
-            "cost_center",
-            "risk_score",
-            "risk_level",
-            "docstatus",
-        ],
+        ASSESSMENT_DOCTYPE,
+        fields=LIST_FIELDS,
         filters=filters,
         limit=50,
         order_by="assessment_date desc",

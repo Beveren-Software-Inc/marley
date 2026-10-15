@@ -45,8 +45,61 @@ LIST_FIELDS = [
 	"inpatient_admission",
 	"patient_visit",
 	"cost_center",
+	# Needed by the portal list to decide whether the 24-hour edit/delete window
+	# is still open for each row.
+	"creation",
+	"modified",
 	*CHECK_FIELDS,
 ]
+
+# Edit / delete share the portal 24-hour creation window (see healthcare.editing_lock).
+GENERAL_RISK_EDIT_LOCKED_MESSAGE = _(
+	"This general risk assessment can no longer be edited or deleted. Records are locked 24 hours after creation."
+)
+
+
+def _apply_assessment_payload(doc, data: dict) -> None:
+	"""Apply the create/update payload (basic info, Yes/No answers, notes).
+
+	The patient is deliberately not touched here — an existing assessment keeps
+	its patient, and the create endpoint sets it before calling this helper.
+	"""
+	doc.assessment_date = data.get("assessment_date") or frappe.utils.today()
+	apply_care_context_fields(doc, data)
+
+	for field in CHECK_FIELDS:
+		answer = yes_no_answer(data.get(field))
+		setattr(doc, field, answer)
+		# A reason only makes sense when the item was answered "Yes".
+		setattr(doc, f"{field}_reason", data.get(f"{field}_reason") if answer == "Yes" else None)
+	doc.notes = data.get("notes")
+
+
+def assert_general_risk_editable(name: str) -> None:
+	"""Reject portal edit/delete once the 24-hour window from creation has closed."""
+	from healthcare.healthcare.editing_lock import (
+		assert_editing_allowed,
+		creation_edit_window_expired,
+	)
+
+	assert_editing_allowed()
+	creation = frappe.db.get_value(DOCTYPE, name, "creation")
+	if creation_edit_window_expired(creation):
+		frappe.throw(
+			GENERAL_RISK_EDIT_LOCKED_MESSAGE,
+			title=_("Not allowed"),
+			exc=frappe.ValidationError,
+		)
+
+
+def _assert_assessment_mutation_access(action: str) -> None:
+	"""Portal clinical roles (or a role with the matching permission) may mutate."""
+	if user_can_read_assessment_portal() or frappe.has_permission(DOCTYPE, action):
+		return
+	frappe.throw(
+		_("Not permitted to {0} {1}").format(action, DOCTYPE),
+		frappe.PermissionError,
+	)
 
 
 def _serialize_general_risk_assessment(doc) -> dict:
@@ -85,21 +138,66 @@ def create_general_risk_assessment(data):
 
 		doc = frappe.new_doc(DOCTYPE)
 		doc.patient = data.get("patient")
-		doc.assessment_date = data.get("assessment_date") or frappe.utils.today()
-		apply_care_context_fields(doc, data)
-
-		for field in CHECK_FIELDS:
-			answer = yes_no_answer(data.get(field))
-			setattr(doc, field, answer)
-			# A reason only makes sense when the item was answered "Yes".
-			setattr(doc, f"{field}_reason", data.get(f"{field}_reason") if answer == "Yes" else None)
-		doc.notes = data.get("notes")
+		_apply_assessment_payload(doc, data)
 
 		doc.insert(ignore_permissions=True)
 		frappe.db.commit()
 		return {"success": True, "name": doc.name}
 	except Exception as e:
 		frappe.logger().error(f"Error creating general risk assessment: {str(e)}")
+		return {"success": False, "message": str(e)}
+
+
+@frappe.whitelist()
+def update_general_risk_assessment(data):
+	"""Update an existing General Risk Assessment inside its 24-hour window."""
+	try:
+		if isinstance(data, str):
+			data = frappe.parse_json(data)
+		data = data or {}
+
+		name = (data.get("name") or "").strip()
+		if not name:
+			frappe.throw(_("General Risk Assessment is required"))
+
+		if not frappe.db.exists(DOCTYPE, name):
+			frappe.throw(_("General Risk Assessment {0} not found").format(name))
+
+		_assert_assessment_mutation_access("write")
+
+		doc = frappe.get_doc(DOCTYPE, name)
+		assert_general_risk_editable(doc.name)
+
+		_apply_assessment_payload(doc, data)
+
+		doc.save(ignore_permissions=True)
+		frappe.db.commit()
+		return {"success": True, "name": doc.name}
+	except Exception as e:
+		frappe.logger().error(f"Error updating general risk assessment: {str(e)}")
+		return {"success": False, "message": str(e)}
+
+
+@frappe.whitelist()
+def delete_general_risk_assessment(name):
+	"""Delete a General Risk Assessment inside its 24-hour window."""
+	try:
+		name = (name or "").strip()
+		if not name:
+			frappe.throw(_("General Risk Assessment is required"))
+
+		if not frappe.db.exists(DOCTYPE, name):
+			frappe.throw(_("General Risk Assessment {0} not found").format(name))
+
+		_assert_assessment_mutation_access("delete")
+
+		assert_general_risk_editable(name)
+
+		frappe.delete_doc(DOCTYPE, name, ignore_permissions=True)
+		frappe.db.commit()
+		return {"success": True, "name": name}
+	except Exception as e:
+		frappe.logger().error(f"Error deleting general risk assessment: {str(e)}")
 		return {"success": False, "message": str(e)}
 
 

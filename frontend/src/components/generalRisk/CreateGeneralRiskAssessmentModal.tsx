@@ -12,13 +12,15 @@ import {
 } from '../ui/CreateModalChrome'
 import { DateFilterInput } from '../ui/DateFilterInput'
 import { YesNoSelect } from '../ui/YesNoSelect'
-import { selectFromYesNo, type YesNoChoice } from '../ui/yesNoValue'
+import { selectFromYesNo, yesNoFromValue, type YesNoChoice } from '../ui/yesNoValue'
 import {
   GENERAL_RISK_ITEMS,
   GENERAL_RISK_SECTIONS,
   createGeneralRiskAssessment,
+  fetchGeneralRiskAssessment,
   generalRiskReasonField,
   notifyRiskGapsChanged,
+  updateGeneralRiskAssessment,
 } from '../../services/generalRisk'
 import { searchPatients, fetchPatients, type PatientListItem } from '../../services/patients'
 import {
@@ -31,6 +33,8 @@ import {
   LOCKED_PRACTITIONER_INPUT_CLASS,
   useLockedLinkedPractitioner,
 } from '../../hooks/useLockedLinkedPractitioner'
+import { useBlockIfEditingLocked } from '../../hooks/useBlockIfEditingLocked'
+import { useRejectEditModeWhenLocked } from '../../hooks/useRejectEditModeWhenLocked'
 
 const nowDate = () => new Date().toISOString().split('T')[0]
 
@@ -46,6 +50,8 @@ interface CreateGeneralRiskAssessmentModalProps {
   patient?: string
   defaultAdmission?: string
   defaultVisit?: string
+  /** When set, the modal edits this General Risk Assessment instead of creating one. */
+  editName?: string
 }
 
 export const CreateGeneralRiskAssessmentModal = ({
@@ -54,13 +60,22 @@ export const CreateGeneralRiskAssessmentModal = ({
   patient,
   defaultAdmission,
   defaultVisit,
+  editName,
 }: CreateGeneralRiskAssessmentModalProps) => {
   const { mode, activeVisit, activeAdmission, selectedPatient: contextPatient } = useCareContext()
   const isIPMode = mode === 'IP'
   const isOPMode = mode === 'OP'
 
+  const isEdit = Boolean(editName?.trim())
+
+  // An existing record may only be touched while its 24-hour window is open,
+  // and never while Healthcare Settings locks clinical editing.
+  useRejectEditModeWhenLocked(isEdit, onClose)
+  const blockIfEditingLocked = useBlockIfEditingLocked()
+
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [loadingRecord, setLoadingRecord] = useState(isEdit)
 
   // Basic Info
   const [patientId, setPatientId] = useState(patient || contextPatient || '')
@@ -115,6 +130,49 @@ export const CreateGeneralRiskAssessmentModal = ({
       .catch(() => {})
   }, [patient, contextPatient])
 
+  // ── Load the record being edited ───────────────────────────────────────────
+  useEffect(() => {
+    const name = editName?.trim()
+    if (!name) return
+    let cancelled = false
+    setLoadingRecord(true)
+    setError(null)
+    fetchGeneralRiskAssessment(name)
+      .then((doc) => {
+        if (cancelled) return
+        setPatientId(doc.patient || patient || contextPatient || '')
+        if (doc.patient_name) {
+          setPatientQuery(doc.patient_name)
+          setPatientName(doc.patient_name)
+        }
+        setAssessmentDate(doc.assessment_date || nowDate())
+        setClinician(doc.practitioner || '')
+        setClinicianQuery(doc.practitioner_name || doc.practitioner || '')
+        setInpatientAdmission(doc.inpatient_admission || '')
+        setPatientVisit(doc.patient_visit || '')
+        const nextAnswers: Record<string, YesNoChoice> = {}
+        const nextReasons: Record<string, string> = {}
+        for (const item of GENERAL_RISK_ITEMS) {
+          nextAnswers[item.key] = yesNoFromValue(doc[item.key])
+          nextReasons[item.key] = String(doc[generalRiskReasonField(item.key)] ?? '')
+        }
+        setAnswers(nextAnswers)
+        setReasons(nextReasons)
+        setNotes(String(doc.notes ?? ''))
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : 'Failed to load assessment')
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingRecord(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [editName, patient, contextPatient])
+
   // ── Practitioner options + auto-fill ───────────────────────────────────────
   useEffect(() => {
     if (!clinicianOpen) return
@@ -133,9 +191,11 @@ export const CreateGeneralRiskAssessmentModal = ({
   }, [linkedPractitionerId, linkedPractitionerLabel])
 
   useEffect(() => {
+    // Edits keep the admission / visit already stored on the record.
+    if (isEdit) return
     if (isIPMode && activeAdmission) setInpatientAdmission(activeAdmission)
     if (isOPMode && activeVisit) setPatientVisit(activeVisit)
-  }, [isIPMode, isOPMode, activeAdmission, activeVisit])
+  }, [isEdit, isIPMode, isOPMode, activeAdmission, activeVisit])
 
   // ── Visit label when auto-filled ───────────────────────────────────────────
   useEffect(() => {
@@ -179,6 +239,14 @@ export const CreateGeneralRiskAssessmentModal = ({
       setError('Patient is required')
       return
     }
+    if (isEdit) {
+      // Healthcare Settings may lock all edits to existing records.
+      try {
+        blockIfEditingLocked()
+      } catch {
+        return
+      }
+    }
 
     setSaving(true)
     setError(null)
@@ -192,15 +260,19 @@ export const CreateGeneralRiskAssessmentModal = ({
           answer === 'yes' ? reasons[item.key]?.trim() || '' : ''
       }
 
-      const result = await createGeneralRiskAssessment({
-        patient: patientId,
+      const payload = {
         assessment_date: assessmentDate,
-        practitioner: clinician || undefined,
-        inpatient_admission: inpatientAdmission || undefined,
-        patient_visit: patientVisit || undefined,
-        notes: notes.trim() || undefined,
+        practitioner: clinician || '',
+        inpatient_admission: inpatientAdmission || '',
+        patient_visit: patientVisit || '',
+        notes: notes.trim() || '',
         ...riskAnswers,
-      })
+      }
+
+      const result =
+        isEdit && editName
+          ? await updateGeneralRiskAssessment({ name: editName.trim(), ...payload })
+          : await createGeneralRiskAssessment({ patient: patientId, ...payload })
 
       if (result.success) {
         // A Yes on Suicidal risk / Homicide flags the matching sidebar screen red
@@ -209,10 +281,18 @@ export const CreateGeneralRiskAssessmentModal = ({
         notifyRiskGapsChanged()
         onSuccess()
       } else {
-        setError(result.message || 'Failed to create assessment')
+        setError(
+          result.message || (isEdit ? 'Failed to update assessment' : 'Failed to create assessment')
+        )
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create assessment')
+      setError(
+        err instanceof Error
+          ? err.message
+          : isEdit
+            ? 'Failed to update assessment'
+            : 'Failed to create assessment'
+      )
     } finally {
       setSaving(false)
     }
@@ -222,14 +302,24 @@ export const CreateGeneralRiskAssessmentModal = ({
     <div className={CREATE_MODAL_OVERLAY}>
       <div className={createModalShellClass('max-w-4xl w-full max-h-[92vh] overflow-hidden')}>
         <CreateModalHeader
-          title="General Risk Assessment"
-          subtitle="Screening risk towards self, towards others and from others"
+          title={isEdit ? 'Edit General Risk Assessment' : 'General Risk Assessment'}
+          subtitle={
+            isEdit
+              ? 'Update the screening risk answers for this assessment'
+              : 'Screening risk towards self, towards others and from others'
+          }
           icon={<ClipboardList className="h-5 w-5 text-emerald-700" strokeWidth={2} />}
           onClose={onClose}
         />
 
         <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
           <div className={`${CREATE_MODAL_BODY_GRADIENT} p-5 space-y-6`}>
+            {loadingRecord ? (
+              <div className="flex items-center justify-center py-16 text-sm text-slate-500">
+                Loading assessment…
+              </div>
+            ) : (
+              <>
             {/* Basic Information */}
             <div className="bg-white border border-slate-200 rounded-lg p-4">
               <h3 className="text-md font-semibold text-slate-800 mb-4 flex items-center gap-2">
@@ -432,6 +522,8 @@ export const CreateGeneralRiskAssessmentModal = ({
                 className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
               />
             </div>
+              </>
+            )}
 
             {error && (
               <div className="bg-red-50 border border-red-200 rounded-md p-3 text-sm text-red-700">
@@ -444,8 +536,8 @@ export const CreateGeneralRiskAssessmentModal = ({
             <button type="button" onClick={onClose} className={CM_BTN_CANCEL}>
               Cancel
             </button>
-            <button type="submit" disabled={saving} className={CM_BTN_PRIMARY}>
-              {saving ? 'Creating…' : 'Create Assessment'}
+            <button type="submit" disabled={saving || loadingRecord} className={CM_BTN_PRIMARY}>
+              {saving ? 'Saving…' : isEdit ? 'Save Changes' : 'Create Assessment'}
             </button>
           </CreateModalFooter>
         </form>

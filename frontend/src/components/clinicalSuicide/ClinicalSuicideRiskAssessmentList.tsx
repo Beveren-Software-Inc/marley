@@ -1,14 +1,25 @@
 // components/suicideRisk/SuicideRiskAssessmentList.tsx
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { MoreHorizontal, Pencil, Trash2 } from 'lucide-react'
 import {
+  deleteSuicideRiskAssessment,
   fetchSuicideRiskAssessments,
   type SuicideRiskAssessmentRow,
 } from '../../services/suicideRisk'
+import { notifyRiskGapsChanged } from '../../services/generalRisk'
 import { useCareContext } from '../../providers/CareContextProvider'
+import { toast } from '../../hooks/useToast'
 import { useCardFilters } from '../../contexts/CardFilterContext'
+import {
+  SUICIDE_RISK_EDIT_LOCKED_MESSAGE,
+  isSuicideRiskEditable,
+} from '../../constants/nursingShift'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 import { ClearFiltersButton } from '../ui/ClearFiltersButton'
+import { PortalActionsMenu } from '../ui/PortalActionsMenu'
+import { ConfirmDialog } from '../ui/ConfirmDialog'
 import { ClinicalSuicideRiskAssessmentDetailPanel } from './ClinicalSuicideRiskAssessmentDetailPanel'
+import { CreateSuicideRiskAssessmentModal } from './CreateClinicalSuicideRiskAssessmentModal'
 import { DateFilterInput } from '../ui/DateFilterInput'
 
 interface SuicideRiskAssessmentListProps {
@@ -55,7 +66,14 @@ export const SuicideRiskAssessmentList = ({
   onPatientClick,
   scopeToActiveAdmission = true,
 }: SuicideRiskAssessmentListProps) => {
-  const { mode, activeAdmission, activeVisit, selectedPatient: contextPatient } = useCareContext()
+  const {
+    mode,
+    activeAdmission,
+    activeVisit,
+    selectedPatient: contextPatient,
+    guardClinicalEdit,
+    lockEditingData,
+  } = useCareContext()
   const effectivePatient = patient ?? contextPatient ?? undefined
   const scopedAdmission =
     scopeToActiveAdmission && mode === 'IP' && activeAdmission
@@ -70,6 +88,12 @@ export const SuicideRiskAssessmentList = ({
   const [search, setSearch] = useState('')
   const [selected, setSelected] = useState<SuicideRiskAssessmentRow | null>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [localRefresh, setLocalRefresh] = useState(0)
+  const [openActionRow, setOpenActionRow] = useState<string | null>(null)
+  const actionMenuRef = useRef<HTMLDivElement>(null)
+  const [editName, setEditName] = useState<string | null>(null)
+  const [deleteRow, setDeleteRow] = useState<SuicideRiskAssessmentRow | null>(null)
+  const [deleting, setDeleting] = useState(false)
 
   const cardFilters = useCardFilters()
   const [showFiltersInternal, setShowFiltersInternal] = useState(false)
@@ -100,13 +124,85 @@ export const SuicideRiskAssessmentList = ({
 
   useEffect(() => {
     load()
-  }, [effectivePatient, scopedAdmission, scopedVisit, refreshKey])
+  }, [effectivePatient, scopedAdmission, scopedVisit, refreshKey, localRefresh])
+
+  // Close the row actions menu on an outside click.
+  useEffect(() => {
+    if (!openActionRow) return
+    const handler = (e: MouseEvent) => {
+      const el = e.target as HTMLElement
+      if (el.closest('[data-portal-actions-menu]')) return
+      if (el.closest('button[aria-label="Actions"]')) return
+      if (actionMenuRef.current && !actionMenuRef.current.contains(e.target as Node)) {
+        setOpenActionRow(null)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [openActionRow])
 
   const handleSearchChange = (q: string) => {
     setSearch(q)
     if (effectivePatient) return
     if (debounceRef.current) clearTimeout(debounceRef.current)
     debounceRef.current = setTimeout(() => load(q), 350)
+  }
+
+  const bump = () => setLocalRefresh((n) => n + 1)
+
+  /**
+   * Edit / delete stay open for the 24 hours after creation.
+   *
+   * Healthcare Settings → "Lock Editing Data" is still enforced when the user
+   * clicks (`guardClinicalEdit` + the API guard); it only no longer greys the
+   * action out before the 24-hour window closes, so the menu reflects the rule.
+   */
+  const canMutateRow = (row: SuicideRiskAssessmentRow) =>
+    Boolean(row.creation) && isSuicideRiskEditable(String(row.creation || ''), true)
+
+  const lockedMessage = () =>
+    lockEditingData
+      ? 'Editing is locked in Healthcare Settings.'
+      : SUICIDE_RISK_EDIT_LOCKED_MESSAGE
+
+  const openEdit = (row: SuicideRiskAssessmentRow) => {
+    setOpenActionRow(null)
+    if (!canMutateRow(row)) {
+      toast.error(lockedMessage())
+      return
+    }
+    guardClinicalEdit(() => setEditName(String(row.name)))
+  }
+
+  const openDelete = (row: SuicideRiskAssessmentRow) => {
+    setOpenActionRow(null)
+    if (!canMutateRow(row)) {
+      toast.error(lockedMessage())
+      return
+    }
+    guardClinicalEdit(() => setDeleteRow(row))
+  }
+
+  const confirmDelete = async () => {
+    if (!deleteRow?.name) return
+    setDeleting(true)
+    try {
+      const result = await deleteSuicideRiskAssessment(String(deleteRow.name))
+      if (!result.success) {
+        throw new Error(result.message || 'Failed to delete assessment')
+      }
+      toast.success('Suicide Risk Assessment deleted')
+      if (selected?.name === deleteRow.name) setSelected(null)
+      if (editName === deleteRow.name) setEditName(null)
+      setDeleteRow(null)
+      // Removing the record may clear a flagged risk in the sidebar.
+      notifyRiskGapsChanged()
+      bump()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to delete assessment')
+    } finally {
+      setDeleting(false)
+    }
   }
 
   const filteredRecords = useMemo(() => {
@@ -278,13 +374,65 @@ export const SuicideRiskAssessmentList = ({
                   </td>
                   <td className="px-3 py-2">{riskLevelBadge(r.risk_level)}</td>
                   <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
-                    <PrintFormatDropdown
-                      doctype="Clinical Suicide Risk Assessment"
-                      docName={r.name}
-                      noLetterhead={0}
-                      triggerPrint={1}
-                      className="inline-flex items-center justify-center w-8 h-8 rounded border border-slate-300 bg-white text-primary hover:bg-slate-50"
-                    />
+                    <div className="flex items-center gap-1.5">
+                      <div
+                        className="relative"
+                        ref={openActionRow === r.name ? actionMenuRef : undefined}
+                      >
+                        <button
+                          type="button"
+                          aria-label="Actions"
+                          onClick={() =>
+                            setOpenActionRow((prev) => (prev === r.name ? null : r.name))
+                          }
+                          className="inline-flex h-8 w-8 items-center justify-center rounded border border-slate-300 bg-white text-slate-600 hover:bg-slate-50"
+                        >
+                          <MoreHorizontal className="h-4 w-4" aria-hidden />
+                        </button>
+                        <PortalActionsMenu
+                          open={openActionRow === r.name}
+                          onClose={() => setOpenActionRow(null)}
+                          triggerRef={actionMenuRef}
+                          minWidth={170}
+                        >
+                          <button
+                            type="button"
+                            onClick={() => openEdit(r)}
+                            disabled={!canMutateRow(r)}
+                            title={
+                              canMutateRow(r) && !lockEditingData
+                                ? 'Edit (within 24 hours of creation)'
+                                : lockedMessage()
+                            }
+                            className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-45"
+                          >
+                            <Pencil className="h-3.5 w-3.5 shrink-0 text-slate-500" aria-hidden />
+                            Edit
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => openDelete(r)}
+                            disabled={!canMutateRow(r)}
+                            title={
+                              canMutateRow(r) && !lockEditingData
+                                ? 'Delete (within 24 hours of creation)'
+                                : lockedMessage()
+                            }
+                            className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-45"
+                          >
+                            <Trash2 className="h-3.5 w-3.5 shrink-0 text-red-500" aria-hidden />
+                            Delete
+                          </button>
+                        </PortalActionsMenu>
+                      </div>
+                      <PrintFormatDropdown
+                        doctype="Clinical Suicide Risk Assessment"
+                        docName={r.name}
+                        noLetterhead={0}
+                        triggerPrint={1}
+                        className="inline-flex items-center justify-center w-8 h-8 rounded border border-slate-300 bg-white text-primary hover:bg-slate-50"
+                      />
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -299,6 +447,33 @@ export const SuicideRiskAssessmentList = ({
           preview={selected}
           onClose={() => setSelected(null)}
           onPatientClick={onPatientClick}
+          onChanged={bump}
+          refreshKey={localRefresh}
+        />
+      )}
+
+      {editName && (
+        <CreateSuicideRiskAssessmentModal
+          editName={editName}
+          onClose={() => setEditName(null)}
+          onSuccess={() => {
+            setEditName(null)
+            // Reloads the list and re-fetches the open detail panel.
+            bump()
+          }}
+        />
+      )}
+
+      {deleteRow && (
+        <ConfirmDialog
+          open
+          title="Delete Suicide Risk Assessment?"
+          message={`Delete ${deleteRow.name}? This cannot be undone.`}
+          confirmLabel="Delete"
+          variant="danger"
+          loading={deleting}
+          onCancel={() => setDeleteRow(null)}
+          onConfirm={confirmDelete}
         />
       )}
     </div>
