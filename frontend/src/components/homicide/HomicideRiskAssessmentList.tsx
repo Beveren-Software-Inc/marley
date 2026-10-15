@@ -1,5 +1,7 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { MoreHorizontal, Pencil, Trash2 } from 'lucide-react'
 import {
+  deleteHomicideRiskAssessment,
   fetchHomicideRiskAssessments,
   type HomicideRiskAssessmentListFilters,
   type HomicideRiskAssessmentRow,
@@ -8,10 +10,20 @@ import {
   fetchDoctorPractitioners,
   type LinkFieldOption,
 } from '../../services/common'
+import { notifyRiskGapsChanged } from '../../services/generalRisk'
+import { useCareContext } from '../../providers/CareContextProvider'
+import { toast } from '../../hooks/useToast'
 import { useCardFilters } from '../../contexts/CardFilterContext'
+import {
+  HOMICIDE_RISK_EDIT_LOCKED_MESSAGE,
+  isHomicideRiskEditable,
+} from '../../constants/nursingShift'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 import { ClearFiltersButton } from '../ui/ClearFiltersButton'
+import { PortalActionsMenu } from '../ui/PortalActionsMenu'
+import { ConfirmDialog } from '../ui/ConfirmDialog'
 import { HomicideRiskAssessmentDetailPanel } from './HomicideRiskAssessmentDetailPanel'
+import { CreateHomicideRiskAssessmentModal } from './CreateHomicideRiskAssessmentModal'
 import { DateFilterInput } from '../ui/DateFilterInput'
 
 interface HomicideRiskAssessmentListProps {
@@ -45,26 +57,6 @@ const FilterToggleButton = ({
   </button>
 )
 
-const statusBadge = (docstatus: number) => {
-  if (docstatus === 1)
-    return (
-      <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium bg-emerald-100 text-emerald-700">
-        Submitted
-      </span>
-    )
-  if (docstatus === 2)
-    return (
-      <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium bg-red-100 text-red-700">
-        Cancelled
-      </span>
-    )
-  return (
-    <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium bg-amber-100 text-amber-700">
-      Draft
-    </span>
-  )
-}
-
 const riskLevelBadge = (level?: string) => {
   if (!level) return <span className="text-slate-400">—</span>
 
@@ -90,6 +82,7 @@ export const HomicideRiskAssessmentList = ({
 }: HomicideRiskAssessmentListProps) => {
   const cardFilters = useCardFilters()
   const inDashboardCard = cardFilters !== undefined
+  const { guardClinicalEdit, lockEditingData } = useCareContext()
   const [showFiltersInternal, setShowFiltersInternal] = useState(false)
   const showFilters = inDashboardCard ? cardFilters : showFiltersInternal
 
@@ -98,6 +91,12 @@ export const HomicideRiskAssessmentList = ({
   const [error, setError] = useState<string | null>(null)
   const [detailName, setDetailName] = useState<string | null>(null)
   const [detailRow, setDetailRow] = useState<HomicideRiskAssessmentRow | undefined>(undefined)
+  const [localRefresh, setLocalRefresh] = useState(0)
+  const [openActionRow, setOpenActionRow] = useState<string | null>(null)
+  const actionMenuRef = useRef<HTMLDivElement>(null)
+  const [editName, setEditName] = useState<string | null>(null)
+  const [deleteRow, setDeleteRow] = useState<HomicideRiskAssessmentRow | null>(null)
+  const [deleting, setDeleting] = useState(false)
 
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
@@ -135,7 +134,22 @@ export const HomicideRiskAssessmentList = ({
 
   useEffect(() => {
     load()
-  }, [load, refreshKey])
+  }, [load, refreshKey, localRefresh])
+
+  // Close the row actions menu on an outside click.
+  useEffect(() => {
+    if (!openActionRow) return
+    const handler = (e: MouseEvent) => {
+      const el = e.target as HTMLElement
+      if (el.closest('[data-portal-actions-menu]')) return
+      if (el.closest('button[aria-label="Actions"]')) return
+      if (actionMenuRef.current && !actionMenuRef.current.contains(e.target as Node)) {
+        setOpenActionRow(null)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [openActionRow])
 
   useEffect(() => {
     if (!practitionerOpen) return
@@ -163,6 +177,66 @@ export const HomicideRiskAssessmentList = ({
   const handleView = (row: HomicideRiskAssessmentRow) => {
     setDetailRow(row)
     setDetailName(row.name)
+  }
+
+  const bump = () => setLocalRefresh((n) => n + 1)
+
+  /**
+   * Edit / delete stay open for the 24 hours after creation.
+   *
+   * Healthcare Settings → "Lock Editing Data" is still enforced when the user
+   * clicks (`guardClinicalEdit` + the API guard); it only no longer greys the
+   * action out before the 24-hour window closes, so the menu reflects the rule.
+   */
+  const canMutateRow = (row: HomicideRiskAssessmentRow) =>
+    Boolean(row.creation) && isHomicideRiskEditable(String(row.creation || ''), true)
+
+  const lockedMessage = () =>
+    lockEditingData
+      ? 'Editing is locked in Healthcare Settings.'
+      : HOMICIDE_RISK_EDIT_LOCKED_MESSAGE
+
+  const openEdit = (row: HomicideRiskAssessmentRow) => {
+    setOpenActionRow(null)
+    if (!canMutateRow(row)) {
+      toast.error(lockedMessage())
+      return
+    }
+    guardClinicalEdit(() => setEditName(String(row.name)))
+  }
+
+  const openDelete = (row: HomicideRiskAssessmentRow) => {
+    setOpenActionRow(null)
+    if (!canMutateRow(row)) {
+      toast.error(lockedMessage())
+      return
+    }
+    guardClinicalEdit(() => setDeleteRow(row))
+  }
+
+  const confirmDelete = async () => {
+    if (!deleteRow?.name) return
+    setDeleting(true)
+    try {
+      const result = await deleteHomicideRiskAssessment(String(deleteRow.name))
+      if (!result.success) {
+        throw new Error(result.message || 'Failed to delete assessment')
+      }
+      toast.success('Homicide Risk Assessment deleted')
+      if (detailName === deleteRow.name) {
+        setDetailName(null)
+        setDetailRow(undefined)
+      }
+      if (editName === deleteRow.name) setEditName(null)
+      setDeleteRow(null)
+      // Removing the record may clear a flagged risk in the sidebar.
+      notifyRiskGapsChanged()
+      bump()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to delete assessment')
+    } finally {
+      setDeleting(false)
+    }
   }
 
   const clearFilters = () => {
@@ -298,7 +372,6 @@ export const HomicideRiskAssessmentList = ({
                 <th className="px-3 py-2 text-left font-semibold text-slate-600">Date</th>
                 <th className="px-3 py-2 text-left font-semibold text-slate-600">Doctor</th>
                 <th className="px-3 py-2 text-left font-semibold text-slate-600">Risk Level</th>
-                <th className="px-3 py-2 text-left font-semibold text-slate-600">Status</th>
                 <th className="px-3 py-2 text-left font-semibold text-slate-600">Action</th>
               </tr>
             </thead>
@@ -323,17 +396,66 @@ export const HomicideRiskAssessmentList = ({
                   <td className="px-3 py-2 cursor-pointer" onClick={() => handleView(r)}>
                     {riskLevelBadge(r.risk_level)}
                   </td>
-                  <td className="px-3 py-2 cursor-pointer" onClick={() => handleView(r)}>
-                    {statusBadge(r.docstatus)}
-                  </td>
                   <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
-                    <PrintFormatDropdown
-                      doctype="Homicide Risk Assessment"
-                      docName={r.name}
-                      noLetterhead={0}
-                      triggerPrint={1}
-                      className="inline-flex items-center justify-center w-8 h-8 rounded border border-slate-300 bg-white text-primary hover:bg-slate-50"
-                    />
+                    <div className="flex items-center gap-1.5">
+                      <div
+                        className="relative"
+                        ref={openActionRow === r.name ? actionMenuRef : undefined}
+                      >
+                        <button
+                          type="button"
+                          aria-label="Actions"
+                          onClick={() =>
+                            setOpenActionRow((prev) => (prev === r.name ? null : r.name))
+                          }
+                          className="inline-flex h-8 w-8 items-center justify-center rounded border border-slate-300 bg-white text-slate-600 hover:bg-slate-50"
+                        >
+                          <MoreHorizontal className="h-4 w-4" aria-hidden />
+                        </button>
+                        <PortalActionsMenu
+                          open={openActionRow === r.name}
+                          onClose={() => setOpenActionRow(null)}
+                          triggerRef={actionMenuRef}
+                          minWidth={170}
+                        >
+                          <button
+                            type="button"
+                            onClick={() => openEdit(r)}
+                            disabled={!canMutateRow(r)}
+                            title={
+                              canMutateRow(r) && !lockEditingData
+                                ? 'Edit (within 24 hours of creation)'
+                                : lockedMessage()
+                            }
+                            className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-45"
+                          >
+                            <Pencil className="h-3.5 w-3.5 shrink-0 text-slate-500" aria-hidden />
+                            Edit
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => openDelete(r)}
+                            disabled={!canMutateRow(r)}
+                            title={
+                              canMutateRow(r) && !lockEditingData
+                                ? 'Delete (within 24 hours of creation)'
+                                : lockedMessage()
+                            }
+                            className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-45"
+                          >
+                            <Trash2 className="h-3.5 w-3.5 shrink-0 text-red-500" aria-hidden />
+                            Delete
+                          </button>
+                        </PortalActionsMenu>
+                      </div>
+                      <PrintFormatDropdown
+                        doctype="Homicide Risk Assessment"
+                        docName={r.name}
+                        noLetterhead={0}
+                        triggerPrint={1}
+                        className="inline-flex items-center justify-center w-8 h-8 rounded border border-slate-300 bg-white text-primary hover:bg-slate-50"
+                      />
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -351,6 +473,33 @@ export const HomicideRiskAssessmentList = ({
             setDetailRow(undefined)
           }}
           onPatientClick={onPatientClick}
+          onChanged={bump}
+          refreshKey={localRefresh}
+        />
+      )}
+
+      {editName && (
+        <CreateHomicideRiskAssessmentModal
+          editName={editName}
+          onClose={() => setEditName(null)}
+          onSuccess={() => {
+            setEditName(null)
+            // Reloads the list and re-fetches the open detail panel.
+            bump()
+          }}
+        />
+      )}
+
+      {deleteRow && (
+        <ConfirmDialog
+          open
+          title="Delete Homicide Risk Assessment?"
+          message={`Delete ${deleteRow.name}? This cannot be undone.`}
+          confirmLabel="Delete"
+          variant="danger"
+          loading={deleting}
+          onCancel={() => setDeleteRow(null)}
+          onConfirm={confirmDelete}
         />
       )}
     </div>

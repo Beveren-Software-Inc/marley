@@ -66,6 +66,9 @@ export interface GeneralRiskAssessmentRow {
   docstatus: number
   inpatient_admission?: string
   patient_visit?: string
+  /** Set by the list API so the UI can enforce the 24-hour edit window. */
+  creation?: string
+  modified?: string
   /** Answer fields are addressed by item key (see GENERAL_RISK_SECTIONS). */
   [field: string]: unknown
   self_harm?: RiskYesNo
@@ -138,20 +141,81 @@ export interface CreateGeneralRiskAssessmentInput {
   from_violence_reason?: string
 }
 
+/** Update payload — same fields as create, plus the record name; patient is fixed. */
+export interface UpdateGeneralRiskAssessmentInput
+  extends Omit<CreateGeneralRiskAssessmentInput, 'patient'> {
+  /** Name (ID) of the General Risk Assessment being updated. */
+  name: string
+}
+
 // ── Create assessment ─────────────────────────────────────────────────────────
 export async function createGeneralRiskAssessment(
   input: CreateGeneralRiskAssessmentInput
 ): Promise<{ success: boolean; name?: string; message?: string }> {
+  const { ensureCSRF } = await import('./apiClient')
+  const csrf = await ensureCSRF()
+
   const res = await fetch(
     '/api/method/healthcare.api.general_risk_assessment.create_general_risk_assessment',
     {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-Frappe-CSRF-Token': (window as any).csrf_token || '',
+        Accept: 'application/json',
+        ...(csrf ? { 'X-Frappe-CSRF-Token': csrf } : {}),
       },
       credentials: 'include',
       body: JSON.stringify({ data: JSON.stringify(input) }),
+    }
+  )
+  const data = await res.json()
+  const msg = data?.message
+  return msg ?? { success: false, message: 'Unknown error' }
+}
+
+// ── Update assessment (24-hour window) ────────────────────────────────────────
+export async function updateGeneralRiskAssessment(
+  input: UpdateGeneralRiskAssessmentInput
+): Promise<{ success: boolean; name?: string; message?: string }> {
+  const { ensureCSRF } = await import('./apiClient')
+  const csrf = await ensureCSRF()
+
+  const res = await fetch(
+    '/api/method/healthcare.api.general_risk_assessment.update_general_risk_assessment',
+    {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+        ...(csrf ? { 'X-Frappe-CSRF-Token': csrf } : {}),
+      },
+      body: JSON.stringify({ data: JSON.stringify(input) }),
+    }
+  )
+  const data = await res.json()
+  const msg = data?.message
+  return msg ?? { success: false, message: 'Unknown error' }
+}
+
+// ── Delete assessment (24-hour window) ────────────────────────────────────────
+export async function deleteGeneralRiskAssessment(
+  name: string
+): Promise<{ success: boolean; name?: string; message?: string }> {
+  const { ensureCSRF } = await import('./apiClient')
+  const csrf = await ensureCSRF()
+
+  const res = await fetch(
+    '/api/method/healthcare.api.general_risk_assessment.delete_general_risk_assessment',
+    {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+        ...(csrf ? { 'X-Frappe-CSRF-Token': csrf } : {}),
+      },
+      body: JSON.stringify({ name }),
     }
   )
   const data = await res.json()

@@ -1,16 +1,28 @@
 // components/generalRisk/GeneralRiskAssessmentList.tsx
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { MoreHorizontal, Pencil, Trash2 } from 'lucide-react'
 import {
   GENERAL_RISK_ITEMS,
+  deleteGeneralRiskAssessment,
   fetchGeneralRiskAssessments,
   isGeneralRiskFlagged,
+  notifyRiskGapsChanged,
   type GeneralRiskAssessmentListFilters,
   type GeneralRiskAssessmentRow,
 } from '../../services/generalRisk'
 import { fetchDoctorPractitioners, type LinkFieldOption } from '../../services/common'
 import { useCardFilters } from '../../contexts/CardFilterContext'
+import { useCareContext } from '../../providers/CareContextProvider'
+import { toast } from '../../hooks/useToast'
+import {
+  GENERAL_RISK_EDIT_LOCKED_MESSAGE,
+  isGeneralRiskEditable,
+} from '../../constants/nursingShift'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 import { ClearFiltersButton } from '../ui/ClearFiltersButton'
+import { PortalActionsMenu } from '../ui/PortalActionsMenu'
+import { ConfirmDialog } from '../ui/ConfirmDialog'
+import { CreateGeneralRiskAssessmentModal } from './CreateGeneralRiskAssessmentModal'
 import { GeneralRiskAssessmentDetailPanel } from './GeneralRiskAssessmentDetailPanel'
 import { DateFilterInput } from '../ui/DateFilterInput'
 
@@ -66,14 +78,21 @@ export const GeneralRiskAssessmentList = ({
 }: GeneralRiskAssessmentListProps) => {
   const cardFilters = useCardFilters()
   const inDashboardCard = cardFilters !== undefined
+  const { guardClinicalEdit, lockEditingData } = useCareContext()
   const [showFiltersInternal, setShowFiltersInternal] = useState(false)
   const showFilters = inDashboardCard ? cardFilters : showFiltersInternal
 
   const [records, setRecords] = useState<GeneralRiskAssessmentRow[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [localRefresh, setLocalRefresh] = useState(0)
   const [detailName, setDetailName] = useState<string | null>(null)
   const [detailRow, setDetailRow] = useState<GeneralRiskAssessmentRow | undefined>(undefined)
+  const [openActionRow, setOpenActionRow] = useState<string | null>(null)
+  const actionMenuRef = useRef<HTMLDivElement>(null)
+  const [editName, setEditName] = useState<string | null>(null)
+  const [deleteRow, setDeleteRow] = useState<GeneralRiskAssessmentRow | null>(null)
+  const [deleting, setDeleting] = useState(false)
 
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
@@ -111,7 +130,22 @@ export const GeneralRiskAssessmentList = ({
 
   useEffect(() => {
     load()
-  }, [load, refreshKey])
+  }, [load, refreshKey, localRefresh])
+
+  // Close the row actions menu on an outside click.
+  useEffect(() => {
+    if (!openActionRow) return
+    const handler = (e: MouseEvent) => {
+      const el = e.target as HTMLElement
+      if (el.closest('[data-portal-actions-menu]')) return
+      if (el.closest('button[aria-label="Actions"]')) return
+      if (actionMenuRef.current && !actionMenuRef.current.contains(e.target as Node)) {
+        setOpenActionRow(null)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [openActionRow])
 
   useEffect(() => {
     if (!practitionerOpen) return
@@ -139,6 +173,66 @@ export const GeneralRiskAssessmentList = ({
   const handleView = (row: GeneralRiskAssessmentRow) => {
     setDetailRow(row)
     setDetailName(row.name)
+  }
+
+  const bump = () => setLocalRefresh((n) => n + 1)
+
+  /**
+   * Edit / delete stay open for the 24 hours after creation.
+   *
+   * Healthcare Settings → "Lock Editing Data" is still enforced when the user
+   * clicks (`guardClinicalEdit` + the API guard); it only no longer greys the
+   * action out before the 24-hour window closes, so the menu reflects the rule.
+   */
+  const canMutateRow = (row: GeneralRiskAssessmentRow) =>
+    Boolean(row.creation) && isGeneralRiskEditable(String(row.creation || ''), true)
+
+  const lockedMessage = () =>
+    lockEditingData
+      ? 'Editing is locked in Healthcare Settings.'
+      : GENERAL_RISK_EDIT_LOCKED_MESSAGE
+
+  const openEdit = (row: GeneralRiskAssessmentRow) => {
+    setOpenActionRow(null)
+    if (!canMutateRow(row)) {
+      toast.error(lockedMessage())
+      return
+    }
+    guardClinicalEdit(() => setEditName(String(row.name)))
+  }
+
+  const openDelete = (row: GeneralRiskAssessmentRow) => {
+    setOpenActionRow(null)
+    if (!canMutateRow(row)) {
+      toast.error(lockedMessage())
+      return
+    }
+    guardClinicalEdit(() => setDeleteRow(row))
+  }
+
+  const confirmDelete = async () => {
+    if (!deleteRow?.name) return
+    setDeleting(true)
+    try {
+      const result = await deleteGeneralRiskAssessment(String(deleteRow.name))
+      if (!result.success) {
+        throw new Error(result.message || 'Failed to delete assessment')
+      }
+      toast.success('General Risk Assessment deleted')
+      if (detailName === deleteRow.name) {
+        setDetailName(null)
+        setDetailRow(undefined)
+      }
+      if (editName === deleteRow.name) setEditName(null)
+      setDeleteRow(null)
+      // Removing the answers may clear a flagged risk in the sidebar.
+      notifyRiskGapsChanged()
+      bump()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to delete assessment')
+    } finally {
+      setDeleting(false)
+    }
   }
 
   const clearFilters = () => {
@@ -280,40 +374,95 @@ export const GeneralRiskAssessmentList = ({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {records.map((r) => (
-                <tr key={r.name} className="hover:bg-slate-50">
-                  <td
-                    className="px-3 py-2 text-sm font-medium text-primary hover:underline cursor-pointer whitespace-nowrap"
-                    onClick={() => handleView(r)}
-                  >
-                    {r.name}
-                  </td>
-                  <td
-                    className="px-3 py-2 text-slate-900 font-medium whitespace-nowrap cursor-pointer"
-                    onClick={() => handleView(r)}
-                  >
-                    {fmt(r.assessment_date)}
-                  </td>
-                  <td
-                    className="px-3 py-2 text-slate-700 cursor-pointer whitespace-nowrap"
-                    onClick={() => handleView(r)}
-                  >
-                    {r.practitioner_name || r.practitioner || '—'}
-                  </td>
-                  <td className="px-3 py-2 cursor-pointer max-w-[280px]" onClick={() => handleView(r)}>
-                    {flaggedRisksCell(r)}
-                  </td>
-                  <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
-                    <PrintFormatDropdown
-                      doctype="General Risk Assessment"
-                      docName={r.name}
-                      noLetterhead={0}
-                      triggerPrint={1}
-                      className="inline-flex items-center justify-center w-8 h-8 rounded border border-slate-300 bg-white text-primary hover:bg-slate-50"
-                    />
-                  </td>
-                </tr>
-              ))}
+              {records.map((r) => {
+                const mutable = canMutateRow(r)
+                return (
+                  <tr key={r.name} className="hover:bg-slate-50">
+                    <td
+                      className="px-3 py-2 text-sm font-medium text-primary hover:underline cursor-pointer whitespace-nowrap"
+                      onClick={() => handleView(r)}
+                    >
+                      {r.name}
+                    </td>
+                    <td
+                      className="px-3 py-2 text-slate-900 font-medium whitespace-nowrap cursor-pointer"
+                      onClick={() => handleView(r)}
+                    >
+                      {fmt(r.assessment_date)}
+                    </td>
+                    <td
+                      className="px-3 py-2 text-slate-700 cursor-pointer whitespace-nowrap"
+                      onClick={() => handleView(r)}
+                    >
+                      {r.practitioner_name || r.practitioner || '—'}
+                    </td>
+                    <td className="px-3 py-2 cursor-pointer max-w-[280px]" onClick={() => handleView(r)}>
+                      {flaggedRisksCell(r)}
+                    </td>
+                    <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
+                      <div className="flex items-center gap-1.5">
+                        <div
+                          className="relative"
+                          ref={openActionRow === r.name ? actionMenuRef : undefined}
+                        >
+                          <button
+                            type="button"
+                            aria-label="Actions"
+                            onClick={() =>
+                              setOpenActionRow((prev) => (prev === r.name ? null : r.name))
+                            }
+                            className="inline-flex h-8 w-8 items-center justify-center rounded border border-slate-300 bg-white text-slate-600 hover:bg-slate-50"
+                          >
+                            <MoreHorizontal className="h-4 w-4" aria-hidden />
+                          </button>
+                          <PortalActionsMenu
+                            open={openActionRow === r.name}
+                            onClose={() => setOpenActionRow(null)}
+                            triggerRef={actionMenuRef}
+                            minWidth={170}
+                          >
+                            <button
+                              type="button"
+                              onClick={() => openEdit(r)}
+                              disabled={!mutable}
+                              title={
+                                mutable && !lockEditingData
+                                  ? 'Edit (within 24 hours of creation)'
+                                  : lockedMessage()
+                              }
+                              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-45"
+                            >
+                              <Pencil className="h-3.5 w-3.5 shrink-0 text-slate-500" aria-hidden />
+                              Edit
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => openDelete(r)}
+                              disabled={!mutable}
+                              title={
+                                mutable && !lockEditingData
+                                  ? 'Delete (within 24 hours of creation)'
+                                  : lockedMessage()
+                              }
+                              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-45"
+                            >
+                              <Trash2 className="h-3.5 w-3.5 shrink-0 text-red-500" aria-hidden />
+                              Delete
+                            </button>
+                          </PortalActionsMenu>
+                        </div>
+                        <PrintFormatDropdown
+                          doctype="General Risk Assessment"
+                          docName={r.name}
+                          noLetterhead={0}
+                          triggerPrint={1}
+                          className="inline-flex items-center justify-center w-8 h-8 rounded border border-slate-300 bg-white text-primary hover:bg-slate-50"
+                        />
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </div>
@@ -328,6 +477,33 @@ export const GeneralRiskAssessmentList = ({
             setDetailRow(undefined)
           }}
           onPatientClick={onPatientClick}
+          onChanged={bump}
+          refreshKey={localRefresh}
+        />
+      )}
+
+      {editName && (
+        <CreateGeneralRiskAssessmentModal
+          editName={editName}
+          onClose={() => setEditName(null)}
+          onSuccess={() => {
+            setEditName(null)
+            // Reloads the list and re-fetches the open detail panel.
+            bump()
+          }}
+        />
+      )}
+
+      {deleteRow && (
+        <ConfirmDialog
+          open
+          title="Delete General Risk Assessment?"
+          message={`Delete ${deleteRow.name}? This cannot be undone.`}
+          confirmLabel="Delete"
+          variant="danger"
+          loading={deleting}
+          onCancel={() => setDeleteRow(null)}
+          onConfirm={confirmDelete}
         />
       )}
     </div>

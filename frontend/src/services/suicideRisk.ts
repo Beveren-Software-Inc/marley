@@ -14,6 +14,9 @@ export interface SuicideRiskAssessmentRow {
   risk_score: number
   risk_level: string
   docstatus: number
+  /** Needed by the portal list to decide whether the 24-hour edit window is open. */
+  creation?: string
+  modified?: string
 }
 
 export interface SuicideRiskAssessmentDetail extends SuicideRiskAssessmentRow {
@@ -94,20 +97,81 @@ export interface CreateSuicideRiskAssessmentInput {
   actions_required?: string
 }
 
+/** Update payload — same fields as create, plus the record name; patient is fixed. */
+export interface UpdateSuicideRiskAssessmentInput
+  extends Omit<CreateSuicideRiskAssessmentInput, 'patient'> {
+  /** Name (ID) of the Clinical Suicide Risk Assessment being updated. */
+  name: string
+}
+
 // ── Create assessment ─────────────────────────────────────────────────────────
 export async function createSuicideRiskAssessment(
   input: CreateSuicideRiskAssessmentInput
 ): Promise<{ success: boolean; name?: string; message?: string }> {
+  const { ensureCSRF } = await import('./apiClient')
+  const csrf = await ensureCSRF()
+
   const res = await fetch(
     '/api/method/healthcare.api.clinical_suicide.create_suicide_risk_assessment',
     {
       method: 'POST',
+      credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
-        'X-Frappe-CSRF-Token': (window as any).csrf_token || '',
+        Accept: 'application/json',
+        ...(csrf ? { 'X-Frappe-CSRF-Token': csrf } : {}),
       },
-      credentials: 'include',
       body: JSON.stringify({ data: JSON.stringify(input) }),
+    }
+  )
+  const data = await res.json()
+  const msg = data?.message
+  return msg ?? { success: false, message: 'Unknown error' }
+}
+
+// ── Update assessment (24-hour window) ────────────────────────────────────────
+export async function updateSuicideRiskAssessment(
+  input: UpdateSuicideRiskAssessmentInput
+): Promise<{ success: boolean; name?: string; message?: string }> {
+  const { ensureCSRF } = await import('./apiClient')
+  const csrf = await ensureCSRF()
+
+  const res = await fetch(
+    '/api/method/healthcare.api.clinical_suicide.update_suicide_risk_assessment',
+    {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+        ...(csrf ? { 'X-Frappe-CSRF-Token': csrf } : {}),
+      },
+      body: JSON.stringify({ data: JSON.stringify(input) }),
+    }
+  )
+  const data = await res.json()
+  const msg = data?.message
+  return msg ?? { success: false, message: 'Unknown error' }
+}
+
+// ── Delete assessment (24-hour window) ────────────────────────────────────────
+export async function deleteSuicideRiskAssessment(
+  name: string
+): Promise<{ success: boolean; name?: string; message?: string }> {
+  const { ensureCSRF } = await import('./apiClient')
+  const csrf = await ensureCSRF()
+
+  const res = await fetch(
+    '/api/method/healthcare.api.clinical_suicide.delete_suicide_risk_assessment',
+    {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+        ...(csrf ? { 'X-Frappe-CSRF-Token': csrf } : {}),
+      },
+      body: JSON.stringify({ name }),
     }
   )
   const data = await res.json()

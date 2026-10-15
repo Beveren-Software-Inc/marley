@@ -10,7 +10,11 @@ import {
   createModalShellClass,
 } from '../ui/CreateModalChrome'
 import { Shield, AlertTriangle, Heart, Brain, Users, Target, Activity } from 'lucide-react'
-import { createSuicideRiskAssessment } from '../../services/suicideRisk'
+import {
+  createSuicideRiskAssessment,
+  fetchSuicideRiskAssessment,
+  updateSuicideRiskAssessment,
+} from '../../services/suicideRisk'
 import { notifyRiskGapsChanged } from '../../services/generalRisk'
 import { searchPatients, fetchPatients, type PatientListItem } from '../../services/patients'
 import {
@@ -25,7 +29,9 @@ import {
 } from '../../hooks/useLockedLinkedPractitioner'
 import { DateFilterInput } from '../ui/DateFilterInput'
 import { YesNoSelect } from '../ui/YesNoSelect'
-import { selectFromYesNo, type YesNoChoice } from '../ui/yesNoValue'
+import { selectFromYesNo, yesNoFromValue, type YesNoChoice } from '../ui/yesNoValue'
+import { useBlockIfEditingLocked } from '../../hooks/useBlockIfEditingLocked'
+import { useRejectEditModeWhenLocked } from '../../hooks/useRejectEditModeWhenLocked'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -39,6 +45,8 @@ interface CreateSuicideRiskAssessmentModalProps {
   patient?: string
   defaultAdmission?: string
   defaultVisit?: string
+  /** When set, the modal edits this Clinical Suicide Risk Assessment instead of creating one. */
+  editName?: string
 }
 
 export const CreateSuicideRiskAssessmentModal = ({
@@ -47,13 +55,22 @@ export const CreateSuicideRiskAssessmentModal = ({
   patient,
   defaultAdmission,
   defaultVisit,
+  editName,
 }: CreateSuicideRiskAssessmentModalProps) => {
   const { mode, activeVisit, activeAdmission, selectedPatient: contextPatient } = useCareContext()
   const isIPMode = mode === 'IP'
   const isOPMode = mode === 'OP'
 
+  const isEdit = Boolean(editName?.trim())
+
+  // An existing record may only be touched while its 24-hour window is open,
+  // and never while Healthcare Settings locks clinical editing.
+  useRejectEditModeWhenLocked(isEdit, onClose)
+  const blockIfEditingLocked = useBlockIfEditingLocked()
+
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [loadingRecord, setLoadingRecord] = useState(isEdit)
 
   // Basic Info
   const [patientId, setPatientId] = useState(patient || contextPatient || '')
@@ -135,6 +152,73 @@ export const CreateSuicideRiskAssessmentModal = ({
     }).catch(() => {})
   }, [patient, contextPatient])
 
+  // ── Load the record being edited ───────────────────────────────────────────
+  useEffect(() => {
+    const name = editName?.trim()
+    if (!name) return
+    let cancelled = false
+    setLoadingRecord(true)
+    setError(null)
+    fetchSuicideRiskAssessment(name)
+      .then((doc) => {
+        if (cancelled) return
+        setPatientId(doc.patient || patient || contextPatient || '')
+        if (doc.patient_name) {
+          setPatientQuery(doc.patient_name)
+          setPatientName(doc.patient_name)
+        }
+        setAssessmentDate(doc.assessment_date || nowDate())
+        setClinician(doc.clinician || '')
+        setClinicianQuery(doc.clinician_name || doc.clinician || '')
+        setInpatientAdmission(doc.inpatient_admission || '')
+        setPatientVisit(doc.patient_visit || '')
+
+        setHasIdeation(yesNoFromValue(doc.has_ideation))
+        setIdeationFrequency(doc.ideation_frequency || '')
+        setIdeationDuration(doc.ideation_duration || '')
+        setIdeationIncreasing(doc.ideation_increasing || '')
+        setIdeation24h(yesNoFromValue(doc.ideation_24h))
+
+        setHasPlan(yesNoFromValue(doc.has_plan))
+        setPlanMethod(doc.plan_method || '')
+        setPlanLocation(doc.plan_location || '')
+        setPlanImmediacy(doc.plan_immediacy || '')
+        setAccessLethalMeans(yesNoFromValue(doc.access_lethal_means))
+        setRiskBehavior(yesNoFromValue(doc.risk_behavior))
+        setRiskBehaviorDetails(doc.risk_behavior_details || '')
+
+        setHasHistory(yesNoFromValue(doc.has_history))
+        setAttemptCount(doc.attempt_count == null ? '' : String(doc.attempt_count))
+        setLastAttempt(doc.last_attempt || '')
+        setPsychiatricHistory(doc.psychiatric_history || '')
+        setPriorPsychiatricDiagnosis(doc.prior_psychiatric_diagnosis || '')
+
+        setHasStressors(yesNoFromValue(doc.has_stressors))
+        setStressorsDescription(doc.stressors_description || '')
+
+        setHasSupport(yesNoFromValue(doc.has_support))
+        setSupportPeople(doc.support_people || '')
+
+        setHasCoping(yesNoFromValue(doc.has_coping))
+        setCopingStrategies(doc.coping_strategies || '')
+        setReasonsToLive(doc.reasons_to_live || '')
+        setPersonalStrengths(doc.personal_strengths || '')
+
+        setActionsRequired(doc.actions_required || '')
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : 'Failed to load assessment')
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingRecord(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [editName, patient, contextPatient])
+
   // ── Practitioner options + auto-fill ───────────────────────────────────────
   useEffect(() => {
     if (!clinicianOpen) return
@@ -153,9 +237,11 @@ export const CreateSuicideRiskAssessmentModal = ({
   }, [linkedPractitionerId, linkedPractitionerLabel])
 
   useEffect(() => {
+    // Edits keep the admission / visit already stored on the record.
+    if (isEdit) return
     if (isIPMode && activeAdmission) setInpatientAdmission(activeAdmission)
     if (isOPMode && activeVisit) setPatientVisit(activeVisit)
-  }, [isIPMode, isOPMode, activeAdmission, activeVisit])
+  }, [isEdit, isIPMode, isOPMode, activeAdmission, activeVisit])
 
   // ── Visit label when auto-filled ───────────────────────────────────────────
   useEffect(() => {
@@ -191,11 +277,18 @@ export const CreateSuicideRiskAssessmentModal = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!patientId) { setError('Patient is required'); return }
-    
+    if (isEdit) {
+      // Healthcare Settings may lock all edits to existing records.
+      try {
+        blockIfEditingLocked()
+      } catch {
+        return
+      }
+    }
+
     setSaving(true); setError(null)
     try {
-      const result = await createSuicideRiskAssessment({
-        patient: patientId,
+      const payload = {
         assessment_date: assessmentDate,
         clinician: clinician || undefined,
         inpatient_admission: inpatientAdmission || undefined,
@@ -236,17 +329,30 @@ export const CreateSuicideRiskAssessmentModal = ({
         personal_strengths: personalStrengths || undefined,
         
         actions_required: actionsRequired || undefined,
-      })
-      
+      }
+
+      const result =
+        isEdit && editName
+          ? await updateSuicideRiskAssessment({ name: editName.trim(), ...payload })
+          : await createSuicideRiskAssessment({ patient: patientId, ...payload })
+
       if (result.success) {
         // Clears the red sidebar outline raised by a flagged General Risk item.
         notifyRiskGapsChanged()
         onSuccess()
       } else {
-        setError(result.message || 'Failed to create assessment')
+        setError(
+          result.message || (isEdit ? 'Failed to update assessment' : 'Failed to create assessment')
+        )
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create assessment')
+      setError(
+        err instanceof Error
+          ? err.message
+          : isEdit
+            ? 'Failed to update assessment'
+            : 'Failed to create assessment'
+      )
     } finally {
       setSaving(false)
     }
@@ -257,13 +363,25 @@ export const CreateSuicideRiskAssessmentModal = ({
       <div className={createModalShellClass('max-w-4xl w-full max-h-[92vh] overflow-hidden')}>
 
         <CreateModalHeader
-          title="Clinical Suicide Risk Assessment"
+          title={isEdit ? 'Edit Clinical Suicide Risk Assessment' : 'Clinical Suicide Risk Assessment'}
+          subtitle={
+            isEdit
+              ? 'Update the suicide risk answers for this assessment'
+              : 'Structured suicide risk screening for this patient'
+          }
           icon={<Shield className="h-5 w-5 text-emerald-700" strokeWidth={2} />}
           onClose={onClose}
         />
 
         <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
           <div className={`${CREATE_MODAL_BODY_GRADIENT} p-5 space-y-6`}>
+            {loadingRecord ? (
+              <div className="flex items-center justify-center py-16 text-sm text-slate-500">
+                Loading assessment…
+              </div>
+            ) : (
+              <>
+
             
             {/* Basic Information */}
             <div className="bg-white border border-slate-200 rounded-lg p-4">
@@ -739,14 +857,16 @@ export const CreateSuicideRiskAssessmentModal = ({
                 {error}
               </div>
             )}
+              </>
+            )}
           </div>
 
           <CreateModalFooter hint="Complete all relevant sections">
             <button type="button" onClick={onClose} className={CM_BTN_CANCEL}>
               Cancel
             </button>
-            <button type="submit" disabled={saving} className={CM_BTN_PRIMARY}>
-              {saving ? 'Creating…' : 'Create Assessment'}
+            <button type="submit" disabled={saving || loadingRecord} className={CM_BTN_PRIMARY}>
+              {saving ? 'Saving…' : isEdit ? 'Save Changes' : 'Create Assessment'}
             </button>
           </CreateModalFooter>
         </form>

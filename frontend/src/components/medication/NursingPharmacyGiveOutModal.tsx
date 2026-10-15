@@ -551,9 +551,14 @@ export function NursingPharmacyGiveOutModal({
         setLoadingWarehouses(true)
         let warehouseForStock = ''
         let costCenterForStock: string | undefined
+        // Practitioner in charge of this admission / visit, used to default the doctor.
+        let attendingPractitioner = ''
+        let attendingPractitionerName = ''
         try {
           const whOpts = await fetchPharmacyGiveOutWarehouses(admission || undefined, visit || undefined)
           if (cancelled) return
+          attendingPractitioner = whOpts.attending_practitioner || ''
+          attendingPractitionerName = whOpts.attending_practitioner_name || attendingPractitioner
           setGiveOutWarehouses(whOpts.warehouses)
           setMiniWarehouse(whOpts.mini_warehouse)
           setPharmacyWarehouse(whOpts.pharmacy_warehouse)
@@ -591,21 +596,12 @@ export function NursingPharmacyGiveOutModal({
           if (!cancelled) setLoadingWarehouses(false)
         }
 
-        const currentRx = await fetchPrescriptionByInpatientOrEncounter(admission || null, visit || null)
-        if (cancelled) return
-
-        if (!currentRx) {
-          setError('No current prescription found for this admission. Create a prescription first.')
-          setRows([])
-          return
-        }
-
-        setSourcePrescription(currentRx.name)
-
         // Attribute the give-out to the person actually doing it: if the logged-in
         // user is linked to a Healthcare Practitioner, default the Doctor /
-        // Practitioner field to them. Only fall back to the prescribing doctor on
-        // the prescription when the user has no linked practitioner.
+        // Practitioner field to them. This is resolved before the prescription lookup
+        // so an ad-hoc give-out (no current prescription for the admission) still gets
+        // a doctor defaulted; otherwise fall back to the practitioner in charge of the
+        // admission / visit.
         let currentUserPractitioner: LinkFieldOption | null = null
         try {
           currentUserPractitioner = await getCurrentUserPractitionerOption()
@@ -617,15 +613,37 @@ export function NursingPharmacyGiveOutModal({
         if (currentUserPractitioner?.name) {
           setPractitioner(currentUserPractitioner.name)
           setPractQuery(currentUserPractitioner.label || currentUserPractitioner.name)
-        } else {
-          const rxPractitioner = currentRx.practitioner || ''
+        } else if (attendingPractitioner) {
+          setPractitioner(attendingPractitioner)
+          setPractQuery(attendingPractitionerName || attendingPractitioner)
+        }
+
+        const currentRx = await fetchPrescriptionByInpatientOrEncounter(admission || null, visit || null)
+        if (cancelled) return
+
+        if (!currentRx) {
+          // No prescription on this admission yet: the nurse can still give out
+          // pharmacy stock ad-hoc, so keep the doctor default from above, leave the
+          // source prescription empty and let the medicines be added manually.
+          setSourcePrescription('')
+          setError('No current prescription found for this admission. Create a prescription first.')
+          setRows([])
+          return
+        }
+
+        setSourcePrescription(currentRx.name)
+
+        // The prescribing doctor on the current prescription overrides the admission /
+        // visit default when the user has no linked practitioner of their own.
+        if (!currentUserPractitioner?.name && currentRx.practitioner) {
+          const rxPractitioner = currentRx.practitioner
           setPractitioner(rxPractitioner)
           setPractQuery(
             currentRx.healthcare_practitioner_name ||
               rxPractitioner ||
               ''
           )
-          if (rxPractitioner && !currentRx.healthcare_practitioner_name) {
+          if (!currentRx.healthcare_practitioner_name) {
             try {
               const opts = await fetchHealthcarePractitioners(rxPractitioner)
               if (!cancelled) {
