@@ -45,6 +45,7 @@
   "by_nurse",
   "sample_collected",
   "upload",
+  "custom_speciment_type",
   "outsourced_section",
   "is_outsourced",
   "outsource_lab_name",
@@ -1321,6 +1322,12 @@
    "fieldtype": "Table",
    "label": "Uploaded Documents",
    "options": "Patient Upload Document"
+  },
+  {
+   "allow_on_submit": 1,
+   "fieldname": "custom_speciment_type",
+   "fieldtype": "Data",
+   "label": "Custom Speciment Type"
   }
  ],
  "is_submittable": 1,
@@ -1330,7 +1337,7 @@
    "link_fieldname": "reference_name"
   }
  ],
- "modified": "2026-09-28 19:31:43.936711",
+ "modified": "2026-10-15 16:40:21.365646",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Lab Test",

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { Fragment, useState, useEffect } from 'react'
 import { ClipboardCheck, Clock, UserCheck } from 'lucide-react'
 import { fetchLabTest, type LabTest } from '../../services/labTests'
 import { StatusPill } from '../ui/StatusPill'
@@ -260,6 +260,13 @@ export const LabTestDetails = ({ labTestName, onUpdate }: LabTestDetailsProps) =
             </div>
           ) : null}
 
+          {labTest.custom_speciment_type ? (
+            <p className="text-sm text-slate-700">
+              <span className="font-medium text-slate-500">Specimen type: </span>
+              {labTest.custom_speciment_type}
+            </p>
+          ) : null}
+
           {labTest.normal_test_items && labTest.normal_test_items.length > 0 && (
             <div>
               {resultLines.length > 0 ? (
@@ -299,9 +306,21 @@ export const LabTestDetails = ({ labTestName, onUpdate }: LabTestDetailsProps) =
                           lab_test_uom?: string
                           normal_range?: string
                           abnormal?: boolean
+                          collection_name?: string
                         },
-                        i: number
+                        i: number,
+                        all: Array<{ collection_name?: string }>
                       ) => (
+                        <Fragment key={i}>
+                        {(item.collection_name || '').trim() &&
+                        (item.collection_name || '').trim() !==
+                          (all[i - 1]?.collection_name || '').trim() ? (
+                          <tr className="bg-teal-700 text-white">
+                            <td colSpan={5} className="px-3 py-2 text-xs font-semibold uppercase tracking-wide">
+                              {item.collection_name}
+                            </td>
+                          </tr>
+                        ) : null}
                         <tr
                           key={i}
                           className={
@@ -361,6 +380,7 @@ export const LabTestDetails = ({ labTestName, onUpdate }: LabTestDetailsProps) =
                             )}
                           </td>
                         </tr>
+                        </Fragment>
                       )
                     )}
                   </tbody>

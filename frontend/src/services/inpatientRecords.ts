@@ -1188,3 +1188,122 @@ export async function createInvoiceForInpatientAdmission(inpatientAdmissionName:
   return resData.message;
 }
 
+
+export interface AdmissionPackageService {
+  service_type?: string
+  reference_doctype?: string
+  reference?: string
+  quantity_days?: number
+  is_unlimited?: number
+  label?: string
+}
+
+export interface AdmissionPackageInfo extends InpatientPackage {
+  daily_rate: number
+  category_name?: string
+  services: AdmissionPackageService[]
+  is_custom: number
+}
+
+export interface AdmissionPackageLedgerRow {
+  name: string
+  admission_no?: string
+  inpatient_package?: string
+  from_date?: string
+  to_date?: string
+  total_days?: number
+  amount_per_day?: number
+  transaction_amount?: number
+  currency?: string
+  vch_status?: string
+  quotation?: string
+  sales_order?: string
+  remarks?: string
+}
+
+export interface AdmissionPackageEnrollment {
+  name: string
+  package?: string
+  package_name?: string
+  package_rate?: number
+  start_date?: string
+  expected_discharge_date?: string
+  status?: string
+}
+
+export interface AdmissionPackageQuotation {
+  name: string
+  custom_package?: string
+  docstatus?: number
+  status?: string
+  transaction_date?: string
+  grand_total?: number
+  currency?: string
+}
+
+export interface AdmissionPackageSummary {
+  billed_days: number
+  billed_amount: number
+  stay_days: number
+  package_days_billed: number
+}
+
+export interface AdmissionPackageAdmissionInfo {
+  name: string
+  patient: string
+  patient_name?: string
+  status: string
+  inpatient_package?: string | null
+  rate_per_day?: number
+  standard_package?: number
+  package_days_billed?: number
+  scheduled_date?: string | null
+  admitted_datetime?: string | null
+  discharge_datetime?: string | null
+  expected_discharge?: string | null
+}
+
+export interface AdmissionPackageDetailsResponse {
+  admission: AdmissionPackageAdmissionInfo
+  active_package: AdmissionPackageInfo | null
+  package_source?: 'admission' | 'enrollment' | 'quotation' | 'package_detail' | 'custom' | null
+  enrollment: AdmissionPackageEnrollment | null
+  package_details: AdmissionPackageLedgerRow[]
+  quotations: AdmissionPackageQuotation[]
+  summary: AdmissionPackageSummary
+  can_change_package: boolean
+  default_currency: string
+  message?: string
+}
+
+/** Active package, package charges and change permission for an admission. */
+export async function fetchAdmissionPackageDetails(
+  admissionName: string
+): Promise<AdmissionPackageDetailsResponse> {
+  return await apiRequest<AdmissionPackageDetailsResponse>(
+    `/api/method/healthcare.api.inpatient_admission.get_admission_package_details?admission_name=${encodeURIComponent(admissionName)}`
+  )
+}
+
+/** Change (or assign) the active package on an admission. Use `__custom__` for a bespoke daily rate. */
+export async function changeAdmissionPackage(
+  admissionName: string,
+  packageName: string,
+  ratePerDay?: number
+): Promise<AdmissionPackageDetailsResponse> {
+  const body: Record<string, unknown> = {
+    admission_name: admissionName,
+    package_name: packageName,
+  }
+  if (ratePerDay != null && Number.isFinite(ratePerDay)) {
+    body.rate_per_day = ratePerDay
+  }
+  return await apiRequest<AdmissionPackageDetailsResponse>(
+    '/api/method/healthcare.api.inpatient_admission.change_admission_package',
+    {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }
+  )
+}
+

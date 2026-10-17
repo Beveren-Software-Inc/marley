@@ -1004,7 +1004,7 @@ def get_ip_statement_of_account(admission, from_date=None, to_date=None):
 
 	start = getdate(adm.scheduled_date) if adm.scheduled_date else None
 	end = getdate(adm.discharge_datetime) if adm.discharge_datetime else getdate(frappe.utils.today())
-	days_charged = max((end - start).days, 1) if start else None
+	days_charged = max((end - start).days + 1, 1) if start else None
 
 	sos = _admission_sales_orders(admission)
 	so_names = [s.name for s in sos]

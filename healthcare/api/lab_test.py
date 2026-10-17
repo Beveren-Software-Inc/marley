@@ -292,11 +292,16 @@ def get_lab_test_template_details(template):
 		female_min = getattr(r, 'female_min_range', None)
 		female_max = getattr(r, 'female_max_range', None)
 		use_status = cint(getattr(r, 'use_status', 0))
-		test_unit = (getattr(r, 'test_unit', None) or getattr(r, 'uom', None) or '').strip()
-		uom = (getattr(r, 'uom', None) or test_unit or '').strip()
+		test_unit = (getattr(r, 'test_unit', None) or '').strip()
+		# UOM is a Lab Test UOM link. Test unit names (Gram Stain, Pus Cells, …) are not units.
+		uom = (getattr(r, 'uom', None) or '').strip()
+		if not test_unit:
+			test_unit = uom
+		collection = (getattr(r, 'collection_name', None) or '').strip()
 		multiple_rows.append({
 			'test_unit': test_unit,
 			'uom': uom,
+			'collection_name': collection,
 			'male_min_range': male_min,
 			'male_max_range': male_max,
 			'female_min_range': female_min,
@@ -310,9 +315,17 @@ def get_lab_test_template_details(template):
 			),
 		})
 
+	include_comment_raw = doc.get('include_comment')
+	include_comment = cint(include_comment_raw) if not isinstance(include_comment_raw, str) else (
+		1 if include_comment_raw.strip() not in ('', '0') else 0
+	)
 	return {
 		'lab_test_template_type': doc.lab_test_template_type,
 		'is_multiple': cint(doc.get('is_multiple')),
+		'display_one_result': cint(doc.get('display_one_result')),
+		'group_as_per_collection': cint(doc.get('group_as_per_collection')),
+		'include_comment': include_comment,
+		'allow_specimen_type': cint(doc.get('allow_specimen_type')),
 		# Global toggle (Healthcare Settings) for the per-unit Multiple Results entry UI.
 		'have_multiresults_on_lab_test': bool(
 			cint(frappe.db.get_single_value('Healthcare Settings', 'have_multiresults_on_lab_test'))
@@ -2213,6 +2226,7 @@ def get_lab_test(name):
 		'is_group_lab_test': cint(getattr(lab_test, 'is_group_lab_test', 0)),
 		'custom_result': getattr(lab_test, 'custom_result', None),
 		'lab_test_comment': getattr(lab_test, 'lab_test_comment', None),
+		'custom_speciment_type': getattr(lab_test, 'custom_speciment_type', None) or '',
 		'worksheet_instructions': getattr(lab_test, 'worksheet_instructions', None),
 		'material_request': getattr(lab_test, 'material_request', None),
 		'amount': getattr(lab_test, 'amount', None),
@@ -2281,6 +2295,7 @@ def get_lab_test(name):
 			'lab_test_uom': getattr(r, 'lab_test_uom', None) or '',
 			'normal_range': getattr(r, 'normal_range', None) or '',
 			'lab_test_comment': getattr(r, 'lab_test_comment', None) or '',
+			'collection_name': getattr(r, 'collection_name', None) or '',
 			'template': getattr(r, 'template', None) or '',
 		}
 		for r in normal_items
@@ -2622,6 +2637,20 @@ def _lab_test_results_snapshot(doc) -> dict:
 # 		"discount_amount": getattr(doc, "discount_amount", None),
 # 		"grand_total": getattr(doc, "grand_total", None),
 # 	}
+def _known_lab_test_uom(value):
+	"""Return value only when it is a real Lab Test UOM.
+
+	Multiple-result line names (Gram Stain, Pus Cells, growth lines) are stored
+	on the result row, not in the UOM link.
+	"""
+	value = (value or "").strip()
+	if not value:
+		return ""
+	if frappe.db.exists("Lab Test UOM", value):
+		return value
+	return ""
+
+
 @frappe.whitelist()
 def save_and_submit_lab_test(
     name,
@@ -2637,6 +2666,7 @@ def save_and_submit_lab_test(
     lab_technician=None,
     submit: bool = False,
     sibling_results=None,
+    custom_speciment_type=None,
 ):
     """Save lab results on a draft Lab Test. Submit happens only on doctor review (submit arg is ignored).
 
@@ -2666,6 +2696,8 @@ def save_and_submit_lab_test(
         doc.custom_result = custom_result
     if lab_test_comment is not None:
         doc.lab_test_comment = lab_test_comment
+    if custom_speciment_type is not None and doc.meta.has_field("custom_speciment_type"):
+        doc.custom_speciment_type = (custom_speciment_type or "").strip() or None
     if worksheet_instructions is not None:
         doc.worksheet_instructions = worksheet_instructions
 
@@ -2675,9 +2707,11 @@ def save_and_submit_lab_test(
             import json
             normal_test_items = json.loads(normal_test_items)
         # Build a lookup by lab_test_event so we can update existing rows in-place
+        has_collection = frappe.get_meta("Normal Test Result").has_field("collection_name")
         existing = {(r.get('lab_test_event') or r.get('lab_test_name') or ''): r for r in doc.normal_test_items or []}
         for item in (normal_test_items or []):
             event_key = item.get('lab_test_event') or item.get('lab_test_name') or ''
+            collection = (item.get('collection_name') or '').strip()
             if event_key in existing:
                 row = existing[event_key]
                 if item.get('result_value') is not None:
@@ -2687,22 +2721,27 @@ def save_and_submit_lab_test(
                 if item.get('lab_test_comment') is not None:
                     row.lab_test_comment = item['lab_test_comment']
                 if item.get('lab_test_uom') is not None:
-                    row.lab_test_uom = item['lab_test_uom']
+                    row.lab_test_uom = _known_lab_test_uom(item.get('lab_test_uom'))
                 if item.get('normal_range') is not None:
                     row.normal_range = item['normal_range']
+                if has_collection:
+                    row.collection_name = collection
             else:
                 # New row (compound / is_multiple expansion on first save)
-                doc.append('normal_test_items', {
+                row_data = {
                     'lab_test_name': item.get('lab_test_name') or event_key,
                     'lab_test_event': event_key,
                     'result_value': item.get('result_value') or '',
                     'result_status': item.get('result_status') or '',
-                    'lab_test_uom': item.get('lab_test_uom') or '',
+                    'lab_test_uom': _known_lab_test_uom(item.get('lab_test_uom')),
                     'normal_range': item.get('normal_range') or '',
                     'lab_test_comment': item.get('lab_test_comment') or '',
                     'template': item.get('template') or '',
                     'require_result_value': 1,
-                })
+                }
+                if has_collection:
+                    row_data['collection_name'] = collection
+                doc.append('normal_test_items', row_data)
 
     if isinstance(sibling_results, str):
         import json

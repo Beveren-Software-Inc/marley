@@ -49,3 +49,4 @@ healthcare.patches.v16_0.ensure_invoice_reconciliator_role
 healthcare.patches.v16_0.migrate_doctor_commission_rule_cost_centers
 healthcare.patches.v16_0.normalize_doctor_commission_statuses
 healthcare.patches.v16_0.migrate_risk_answers_to_yes_no_select
+healthcare.patches.v16_0.backfill_package_detail_from_sales_orders
