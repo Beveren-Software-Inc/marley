@@ -309,6 +309,10 @@ def get_lab_test_template_details(template):
 			'status': getattr(r, 'status', None) or '',
 			'use_status': use_status,
 			'uses_status_bands': bool(use_status),
+			'total_inclusion': cint(getattr(r, 'total_inclusion', 0)),
+			'total_inclusion_collection': (getattr(r, 'total_inclusion_collection', None) or '').strip(),
+			'total': getattr(r, 'total', None),
+			'instructions': getattr(r, 'instructions', None) or '',
 			'normal_range': _format_multiple_result_normal_range(
 				male_min, male_max, female_min, female_max,
 				status_options if use_status else None,
@@ -2318,6 +2322,8 @@ def get_lab_test(name):
 			or frappe.db.get_value('Patient', lab_test.patient, 'gender')
 			or ''
 		)
+	out['patient_sex'] = patient_sex
+	out['total_inclusions'] = _template_total_inclusions(getattr(lab_test, 'template', None))
 	out['lab_test_lines'] = []
 	for r in line_rows:
 		sub = (getattr(r, 'lab_sub_num', None) or '').strip()
@@ -2637,6 +2643,54 @@ def _lab_test_results_snapshot(doc) -> dict:
 # 		"discount_amount": getattr(doc, "discount_amount", None),
 # 		"grand_total": getattr(doc, "grand_total", None),
 # 	}
+def _template_total_inclusions(template_name):
+	"""Total Inclusion lines from a multiple, collection-grouped lab template.
+
+	These are display rows (title, range, instructions), not result inputs.
+	"""
+	template_name = (template_name or "").strip()
+	if not template_name or not frappe.db.exists("Lab Test Template", template_name):
+		return []
+	doc = frappe.get_doc("Lab Test Template", template_name)
+	if not cint(doc.get("is_multiple")) or cint(doc.get("display_one_result")):
+		return []
+	if not cint(doc.get("group_as_per_collection")):
+		return []
+	lines = []
+	for row in doc.get("multiple_result_type") or []:
+		if not cint(getattr(row, "total_inclusion", 0)):
+			continue
+		title = (getattr(row, "test_unit", None) or "").strip()
+		if not title:
+			continue
+		lines.append({
+			"title": title,
+			"collection": (getattr(row, "total_inclusion_collection", None) or "").strip(),
+			"instructions": getattr(row, "instructions", None) or "",
+			"total": getattr(row, "total", None),
+			"male_min_range": getattr(row, "male_min_range", None),
+			"male_max_range": getattr(row, "male_max_range", None),
+			"female_min_range": getattr(row, "female_min_range", None),
+			"female_max_range": getattr(row, "female_max_range", None),
+		})
+	return lines
+
+
+def _drop_total_inclusion_result_rows(doc):
+	"""Total Inclusion units are not result rows. Remove any that were stored."""
+	titles = {
+		(line.get("title") or "").strip()
+		for line in _template_total_inclusions(getattr(doc, "template", None))
+	}
+	titles.discard("")
+	if not titles:
+		return
+	for row in list(doc.normal_test_items or []):
+		key = (getattr(row, "lab_test_event", None) or getattr(row, "lab_test_name", None) or "").strip()
+		if key in titles:
+			doc.remove(row)
+
+
 def _known_lab_test_uom(value):
 	"""Return value only when it is a real Lab Test UOM.
 
@@ -2960,6 +3014,8 @@ def save_and_submit_lab_test(
         doc.grand_total = base - (disc_amt or 0)
 
     _apply_documents_to_doc(doc, documents)
+
+    _drop_total_inclusion_result_rows(doc)
 
     doc.flags.ignore_permissions = True
     # Lab result entry must still run panel rules and save while audit lock is on.

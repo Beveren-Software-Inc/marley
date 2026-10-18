@@ -3862,6 +3862,7 @@ def get_lab_test_template_detail(name):
 		"multiple_result_type": rows(doc.get("multiple_result_type"), [
 			"test_unit", "uom", "male_min_range", "male_max_range",
 			"female_min_range", "female_max_range", "status", "use_status",
+			"collection_name", "total_inclusion", "total_inclusion_collection", "total", "instructions",
 		]),
 		"descriptive_test_templates": rows(doc.get("descriptive_test_templates"), [
 			"particulars",

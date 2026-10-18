@@ -1737,7 +1737,11 @@ import {
   flagOn,
   groupCollectionsEnabled,
   groupResultRows,
+  inclusionsForCollection,
   SpecimenAndCommentFields,
+  TotalInclusionRows,
+  unmatchedInclusions,
+  withoutTotalInclusionRows,
 } from './multipleResultEntry'
 import { DateFilterInput } from '../ui/DateFilterInput'
 import {
@@ -3272,11 +3276,13 @@ export const LabTestList = ({
       setActiveLabTest(doc); setCustomResult(doc.custom_result || ''); setLabComment(doc.lab_test_comment || '')
       setSpecimenType(doc.custom_speciment_type || '')
       setWorksheetText(doc.worksheet_instructions || ''); setResultDocumentTypes(docTypes)
-      const existingItems: NormalTestResultRow[] = (doc.normal_test_items || []).map((r: any) => ({ ...r }))
+      let existingItems: NormalTestResultRow[] = (doc.normal_test_items || []).map((r: any) => ({ ...r }))
       setNormalTestItems(existingItems)
       if (doc.template) {
         fetchLabTestTemplateDetails(doc.template).then((d) => {
           setTemplateDetails(d)
+          existingItems = withoutTotalInclusionRows(existingItems, d)
+          setNormalTestItems(existingItems)
           // The setting returned with this fetch is authoritative (fresh) over the
           // app-load-time Healthcare Settings flag.
           const allowUnits = Boolean(d.have_multiresults_on_lab_test ?? allowMultipleResults)
@@ -3333,7 +3339,7 @@ export const LabTestList = ({
             d.is_multiple &&
             (d.multiple_result_type || []).length > 0
           ) {
-            setNormalTestItems((d.multiple_result_type || []).map((t) => {
+            setNormalTestItems((d.multiple_result_type || []).filter((t) => !flagOn(t.total_inclusion)).map((t) => {
               const unit = (t.test_unit || t.uom || '').trim()
               const useStatus = Boolean(t.use_status ?? t.uses_status_bands)
               return {
@@ -5200,6 +5206,37 @@ export const LabTestList = ({
                                 </tr>
                               )
                             })}
+                                {inclusionsForCollection(templateDetails, group.name).map((line) => (
+                                  <TotalInclusionRows
+                                    key={`${group.name}-${line.title}`}
+                                    line={line}
+                                    rows={normalTestItems}
+                                    sex={activeLabTest?.patient_sex || activeLabTest?.gender}
+                                    colSpan={showMultipleUnitResults ? 6 : 5}
+                                    showStatus={showMultipleUnitResults}
+                                  />
+                                ))}
+                              </Fragment>
+                            ))}
+                            {unmatchedInclusions(
+                              templateDetails,
+                              groupResultRows(normalTestItems, groupCollectionsEnabled(templateDetails)).map((group) => group.name),
+                            ).map((line) => (
+                              <Fragment key={`total-${line.collection}-${line.title}`}>
+                                {line.collection ? (
+                                  <tr className="bg-teal-700 text-white">
+                                    <td colSpan={showMultipleUnitResults ? 6 : 5} className="px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide">
+                                      {line.collection}
+                                    </td>
+                                  </tr>
+                                ) : null}
+                                <TotalInclusionRows
+                                  line={line}
+                                  rows={normalTestItems}
+                                  sex={activeLabTest?.patient_sex || activeLabTest?.gender}
+                                  colSpan={showMultipleUnitResults ? 6 : 5}
+                                  showStatus={showMultipleUnitResults}
+                                />
                               </Fragment>
                             ))}
                           </tbody>

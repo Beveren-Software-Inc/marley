@@ -1,6 +1,7 @@
 import { Fragment, useState, useEffect } from 'react'
 import { ClipboardCheck, Clock, UserCheck } from 'lucide-react'
 import { fetchLabTest, type LabTest } from '../../services/labTests'
+import { SavedInclusionRows, type TotalInclusionLine } from './multipleResultEntry'
 import { StatusPill } from '../ui/StatusPill'
 import { LabTestReviewModal } from './LabTestReviewModal'
 
@@ -309,7 +310,7 @@ export const LabTestDetails = ({ labTestName, onUpdate }: LabTestDetailsProps) =
                           collection_name?: string
                         },
                         i: number,
-                        all: Array<{ collection_name?: string }>
+                        all: Array<{ collection_name?: string; result_value?: string }>
                       ) => (
                         <Fragment key={i}>
                         {(item.collection_name || '').trim() &&
@@ -380,6 +381,24 @@ export const LabTestDetails = ({ labTestName, onUpdate }: LabTestDetailsProps) =
                             )}
                           </td>
                         </tr>
+                        {(item.collection_name || '').trim() !==
+                        (all[i + 1]?.collection_name || '').trim()
+                          ? (labTest.total_inclusions || [])
+                              .filter(
+                                (line) =>
+                                  (line.collection || '').trim() === (item.collection_name || '').trim() &&
+                                  (line.title || '').trim(),
+                              )
+                              .map((line) => (
+                                <SavedInclusionRows
+                                  key={`${item.collection_name}-${line.title}`}
+                                  line={line as TotalInclusionLine}
+                                  rows={all}
+                                  sex={labTest.patient_sex || labTest.gender}
+                                  colSpan={5}
+                                />
+                              ))
+                          : null}
                         </Fragment>
                       )
                     )}
