@@ -204,6 +204,21 @@ export function isDataOfficer(roles: string[] | undefined): boolean {
   return roles.some((r) => r.trim().toLowerCase() === DATA_OFFICER_ROLE.toLowerCase())
 }
 
+/** Matches healthcare.api.inpatient_package.PACKAGE_MANAGEMENT_ROLES. */
+export const PACKAGE_MANAGEMENT_ROLE = 'Head of Operation'
+
+export function isHeadOfOperation(roles: string[] | undefined): boolean {
+  if (!roles?.length) return false
+  return roles.some((r) => r.trim().toLowerCase() === PACKAGE_MANAGEMENT_ROLE.toLowerCase())
+}
+
+/** Inpatient package management is limited to Head of Operation (and admins). */
+export function canManageInpatientPackages(roles: string[] | undefined): boolean {
+  if (!roles?.length) return false
+  if (isAdmin(roles)) return true
+  return isHeadOfOperation(roles)
+}
+
 /** True if user should use the healthcare frontend (our UI); else they go to Frappe desk (/app). */
 export function hasHealthcareRole(roles: string[]): boolean {
   if (!roles || roles.length === 0) return false

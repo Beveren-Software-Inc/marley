@@ -41,11 +41,12 @@ import { DailyAutoVisitView } from '../components/patientVisits/DailyAutoVisitVi
 import { AdditionalCollectionBillingPage } from './billing/AdditionalCollectionBillingPage'
 import { DoctypeListPanel } from '../components/generic/DoctypeListPanel'
 import { PromotionAnalysis } from '../components/reception/PromotionAnalysis'
+import Packages from '../components/reception/Packages'
 import { AdmissionSignatures } from '../components/admissions/AdmissionSignatures'
 import { CreatePatientMedicalConsentModal } from '../components/reception/CreatePatientMedicalConsentModal'
 import { InternalEmployeeBillingPage } from './billing/InternalEmployeeBillingPage'
 import { isReceptionScreenBlocked, observationsAllowedForMode } from '../config/costCenterCareScope'
-import { isDataOfficer } from '../config/permissions'
+import { canManageInpatientPackages, isDataOfficer } from '../config/permissions'
 import { DashboardCard } from '../components/ui/DashboardCard'
 import { PractitionerUnavailabilityList } from '../components/practitionerUnavailability/PractitionerUnavailabilityList'
 import { WarningMessagesList } from '../components/warnings/WarningMessagesList'
@@ -84,6 +85,7 @@ type View =
   | 'daily-auto-visit'
   | 'practitioner-unavailability'
   | 'sticky-notes'
+  | 'packages'
 
 export const ReceptionistPage = () => {
 
@@ -101,6 +103,7 @@ export const ReceptionistPage = () => {
   } = useCareContext()
 
   const canBrowsePatientList = isDataOfficer(userRole)
+  const canManagePackages = canManageInpatientPackages(userRole)
 
   // const { selectedPatient: globalPatient, setSelectedPatient: setGlobalPatient } = useCareContext()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -310,7 +313,17 @@ export const ReceptionistPage = () => {
       setCurrentView('promotions')
     } else if (screen === 'r-handover-notes') {
       setCurrentView('handover-notes')
-      } else if (screen === 'billing') {
+    } else if (screen === 'r-packages') {
+      if (canManagePackages) {
+        setCurrentView('packages')
+      } else if (userRole !== undefined) {
+        setCurrentView('default')
+        const newParams = new URLSearchParams(searchParams)
+        newParams.delete('screen')
+        setSearchParams(newParams, { replace: true })
+      }
+      // While roles are still loading, keep the screen param and re-evaluate below.
+    } else if (screen === 'billing') {
       setCurrentView('billing')
     } else if (screen === 'billing-additional-collection') {
       setCurrentView('billing-additional-collection')
@@ -325,13 +338,11 @@ export const ReceptionistPage = () => {
         newParams.delete('screen')
         setSearchParams(newParams, { replace: true })
       }
-      }
-    
-    else {
+    } else {
       // No screen param or unknown: show reception homepage (e.g. after "Back to Reception" or sidebar Home)
       setCurrentView('default')
     }
-  }, [dischargeAdmission, screen, searchParams, setSearchParams, canBrowsePatientList])
+  }, [dischargeAdmission, screen, searchParams, setSearchParams, canBrowsePatientList, canManagePackages, userRole])
 
   if (dischargeAdmission && !inpatientDischargeAllowed(costCenterCareScope)) {
     return (
@@ -799,6 +810,13 @@ export const ReceptionistPage = () => {
               </p>
             </div>
             <AdmissionSignatures patient={selectedPatient} admission={activeAdmission || undefined} />
+          </div>
+        )}
+
+        {/* Inpatient package catalogue — Head of Operation only */}
+        {canManagePackages && currentView === 'packages' && (
+          <div className="p-4">
+            <Packages />
           </div>
         )}
 

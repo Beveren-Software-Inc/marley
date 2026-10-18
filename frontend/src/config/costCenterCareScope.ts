@@ -1,6 +1,6 @@
 import type { ScreenGroup } from './doctorScreens'
 import type { CareMode } from '../providers/CareContextProvider'
-import { isDataOfficer } from './permissions'
+import { canManageInpatientPackages, isDataOfficer } from './permissions'
 
 /** Must match Cost Center Select options (custom field on Cost Center). */
 export const CARE_TYPE_OP_ONLY = 'OP Only'
@@ -145,6 +145,8 @@ export function filterNurseScreenGroups(
 }
 
 const RECEPTION_PATIENT_LIST_SCREEN_IDS = new Set(['patients'])
+/** Inpatient package management — Head of Operation (and admins) only. */
+const RECEPTION_PACKAGE_SCREEN_IDS = new Set(['r-packages'])
 
 export function filterReceptionScreenGroups(
   groups: ScreenGroup[],
@@ -160,6 +162,9 @@ export function filterReceptionScreenGroups(
   }
   if (!isDataOfficer(roles)) {
     filtered = filterGroupsByScreenIds(filtered, RECEPTION_PATIENT_LIST_SCREEN_IDS)
+  }
+  if (!canManageInpatientPackages(roles)) {
+    filtered = filterGroupsByScreenIds(filtered, RECEPTION_PACKAGE_SCREEN_IDS)
   }
   if (!observationsAllowedForMode(mode)) {
     filtered = filterGroupsByScreenIds(filtered, IP_ONLY_OBSERVATION_RECEPTION_SCREEN_IDS)
