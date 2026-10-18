@@ -29,7 +29,11 @@ import {
   flagOn,
   groupCollectionsEnabled,
   groupResultRows,
+  inclusionsForCollection,
   SpecimenAndCommentFields,
+  TotalInclusionRows,
+  unmatchedInclusions,
+  withoutTotalInclusionRows,
 } from './multipleResultEntry'
 
 export interface LabTestEnterResultsModalProps {
@@ -248,15 +252,18 @@ export function LabTestEnterResultsModal({
         setSpecimenType(doc.custom_speciment_type || '')
         setWorksheetText(doc.worksheet_instructions || '')
         setResultDocumentTypes(docTypes)
-        const existingItems: NormalTestResultRow[] = (doc.normal_test_items || []).map((r: NormalTestResultRow) => ({
+        const loadedItems: NormalTestResultRow[] = (doc.normal_test_items || []).map((r: NormalTestResultRow) => ({
           ...r,
         }))
+        let existingItems = loadedItems
         setNormalTestItems(existingItems)
         if (doc.template) {
           try {
             const d = await fetchLabTestTemplateDetails(doc.template)
             if (cancelled) return
             setTemplateDetails(d)
+            existingItems = withoutTotalInclusionRows(loadedItems, d)
+            setNormalTestItems(existingItems)
             if (!doc.worksheet_instructions && d.worksheet_instructions) {
               setWorksheetText(d.worksheet_instructions)
             }
@@ -307,7 +314,7 @@ export function LabTestEnterResultsModal({
               )
             } else if (existingItems.length === 0 && enterAsMultiple && (d.multiple_result_type || []).length > 0) {
               setNormalTestItems(
-                (d.multiple_result_type || []).map((t) => {
+                (d.multiple_result_type || []).filter((t) => !flagOn(t.total_inclusion)).map((t) => {
                   const unit = (t.test_unit || t.uom || '').trim()
                   const useStatus = Boolean(t.use_status ?? t.uses_status_bands)
                   return {
@@ -713,6 +720,40 @@ export function LabTestEnterResultsModal({
                             </tr>
                           )
                         })}
+                            {inclusionsForCollection(templateDetails, group.name).map((line) => (
+                              <TotalInclusionRows
+                                key={`${group.name}-${line.title}`}
+                                line={line}
+                                rows={normalTestItems}
+                                sex={activeLabTest?.patient_sex || activeLabTest?.gender}
+                                colSpan={resultColSpan}
+                                showStatus={Boolean(templateDetails.is_multiple)}
+                              />
+                            ))}
+                          </Fragment>
+                        ))}
+                        {unmatchedInclusions(
+                          templateDetails,
+                          resultGroups.map((group) => group.name),
+                        ).map((line) => (
+                          <Fragment key={`total-${line.collection}-${line.title}`}>
+                            {line.collection ? (
+                              <tr className="bg-teal-700 text-white">
+                                <td
+                                  colSpan={resultColSpan}
+                                  className="px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide"
+                                >
+                                  {line.collection}
+                                </td>
+                              </tr>
+                            ) : null}
+                            <TotalInclusionRows
+                              line={line}
+                              rows={normalTestItems}
+                              sex={activeLabTest?.patient_sex || activeLabTest?.gender}
+                              colSpan={resultColSpan}
+                              showStatus={Boolean(templateDetails.is_multiple)}
+                            />
                           </Fragment>
                         ))}
                       </tbody>

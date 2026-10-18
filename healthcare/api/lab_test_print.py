@@ -524,20 +524,179 @@ def _external_header_html(doc) -> str:
 	"""
 
 
-def _external_result_row_html(name, result, uom, range_text) -> str:
-	"""Test / Result / Unit / Ref. Range — no Flag, no Comments."""
+def _external_result_row_html(name, result, uom, range_text, indent=False, bold=False) -> str:
+	"""Test / Result / Unit / Ref. Range — no Flag column."""
+	weight = "font-weight:bold;" if bold else ""
+	pad = "padding-left:16px;" if indent else ""
 	return (
 		f"<tr>"
-		f'<td style="width:45%;text-align:left;border-bottom:1px solid #ccc;padding:5px 4px;">{_esc(name)}</td>'
-		f'<td style="text-align:left;border-bottom:1px solid #ccc;padding:5px 4px;">{_esc(result)}</td>'
+		f'<td style="width:45%;text-align:left;border-bottom:1px solid #ccc;padding:5px 4px;{pad}{weight}">{_esc(name)}</td>'
+		f'<td style="text-align:left;border-bottom:1px solid #ccc;padding:5px 4px;{weight}">{_esc(result)}</td>'
 		f'<td style="text-align:center;border-bottom:1px solid #ccc;padding:5px 4px;">{_esc(uom)}</td>'
 		f'<td style="text-align:center;border-bottom:1px solid #ccc;padding:5px 4px;">{_esc(range_text)}</td>'
 		f"</tr>"
 	)
 
 
+def _external_collection_header(name: str) -> str:
+	"""Bold subgroup title, same role as Direct Smear / Total Nugent Score on the sample report."""
+	return (
+		"<tr>"
+		'<td colspan="4" style="font-weight:bold;text-decoration:underline;text-align:left;'
+		'padding:10px 4px 4px;border-bottom:1px solid #333;">'
+		f"{_esc(name)}</td></tr>"
+	)
+
+
+def _external_comments_row(content: str) -> str:
+	raw = content or ""
+	paragraphs = re.findall(r"<p[^>]*>(.*?)</p>", raw, flags=re.I | re.S)
+	if paragraphs:
+		lines = [strip_html(p).strip() for p in paragraphs]
+		lines = [line for line in lines if line]
+		text = "<br>".join(_esc(line) for line in lines)
+	else:
+		text = _esc(strip_html(raw).strip())
+	if not text:
+		return ""
+	return (
+		"<tr><td colspan=\"4\" style=\"padding:2px 4px 8px 16px;font-size:10px;"
+		"border-bottom:1px solid #eee;line-height:1.35;\">"
+		"<div style=\"font-weight:bold;\">Comments</div>"
+		f"<div>{text}</div></td></tr>"
+	)
+
+
+def _multiple_result_defs(template: str, cache: dict) -> list[dict]:
+	key = f"mr-defs:{(template or '').strip()}"
+	if key in cache:
+		return cache[key]
+	rows = []
+	name = (template or "").strip()
+	if name and frappe.db.exists("Lab Test Template", name):
+		doc = frappe.get_doc("Lab Test Template", name)
+		for row in doc.get("multiple_result_type") or []:
+			rows.append(
+				{
+					"test_unit": (getattr(row, "test_unit", None) or "").strip(),
+					"uom": (getattr(row, "uom", None) or "").strip(),
+					"collection": (getattr(row, "collection_name", None) or "").strip(),
+					"male_min_range": getattr(row, "male_min_range", None),
+					"male_max_range": getattr(row, "male_max_range", None),
+					"female_min_range": getattr(row, "female_min_range", None),
+					"female_max_range": getattr(row, "female_max_range", None),
+					"min_range": getattr(row, "male_min_range", None),
+					"max_range": getattr(row, "male_max_range", None),
+					"total_inclusion": cint(getattr(row, "total_inclusion", 0)),
+					"total_collection": (getattr(row, "total_inclusion_collection", None) or "").strip(),
+					"total": getattr(row, "total", None),
+					"instructions": getattr(row, "instructions", None) or "",
+				}
+			)
+	cache[key] = rows
+	return rows
+
+
+def _external_grouped_rows(lt, items, defs) -> list[str]:
+	"""Collection headers, then Test / Result / Unit / Ref. Range, then the total line."""
+	sex = lt.get("patient_sex")
+	saved = {}
+	for item in items:
+		event = (
+			getattr(item, "lab_test_event", None) or getattr(item, "lab_test_name", None) or ""
+		).strip()
+		if event:
+			saved[event] = item
+
+	body: list[str] = []
+	specimen = (getattr(lt, "custom_speciment_type", None) or lt.get("custom_speciment_type") or "").strip()
+	if specimen:
+		body.append(_external_result_row_html("Sample Type :", specimen, "", ""))
+
+	groups: OrderedDict[str, list] = OrderedDict()
+	seen_units = set()
+	for row in defs:
+		if row.get("total_inclusion"):
+			continue
+		unit = row.get("test_unit") or ""
+		if not unit:
+			continue
+		collection = row.get("collection") or ""
+		groups.setdefault(collection, []).append(("def", row))
+		seen_units.add(unit)
+	for item in items:
+		event = (
+			getattr(item, "lab_test_event", None) or getattr(item, "lab_test_name", None) or ""
+		).strip()
+		if event in seen_units:
+			continue
+		collection = (getattr(item, "collection_name", None) or "").strip()
+		groups.setdefault(collection, []).append(("item", item))
+
+	totals_by_collection: dict[str, list] = {}
+	for row in defs:
+		if not row.get("total_inclusion"):
+			continue
+		collection = row.get("total_collection") or ""
+		totals_by_collection.setdefault(collection, []).append(row)
+		groups.setdefault(collection, [])
+
+	for collection, entries in groups.items():
+		if collection:
+			body.append(_external_collection_header(collection))
+		for kind, entry in entries:
+			if kind == "def":
+				event = entry.get("test_unit") or "—"
+				item = saved.get(event)
+				result = (getattr(item, "result_value", None) or "") if item else ""
+				uom = (
+					(getattr(item, "lab_test_uom", None) or "") if item else ""
+				).strip() or (entry.get("uom") or "")
+				range_text = ((getattr(item, "normal_range", None) or "") if item else "").strip()
+				if not range_text:
+					lo, hi = _range_bounds(entry, sex)
+					range_text = _range_text(lo, hi)
+				comment = (getattr(item, "lab_test_comment", None) or "") if item else ""
+			else:
+				event = (
+					getattr(entry, "lab_test_event", None) or getattr(entry, "lab_test_name", None) or "—"
+				).strip()
+				result = getattr(entry, "result_value", None) or ""
+				uom = (getattr(entry, "lab_test_uom", None) or "").strip()
+				range_text = (getattr(entry, "normal_range", None) or "").strip()
+				comment = getattr(entry, "lab_test_comment", None) or ""
+			body.append(
+				_external_result_row_html(event or "—", result, uom, range_text, indent=bool(collection))
+			)
+			if (comment or "").strip():
+				body.append(_external_comments_row(comment))
+		for row in totals_by_collection.get(collection, []):
+			lo, hi = _range_bounds(row, sex)
+			body.append(
+				_external_result_row_html(
+					row.get("test_unit") or "Total",
+					_format_num(row.get("total")),
+					row.get("uom") or "",
+					_range_text(lo, hi),
+					indent=bool(collection),
+					bold=True,
+				)
+			)
+			if row.get("instructions"):
+				body.append(_external_comments_row(row.get("instructions")))
+	return body
+
+
 def _external_rows_for_lab_test(lt, cache) -> list[str]:
-	"""Same result sources as Laboratory Report, but without Flag column."""
+	"""External report rows. Grouped collections and totals stay on this format only."""
+	items = list(lt.get("normal_test_items") or [])
+	defs = _multiple_result_defs(lt.get("template"), cache)
+	grouped = any(row.get("total_inclusion") or row.get("collection") for row in defs) or any(
+		(getattr(item, "collection_name", None) or "").strip() for item in items
+	)
+	if grouped and (defs or items):
+		return _external_grouped_rows(lt, items, defs)
+
 	rows = _parse_custom_result(lt.get("custom_result"))
 	sex = lt.get("patient_sex")
 	body = []
@@ -550,7 +709,7 @@ def _external_rows_for_lab_test(lt, cache) -> list[str]:
 			body.append(_external_result_row_html(name, result, uom, _range_text(lo, hi)))
 		return body
 
-	for item in lt.get("normal_test_items") or []:
+	for item in items:
 		code = (getattr(item, "template", None) or "").strip()
 		result = getattr(item, "result_value", None) or ""
 		name = (

@@ -16,7 +16,12 @@
   "female_min_range",
   "female_max_range",
   "status",
-  "use_status"
+  "use_status",
+  "total_inclusion",
+  "total_inclusion_collection",
+  "total",
+  "section_break_oclh",
+  "instructions"
  ],
  "fields": [
   {
@@ -83,13 +88,39 @@
    "fieldtype": "Link",
    "label": "Collection name",
    "options": "Multiple Result Group Name"
+  },
+  {
+   "default": "0",
+   "fieldname": "total_inclusion",
+   "fieldtype": "Check",
+   "label": "Total Inclusion"
+  },
+  {
+   "fieldname": "total_inclusion_collection",
+   "fieldtype": "Link",
+   "label": "Total Inclusion Collection",
+   "options": "Multiple Result Group Name"
+  },
+  {
+   "fieldname": "section_break_oclh",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "instructions",
+   "fieldtype": "Text Editor",
+   "label": "Instructions"
+  },
+  {
+   "fieldname": "total",
+   "fieldtype": "Float",
+   "label": "Total"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2026-10-15 16:30:54.651930",
+ "modified": "2026-10-18 14:25:50.617170",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Multiple Results",

@@ -120,6 +120,17 @@ export interface LabTest {
   /** Remarks table (Remark child): list of { rrmark } */
   remarks?: Array<{ rrmark?: string }>
   worksheet_instructions?: string
+  /** Template total-inclusion lines (title, collection, range, instructions). */
+  total_inclusions?: Array<{
+    title?: string
+    collection?: string
+    instructions?: string
+    total?: number | string | null
+    male_min_range?: number | string | null
+    male_max_range?: number | string | null
+    female_min_range?: number | string | null
+    female_max_range?: number | string | null
+  }>
   normal_test_items?: any[]
   sensitivity_test_items?: any[]
   /** Uploaded documents child table (Patient Upload Document, field `uploaded_documents`) */
@@ -415,6 +426,13 @@ export interface LabTestTemplateDetails {
     use_status?: number | boolean
     uses_status_bands?: boolean
     normal_range?: string
+    /** Not a result row: show title, range, collection total, and instructions. */
+    total_inclusion?: number | boolean
+    /** Collection the total is displayed under. */
+    total_inclusion_collection?: string
+    /** Shown in the Result column for a total-inclusion row. */
+    total?: number | string | null
+    instructions?: string
   }>
   status_options?: string[]
   /**

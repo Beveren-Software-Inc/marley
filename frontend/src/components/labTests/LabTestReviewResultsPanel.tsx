@@ -7,6 +7,7 @@ import {
   labTestResultPreview,
   resultFlagBadgeClass,
 } from './labTestReviewUtils'
+import { SavedInclusionRows, type TotalInclusionLine } from './multipleResultEntry'
 
 const statusColors: Record<string, string> = {
   Draft: 'default',
@@ -183,6 +184,26 @@ export function LabTestReviewResultsPanel({ tests }: { tests: LabTest[] }) {
                         </td>
                         {rows.length > 1 ? <td className="px-3 py-1.5" /> : null}
                       </tr>
+                      {(row.collection || '') !== (nested[rowIndex + 1]?.collection || '')
+                        ? (test.total_inclusions || [])
+                            .filter(
+                              (line) =>
+                                (line.collection || '').trim() === (row.collection || '').trim() &&
+                                (line.title || '').trim(),
+                            )
+                            .map((line) => (
+                              <SavedInclusionRows
+                                key={`${row.collection}-${line.title}`}
+                                line={line as TotalInclusionLine}
+                                rows={(test.normal_test_items || []).map((item) => ({
+                                  collection_name: item.collection_name,
+                                  result_value: item.result_value,
+                                }))}
+                                sex={test.patient_sex || test.gender}
+                                colSpan={rows.length > 1 ? 4 : 3}
+                              />
+                            ))
+                        : null}
                       </Fragment>
                     ))}
                   </Fragment>
