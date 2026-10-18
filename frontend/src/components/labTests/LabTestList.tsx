@@ -1733,6 +1733,12 @@ import { useBatchLabTestResults } from '../../hooks/useBatchLabTestResults'
 import { LabTestDashboardCardTable, labTestReportDate } from './LabTestDashboardCardTable'
 import { ClearFiltersButton } from '../ui/ClearFiltersButton'
 import { DocumentTypeSelect } from '../ui/DocumentTypeSelect'
+import {
+  flagOn,
+  groupCollectionsEnabled,
+  groupResultRows,
+  SpecimenAndCommentFields,
+} from './multipleResultEntry'
 import { DateFilterInput } from '../ui/DateFilterInput'
 import {
   IsMedicalSelect,
@@ -2020,6 +2026,16 @@ const effectiveRowRange = (
     if (fMin != null || fMax != null) return { min: fMin, max: fMax }
   }
   if (rowRange.min != null || rowRange.max != null) return rowRange
+  // A multiple-result unit with no min/max of its own stays blank. Do not
+  // inherit the template range, which is often 0.
+  if (
+    row.uses_status_bands != null ||
+    row.collection_name != null ||
+    'male_min_range' in row ||
+    'female_min_range' in row
+  ) {
+    return { min: null, max: null }
+  }
   if (s === 'female' && (details.female_min_range != null || details.female_max_range != null))
     return { min: details.female_min_range ?? null, max: details.female_max_range ?? null }
   if (s === 'male' && (details.male_min_range != null || details.male_max_range != null))
@@ -2791,6 +2807,7 @@ export const LabTestList = ({
   const [activeLabTest, setActiveLabTest] = useState<LabTest | null>(null)
   const [customResult, setCustomResult] = useState('')
   const [labComment, setLabComment] = useState('')
+  const [specimenType, setSpecimenType] = useState('')
   const [worksheetText, setWorksheetText] = useState('')
   const [resultDialogTab, setResultDialogTab] = useState<'results' | 'documents'>('results')
   const [resultDocuments, setResultDocuments] = useState<PatientDocumentRow[]>([])
@@ -2805,6 +2822,7 @@ export const LabTestList = ({
    */
   const showMultipleUnitResults =
     Boolean(templateDetails.is_multiple) &&
+    !flagOn(templateDetails.display_one_result) &&
     Boolean(templateDetails.have_multiresults_on_lab_test ?? allowMultipleResults)
   const [worksheetExpanded, setWorksheetExpanded] = useState(false)
   const [labTechnician, setLabTechnician] = useState('')
@@ -3252,6 +3270,7 @@ export const LabTestList = ({
         return
       }
       setActiveLabTest(doc); setCustomResult(doc.custom_result || ''); setLabComment(doc.lab_test_comment || '')
+      setSpecimenType(doc.custom_speciment_type || '')
       setWorksheetText(doc.worksheet_instructions || ''); setResultDocumentTypes(docTypes)
       const existingItems: NormalTestResultRow[] = (doc.normal_test_items || []).map((r: any) => ({ ...r }))
       setNormalTestItems(existingItems)
@@ -3270,6 +3289,7 @@ export const LabTestList = ({
             })))
           } else if (
             allowUnits &&
+            !flagOn(d.display_one_result) &&
             existingItems.length > 0 &&
             d.is_multiple &&
             (d.multiple_result_type || []).length > 0
@@ -3293,6 +3313,7 @@ export const LabTestList = ({
                   female_min_range: t?.female_min_range ?? row.female_min_range,
                   female_max_range: t?.female_max_range ?? row.female_max_range,
                   normal_range: row.normal_range || t?.normal_range || '',
+                  collection_name: row.collection_name || t?.collection_name || '',
                 }
                 if (row.result_value) {
                   if (useStatus && statusOptions.length) {
@@ -3307,6 +3328,7 @@ export const LabTestList = ({
             )
           } else if (
             allowUnits &&
+            !flagOn(d.display_one_result) &&
             existingItems.length === 0 &&
             d.is_multiple &&
             (d.multiple_result_type || []).length > 0
@@ -3317,7 +3339,7 @@ export const LabTestList = ({
               return {
                 lab_test_event: unit,
                 lab_test_name: unit,
-                lab_test_uom: (t.uom || t.test_unit || '').trim(),
+                lab_test_uom: (t.uom || '').trim(),
                 normal_range: t.normal_range || '',
                 result_value: '',
                 result_status: '',
@@ -3328,6 +3350,7 @@ export const LabTestList = ({
                 male_max_range: t.male_max_range,
                 female_min_range: t.female_min_range,
                 female_max_range: t.female_max_range,
+                collection_name: t.collection_name || '',
               }
             }))
           }
@@ -3353,7 +3376,7 @@ export const LabTestList = ({
     finally { setResultDialogLoading(false) }
   }
   const closeResultDialog = () => {
-    setResultDialogOpen(false); setActiveLabTest(null); setCustomResult(''); setLabComment('')
+    setResultDialogOpen(false); setActiveLabTest(null); setCustomResult(''); setLabComment(''); setSpecimenType('')
     setWorksheetText(''); setResultDialogTab('results'); setResultDocuments([])
     setResultDialogError(null); setResultDialogLoading(false); setNormalTestItems([]); setTemplateDetails({}); setWorksheetExpanded(false)
     setLabTechnician(''); setLabTechnicianQuery(''); setLabTechnicianOptions([]); setLabTechnicianOpen(false)
@@ -3380,7 +3403,9 @@ export const LabTestList = ({
       const docPayload = resultDocuments.filter((r) => (r.file_name || '').trim() || (r.document || '').trim())
         .map((r) => ({ file_name: (r.file_name || '').trim() || undefined, document_type: (r.document_type || '').trim() || undefined, transaction_no: (r.transaction_no || '').trim() || undefined, upload_remarks: (r.upload_remarks || '').trim() || undefined, document: (r.document || '').trim() || undefined }))
       const res = await saveAndSubmitLabTest(activeLabTest.name, {
-        custom_result: customResult, lab_test_comment: labComment, worksheet_instructions: worksheetText,
+        custom_result: customResult, lab_test_comment: labComment,
+        custom_speciment_type: flagOn(templateDetails.allow_specimen_type) ? specimenType : undefined,
+        worksheet_instructions: worksheetText,
         documents: docPayload.length ? docPayload : undefined,
         normal_test_items: normalTestItems.length ? normalTestItems : undefined,
         lab_technician: labTechnician.trim() || undefined,
@@ -4978,31 +5003,29 @@ export const LabTestList = ({
       {resultDialogOpen && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-hidden flex flex-col">
-            <div className="p-4 border-b border-slate-200 flex items-center justify-between flex-shrink-0">
-              <h2 className="text-lg font-semibold text-slate-900">Enter Results {activeLabTest?.name ? `for ${activeLabTest.name}` : ''}</h2>
+            <div className="px-3 py-2 border-b border-slate-200 flex items-center justify-between flex-shrink-0">
+              <h2 className="text-sm font-semibold text-slate-900">Enter Results {activeLabTest?.name ? `for ${activeLabTest.name}` : ''}</h2>
               <button type="button" onClick={closeResultDialog} className="text-slate-400 hover:text-slate-600">✕</button>
             </div>
             <div className="flex border-b border-slate-200 px-4 flex-shrink-0">
               {(['results', 'documents'] as const).map((tab) => (
                 <button key={tab} type="button" onClick={() => setResultDialogTab(tab)}
-                  className={`px-3 py-1.5 text-sm font-medium border-b-2 -mb-px ${resultDialogTab === tab ? 'border-primary text-primary' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
+                  className={`px-3 py-1 text-xs font-medium border-b-2 -mb-px ${resultDialogTab === tab ? 'border-primary text-primary' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
                   {tab === 'documents' ? `Documents${resultDocuments.length > 0 ? ` (${resultDocuments.length})` : ''}` : 'Results'}
                 </button>
               ))}
             </div>
-            <div className="p-4 overflow-y-auto flex-1 min-h-0 space-y-4">
+            <div className="p-3 overflow-y-auto flex-1 min-h-0 space-y-2">
               {resultDialogError && <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-md px-3 py-2">{resultDialogError}</div>}
               {resultDialogLoading ? <div className="text-sm text-slate-600">Loading...</div>
               : resultDialogTab === 'results' ? (
                 <>
-                  <div className="relative rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-3" data-no-row-click onClick={(e) => e.stopPropagation()}>
-                    <label className="block text-sm font-semibold text-slate-800 mb-0.5">
+                  <div className={flagOn(templateDetails.allow_specimen_type) ? 'grid grid-cols-2 items-end gap-2' : ''} data-no-row-click onClick={(e) => e.stopPropagation()}>
+                  <div className="relative">
+                    <label className="mb-0.5 block text-[11px] font-medium text-slate-600">
                       Lab technician <span className="text-slate-400 font-normal">(optional)</span>
                     </label>
-                    <p className="text-xs text-slate-500 mb-2">
-                      Lab Technologist or Lab Technician. Required only when the test is submitted after doctor review.
-                    </p>
-                    <div className="relative max-w-md">
+                    <div className="relative">
                       <input
                         type="text"
                         value={labTechnician ? (labTechnicianQuery || labTechnician) : labTechnicianQuery}
@@ -5013,7 +5036,7 @@ export const LabTestList = ({
                         }}
                         onFocus={() => setLabTechnicianOpen(true)}
                         placeholder="Search by name…"
-                        className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                        className="w-full rounded border border-slate-300 bg-white px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-primary"
                       />
                       {labTechnicianOpen && (
                         <div className="absolute z-30 mt-1 w-full max-h-52 overflow-auto rounded-md border border-slate-200 bg-white shadow-lg">
@@ -5024,7 +5047,7 @@ export const LabTestList = ({
                               <button
                                 key={opt.name}
                                 type="button"
-                                className="w-full text-left px-3 py-2 text-sm hover:bg-slate-100 border-b border-slate-50 last:border-0"
+                                className="w-full text-left px-2 py-1 text-xs hover:bg-slate-100 border-b border-slate-50 last:border-0"
                                 onClick={() => {
                                   setLabTechnician(opt.name)
                                   setLabTechnicianQuery(opt.label || opt.name)
@@ -5042,29 +5065,50 @@ export const LabTestList = ({
                       )}
                     </div>
                   </div>
+                  {flagOn(templateDetails.allow_specimen_type) ? (
+                    <SpecimenAndCommentFields
+                      showSpecimen
+                      specimen={specimenType}
+                      onSpecimen={setSpecimenType}
+                      showComment={false}
+                      comment={labComment}
+                      onComment={setLabComment}
+                    />
+                  ) : null}
+                  </div>
                   {normalTestItems.length > 0 && !(templateDetails.is_multiple && !showMultipleUnitResults) && (
                     <div>
-                      <label className="block text-sm font-semibold text-slate-800 mb-2">
+                      <label className="mb-1 block text-xs font-semibold text-slate-800">
                         {showMultipleUnitResults ? 'Multiple Unit Results' : 'Test Results'}
                       </label>
-                      <div className="rounded-lg border border-slate-200 overflow-hidden">
-                        <table className="w-full text-sm">
+                      <div className="rounded border border-slate-200 overflow-hidden">
+                        <table className="w-full text-xs">
                           <thead className="bg-slate-50 border-b border-slate-200">
                             <tr>
-                              <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600">
+                              <th className="px-2 py-1 text-left text-xs font-semibold text-slate-600">
                                 {showMultipleUnitResults ? 'Unit' : 'Test / Event'}
                               </th>
-                              <th className="px-3 py-2.5 text-center text-xs font-semibold text-slate-600 w-24">Min</th>
-                              <th className="px-3 py-2.5 text-center text-xs font-semibold text-slate-600 w-24">Max</th>
-                              <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 w-36">Result</th>
+                              <th className="px-2 py-1 text-center text-xs font-semibold text-slate-600 w-24">Min</th>
+                              <th className="px-2 py-1 text-center text-xs font-semibold text-slate-600 w-24">Max</th>
+                              <th className="px-2 py-1 text-left text-xs font-semibold text-slate-600 w-36">Result</th>
                               {showMultipleUnitResults ? (
-                                <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 w-48">Status</th>
+                                <th className="px-2 py-1 text-left text-xs font-semibold text-slate-600 w-48">Status</th>
                               ) : null}
-                              <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600">Comment</th>
+                              <th className="px-2 py-1 text-left text-xs font-semibold text-slate-600">Comment</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-100">
-                            {normalTestItems.map((row, idx) => {
+                            {groupResultRows(normalTestItems, groupCollectionsEnabled(templateDetails)).map((group) => (
+                              <Fragment key={group.name || 'all'}>
+                                {group.name ? (
+                                  <tr className="bg-teal-700 text-white">
+                                    <td colSpan={showMultipleUnitResults ? 6 : 5} className="px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide">
+                                      {group.name}
+                                    </td>
+                                  </tr>
+                                ) : null}
+                                {group.indexes.map((idx) => {
+                              const row = normalTestItems[idx]
                               const result = parseFloat(row.result_value || '')
                               // Per-row reference range: the row's own normal_range (panels),
                               // else the patient's gendered range, else the template range.
@@ -5088,14 +5132,14 @@ export const LabTestList = ({
                                         : 'hover:bg-slate-50/50'
                                   }
                                 >
-                                  <td className="px-3 py-3">
-                                    <div className="text-sm font-medium text-slate-800">{row.lab_test_event || row.lab_test_name || '—'}</div>
+                                  <td className="px-2 py-1">
+                                    <div className="text-xs font-medium text-slate-800">{row.lab_test_event || row.lab_test_name || '—'}</div>
                                     {row.lab_test_uom && <div className="text-[11px] text-slate-400 mt-0.5">{row.lab_test_uom}</div>}
                                   </td>
-                                  <td className="px-3 py-3 text-center"><span className={`text-sm font-medium ${min != null ? 'text-slate-700' : 'text-slate-300'}`}>{min != null ? min : '—'}</span></td>
-                                  <td className="px-3 py-3 text-center"><span className={`text-sm font-medium ${max != null ? 'text-slate-700' : 'text-slate-300'}`}>{max != null ? max : '—'}</span></td>
-                                  <td className="px-3 py-3">
-                                    <input type="number" step="any" value={row.result_value ?? ''}
+                                  <td className="px-2 py-1 text-center"><span className={`text-xs font-medium ${min != null ? 'text-slate-700' : 'text-slate-300'}`}>{min != null ? min : '—'}</span></td>
+                                  <td className="px-2 py-1 text-center"><span className={`text-xs font-medium ${max != null ? 'text-slate-700' : 'text-slate-300'}`}>{max != null ? max : '—'}</span></td>
+                                  <td className="px-2 py-1">
+                                    <input type="text" value={row.result_value ?? ''}
                                       onChange={(e) => {
                                         const v = e.target.value
                                         setNormalTestItems((prev) => {
@@ -5119,14 +5163,14 @@ export const LabTestList = ({
                                           return next
                                         })
                                       }}
-                                      className={`w-full border rounded-md px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary ${
+                                      className={`w-full border rounded px-1.5 py-0.5 text-xs focus:outline-none focus:ring-1 focus:ring-primary ${
                                         isLowResult
                                           ? 'border-yellow-400 bg-yellow-50 text-yellow-900 focus:ring-yellow-300'
                                           : isHighResult
                                             ? 'border-red-400 bg-red-50 text-red-700 focus:ring-red-300'
                                             : 'border-slate-300'
                                       }`}
-                                      placeholder="0.00" />
+                                      placeholder={min == null && max == null ? '—' : ''} />
                                     {isLowResult && (
                                       <div className="text-[10px] text-yellow-800 mt-0.5 font-medium">⚠ Low (below range)</div>
                                     )}
@@ -5135,7 +5179,7 @@ export const LabTestList = ({
                                     )}
                                   </td>
                                   {isMultiple ? (
-                                    <td className="px-3 py-3">
+                                    <td className="px-2 py-1">
                                       {statusMark ? (
                                         <span
                                           className={`inline-flex max-w-full rounded-md border px-2 py-1 text-xs font-semibold ${multipleStatusMarkClass(statusMark)}`}
@@ -5144,33 +5188,45 @@ export const LabTestList = ({
                                           {statusMark}
                                         </span>
                                       ) : (
-                                        <span className="text-slate-300 text-sm">—</span>
+                                        <span className="text-slate-300 text-xs">—</span>
                                       )}
                                     </td>
                                   ) : null}
-                                  <td className="px-3 py-3">
+                                  <td className="px-2 py-1">
                                     <input type="text" value={row.lab_test_comment || ''}
                                       onChange={(e) => { const v = e.target.value; setNormalTestItems((prev) => { const next = [...prev]; next[idx] = { ...next[idx], lab_test_comment: v }; return next }) }}
-                                      className="w-full border border-slate-300 rounded-md px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary" placeholder="Add comment..." />
+                                      className="w-full border border-slate-300 rounded px-1.5 py-0.5 text-xs focus:outline-none focus:ring-1 focus:ring-primary" placeholder="Add comment..." />
                                   </td>
                                 </tr>
                               )
                             })}
+                              </Fragment>
+                            ))}
                           </tbody>
                         </table>
                       </div>
                     </div>
                   )}
+                  <SpecimenAndCommentFields
+                    showSpecimen={false}
+                    specimen={specimenType}
+                    onSpecimen={setSpecimenType}
+                    showComment={flagOn(templateDetails.include_comment)}
+                    comment={labComment}
+                    onComment={setLabComment}
+                  />
                   {!(showMultipleUnitResults && normalTestItems.length > 0) && (
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Result</label>
-                    <textarea className="w-full border border-slate-300 rounded-md p-2 text-sm min-h-[80px]" value={customResult} onChange={(e) => setCustomResult(e.target.value)} placeholder="Enter descriptive or custom result..." />
+                    <label className="mb-0.5 block text-[11px] font-medium text-slate-600">Result</label>
+                    <textarea className="w-full border border-slate-300 rounded px-2 py-1 text-xs min-h-[48px]" value={customResult} onChange={(e) => setCustomResult(e.target.value)} placeholder="Enter descriptive or custom result..." />
                   </div>
                   )}
+                  {flagOn(templateDetails.include_comment) ? null : (
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">General Comments</label>
-                    <textarea className="w-full border border-slate-300 rounded-md p-2 text-sm min-h-[70px]" value={labComment} onChange={(e) => setLabComment(e.target.value)} placeholder="Overall test comments..." />
+                    <label className="mb-0.5 block text-[11px] font-medium text-slate-600">General Comments</label>
+                    <textarea className="w-full border border-slate-300 rounded px-2 py-1 text-xs min-h-[40px]" value={labComment} onChange={(e) => setLabComment(e.target.value)} placeholder="Overall test comments..." />
                   </div>
+                  )}
                   {(worksheetText || templateDetails.worksheet_instructions) && (
                     <div className="rounded-md border border-amber-200 bg-amber-50">
                       <button type="button" className="w-full flex items-center justify-between px-3 py-2 text-sm font-medium text-amber-800 hover:bg-amber-100 transition-colors" onClick={() => setWorksheetExpanded((v) => !v)}>
@@ -5215,9 +5271,9 @@ export const LabTestList = ({
                 </div>
               )}
             </div>
-            <div className="flex justify-end gap-2 p-4 border-t border-slate-200 flex-shrink-0 bg-white">
-              <button type="button" onClick={closeResultDialog} disabled={resultDialogLoading} className="px-3 py-1 text-sm border border-slate-300 rounded-md hover:bg-slate-50">Cancel</button>
-              <button type="button" onClick={handleSubmitLabTestWithResults} disabled={resultDialogLoading} className="px-3 py-1 text-sm bg-primary text-white rounded-md hover:bg-primary/90 disabled:opacity-50">Save Results</button>
+            <div className="flex justify-end gap-2 px-3 py-2 border-t border-slate-200 flex-shrink-0 bg-white">
+              <button type="button" onClick={closeResultDialog} disabled={resultDialogLoading} className="px-2.5 py-1 text-xs border border-slate-300 rounded hover:bg-slate-50">Cancel</button>
+              <button type="button" onClick={handleSubmitLabTestWithResults} disabled={resultDialogLoading} className="px-2.5 py-1 text-xs bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-50">Save Results</button>
             </div>
           </div>
         </div>

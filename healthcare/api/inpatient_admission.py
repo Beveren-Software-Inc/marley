@@ -765,6 +765,474 @@ def get_package_detail_dashboard(patient=None):
 	return result
 
 
+# Roles allowed to view/change the package from the admission details slider.
+# Reception users are matched fuzzily (e.g. "Reception", "Healthcare Receptionist").
+PACKAGE_CHANGE_ROLES = {
+	"Administrator",
+	"System Manager",
+	"Healthcare Administrator",
+	"Website Manager",
+}
+
+
+def _can_change_admission_package() -> bool:
+	"""True when the session user may change the active package on an admission."""
+	if frappe.session.user == "Administrator":
+		return True
+	roles = set(frappe.get_roles())
+	if roles & PACKAGE_CHANGE_ROLES:
+		return True
+	return any("reception" in cstr(role).lower() for role in roles)
+
+
+def _assert_can_change_admission_package() -> None:
+	if not _can_change_admission_package():
+		frappe.throw(
+			_("Only reception users can change the inpatient package."),
+			frappe.PermissionError,
+		)
+
+
+def _admission_package_is_editable(admission) -> bool:
+	return (admission.get("status") or "") in (
+		"Admission Scheduled",
+		"Admitted",
+		"Discharge Scheduled",
+	)
+
+
+def _get_active_package_enrollment(admission):
+	"""Most recent Active Inpatient Package Enrollment for this admission (if the doctype exists)."""
+	if not frappe.db.table_exists("Inpatient Package Enrollment"):
+		return None
+
+	rows = frappe.get_all(
+		"Inpatient Package Enrollment",
+		filters={"inpatient_record": admission.name, "status": "Active"},
+		fields=[
+			"name",
+			"package",
+			"package_name",
+			"package_rate",
+			"start_date",
+			"expected_discharge_date",
+			"status",
+		],
+		order_by="modified desc",
+		limit_page_length=1,
+	)
+	return rows[0] if rows else None
+
+
+def _resolve_admission_package(admission):
+	"""Return (package name, source) for the package currently applied to an admission."""
+	package = cstr(admission.get("inpatient_package") or "").strip()
+
+	# Admit-with-custom-package stores a daily rate and no Inpatient Package link.
+	# Check this before the enrollment/quotation fallbacks, otherwise an older
+	# enrollment would keep reporting the superseded package.
+	if (
+		not package
+		and flt(admission.get("rate_per_day") or 0) > 0
+		and not cint(admission.get("standard_package"))
+	):
+		return "", "custom"
+	if package and frappe.db.exists("Inpatient Package", package):
+		return package, "admission"
+
+	enrollment = _get_active_package_enrollment(admission)
+	if enrollment and enrollment.get("package") and frappe.db.exists(
+		"Inpatient Package", enrollment.get("package")
+	):
+		return enrollment["package"], "enrollment"
+
+	# Legacy admissions may only have the package on the quotation / package ledger.
+	if frappe.db.has_column("Quotation", "custom_package") and frappe.db.has_column(
+		"Quotation", "custom_inpatient_admission"
+	):
+		quoted_package = frappe.db.get_value(
+			"Quotation",
+			{
+				"custom_inpatient_admission": admission.name,
+				"custom_package": ["is", "set"],
+				"docstatus": ["<", 2],
+			},
+			"custom_package",
+			order_by="modified desc",
+		)
+		if quoted_package and frappe.db.exists("Inpatient Package", quoted_package):
+			return quoted_package, "quotation"
+
+	if frappe.db.has_column("Package Detail", "inpatient_package"):
+		ledger_package = frappe.db.get_value(
+			"Package Detail",
+			{"admission_no": admission.name, "inpatient_package": ["is", "set"]},
+			"inpatient_package",
+			order_by="from_date desc, modified desc",
+		)
+		if ledger_package and frappe.db.exists("Inpatient Package", ledger_package):
+			return ledger_package, "package_detail"
+
+	return "", None
+
+
+def _package_service_label(row) -> str:
+	reference = cstr(row.get("reference") or "").strip()
+	if not reference:
+		return cstr(row.get("service_type") or "")
+
+	doctype = cstr(row.get("reference_doctype") or "").strip()
+	if doctype:
+		try:
+			meta = frappe.get_meta(doctype)
+			for fieldname in (
+				"item_name",
+				"service_name",
+				"template_name",
+				"healthcare_service_unit_name",
+			):
+				if meta.has_field(fieldname):
+					label = frappe.db.get_value(doctype, reference, fieldname)
+					if label:
+						return cstr(label)
+		except Exception:
+			# Dynamic links may point at doctypes that are not installed; fall back to the ID.
+			pass
+	return reference
+
+
+def _get_package_payload(package_name):
+	"""Serialize an Inpatient Package (with services) for the admission details slider."""
+	if not package_name or not frappe.db.exists("Inpatient Package", package_name):
+		return None
+
+	package = frappe.get_doc("Inpatient Package", package_name)
+	category_name = ""
+	if package.get("package_category"):
+		category_name = (
+			frappe.db.get_value(
+				"Room Category", package.package_category, "room_category_name"
+			)
+			or package.package_category
+		)
+
+	services = []
+	for row in package.get("services") or []:
+		services.append(
+			{
+				"service_type": row.get("service_type"),
+				"reference_doctype": row.get("reference_doctype"),
+				"reference": row.get("reference"),
+				"quantity_days": flt(row.get("quantity_days") or 0),
+				"is_unlimited": cint(row.get("is_unlimited")),
+				"label": _package_service_label(row),
+			}
+		)
+
+	daily_rate = _inpatient_package_daily_rate(package)
+	return {
+		"name": package.name,
+		"package_name": package.package_name or package.name,
+		"package_category": package.get("package_category"),
+		"category_name": category_name,
+		"no_of_days": cint(package.get("no_of_days") or 0),
+		"package_rate": flt(package.get("package_rate") or 0),
+		"daily_rate": daily_rate,
+		"base_total": flt(package.get("base_total") or 0),
+		"is_daily_default": cint(package.get("is_daily_default")),
+		"active": cint(package.get("active")),
+		"cost_center": package.get("cost_center"),
+		"duration_pricing": [
+			{
+				"duration_class": d.get("duration_class"),
+				"duration_name": d.get("duration_name"),
+				"from_day": cint(d.get("from_day") or 0),
+				"to_day": cint(d.get("to_day") or 0),
+				"amount": flt(d.get("amount") or 0),
+			}
+			for d in (package.get("duration_pricing") or [])
+		],
+		"services": services,
+		"is_custom": 0,
+	}
+
+
+def _admission_stay_days(admission) -> int:
+	start = admission.get("admitted_datetime") or admission.get("scheduled_date")
+	if not start:
+		return 0
+	end = admission.get("discharge_datetime") or today()
+	try:
+		start_date = getdate(start)
+		end_date = getdate(end)
+	except Exception:
+		return 0
+	if start_date > end_date:
+		return 0
+	return (end_date - start_date).days + 1
+
+
+def _admission_default_currency(admission) -> str:
+	company = admission.get("company") or frappe.defaults.get_user_default("Company")
+	currency = frappe.db.get_value("Company", company, "default_currency") if company else None
+	if not currency:
+		try:
+			currency = get_default_currency()
+		except Exception:
+			currency = None
+	return currency or "BHD"
+
+
+def _package_display_name(package_name) -> str:
+	if not package_name:
+		return _("No Package")
+	if package_name == "__custom__":
+		return _("Custom Package")
+	return (
+		frappe.db.get_value("Inpatient Package", package_name, "package_name") or package_name
+	)
+
+
+def _sync_active_package_enrollment(admission, package_name: str, daily_rate: float) -> None:
+	"""Keep the admission's Active Inpatient Package Enrollment in step with the admission."""
+	if not package_name or not frappe.db.table_exists("Inpatient Package Enrollment"):
+		return
+	enrollment = _get_active_package_enrollment(admission)
+	if not enrollment:
+		return
+
+	doc = frappe.get_doc("Inpatient Package Enrollment", enrollment["name"])
+	doc.package = package_name
+	if doc.meta.has_field("package_name"):
+		doc.package_name = _package_display_name(package_name)
+	if doc.meta.has_field("package_rate"):
+		doc.package_rate = daily_rate
+	doc.save(ignore_permissions=True)
+
+
+@frappe.whitelist()
+def get_admission_package_details(admission_name):
+	"""Active package, ledger history and change permission for an Inpatient Admission."""
+	if not admission_name:
+		frappe.throw(_("Admission name is required"))
+	if not frappe.db.exists("Inpatient Admission", admission_name):
+		frappe.throw(_("Inpatient Admission {0} not found").format(admission_name))
+
+	admission = frappe.get_doc("Inpatient Admission", admission_name)
+	package_name, package_source = _resolve_admission_package(admission)
+	active_package = _get_package_payload(package_name)
+	rate_per_day = flt(admission.get("rate_per_day") or 0)
+
+	# Admit-with-custom-package stores only a daily rate (no Inpatient Package link).
+	if (
+		not active_package
+		and rate_per_day > 0
+		and not cint(admission.get("standard_package"))
+	):
+		active_package = {
+			"name": "__custom__",
+			"package_name": _("Custom Package"),
+			"package_category": None,
+			"category_name": "",
+			"no_of_days": 0,
+			"package_rate": rate_per_day,
+			"daily_rate": rate_per_day,
+			"base_total": 0,
+			"is_daily_default": 0,
+			"active": 1,
+			"cost_center": admission.get("cost_center"),
+			"duration_pricing": [],
+			"services": [],
+			"is_custom": 1,
+		}
+		package_source = "custom"
+
+	if active_package and not flt(active_package.get("daily_rate")):
+		active_package["daily_rate"] = rate_per_day or flt(active_package.get("package_rate"))
+
+	detail_fields = [
+		"name",
+		"from_date",
+		"to_date",
+		"total_days",
+		"transaction_amount",
+		"currency",
+		"vch_status",
+		"remarks",
+		"quotation",
+		"sales_order",
+	]
+	if frappe.db.has_column("Package Detail", "inpatient_package"):
+		detail_fields.append("inpatient_package")
+	if frappe.db.has_column("Package Detail", "amount_per_day"):
+		detail_fields.append("amount_per_day")
+
+	package_details = frappe.get_all(
+		"Package Detail",
+		filters={"admission_no": admission.name},
+		fields=detail_fields,
+		order_by="from_date desc, name desc",
+	)
+
+	quotations = []
+	if frappe.db.has_column("Quotation", "custom_package") and frappe.db.has_column(
+		"Quotation", "custom_inpatient_admission"
+	):
+		quotations = frappe.get_all(
+			"Quotation",
+			filters={
+				"custom_inpatient_admission": admission.name,
+				"custom_package": ["is", "set"],
+				"docstatus": ["<", 2],
+			},
+			fields=[
+				"name",
+				"custom_package",
+				"docstatus",
+				"status",
+				"transaction_date",
+				"grand_total",
+				"currency",
+			],
+			order_by="modified desc",
+			limit_page_length=20,
+		)
+
+	billed_days = sum(cint(row.get("total_days") or 0) for row in package_details)
+	billed_amount = sum(flt(row.get("transaction_amount") or 0) for row in package_details)
+
+	return {
+		"admission": {
+			"name": admission.name,
+			"patient": admission.patient,
+			"patient_name": admission.patient_name,
+			"status": admission.status,
+			"inpatient_package": admission.get("inpatient_package"),
+			"rate_per_day": rate_per_day,
+			"standard_package": cint(admission.get("standard_package")),
+			"package_days_billed": cint(admission.get("package_days_billed") or 0),
+			"scheduled_date": str(admission.get("scheduled_date") or "") or None,
+			"admitted_datetime": str(admission.get("admitted_datetime") or "") or None,
+			"discharge_datetime": str(admission.get("discharge_datetime") or "") or None,
+			"expected_discharge": str(admission.get("expected_discharge") or "") or None,
+		},
+		"active_package": active_package,
+		"package_source": package_source,
+		"enrollment": _get_active_package_enrollment(admission),
+		"package_details": package_details,
+		"quotations": quotations,
+		"summary": {
+			"billed_days": billed_days,
+			"billed_amount": billed_amount,
+			"stay_days": _admission_stay_days(admission),
+			"package_days_billed": cint(admission.get("package_days_billed") or 0),
+		},
+		"can_change_package": bool(
+			_can_change_admission_package()
+			and _admission_package_is_editable(admission)
+		),
+		"default_currency": _admission_default_currency(admission),
+	}
+
+
+@frappe.whitelist()
+def change_admission_package(admission_name, package_name, rate_per_day=None):
+	"""Change the package applied to an admission.
+
+	Billing behaviour: already-ledgered Package Detail rows keep the old package;
+	subsequent stay charges use the new package / daily rate. Pass ``__custom__``
+	as ``package_name`` together with ``rate_per_day`` for a bespoke rate.
+	"""
+	_assert_can_change_admission_package()
+	assert_editing_allowed()
+
+	if not admission_name:
+		frappe.throw(_("Admission name is required"))
+	if not frappe.db.exists("Inpatient Admission", admission_name):
+		frappe.throw(_("Inpatient Admission {0} not found").format(admission_name))
+
+	admission = frappe.get_doc("Inpatient Admission", admission_name)
+	if not _admission_package_is_editable(admission):
+		frappe.throw(_("The package can only be changed before the patient is discharged"))
+
+	package_name = cstr(package_name or "").strip()
+	if not package_name:
+		frappe.throw(_("Package is required"))
+
+	old_key = cstr(admission.get("inpatient_package") or "").strip()
+	old_is_custom = (
+		not old_key
+		and flt(admission.get("rate_per_day") or 0) > 0
+		and not cint(admission.get("standard_package"))
+	)
+	old_label = _("Custom Package") if old_is_custom else _package_display_name(old_key)
+
+	if package_name == "__custom__":
+		new_key = ""
+		new_label = _("Custom Package")
+		rate = flt(rate_per_day)
+		standard_package = 0
+		if rate <= 0:
+			frappe.throw(_("Rate per day is required for a custom package"))
+	else:
+		if not frappe.db.exists("Inpatient Package", package_name):
+			frappe.throw(_("Inpatient Package {0} not found").format(package_name))
+		package = frappe.get_doc("Inpatient Package", package_name)
+		if not cint(package.get("active")):
+			frappe.throw(_("Inpatient Package {0} is not active").format(package_name))
+
+		new_key = package.name
+		new_label = package.package_name or package.name
+		rate = _inpatient_package_daily_rate(package)
+		if rate_per_day not in (None, ""):
+			rate = flt(rate_per_day) or rate
+		if rate <= 0:
+			frappe.throw(
+				_("Inpatient Package {0} has no rate. Set a package rate first.").format(
+					new_label
+				)
+			)
+		standard_package = 1
+
+	new_is_custom = package_name == "__custom__"
+	if (
+		old_key == new_key
+		and old_is_custom == new_is_custom
+		and flt(admission.get("rate_per_day") or 0) == rate
+	):
+		result = get_admission_package_details(admission_name)
+		result["message"] = _("Package is already set to {0}").format(new_label)
+		return result
+
+	if admission.meta.has_field("inpatient_package"):
+		admission.inpatient_package = new_key or None
+	if admission.meta.has_field("rate_per_day"):
+		admission.rate_per_day = rate
+	if admission.meta.has_field("standard_package"):
+		admission.standard_package = standard_package
+	admission.save(ignore_permissions=True)
+
+	if new_key:
+		_sync_active_package_enrollment(admission, new_key, rate)
+
+	try:
+		admission.add_comment(
+			"Comment",
+			text=_("Inpatient package changed from {0} to {1} at {2}/day.").format(
+				old_label, new_label, flt(rate)
+			),
+		)
+	except Exception:
+		# The audit comment must never block the package change itself.
+		pass
+
+	frappe.db.commit()
+
+	result = get_admission_package_details(admission_name)
+	result["message"] = _("Package changed to {0}").format(new_label)
+	return result
+
+
 @frappe.whitelist()
 def get_service_units(service_unit_type=None, occupancy_status=None, search=None, room_category=None, cost_center=None):
 	"""Get Healthcare Service Units with optional filters and search.

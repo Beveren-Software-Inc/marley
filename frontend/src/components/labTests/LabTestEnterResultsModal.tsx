@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { Fragment, useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import {
   canEditLabTestResultForRow,
@@ -25,6 +25,12 @@ import { uploadPatientFile, type PatientDocumentRow } from '../../services/patie
 import { showLabTestRuleFeedback } from '../../utils/labTestRuleFeedback'
 import { DocumentTypeSelect } from '../ui/DocumentTypeSelect'
 import { CREATE_MODAL_OVERLAY_STACK } from '../ui/CreateModalChrome'
+import {
+  flagOn,
+  groupCollectionsEnabled,
+  groupResultRows,
+  SpecimenAndCommentFields,
+} from './multipleResultEntry'
 
 export interface LabTestEnterResultsModalProps {
   labTestName: string
@@ -80,6 +86,16 @@ function effectiveRowRange(
     if (fMin != null || fMax != null) return { min: fMin, max: fMax }
   }
   if (rowRange.min != null || rowRange.max != null) return rowRange
+  // A multiple-result unit with no min/max of its own stays blank. Do not
+  // inherit the template range, which is often 0.
+  if (
+    row.uses_status_bands != null ||
+    row.collection_name != null ||
+    'male_min_range' in row ||
+    'female_min_range' in row
+  ) {
+    return { min: null, max: null }
+  }
   if (s === 'female' && (details.female_min_range != null || details.female_max_range != null)) {
     return { min: details.female_min_range ?? null, max: details.female_max_range ?? null }
   }
@@ -190,6 +206,7 @@ export function LabTestEnterResultsModal({
   const [activeLabTest, setActiveLabTest] = useState<LabTest | null>(null)
   const [customResult, setCustomResult] = useState('')
   const [labComment, setLabComment] = useState('')
+  const [specimenType, setSpecimenType] = useState('')
   const [worksheetText, setWorksheetText] = useState('')
   const [tab, setTab] = useState<'results' | 'documents'>('results')
   const [resultDocuments, setResultDocuments] = useState<PatientDocumentRow[]>([])
@@ -228,6 +245,7 @@ export function LabTestEnterResultsModal({
         setActiveLabTest(doc)
         setCustomResult(doc.custom_result || '')
         setLabComment(doc.lab_test_comment || '')
+        setSpecimenType(doc.custom_speciment_type || '')
         setWorksheetText(doc.worksheet_instructions || '')
         setResultDocumentTypes(docTypes)
         const existingItems: NormalTestResultRow[] = (doc.normal_test_items || []).map((r: NormalTestResultRow) => ({
@@ -242,7 +260,8 @@ export function LabTestEnterResultsModal({
             if (!doc.worksheet_instructions && d.worksheet_instructions) {
               setWorksheetText(d.worksheet_instructions)
             }
-            if (existingItems.length === 0 && (d.normal_test_templates || []).length > 0) {
+            const enterAsMultiple = flagOn(d.is_multiple) && !flagOn(d.display_one_result)
+            if (existingItems.length === 0 && (d.normal_test_templates || []).length > 0 && !enterAsMultiple) {
               setNormalTestItems(
                 (d.normal_test_templates || []).map((t) => ({
                   lab_test_event: t.lab_test_event || '',
@@ -254,7 +273,7 @@ export function LabTestEnterResultsModal({
                   template: doc.template || '',
                 }))
               )
-            } else if (existingItems.length > 0 && d.is_multiple && (d.multiple_result_type || []).length > 0) {
+            } else if (existingItems.length > 0 && enterAsMultiple && (d.multiple_result_type || []).length > 0) {
               const byUnit = new Map(
                 (d.multiple_result_type || []).map((t) => [(t.test_unit || t.uom || '').trim(), t])
               )
@@ -273,6 +292,7 @@ export function LabTestEnterResultsModal({
                     female_min_range: t?.female_min_range ?? row.female_min_range,
                     female_max_range: t?.female_max_range ?? row.female_max_range,
                     normal_range: row.normal_range || t?.normal_range || '',
+                    collection_name: row.collection_name || t?.collection_name || '',
                   }
                   if (row.result_value) {
                     if (useStatus && statusOptions.length) {
@@ -285,7 +305,7 @@ export function LabTestEnterResultsModal({
                   return enriched
                 })
               )
-            } else if (existingItems.length === 0 && d.is_multiple && (d.multiple_result_type || []).length > 0) {
+            } else if (existingItems.length === 0 && enterAsMultiple && (d.multiple_result_type || []).length > 0) {
               setNormalTestItems(
                 (d.multiple_result_type || []).map((t) => {
                   const unit = (t.test_unit || t.uom || '').trim()
@@ -293,7 +313,7 @@ export function LabTestEnterResultsModal({
                   return {
                     lab_test_event: unit,
                     lab_test_name: unit,
-                    lab_test_uom: (t.uom || t.test_unit || '').trim(),
+                    lab_test_uom: (t.uom || '').trim(),
                     normal_range: t.normal_range || '',
                     result_value: '',
                     result_status: '',
@@ -304,6 +324,7 @@ export function LabTestEnterResultsModal({
                     male_max_range: t.male_max_range,
                     female_min_range: t.female_min_range,
                     female_max_range: t.female_max_range,
+                    collection_name: t.collection_name || '',
                   }
                 })
               )
@@ -409,6 +430,7 @@ export function LabTestEnterResultsModal({
       const res = await saveAndSubmitLabTest(activeLabTest.name, {
         custom_result: customResult,
         lab_test_comment: labComment,
+        custom_speciment_type: flagOn(templateDetails.allow_specimen_type) ? specimenType : undefined,
         worksheet_instructions: worksheetText,
         documents: docPayload.length ? docPayload : undefined,
         normal_test_items: normalTestItems.length ? normalTestItems : undefined,
@@ -430,12 +452,17 @@ export function LabTestEnterResultsModal({
     ? CREATE_MODAL_OVERLAY_STACK
     : 'fixed inset-0 z-50 flex items-center justify-center bg-black/40'
   const busy = loading || saving
+  const groupByCollection = groupCollectionsEnabled(templateDetails)
+  const showSpecimen = flagOn(templateDetails.allow_specimen_type)
+  const showTemplateComment = flagOn(templateDetails.include_comment)
+  const resultGroups = groupResultRows(normalTestItems, groupByCollection)
+  const resultColSpan = templateDetails.is_multiple ? 6 : 5
 
   return createPortal(
     <div className={overlayClass} data-healthcare-modal>
       <div className="mx-4 flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-lg bg-white shadow-xl">
-        <div className="flex flex-shrink-0 items-center justify-between border-b border-slate-200 p-4">
-          <h2 className="text-lg font-semibold text-slate-900">
+        <div className="flex flex-shrink-0 items-center justify-between border-b border-slate-200 px-3 py-2">
+          <h2 className="text-sm font-semibold text-slate-900">
             Enter Results {activeLabTest?.name ? `for ${activeLabTest.name}` : labTestName ? `for ${labTestName}` : ''}
           </h2>
           <button type="button" onClick={onClose} className="text-slate-400 hover:text-slate-600">
@@ -448,7 +475,7 @@ export function LabTestEnterResultsModal({
               key={t}
               type="button"
               onClick={() => setTab(t)}
-              className={`-mb-px border-b-2 px-3 py-1.5 text-sm font-medium ${
+              className={`-mb-px border-b-2 px-3 py-1 text-xs font-medium ${
                 tab === t ? 'border-primary text-primary' : 'border-transparent text-slate-500 hover:text-slate-700'
               }`}
             >
@@ -458,7 +485,7 @@ export function LabTestEnterResultsModal({
             </button>
           ))}
         </div>
-        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4">
+        <div className="min-h-0 flex-1 space-y-2 overflow-y-auto p-3">
           {error && (
             <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>
           )}
@@ -466,14 +493,12 @@ export function LabTestEnterResultsModal({
             <div className="text-sm text-slate-600">Loading...</div>
           ) : tab === 'results' ? (
             <>
-              <div className="relative rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-3">
-                <label className="mb-0.5 block text-sm font-semibold text-slate-800">
+              <div className={showSpecimen ? 'grid grid-cols-2 items-end gap-2' : ''}>
+              <div className="relative">
+                <label className="mb-0.5 block text-[11px] font-medium text-slate-600">
                   Lab technician <span className="font-normal text-slate-400">(optional)</span>
                 </label>
-                <p className="mb-2 text-xs text-slate-500">
-                  Lab Technologist or Lab Technician. Required only when the test is submitted after doctor review.
-                </p>
-                <div className="relative max-w-md">
+                <div className="relative">
                   <input
                     type="text"
                     value={labTechnician ? labTechnicianQuery || labTechnician : labTechnicianQuery}
@@ -484,7 +509,7 @@ export function LabTestEnterResultsModal({
                     }}
                     onFocus={() => setLabTechnicianOpen(true)}
                     placeholder="Search by name…"
-                    className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                    className="w-full rounded border border-slate-300 bg-white px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-primary"
                   />
                   {labTechnicianOpen && (
                     <div className="absolute z-30 mt-1 max-h-52 w-full overflow-auto rounded-md border border-slate-200 bg-white shadow-lg">
@@ -497,7 +522,7 @@ export function LabTestEnterResultsModal({
                           <button
                             key={opt.name}
                             type="button"
-                            className="w-full border-b border-slate-50 px-3 py-2 text-left text-sm last:border-0 hover:bg-slate-100"
+                            className="w-full border-b border-slate-50 px-2 py-1 text-left text-xs last:border-0 hover:bg-slate-100"
                             onClick={() => {
                               setLabTechnician(opt.name)
                               setLabTechnicianQuery(opt.label || opt.name)
@@ -515,29 +540,53 @@ export function LabTestEnterResultsModal({
                   )}
                 </div>
               </div>
+              {showSpecimen ? (
+                <SpecimenAndCommentFields
+                  showSpecimen
+                  specimen={specimenType}
+                  onSpecimen={setSpecimenType}
+                  showComment={false}
+                  comment={labComment}
+                  onComment={setLabComment}
+                />
+              ) : null}
+              </div>
               {normalTestItems.length > 0 && (
                 <div>
-                  <label className="mb-2 block text-sm font-semibold text-slate-800">
+                  <label className="mb-1 block text-xs font-semibold text-slate-800">
                     {templateDetails.is_multiple ? 'Multiple Unit Results' : 'Test Results'}
                   </label>
-                  <div className="overflow-hidden rounded-lg border border-slate-200">
-                    <table className="w-full text-sm">
+                  <div className="overflow-hidden rounded border border-slate-200">
+                    <table className="w-full text-xs">
                       <thead className="border-b border-slate-200 bg-slate-50">
                         <tr>
-                          <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600">
+                          <th className="px-2 py-1 text-left text-xs font-semibold text-slate-600">
                             {templateDetails.is_multiple ? 'Unit' : 'Test / Event'}
                           </th>
-                          <th className="w-24 px-3 py-2.5 text-center text-xs font-semibold text-slate-600">Min</th>
-                          <th className="w-24 px-3 py-2.5 text-center text-xs font-semibold text-slate-600">Max</th>
-                          <th className="w-36 px-3 py-2.5 text-left text-xs font-semibold text-slate-600">Result</th>
+                          <th className="w-24 px-2 py-1 text-center text-xs font-semibold text-slate-600">Min</th>
+                          <th className="w-24 px-2 py-1 text-center text-xs font-semibold text-slate-600">Max</th>
+                          <th className="w-36 px-2 py-1 text-left text-xs font-semibold text-slate-600">Result</th>
                           {templateDetails.is_multiple ? (
-                            <th className="w-48 px-3 py-2.5 text-left text-xs font-semibold text-slate-600">Status</th>
+                            <th className="w-48 px-2 py-1 text-left text-xs font-semibold text-slate-600">Status</th>
                           ) : null}
-                          <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600">Comment</th>
+                          <th className="px-2 py-1 text-left text-xs font-semibold text-slate-600">Comment</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
-                        {normalTestItems.map((row, idx) => {
+                        {resultGroups.map((group) => (
+                          <Fragment key={group.name || 'all'}>
+                            {group.name ? (
+                              <tr className="bg-teal-700 text-white">
+                                <td
+                                  colSpan={resultColSpan}
+                                  className="px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide"
+                                >
+                                  {group.name}
+                                </td>
+                              </tr>
+                            ) : null}
+                            {group.indexes.map((idx) => {
+                          const row = normalTestItems[idx]
                           const result = parseFloat(row.result_value || '')
                           const { min, max } = effectiveRowRange(
                             row,
@@ -564,32 +613,31 @@ export function LabTestEnterResultsModal({
                                     : 'hover:bg-slate-50/50'
                               }
                             >
-                              <td className="px-3 py-3">
-                                <div className="text-sm font-medium text-slate-800">
+                              <td className="px-2 py-1">
+                                <div className="text-xs font-medium text-slate-800">
                                   {row.lab_test_event || row.lab_test_name || '—'}
                                 </div>
                                 {row.lab_test_uom && (
                                   <div className="mt-0.5 text-[11px] text-slate-400">{row.lab_test_uom}</div>
                                 )}
                               </td>
-                              <td className="px-3 py-3 text-center">
+                              <td className="px-2 py-1 text-center">
                                 <span
-                                  className={`text-sm font-medium ${min != null ? 'text-slate-700' : 'text-slate-300'}`}
+                                  className={`text-xs font-medium ${min != null ? 'text-slate-700' : 'text-slate-300'}`}
                                 >
                                   {min != null ? min : '—'}
                                 </span>
                               </td>
-                              <td className="px-3 py-3 text-center">
+                              <td className="px-2 py-1 text-center">
                                 <span
-                                  className={`text-sm font-medium ${max != null ? 'text-slate-700' : 'text-slate-300'}`}
+                                  className={`text-xs font-medium ${max != null ? 'text-slate-700' : 'text-slate-300'}`}
                                 >
                                   {max != null ? max : '—'}
                                 </span>
                               </td>
-                              <td className="px-3 py-3">
+                              <td className="px-2 py-1">
                                 <input
-                                  type="number"
-                                  step="any"
+                                  type="text"
                                   value={row.result_value ?? ''}
                                   onChange={(e) => {
                                     const v = e.target.value
@@ -612,14 +660,14 @@ export function LabTestEnterResultsModal({
                                       return next
                                     })
                                   }}
-                                  className={`w-full rounded-md border px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary ${
+                                  className={`w-full rounded border px-1.5 py-0.5 text-xs focus:outline-none focus:ring-1 focus:ring-primary ${
                                     isLowResult
                                       ? 'border-yellow-400 bg-yellow-50 text-yellow-900 focus:ring-yellow-300'
                                       : isHighResult
                                         ? 'border-red-400 bg-red-50 text-red-700 focus:ring-red-300'
                                         : 'border-slate-300'
                                   }`}
-                                  placeholder="0.00"
+                                  placeholder={min == null && max == null ? '—' : ''}
                                 />
                                 {isLowResult && (
                                   <div className="mt-0.5 text-[10px] font-medium text-yellow-800">
@@ -633,7 +681,7 @@ export function LabTestEnterResultsModal({
                                 )}
                               </td>
                               {isMultiple ? (
-                                <td className="px-3 py-3">
+                                <td className="px-2 py-1">
                                   {statusMark ? (
                                     <span
                                       className={`inline-flex max-w-full rounded-md border px-2 py-1 text-xs font-semibold ${multipleStatusMarkClass(statusMark)}`}
@@ -642,11 +690,11 @@ export function LabTestEnterResultsModal({
                                       {statusMark}
                                     </span>
                                   ) : (
-                                    <span className="text-sm text-slate-300">—</span>
+                                    <span className="text-xs text-slate-300">—</span>
                                   )}
                                 </td>
                               ) : null}
-                              <td className="px-3 py-3">
+                              <td className="px-2 py-1">
                                 <input
                                   type="text"
                                   value={row.lab_test_comment || ''}
@@ -658,38 +706,50 @@ export function LabTestEnterResultsModal({
                                       return next
                                     })
                                   }}
-                                  className="w-full rounded-md border border-slate-300 px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                                  className="w-full rounded border border-slate-300 px-1.5 py-0.5 text-xs focus:outline-none focus:ring-1 focus:ring-primary"
                                   placeholder="Add comment..."
                                 />
                               </td>
                             </tr>
                           )
                         })}
+                          </Fragment>
+                        ))}
                       </tbody>
                     </table>
                   </div>
                 </div>
               )}
-              {!(templateDetails.is_multiple && normalTestItems.length > 0) && (
+              <SpecimenAndCommentFields
+                showSpecimen={false}
+                specimen={specimenType}
+                onSpecimen={setSpecimenType}
+                showComment={showTemplateComment}
+                comment={labComment}
+                onComment={setLabComment}
+              />
+              {!(flagOn(templateDetails.is_multiple) && !flagOn(templateDetails.display_one_result) && normalTestItems.length > 0) && (
                 <div>
-                  <label className="mb-1 block text-sm font-medium text-slate-700">Result</label>
+                  <label className="mb-0.5 block text-[11px] font-medium text-slate-600">Result</label>
                   <textarea
-                    className="min-h-[80px] w-full rounded-md border border-slate-300 p-2 text-sm"
+                    className="min-h-[48px] w-full rounded border border-slate-300 px-2 py-1 text-xs"
                     value={customResult}
                     onChange={(e) => setCustomResult(e.target.value)}
                     placeholder="Enter descriptive or custom result..."
                   />
                 </div>
               )}
+              {showTemplateComment ? null : (
               <div>
-                <label className="mb-1 block text-sm font-medium text-slate-700">General Comments</label>
+                <label className="mb-0.5 block text-[11px] font-medium text-slate-600">General Comments</label>
                 <textarea
-                  className="min-h-[70px] w-full rounded-md border border-slate-300 p-2 text-sm"
+                  className="min-h-[40px] w-full rounded border border-slate-300 px-2 py-1 text-xs"
                   value={labComment}
                   onChange={(e) => setLabComment(e.target.value)}
                   placeholder="Overall test comments..."
                 />
               </div>
+              )}
               {(worksheetText || templateDetails.worksheet_instructions) && (
                 <div className="rounded-md border border-amber-200 bg-amber-50">
                   <button
@@ -793,12 +853,12 @@ export function LabTestEnterResultsModal({
             </div>
           )}
         </div>
-        <div className="flex flex-shrink-0 justify-end gap-2 border-t border-slate-200 bg-white p-4">
+        <div className="flex flex-shrink-0 justify-end gap-2 border-t border-slate-200 bg-white px-3 py-2">
           <button
             type="button"
             onClick={onClose}
             disabled={busy}
-            className="rounded-md border border-slate-300 px-3 py-1 text-sm hover:bg-slate-50"
+            className="rounded border border-slate-300 px-2.5 py-1 text-xs hover:bg-slate-50"
           >
             Cancel
           </button>
@@ -806,7 +866,7 @@ export function LabTestEnterResultsModal({
             type="button"
             onClick={() => void handleSave()}
             disabled={busy || !activeLabTest}
-            className="rounded-md bg-primary px-3 py-1 text-sm text-white hover:bg-primary/90 disabled:opacity-50"
+            className="rounded bg-primary px-2.5 py-1 text-xs text-white hover:bg-primary/90 disabled:opacity-50"
           >
             {saving ? 'Saving…' : 'Save Results'}
           </button>

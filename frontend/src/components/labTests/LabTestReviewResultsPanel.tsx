@@ -23,6 +23,7 @@ type NestedResultRow = {
   value: string
   flag?: string
   range?: string
+  collection?: string
 }
 
 function nestedRowsForTest(test: LabTest): NestedResultRow[] {
@@ -35,6 +36,7 @@ function nestedRowsForTest(test: LabTest): NestedResultRow[] {
         value: (item.result_value || '').trim() || '—',
         flag: (item.result_status || '').trim(),
         range: (item.normal_range || '').trim(),
+        collection: (item.collection_name || '').trim(),
       }))
       .filter((row) => row.value !== '—' || row.name !== '—')
     if (rows.length > 1 || (rows.length === 1 && rows[0].value !== '—')) {
@@ -156,8 +158,19 @@ export function LabTestReviewResultsPanel({ tests }: { tests: LabTest[] }) {
                         </td>
                       ) : null}
                     </tr>
-                    {nested.map((row) => (
-                      <tr key={row.key}>
+                    {nested.map((row, rowIndex) => (
+                      <Fragment key={row.key}>
+                      {row.collection && row.collection !== nested[rowIndex - 1]?.collection ? (
+                        <tr className="bg-teal-700 text-white">
+                          <td
+                            colSpan={rows.length > 1 ? 4 : 3}
+                            className="px-3 py-1.5 pl-6 text-[11px] font-semibold uppercase tracking-wide"
+                          >
+                            {row.collection}
+                          </td>
+                        </tr>
+                      ) : null}
+                      <tr>
                         <td className="px-3 py-1.5 pl-6 text-slate-600">{row.name}</td>
                         <td className="px-3 py-1.5 font-medium text-slate-800">
                           {row.value}
@@ -170,6 +183,7 @@ export function LabTestReviewResultsPanel({ tests }: { tests: LabTest[] }) {
                         </td>
                         {rows.length > 1 ? <td className="px-3 py-1.5" /> : null}
                       </tr>
+                      </Fragment>
                     ))}
                   </Fragment>
                 )

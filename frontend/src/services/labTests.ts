@@ -115,6 +115,7 @@ export interface LabTest {
   descriptive_result?: string
   custom_result?: string
   lab_test_comment?: string
+  custom_speciment_type?: string
   result_flag?: string
   /** Remarks table (Remark child): list of { rrmark } */
   remarks?: Array<{ rrmark?: string }>
@@ -348,6 +349,8 @@ export interface NormalTestResultRow {
   lab_test_uom?: string
   normal_range?: string
   lab_test_comment?: string
+  /** Multiple Result Group Name, stored with the result row. */
+  collection_name?: string
   template?: string
   secondary_uom?: string
   conversion_factor?: number
@@ -369,6 +372,13 @@ export interface NormalTestResultRow {
 export interface LabTestTemplateDetails {
   lab_test_template_type?: string
   is_multiple?: number | boolean
+  display_one_result?: number | boolean
+  /** Group Multiple Result rows by collection_name on the result screen. */
+  group_as_per_collection?: number | boolean
+  /** Show a comment box under the results. */
+  include_comment?: number | boolean | string
+  /** Show a specimen type field saved on the Lab Test. */
+  allow_specimen_type?: number | boolean
   min_range?: number | null
   max_range?: number | null
   female_min_range?: number | null
@@ -395,6 +405,7 @@ export interface LabTestTemplateDetails {
   multiple_result_type?: Array<{
     test_unit?: string
     uom?: string
+    collection_name?: string
     male_min_range?: number | string | null
     male_max_range?: number | string | null
     female_min_range?: number | string | null
@@ -440,6 +451,7 @@ export async function fetchLabTestTemplateDetails(template: string): Promise<Lab
 export interface SaveAndSubmitLabTestInput {
   custom_result?: string
   lab_test_comment?: string
+  custom_speciment_type?: string
   worksheet_instructions?: string
   documents?: Array<{ file_name?: string; document_type?: string; transaction_no?: string; upload_remarks?: string; document?: string }>
   normal_test_items?: NormalTestResultRow[]

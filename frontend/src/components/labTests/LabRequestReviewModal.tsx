@@ -294,6 +294,7 @@ export function LabRequestReviewModal({
   const [reloadToken, setReloadToken] = useState(0)
   /** Draft inline results keyed by Lab Test name. */
   const [pendingResults, setPendingResults] = useState<Record<string, string>>({})
+  const [pendingSpecimen, setPendingSpecimen] = useState<Record<string, string>>({})
   const [savingResultFor, setSavingResultFor] = useState<string | null>(null)
 
   const [sampleModalLabTest, setSampleModalLabTest] = useState<LabTest | null>(null)
@@ -402,6 +403,16 @@ export function LabRequestReviewModal({
     [pendingResults]
   )
 
+  const specimenValue = useCallback(
+    (test: LabRequestReviewTest) => {
+      const name = test.lab_test
+      if (!name) return ''
+      if (name in pendingSpecimen) return pendingSpecimen[name]
+      return String(test.custom_speciment_type || '')
+    },
+    [pendingSpecimen]
+  )
+
   const applyCalculatedUpdates = useCallback(
     (
       updates?: Array<{
@@ -479,6 +490,76 @@ export function LabRequestReviewModal({
     [rawResultValue, userRole, patchTestResult, applyCalculatedUpdates, review]
   )
 
+  const saveInlineSpecimen = useCallback(
+    async (test: LabRequestReviewTest) => {
+      const name = test.lab_test
+      if (!name || Number(test.allow_specimen_type) !== 1) return
+      const value = specimenValue(test).trim()
+      const original = String(test.custom_speciment_type || '').trim()
+      if (value === original) {
+        setPendingSpecimen((prev) => {
+          const next = { ...prev }
+          delete next[name]
+          return next
+        })
+        return
+      }
+      const stub = {
+        name,
+        status: test.lab_test_status,
+        docstatus: test.lab_test_docstatus ?? 0,
+        custom_result: test.custom_result || '',
+      } as LabTest
+      if (!canEditLabTestResultForRow(stub, userRole)) {
+        toast.error('You cannot edit results for this test.')
+        return
+      }
+      setSavingResultFor(name)
+      try {
+        const saved = await saveAndSubmitLabTest(name, {
+          // Keep the current result so saving specimen does not clear the flag.
+          custom_result: name in pendingResults ? pendingResults[name] : test.custom_result || '',
+          custom_speciment_type: value,
+          submit: false,
+        })
+        setReview((prev) => {
+          if (!prev) return prev
+          return {
+            ...prev,
+            groups: prev.groups.map((g) => ({
+              ...g,
+              tests: g.tests.map((t) =>
+                t.lab_test === name
+                  ? {
+                      ...t,
+                      custom_speciment_type: value,
+                      custom_result:
+                        name in pendingResults ? pendingResults[name] : t.custom_result,
+                      ...(saved.status ? { lab_test_status: saved.status } : {}),
+                    }
+                  : t
+              ),
+            })),
+          }
+        })
+        setPendingSpecimen((prev) => {
+          const next = { ...prev }
+          delete next[name]
+          return next
+        })
+        if (name in pendingResults) {
+          patchTestResult(name, pendingResults[name], saved.status, saved.result_flag)
+        }
+        toast.success(`Specimen saved for ${test.test_name || test.test_code}`)
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : 'Failed to save specimen type')
+      } finally {
+        setSavingResultFor(null)
+      }
+    },
+    [specimenValue, userRole, pendingResults, patchTestResult]
+  )
+
   useEffect(() => {
     if (sampleModalLabTest) return
     const onKey = (e: KeyboardEvent) => {
@@ -497,6 +578,7 @@ export function LabRequestReviewModal({
         if (cancelled) return
         setReview({ ...data, groups: sortLabRequestReviewGroups(data.groups || []) })
         setPendingResults({})
+        setPendingSpecimen({})
         setSelectedTemplate((prev) => prev || data.groups[0]?.template || null)
       })
       .catch((err) => {
@@ -1118,6 +1200,7 @@ export function LabRequestReviewModal({
                             Boolean(formulaLine) ||
                             isSingleResultType(test.result_type) ||
                             !multiResultsEnabled
+                          const allowSpecimen = Number(test.allow_specimen_type) === 1
                           return (
                             <tr key={test.template} className="border-b border-slate-100">
                               <td className="px-2.5 py-1.5 font-medium text-slate-800">{test.test_code}</td>
@@ -1139,6 +1222,32 @@ export function LabRequestReviewModal({
                                 {test.max_value ?? '—'}
                               </td>
                               <td className="px-2.5 py-1.5">
+                                <div className="flex min-w-[7rem] max-w-[12rem] flex-col gap-1">
+                                {sampleDone && allowSpecimen ? (
+                                  <input
+                                    type="text"
+                                    value={specimenValue(test)}
+                                    disabled={!canEditResult || isSaving}
+                                    placeholder="Specimen type"
+                                    title="Specimen type. Leave the field to save."
+                                    onChange={(e) => {
+                                      const name = test.lab_test
+                                      if (!name) return
+                                      const v = e.target.value
+                                      setPendingSpecimen((prev) => ({ ...prev, [name]: v }))
+                                    }}
+                                    onBlur={() => {
+                                      void saveInlineSpecimen(test)
+                                    }}
+                                    onKeyDown={(e) => {
+                                      if (e.key === 'Enter') {
+                                        e.preventDefault()
+                                        ;(e.target as HTMLInputElement).blur()
+                                      }
+                                    }}
+                                    className="w-full rounded-md border border-dashed border-slate-300 bg-white px-2 py-1 text-xs text-slate-800 placeholder:text-slate-400 focus:border-teal-400 focus:outline-none focus:ring-2 focus:ring-teal-500/20 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-500"
+                                  />
+                                ) : null}
                                 {!sampleDone ? (
                                   hideChildCollectSample ? (
                                     <span
@@ -1214,11 +1323,12 @@ export function LabRequestReviewModal({
                                       next.focus()
                                       next.select()
                                     }}
-                                    className="w-full min-w-[7rem] max-w-[12rem] rounded-md border border-dashed border-slate-300 bg-white px-2 py-1 text-xs text-slate-800 placeholder:text-slate-400 focus:border-teal-400 focus:outline-none focus:ring-2 focus:ring-teal-500/20 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-500"
+                                    className="w-full rounded-md border border-dashed border-slate-300 bg-white px-2 py-1 text-xs text-slate-800 placeholder:text-slate-400 focus:border-teal-400 focus:outline-none focus:ring-2 focus:ring-teal-500/20 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-500"
                                   />
                                 ) : (
                                   <span className="text-[10px] italic text-violet-600">— multiple —</span>
                                 )}
+                                </div>
                               </td>
                               <td className="px-2.5 py-1.5 whitespace-nowrap">
                                 {test.lab_test_status ? (
@@ -1267,6 +1377,7 @@ export function LabRequestReviewModal({
                                         <LabResultPrintButton
                                           labTestName={test.lab_test}
                                           showExternalOption={
+                                            Number(test.enable_external_lab_print) === 1 ||
                                             Number(selectedGroup?.enable_external_lab_print) === 1
                                           }
                                           title="Print results"

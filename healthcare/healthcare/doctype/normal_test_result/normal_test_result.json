@@ -20,6 +20,7 @@
   "allow_blank",
   "normal_range",
   "lab_test_comment",
+  "collection_name",
   "bold",
   "italic",
   "underline",
@@ -73,6 +74,12 @@
    "ignore_xss_filter": 1,
    "in_list_view": 1,
    "label": "Normal Range",
+   "read_only": 1
+  },
+  {
+   "fieldname": "collection_name",
+   "fieldtype": "Data",
+   "label": "Collection",
    "read_only": 1
   },
   {

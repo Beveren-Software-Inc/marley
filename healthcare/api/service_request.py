@@ -1034,6 +1034,7 @@ def _template_review_fields(template_names, patient_sex=None, patient_care_type=
 		"female_min_range",
 		"female_max_range",
 		"enable_external_lab_print",
+		"allow_specimen_type",
 	]
 	if has_included:
 		fields.append("price_included_in_group")
@@ -1076,6 +1077,7 @@ def _template_review_fields(template_names, patient_sex=None, patient_care_type=
 			"price_included_in_group": included,
 			"list_rate": _lab_template_list_rate(row, patient_care_type),
 			"enable_external_lab_print": cint(row.get("enable_external_lab_print")),
+			"allow_specimen_type": cint(row.get("allow_specimen_type")),
 		}
 	return out
 
@@ -1168,6 +1170,8 @@ def get_lab_request_review(name):
 				"result_type": "Single",
 				"price_included_in_group": 0,
 				"list_rate": 0,
+				"allow_specimen_type": 0,
+				"enable_external_lab_print": 0,
 			}
 			price = price_by_template.get(child)
 			if price is None:
@@ -1184,6 +1188,8 @@ def get_lab_request_review(name):
 					"max_value": cm.get("max_value"),
 					"normal_range": cm.get("normal_range") or "",
 					"price_included_in_group": cint(cm.get("price_included_in_group")),
+					"allow_specimen_type": cint(cm.get("allow_specimen_type")),
+					"enable_external_lab_print": cint(cm.get("enable_external_lab_print")),
 				}
 			)
 		item_finished = 0
@@ -1204,7 +1210,10 @@ def get_lab_request_review(name):
 				or parent,
 				"is_group": 1 if g["kind"] == "group" else 0,
 				"finished": item_finished,
-				"enable_external_lab_print": cint(parent_meta.get("enable_external_lab_print")),
+				"enable_external_lab_print": 1
+				if cint(parent_meta.get("enable_external_lab_print"))
+				or any(cint(t.get("enable_external_lab_print")) for t in tests)
+				else 0,
 				"tests": tests,
 				"test_count": len(tests),
 				"total_price": flt(sum(flt(t.get("price") or 0) for t in tests)),
@@ -1230,25 +1239,28 @@ def get_lab_request_review(name):
 			g["finished"] = 1
 
 	# Linked Lab Tests created when this request was booked (for sample / results actions).
+	lab_test_fields = [
+		"name",
+		"template",
+		"lab_test_name",
+		"status",
+		"docstatus",
+		"is_group_lab_test",
+		"lab_test_group",
+		"result_date",
+		"custom_result",
+		"result_flag",
+		"patient",
+		"patient_name",
+		"practitioner",
+		"practitioner_name",
+	]
+	if frappe.db.has_column("Lab Test", "custom_speciment_type"):
+		lab_test_fields.append("custom_speciment_type")
 	lab_test_rows = frappe.get_all(
 		"Lab Test",
 		filters={"service_request": doc.name, "docstatus": ["!=", 2]},
-		fields=[
-			"name",
-			"template",
-			"lab_test_name",
-			"status",
-			"docstatus",
-			"is_group_lab_test",
-			"lab_test_group",
-			"result_date",
-			"custom_result",
-			"result_flag",
-			"patient",
-			"patient_name",
-			"practitioner",
-			"practitioner_name",
-		],
+		fields=lab_test_fields,
 		order_by="creation asc",
 		ignore_permissions=True,
 	)
@@ -1288,6 +1300,7 @@ def get_lab_request_review(name):
 			test["lab_test_docstatus"] = cint(lt.get("docstatus")) if lt else None
 			test["sample_collection"] = None
 			test["custom_result"] = (lt.get("custom_result") or "") if lt else ""
+			test["custom_speciment_type"] = (lt.get("custom_speciment_type") or "") if lt else ""
 			flag = ((lt.get("result_flag") or "") if lt else "").strip()
 			# Backfill Use Status marks when result exists but flag was never set (older saves / unit mismatch).
 			if not flag and lt and (test.get("custom_result") or "").strip():

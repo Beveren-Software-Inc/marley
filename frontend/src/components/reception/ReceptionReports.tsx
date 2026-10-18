@@ -13,6 +13,10 @@ import {
   readPersistedListFilters,
   writePersistedListFilters,
 } from '../../utils/persistedListFilters'
+import {
+  PackageChargeToTodayModal,
+  type PackageChargePreview,
+} from './PackageChargeToTodayModal'
 
 type ReportId = 'receipts' | 'ip-payments' | 'soa' | 'soa-op'
 
@@ -498,7 +502,9 @@ export function ReceptionReports() {
   const [visitOptions, setVisitOptions] = useState<LinkFieldOption[]>([])
   const [visitOpen, setVisitOpen] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [loadingPackagePreview, setLoadingPackagePreview] = useState(false)
   const [chargingPackage, setChargingPackage] = useState(false)
+  const [packagePreview, setPackagePreview] = useState<PackageChargePreview | null>(null)
   const [data, setData] = useState<any>(null)
 
   const needsAdmission = report === 'ip-payments' || report === 'soa'
@@ -697,54 +703,55 @@ export function ReceptionReports() {
     }
   }
 
-  const chargePackageToToday = async () => {
+  const openPackageChargeModal = async () => {
     if (report !== 'soa') return
     if (!resolvedAdmission) {
       toast.error('Select an admission / case first')
       return
     }
-    setChargingPackage(true)
+    setPackagePreview(null)
+    setLoadingPackagePreview(true)
     try {
-      const preview = await apiRequest<any>(
+      const preview = await apiRequest<PackageChargePreview>(
         `/api/method/healthcare.api.package_charge_to_today.preview_package_charge_to_today?admission=${encodeURIComponent(resolvedAdmission)}`,
       )
       if (!preview?.can_charge) {
-        toast.error(
-          preview?.quotation
-            ? `No unbilled package days. Elapsed ${preview?.days_elapsed ?? 0}, already billed ${preview?.days_already_billed ?? 0}, package ${preview?.program_days ?? '—'} days (Quotation ${preview.quotation}).`
-            : 'No package Quotation found for this admission. Create the admission package Quotation first.',
-        )
+        if (Number(preview?.days_to_charge || 0) > 0) {
+          toast.error(
+            'Package days are available but no billable package/room Item is linked to this admission.',
+          )
+        } else {
+          toast.error(
+            `No unbilled package days. Elapsed ${preview?.days_elapsed ?? 0}, already billed ${preview?.days_already_billed ?? 0}, package ${preview?.program_days ?? '—'} days${preview?.quotation ? ` (Quotation ${preview.quotation}).` : '.'}`,
+          )
+        }
         return
       }
-      const ok = window.confirm(
-        [
-          `Charge package up to today for ${preview.package_name || preview.package}?`,
-          '',
-          `Existing Quotation: ${preview.quotation}`,
-          `Package days: ${preview.program_days ?? '—'}`,
-          `Days elapsed: ${preview.days_elapsed}`,
-          `Already billed: ${preview.days_already_billed}`,
-          `Days to charge now: ${preview.days_to_charge}`,
-          `Amount / day: ${fmtAmt(preview.amount_per_day)}`,
-          `Charge amount: ${fmtAmt(preview.amount)}`,
-          `Remaining after charge: ${preview.remaining_days_after ?? '—'}`,
-          '',
-          'Creates a partial Sales Order from the existing Quotation (does not create a new Quotation).',
-        ].join('\n'),
-      )
-      if (!ok) return
+      setPackagePreview(preview)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to check package charge')
+    } finally {
+      setLoadingPackagePreview(false)
+    }
+  }
 
+  const confirmPackageCharge = async () => {
+    const admissionToCharge = packagePreview?.admission || resolvedAdmission
+    if (!admissionToCharge || !packagePreview) return
+    setChargingPackage(true)
+    try {
       const result = await apiRequest<any>(
         '/api/method/healthcare.api.package_charge_to_today.charge_package_to_today',
         {
           method: 'POST',
-          body: JSON.stringify({ admission: resolvedAdmission }),
+          body: JSON.stringify({ admission: admissionToCharge }),
         },
       )
       toast.success(
         result?.message ||
           `Charged ${result?.days_charged || 0} day(s). Remaining ${result?.remaining_days ?? '—'}.`,
       )
+      setPackagePreview(null)
       // Refresh SOA so the new Sales Order lines appear
       await run()
     } catch (err) {
@@ -752,6 +759,11 @@ export function ReceptionReports() {
     } finally {
       setChargingPackage(false)
     }
+  }
+
+  const closePackageChargeModal = () => {
+    if (chargingPackage) return
+    setPackagePreview(null)
   }
 
   const buildHtml = (): { html: string; filename: string } | null => {
@@ -1013,12 +1025,16 @@ export function ReceptionReports() {
         {report === 'soa' ? (
           <button
             type="button"
-            onClick={() => void chargePackageToToday()}
-            disabled={chargingPackage || !resolvedAdmission}
+            onClick={() => void openPackageChargeModal()}
+            disabled={loadingPackagePreview || chargingPackage || !resolvedAdmission}
             className="h-[30px] self-end rounded-md border border-emerald-600 bg-white px-3 text-sm font-medium text-emerald-700 hover:bg-emerald-50 disabled:opacity-40"
             title="Partial Sales Order from existing package Quotation for unbilled days up to today"
           >
-            {chargingPackage ? 'Charging…' : 'Charge Package to Today'}
+            {loadingPackagePreview
+              ? 'Checking…'
+              : chargingPackage
+                ? 'Charging…'
+                : 'Charge Package to Today'}
           </button>
         ) : null}
         <button
@@ -1074,6 +1090,13 @@ export function ReceptionReports() {
       {rowsCount !== null && rowsCount === 0 && (
         <p className="py-4 text-center text-xs text-slate-400">NO RECORDS FOUND FOR THE SELECTED FILTERS</p>
       )}
+      <PackageChargeToTodayModal
+        open={Boolean(packagePreview)}
+        preview={packagePreview}
+        loading={chargingPackage}
+        onClose={closePackageChargeModal}
+        onConfirm={() => void confirmPackageCharge()}
+      />
     </section>
   )
 }

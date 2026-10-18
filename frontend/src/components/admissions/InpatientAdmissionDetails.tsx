@@ -10,6 +10,7 @@ import {
 } from '../../services/inpatientRecords'
 import { StatusPill } from '../ui/StatusPill'
 import { PackageSelectionModal } from './PackageSelectionModal'
+import { AdmissionPackageTab } from './AdmissionPackageTab'
 import { AdmissionFormModal } from './AdmissionFormModal'
 import { ScheduleDischargeModal } from './ScheduleDischargeModal'
 import { ModifyMedicalSupervisionModal } from './ModifyMedicalSupervisionModal'
@@ -27,7 +28,7 @@ import { InpatientDiagnosisModal } from './InpatientDiagnosisModal'
 import { CreatePrescriptionModal } from '../prescriptions/CreatePrescriptionModal'
 import { CreateServiceRequestModal } from '../serviceRequests/CreateServiceRequestModal'
 import { CreateClinicalNoteModal } from '../clinicalNotes/CreateClinicalNoteModal'
-import { Stethoscope, FlaskConical, Pill, FileText, Info, Plus, ChevronDown, PenLine, NotebookPen } from 'lucide-react'
+import { Stethoscope, FlaskConical, Pill, FileText, Info, Plus, ChevronDown, PenLine, NotebookPen, Package } from 'lucide-react'
 import { formatAdmissionDate } from '../../utils/admissionDateTime'
 import {
   displayMedicationDosage,
@@ -40,7 +41,7 @@ import { PatientDocumentAttachmentPreview } from '../ui/PatientDocumentAttachmen
 import { attachFileDisplayUrl } from '../ui/SignaturePad'
 import type { PatientDocumentRow } from '../../services/patients'
 import { useAuth } from '../../providers/AuthProvider'
-import { isDoctorRole } from '../../config/permissions'
+import { isAdmin, isDoctorRole, isReceptionRole } from '../../config/permissions'
 
 // Constants
 const STATUS_COLORS: Record<string, string> = {
@@ -52,7 +53,7 @@ const STATUS_COLORS: Record<string, string> = {
   'Cancelled': 'danger',
 } as const
 
-type TabType = 'details' | 'diagnosis' | 'lab_tests' | 'medicine_given' | 'prescriptions' | 'progress_notes' | 'signatures'
+type TabType = 'details' | 'package' | 'diagnosis' | 'lab_tests' | 'medicine_given' | 'prescriptions' | 'progress_notes' | 'signatures'
 
 interface InpatientAdmissionDetailsProps {
   admissionName: string
@@ -1264,11 +1265,12 @@ export const InpatientAdmissionDetails = ({ admissionName, onUpdate }: Inpatient
   const [showMedicalSupervision, setShowMedicalSupervision] = useState(false)
 
   const { user } = useAuth()
-  const isDoctor = isDoctorRole(
-    user?.roles?.length
-      ? user.roles
-      : ([user?.role, user?.role_profile_name].filter(Boolean) as string[])
-  )
+  const userRoles = user?.roles?.length
+    ? user.roles
+    : ([user?.role, user?.role_profile_name].filter(Boolean) as string[])
+  const isDoctor = isDoctorRole(userRoles)
+  // Package changes are receptionist-gated (backend re-checks this on write).
+  const canViewPackageTab = isAdmin(userRoles) || isReceptionRole(userRoles)
 
   const {
     diagnoses,
@@ -1370,6 +1372,9 @@ export const InpatientAdmissionDetails = ({ admissionName, onUpdate }: Inpatient
 
   const tabs = [
     { id: 'details' as TabType, label: 'Admission Details', icon: Info, count: 0 },
+    ...(canViewPackageTab
+      ? [{ id: 'package' as TabType, label: 'Package', icon: Package, count: 0 }]
+      : []),
     { id: 'diagnosis' as TabType, label: 'Diagnoses', icon: Stethoscope, count: diagnoses.length },
     { id: 'lab_tests' as TabType, label: 'Lab Tests', icon: FlaskConical, count: labTests.length },
     { id: 'medicine_given' as TabType, label: 'Medicine Given', icon: Pill, count: medicineGiven.length + missedMedicine.length },
@@ -1513,6 +1518,15 @@ export const InpatientAdmissionDetails = ({ admissionName, onUpdate }: Inpatient
         {/* Tab Content */}
         <div className="py-4">
           {activeTab === 'details' && <DetailsTab record={record} />}
+          {activeTab === 'package' && canViewPackageTab && (
+            <AdmissionPackageTab
+              admissionName={admissionName}
+              onChanged={() => {
+                void loadRecord()
+                onUpdate?.()
+              }}
+            />
+          )}
           {activeTab === 'diagnosis' && (
             <DiagnosesTab
               diagnoses={diagnoses}

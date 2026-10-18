@@ -195,6 +195,7 @@ const receptionScreenGroups: ScreenGroup[] = [
       { id: 'r-observation',      title: 'Observation' },
       { id: 'r-internal-transfer', title: 'Internal Transfer' },
       { id: 'r-long-acting-meds', title: 'Long Acting Medicine' },
+      { id: 'r-packages',         title: 'Packages' },
     ],
   },
   {

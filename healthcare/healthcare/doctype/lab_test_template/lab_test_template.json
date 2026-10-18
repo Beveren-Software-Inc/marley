@@ -40,6 +40,7 @@
   "consumables",
   "section_break_description",
   "lab_test_description",
+  "custom_sample_type",
   "section_break_vjvz",
   "cr_id",
   "cr_date",
@@ -72,6 +73,9 @@
   "is_multiple",
   "multiple_result_type",
   "display_one_result",
+  "group_as_per_collection",
+  "include_comment",
+  "allow_specimen_type",
   "section_break_compound",
   "normal_test_templates",
   "section_break_special",
@@ -681,6 +685,33 @@
    "fieldname": "display_one_result",
    "fieldtype": "Check",
    "label": "Display One Result"
+  },
+  {
+   "default": "0",
+   "depends_on": "eval:doc.is_multiple && !doc.display_one_result",
+   "description": "On the lab request result screen, group Multiple Result rows under their collection name.",
+   "fieldname": "group_as_per_collection",
+   "fieldtype": "Check",
+   "label": "Group As Per Collection"
+  },
+  {
+   "fieldname": "custom_sample_type",
+   "fieldtype": "Data",
+   "label": "Custom Sample Type"
+  },
+  {
+   "default": "0",
+   "depends_on": "eval:doc.is_multiple && !doc.display_one_result",
+   "description": "Show a comment box under the grouped results on the lab request screen.",
+   "fieldname": "include_comment",
+   "fieldtype": "Check",
+   "label": "Include Comment"
+  },
+  {
+   "default": "0",
+   "fieldname": "allow_specimen_type",
+   "fieldtype": "Check",
+   "label": "Allow Specimen Type"
   }
  ],
  "grid_page_length": 50,
@@ -691,7 +722,7 @@
    "link_fieldname": "template"
   }
  ],
- "modified": "2026-10-12 18:23:01.646612",
+ "modified": "2026-10-15 16:39:11.393894",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Lab Test Template",

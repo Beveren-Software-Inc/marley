@@ -3,12 +3,18 @@ import { fetchInpatientPackages, type InpatientPackage } from '../../services/in
 
 interface PackageSelectionModalProps {
   admissionNo: string
+  /** Package currently applied to the admission (highlighted in the list). */
+  currentPackage?: string | null
+  /** Current custom daily rate, used to prefill the custom package tab. */
+  currentRate?: number | null
   onSelect: (pkg: InpatientPackage) => void
   onClose: () => void
 }
 
 export const PackageSelectionModal = ({
   admissionNo,
+  currentPackage,
+  currentRate,
   onSelect,
   onClose
 }: PackageSelectionModalProps) => {
@@ -18,8 +24,10 @@ export const PackageSelectionModal = ({
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
 
-  // Custom package state
-  const [customRate, setCustomRate] = useState('')
+  // Custom package state (prefilled when the admission already uses a custom rate)
+  const [customRate, setCustomRate] = useState(() =>
+    currentRate && currentRate > 0 ? String(currentRate) : ''
+  )
 
   useEffect(() => {
     const loadPackages = async () => {
@@ -61,7 +69,17 @@ export const PackageSelectionModal = ({
         {/* Header */}
         <div className="p-6 border-b border-slate-200 shrink-0">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-semibold text-slate-900">Select Package</h2>
+            <div>
+              <h2 className="text-xl font-semibold text-slate-900">
+                {currentPackage ? 'Change Package' : 'Select Package'}
+              </h2>
+              {currentPackage ? (
+                <p className="text-xs text-slate-500 mt-1">
+                  The new package applies to future stay charges. Charges already billed keep the
+                  previous package.
+                </p>
+              ) : null}
+            </div>
             <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
               <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -111,16 +129,29 @@ export const PackageSelectionModal = ({
                 </div>
               ) : packages.length > 0 ? (
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  {packages.map((pkg) => (
+                  {packages.map((pkg) => {
+                    const isCurrent = !!currentPackage && currentPackage === pkg.name
+                    return (
                     <div
                       key={pkg.name}
-                      className="border border-slate-200 rounded-lg p-4 hover:border-primary hover:shadow-md transition-all cursor-pointer"
+                      className={`rounded-lg p-4 transition-all cursor-pointer ${
+                        isCurrent
+                          ? 'border-2 border-primary bg-primary/5 shadow-sm'
+                          : 'border border-slate-200 hover:border-primary hover:shadow-md'
+                      }`}
                       onClick={() => onSelect(pkg)}
                     >
                       <div className="mb-3">
-                        <h3 className="font-semibold text-slate-900 mb-1">
-                          {pkg.package_name}
-                        </h3>
+                        <div className="flex items-start justify-between gap-2">
+                          <h3 className="font-semibold text-slate-900 mb-1">
+                            {pkg.package_name}
+                          </h3>
+                          {isCurrent ? (
+                            <span className="shrink-0 rounded-full bg-primary px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
+                              Current
+                            </span>
+                          ) : null}
+                        </div>
                         {pkg.is_daily_default ? (
                           <p className="text-xs text-amber-700 mb-2 font-medium">Daily default (no program)</p>
                         ) : null}
@@ -157,7 +188,8 @@ export const PackageSelectionModal = ({
                         )}
                       </div>
                     </div>
-                  ))}
+                    )
+                  })}
                 </div>
               ) : (
                 <div className="text-center py-8 text-slate-600">

@@ -50,8 +50,11 @@ def _package_days_elapsed(admission, as_of=None) -> int:
 		discharge = getdate(admission.discharge_datetime)
 		if discharge and discharge < end:
 			end = discharge
-	# Match Statement of Account: max((end - start).days, 1)
-	return max((end - start).days, 1)
+	if end < start:
+		return 0
+	# Package duration counts the admission day as day 1 (expected discharge is
+	# start + program days - 1), so include both the start and end dates.
+	return (end - start).days + 1
 
 
 def _days_from_unledgered_quotations(admission_name: str, package_name: str | None = None) -> int:
@@ -344,6 +347,7 @@ def _charge_window(admission, package, as_of=None, *, through_discharge=False) -
 			per_day = flt(pline.get("rate"))
 
 	amount = flt(per_day) * cint(days_to_charge)
+	charge_item = _package_charge_item(admission, quotation, service_unit=service_unit)
 
 	return {
 		"admission": admission.name,
@@ -370,7 +374,7 @@ def _charge_window(admission, package, as_of=None, *, through_discharge=False) -
 		"from_date": str(from_date) if from_date else None,
 		"to_date": str(to_date) if to_date else None,
 		"service_unit": service_unit,
-		"can_charge": days_to_charge > 0 and amount > 0 and (bool(quotation) or through_discharge),
+		"can_charge": days_to_charge > 0 and amount > 0 and bool(charge_item),
 	}
 
 
@@ -533,6 +537,8 @@ def _charge_package_days(
 	When ``through_discharge`` is True, days are counted from the day after the
 	last Package Detail ``to_date`` through ``as_of``, and a standalone Sales Order
 	is created at the package item rate (quotation remaining qty is ignored).
+	When no Quotation exists for the current package (for example after a package
+	change), a standalone Sales Order is created at the admission's current rate.
 	"""
 	admission = (admission or "").strip()
 	if not admission or not frappe.db.exists("Inpatient Admission", admission):
@@ -557,15 +563,9 @@ def _charge_package_days(
 	preview = _charge_window(adm, package, as_of=as_of, through_discharge=through_discharge)
 
 	quotation = _find_admission_package_quotation(admission, package_name, allow_draft=True)
-	if not quotation and not through_discharge:
-		if throw_if_nothing:
-			frappe.throw(
-				_(
-					"No package Quotation found for this admission. "
-					"Create the admission package Quotation first, then charge days from it."
-				)
-			)
-		return None
+	# A package change only updates the admission; the previous package Quotation
+	# stays linked to already-billed days. With no Quotation for the new package,
+	# fall through to a standalone Sales Order at the admission's current rate.
 
 	if not preview.get("can_charge"):
 		if not throw_if_nothing:
@@ -582,7 +582,11 @@ def _charge_package_days(
 					quotation.name if quotation else _("(none)"),
 				)
 			)
-		frappe.throw(_("Charge amount must be greater than zero."))
+		if flt(preview.get("amount") or 0) <= 0:
+			frappe.throw(_("Charge amount must be greater than zero."))
+		frappe.throw(
+			_("No package/room Item found to charge stay days for admission {0}.").format(admission)
+		)
 
 	days_to_charge = cint(preview["days_to_charge"])
 	default_note = note or _(
@@ -594,7 +598,7 @@ def _charge_package_days(
 		preview.get("amount"),
 	)
 
-	if through_discharge:
+	if through_discharge or not quotation:
 		item = _package_charge_item(adm, quotation, service_unit=preview.get("service_unit"))
 		if not item:
 			if not throw_if_nothing:
@@ -691,9 +695,11 @@ def _charge_package_days(
 
 @frappe.whitelist()
 def charge_package_to_today(admission: str, as_of: str | None = None) -> dict:
-	"""Create a **partial** Sales Order from the existing package Quotation.
+	"""Create a **partial** Sales Order for the unbilled package days up to today.
 
-	Does **not** create a new Quotation. Orders only the unbilled days up to today.
+	Does **not** create a new Quotation. Uses the existing package Quotation when
+	one exists; otherwise (for example after a package change) posts a standalone
+	Sales Order at the admission's current package rate.
 	"""
 	_require_billing_user()
 	return _charge_package_days(admission, as_of=as_of, throw_if_nothing=True)
@@ -872,7 +878,10 @@ def record_partial_package_charge(
 	else:
 		already_before = max(_days_already_billed(admission, package) - days, 0)
 		fdate = add_days(start, already_before) if start and already_before else start
-	tdate = getdate(to_date) if to_date else add_days(fdate, max(days - 1, 0))
+	# Package Detail counts days inclusively, so end on the last covered day.
+	# The Sales Order quantity is authoritative (the preview ``to_date`` is the
+	# charge cut-off date, which can be one day after the last covered day).
+	tdate = add_days(fdate, max(days - 1, 0))
 
 	per_day = flt(amount_per_day) or (flt(amount) / days if days else 0)
 	detail = frappe.new_doc("Package Detail")

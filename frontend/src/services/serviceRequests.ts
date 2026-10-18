@@ -172,6 +172,12 @@ export interface LabRequestReviewTest {
   lab_test_docstatus?: number | null
   sample_collection?: string | null
   custom_result?: string | null
+  /** Lab Test Template.allow_specimen_type — show a specimen field beside the result. */
+  allow_specimen_type?: number
+  /** This test's template, not the parent group. */
+  enable_external_lab_print?: number
+  /** Saved on Lab Test.custom_speciment_type. */
+  custom_speciment_type?: string | null
   /** High/Low/Normal or Use Status marks (Deficiency, Toxicity, …). */
   result_flag?: string | null
   /** Uploaded reports / scans attached to the linked Lab Test. */
