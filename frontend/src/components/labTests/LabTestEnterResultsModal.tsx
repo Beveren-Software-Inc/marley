@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useState } from 'react'
+import { Fragment, useEffect, useState, type KeyboardEvent } from 'react'
 import { createPortal } from 'react-dom'
 import {
   canEditLabTestResultForRow,
@@ -175,6 +175,28 @@ function highLowMarkFromRange(value: string, min: number | null, max: number | n
   if (min != null && val < min) return 'Low'
   if (max != null && val > max) return 'High'
   return 'Normal'
+}
+
+/**
+ * Move between result inputs with the keyboard, mirroring the normal lab test
+ * request (ArrowDown/Enter → next row, ArrowUp → previous row). Only inputs
+ * flagged with `data-lab-result-nav` inside the same table are considered, so
+ * collection headers, inclusion totals and comments are skipped.
+ */
+function handleResultNavKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+  if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp' && event.key !== 'Enter') return
+  event.preventDefault()
+  const table = event.currentTarget.closest('table')
+  if (!table) return
+  const inputs = Array.from(
+    table.querySelectorAll<HTMLInputElement>('input[data-lab-result-nav]:not([disabled])')
+  )
+  const idx = inputs.indexOf(event.currentTarget)
+  if (idx < 0) return
+  const next = event.key === 'ArrowUp' ? inputs[idx - 1] : inputs[idx + 1]
+  if (!next) return
+  next.focus()
+  next.select()
 }
 
 function multipleStatusMarkClass(status: string): string {
@@ -645,7 +667,10 @@ export function LabTestEnterResultsModal({
                               <td className="px-2 py-1">
                                 <input
                                   type="text"
+                                  data-lab-result-nav={idx}
                                   value={row.result_value ?? ''}
+                                  onKeyDown={handleResultNavKeyDown}
+                                  title="Enter result. ↑/↓ move between fields"
                                   onChange={(e) => {
                                     const v = e.target.value
                                     setNormalTestItems((prev) => {
