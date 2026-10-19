@@ -132,11 +132,12 @@ def apply_insurance_discounts(doc):
 
 	Rules:
 	- Only if Patient has Active insurance (is_insurance + Health Insurance).
-	- Patient Visit / OP → outpatient_discount; Inpatient → inpatient_discount.
+	- Discount only when the item is on Inclusive Items, with Discount Apply on.
+	- Patient Visit / OP uses that row's outpatient_discount; Inpatient uses inpatient_discount.
+	- Items not on the inclusive list are billed at list price.
 	- Inclusive Item Detail.price is used as the base rate when set.
-	- 0% discount means no discount (full insurance/template price).
+	- 0% on the inclusive row means no discount.
 	- Exclusive items / groups never receive a discount.
-	- Inclusive rows with Discount Apply unchecked never receive a discount.
 	"""
 
 	if doc.doctype not in SUPPORTED_DOCTYPES:
@@ -187,6 +188,10 @@ def apply_insurance_discounts(doc):
 
 		inclusive_row = find_inclusive_row(insurance_doc, item_code=item_code)
 		insurance_price = get_inclusive_price(inclusive_row)
+
+		if not inclusive_row:
+			_clear_line_discount(item)
+			continue
 
 		if inclusive_row and not cint(getattr(inclusive_row, "discount_apply", 0)):
 			_clear_line_discount(item, insurance_price)
