@@ -1,8 +1,10 @@
 """Shared TRICARE / Health Insurance pricing helpers.
 
 - Inclusive Item Detail.price overrides template rate when set
-- Patient Visit / OP context → outpatient_discount
-- Inpatient Admission / IP context → inpatient_discount
+- Discount applies only to a matching Inclusive Item row
+- Patient Visit / OP context → that row's outpatient_discount
+- Inpatient Admission / IP context → that row's inpatient_discount
+- Items not on the inclusive list get no insurance discount
 - 0% discount means no discount calculation
 - Category multiplier skipped for insured patients when Healthcare Settings
   Apply Multiplier on Insurance is unticked
@@ -112,30 +114,20 @@ def resolve_item_code_for_template(template_dt: str | None, template_dn: str | N
 
 
 def get_inclusive_discount_pct(insurance_doc, inclusive_row, context: str) -> float:
-	"""Discount % for OP/IP context. 0 means no discount."""
-	if not insurance_doc:
+	"""Discount % for an Inclusive Item row. Items not on that list get 0."""
+	if not insurance_doc or not inclusive_row:
 		return 0.0
 
-	plan_base = (
-		flt(getattr(insurance_doc, "outpatient_discount", 0) or 0)
-		if context == "outpatient"
-		else flt(getattr(insurance_doc, "inpatient_discount", 0) or 0)
-	)
-
-	if inclusive_row:
-		if not cint(getattr(inclusive_row, "discount_apply", 0)):
-			return 0.0
-		if context == "outpatient":
-			value = getattr(inclusive_row, "outpatient_discount", None)
-		else:
-			value = getattr(inclusive_row, "inpatient_discount", None)
-		# Explicit 0 (or blank) on the row → no discount; do not fall back to plan %
-		if value in (None, ""):
-			return 0.0
-		return flt(value)
-
-	# Not in inclusive table — use plan %.
-	return flt(plan_base)
+	if not cint(getattr(inclusive_row, "discount_apply", 0)):
+		return 0.0
+	if context == "outpatient":
+		value = getattr(inclusive_row, "outpatient_discount", None)
+	else:
+		value = getattr(inclusive_row, "inpatient_discount", None)
+	# Explicit 0 (or blank) on the row → no discount; do not fall back to the plan %
+	if value in (None, ""):
+		return 0.0
+	return flt(value)
 
 
 def get_inclusive_price(inclusive_row) -> float | None:
