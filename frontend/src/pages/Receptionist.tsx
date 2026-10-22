@@ -117,6 +117,8 @@ export const ReceptionistPage = () => {
   const [selectedPatient, setSelectedPatient] = useState<string>(() => patientFromUrl || globalPatient || '')
   const [currentView, setCurrentView] = useState<View>('default')
   const [showAppointmentModal, setShowAppointmentModal] = useState(false)
+  const [initialAppointmentDate, setInitialAppointmentDate] = useState('')
+  const [initialPractitioner, setInitialPractitioner] = useState('')
   const [appointmentRefreshKey, setAppointmentRefreshKey] = useState(0)
   const [showStickyNoteModal, setShowStickyNoteModal] = useState(false)
   const [stickyNoteRefreshKey, setStickyNoteRefreshKey] = useState(0)
@@ -889,6 +891,10 @@ export const ReceptionistPage = () => {
                 receptionWalkInActions
                 patient={selectedPatient || undefined}
                 refreshKey={appointmentRefreshKey}
+                onAddAppointment={(filters) => {
+                  setInitialAppointmentDate(filters.date)
+                  setInitialPractitioner(filters.practitioner)
+                }}
                 onPatientClick={handlePatientSelect}
               />
             </DashboardCard>
@@ -1168,6 +1174,8 @@ export const ReceptionistPage = () => {
             setShowAppointmentModal(false)
           }}
           initialPatient={selectedPatient || undefined}
+          initialAppointmentDate={initialAppointmentDate || undefined}
+          initialPractitioner={initialPractitioner || undefined}
         />
       )}
 
