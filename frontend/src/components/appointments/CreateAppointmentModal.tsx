@@ -127,15 +127,16 @@ interface CreateAppointmentModalProps {
   onSuccess?: () => void
   initialPatient?: string
   initialPractitioner?: string
+  initialAppointmentDate?: string
 }
 
-export const CreateAppointmentModal = ({ onClose, onSuccess, initialPatient, initialPractitioner }: CreateAppointmentModalProps) => {
+export const CreateAppointmentModal = ({ onClose, onSuccess, initialPatient, initialPractitioner,initialAppointmentDate, }: CreateAppointmentModalProps) => {
   const blockIfActiveCareClosed = useBlockIfActiveCareClosed()
   const { userCostCenter } = useCareContext()
   const [formData, setFormData] = useState({
     patient: initialPatient || '',
     appointment_type: '',
-    appointment_date: localDateInputValue(),
+    appointment_date: initialAppointmentDate || localDateInputValue(),
     appointment_time: '',
     practitioner: initialPractitioner || ''
   })
