@@ -12,6 +12,9 @@ export interface PatientVisit {
   practitioner_name?: string
   medical_department?: string
   visit_type?: string
+  visit_type_label?: string
+  old_visit_type_?: string | number
+  legacy_visit_type?: boolean
   file_number?: string
   inpatient_record?: string
   inpatient_status?: string
@@ -58,6 +61,9 @@ export interface PatientVisitListRow {
   pharmacy_amount: number
   appointment_amount: number
   visit_type?: string
+  visit_type_label?: string
+  old_visit_type_?: string | number
+  legacy_visit_type?: boolean
   file_no?: string
   cpr_no?: string
   user?: string
@@ -129,6 +135,9 @@ export async function fetchPatientVisitsFull(
         pharmacy_amount: Number(m.pharmacy_amount ?? 0),
         appointment_amount: Number(m.appointment_amount ?? 0),
         visit_type: m.visit_type ?? '',
+        visit_type_label: m.visit_type_label ?? m.visit_type ?? '',
+        old_visit_type_: m.old_visit_type_ ?? '',
+        legacy_visit_type: Boolean(m.legacy_visit_type),
         file_no: m.file_no ?? '',
         cpr_no: m.cpr_no ?? '',
         user: m.user ?? '',
@@ -183,10 +192,15 @@ export interface PatientVisitTypeOption {
 
 /** Fetch Patient Visit Type list for dropdown with optional search query.
  * Uses a whitelisted endpoint (not /api/resource) so portal roles without
- * Patient Visit Type read permission (e.g. Nurse) still get the options. */
-export async function fetchPatientVisitTypes(query?: string): Promise<PatientVisitTypeOption[]> {
+ * Patient Visit Type read permission (e.g. Nurse) still get the options.
+ * `includeLegacyDisabled` adds disabled types that map a legacy code, for filters. */
+export async function fetchPatientVisitTypes(
+  query?: string,
+  includeLegacyDisabled = false
+): Promise<PatientVisitTypeOption[]> {
   const params = new URLSearchParams()
   if (query && query.trim()) params.append('search', query.trim())
+  if (includeLegacyDisabled) params.append('include_legacy_disabled', '1')
   const url = `/api/method/healthcare.api.common.get_patient_visit_types${params.toString() ? `?${params.toString()}` : ''}`
   const response = await fetch(url)
   const resData = await response.json()

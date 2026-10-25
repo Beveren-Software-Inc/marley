@@ -830,13 +830,20 @@ def get_nursing_checklist_templates(search=None):
 
 
 @frappe.whitelist()
-def get_patient_visit_types(search=None):
+def get_patient_visit_types(search=None, include_legacy_disabled=0):
 	"""Patient Visit Type options for dropdowns — portal roles (e.g. Nurse) lack doctype read perms
 	(REST grants Patient Visit Type only to Doctor / Reception / System Manager).
 
-	Disabled visit types are excluded so they do not appear in create/edit/filter dropdowns.
+	Disabled visit types are excluded so they do not appear in create/edit dropdowns.
+	``include_legacy_disabled`` keeps disabled rows that carry a ``legacy_code`` so
+	historical visits can still be filtered by their mapped visit type.
 	"""
-	filters = {"disabled": 0}
+	filters = {}
+	or_filters = None
+	if cint(include_legacy_disabled):
+		or_filters = [["disabled", "=", 0], ["legacy_code", "!=", ""]]
+	else:
+		filters["disabled"] = 0
 
 	if search:
 		filters['visit_type'] = ['like', f'%{search}%']
@@ -844,6 +851,7 @@ def get_patient_visit_types(search=None):
 	rows = frappe.get_all(
 		'Patient Visit Type',
 		filters=filters,
+		or_filters=or_filters,
 		fields=['name', 'visit_type'],
 		limit_page_length=200,
 		order_by='visit_type asc',

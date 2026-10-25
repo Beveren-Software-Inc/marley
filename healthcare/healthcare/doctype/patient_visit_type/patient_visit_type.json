@@ -9,6 +9,7 @@
   "visit_type",
   "is_default",
   "no_charges",
+  "legacy_code",
   "column_break_hsrw",
   "lab_visit",
   "disabled",
@@ -89,12 +90,17 @@
    "fieldname": "is_ect_request",
    "fieldtype": "Check",
    "label": "Is ECT Request"
+  },
+  {
+   "fieldname": "legacy_code",
+   "fieldtype": "Data",
+   "label": "Legacy Code"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-10-13 12:32:19.233451",
+ "modified": "2026-10-26 01:27:59.703711",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Patient Visit Type",

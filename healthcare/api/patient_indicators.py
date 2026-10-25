@@ -12,6 +12,8 @@ from __future__ import annotations
 import frappe
 from frappe.utils import add_days, getdate, nowdate
 
+from healthcare.api.patient_visit_type_legacy import apply_legacy_visit_type_fallback
+
 # A prescription is considered active for this many days after it was raised.
 ACTIVE_MEDICATION_WINDOW_DAYS = 30
 
@@ -143,13 +145,15 @@ def get_overdue_clinical_actions(cost_center: str | None = None, limit: int = 25
 		})
 
 	# visits left open past their encounter date
-	for row in frappe.get_all(
+	open_visits = frappe.get_all(
 		"Patient Visit",
 		filters={"status": "Open", "encounter_date": ["<", nowdate()], "docstatus": ["<", 2]},
-		fields=["name", "patient", "patient_name", "visit_type", "encounter_date"],
+		fields=["name", "patient", "patient_name", "visit_type", "old_visit_type_", "encounter_date"],
 		order_by="encounter_date asc",
 		limit_page_length=limit,
-	):
+	)
+	apply_legacy_visit_type_fallback(open_visits)
+	for row in open_visits:
 		items.append({
 			"type": "Visit documentation incomplete",
 			"reference_doctype": "Patient Visit",

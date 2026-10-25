@@ -2,6 +2,10 @@
 
 import frappe
 
+from healthcare.api.patient_visit_type_legacy import (
+	resolve_legacy_visit_type,
+	resolve_visit_type_label,
+)
 from healthcare.healthcare.care_episode_guard import (
 	CLOSED_INPATIENT_ADMISSION_STATUSES,
 	CLOSED_PATIENT_VISIT_STATUSES,
@@ -24,13 +28,14 @@ def patient_visit_type_info(patient_visit: str | None) -> dict:
 	row = frappe.db.get_value(
 		"Patient Visit",
 		patient_visit,
-		["visit_type", "iop_enrollment"],
+		["visit_type", "old_visit_type_", "iop_enrollment"],
 		as_dict=True,
 	) or {}
 	link = (row.get("visit_type") or "").strip()
-	label = link
-	if link and frappe.db.exists("Patient Visit Type", link):
-		label = (frappe.db.get_value("Patient Visit Type", link, "visit_type") or link).strip()
+	if not link and row.get("old_visit_type_"):
+		# Legacy visits only carry the old visit type number.
+		link = resolve_legacy_visit_type(row.get("old_visit_type_")) or ""
+	label = resolve_visit_type_label(link) or link
 
 	is_iop = bool(row.get("iop_enrollment"))
 	if not is_iop:

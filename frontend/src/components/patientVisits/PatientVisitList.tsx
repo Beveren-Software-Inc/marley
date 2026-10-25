@@ -103,6 +103,38 @@ function patientVisitCardMetaFields(
   return fields
 }
 
+function visitTypeLabel(visit: PatientVisitListRow): string {
+  return visit.visit_type_label || visit.visit_type || ''
+}
+
+function visitTypeTitle(visit: PatientVisitListRow): string | undefined {
+  if (!visit.legacy_visit_type) return undefined
+  const code = String(visit.old_visit_type_ ?? '').trim()
+  return code ? `Mapped from legacy visit type code ${code}` : 'Mapped from legacy visit type code'
+}
+
+function VisitTypeCell({
+  visit,
+  showBadge = true,
+}: {
+  visit: PatientVisitListRow
+  showBadge?: boolean
+}) {
+  const label = visitTypeLabel(visit)
+  if (!label) return <>-</>
+  if (!visit.legacy_visit_type) return <>{label}</>
+  return (
+    <span className="inline-flex items-center gap-1" title={visitTypeTitle(visit)}>
+      <span>{label}</span>
+      {showBadge ? (
+        <span className="rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-800 ring-1 ring-amber-200">
+          Legacy
+        </span>
+      ) : null}
+    </span>
+  )
+}
+
 export const PatientVisitList = ({
   onVisitSelect,
   onVisitActivate,
@@ -181,7 +213,7 @@ export const PatientVisitList = ({
   useEffect(() => {
     if (visitType) return
     let cancelled = false
-    fetchPatientVisitTypes().then((opts) => { if (!cancelled) setVisitTypeOptions(opts) }).catch(() => {})
+    fetchPatientVisitTypes(undefined, true).then((opts) => { if (!cancelled) setVisitTypeOptions(opts) }).catch(() => {})
     return () => { cancelled = true }
   }, [visitType])
 
@@ -448,8 +480,10 @@ export const PatientVisitList = ({
     detailVisit && detailIndex >= 0 && totalCount > 0
       ? `${(page - 1) * pageSize + detailIndex + 1} of ${totalCount}`
       : undefined
-  const detailVisitTypeRaw = detailIndex >= 0 ? visits[detailIndex]?.visit_type : undefined
+  const detailRow = detailIndex >= 0 ? visits[detailIndex] : undefined
+  const detailVisitTypeRaw = detailRow?.visit_type
   const detailVisitTypeLabel =
+    detailRow?.visit_type_label ||
     (detailVisitTypeRaw &&
       (visitTypeOptions.find((vt) => vt.name === detailVisitTypeRaw)?.visit_type ||
         detailVisitTypeRaw)) ||
@@ -1025,7 +1059,7 @@ export const PatientVisitList = ({
                     >
                       {visit.encounter_date ? formatDate(visit.encounter_date) : '-'}
                     </td>
-                    <td className={`${squeezeLayout ? 'px-1.5 py-1.5 text-xs truncate' : 'px-3 py-2.5 text-sm whitespace-nowrap'} text-slate-700`}>{visit.visit_type || '-'}</td>
+                    <td className={`${squeezeLayout ? 'px-1.5 py-1.5 text-xs truncate' : 'px-3 py-2.5 text-sm whitespace-nowrap'} text-slate-700`}><VisitTypeCell visit={visit} showBadge={!squeezeLayout} /></td>
                     <td className={`${squeezeLayout ? 'px-1.5 py-1.5 text-xs truncate' : 'px-3 py-2.5 text-sm whitespace-nowrap'} text-slate-700`}>{visit.file_no || '-'}</td>
                     <td
                       className={`${squeezeLayout ? 'px-1.5 py-1.5 text-xs' : 'px-3 py-2.5 text-sm max-w-[9.5rem]'} text-slate-700 overflow-hidden`}
@@ -1108,7 +1142,7 @@ export const PatientVisitList = ({
                       <TruncatedName value={visit.practitioner_name} />
                     </td>
                     <td className="px-3 py-2.5 text-xs text-slate-700 align-top whitespace-nowrap">
-                      {visit.visit_type || '-'}
+                      <VisitTypeCell visit={visit} showBadge={false} />
                     </td>
                     <td
                       className="px-3 py-2.5 text-xs text-slate-700 align-top whitespace-nowrap"
@@ -1144,7 +1178,7 @@ export const PatientVisitList = ({
                   <td className="px-4 py-3 text-sm text-slate-700 max-w-[9.5rem]">
                     <TruncatedName value={visit.practitioner_name} />
                   </td>
-                  <td className="px-4 py-3 text-sm text-slate-700 whitespace-nowrap">{visit.visit_type || '-'}</td>
+                  <td className="px-4 py-3 text-sm text-slate-700 whitespace-nowrap"><VisitTypeCell visit={visit} /></td>
                   <td
                     className="px-4 py-3 text-sm text-slate-700 whitespace-nowrap"
                     title={visit.cost_center || undefined}
@@ -1303,7 +1337,10 @@ export const PatientVisitList = ({
             <>
               Patient Visit
               {detailVisitTypeLabel ? (
-                <span className="ml-1.5 text-sm font-normal text-emerald-800/70">
+                <span
+                  className="ml-1.5 text-sm font-normal text-emerald-800/70"
+                  title={detailRow ? visitTypeTitle(detailRow) : undefined}
+                >
                   ({detailVisitTypeLabel})
                 </span>
               ) : null}
