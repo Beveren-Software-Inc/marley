@@ -51,10 +51,12 @@ import { DashboardCard } from '../components/ui/DashboardCard'
 import { PractitionerUnavailabilityList } from '../components/practitionerUnavailability/PractitionerUnavailabilityList'
 import { WarningMessagesList } from '../components/warnings/WarningMessagesList'
 import { CreateWarningMessageModal } from '../components/warnings/CreateWarningMessageModal'
+import { PriceReport } from '../components/reception/PriceReport'
 
 type View =
   | 'default'
   | 'reports'
+  | 'price-report'
   | 'patient'
   | 'admission'
   | 'visit'
@@ -297,6 +299,8 @@ export const ReceptionistPage = () => {
       setCurrentView('insurance')
     } else if (screen === 'r-reports') {
       setCurrentView('reports')
+    } else if (screen === 'r-price-report') {
+      setCurrentView('price-report')
     } else if (screen === 'r-referral') {
       setCurrentView('referral')
     } else if (screen === 'r-report-requests') {
@@ -650,6 +654,8 @@ export const ReceptionistPage = () => {
             <ReceptionReports />
           </div>
         )}
+
+        {currentView === 'price-report' && <PriceReport />}
 
         {currentView === 'referral' && (
           <div className="p-4">

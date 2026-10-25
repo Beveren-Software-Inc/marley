@@ -2196,3 +2196,115 @@ def _build_op_soa(
 		"visit_count": len(visits),
 		**pay_block,
 	}
+
+@frappe.whitelist()
+def get_price_report(report_type="lab"):
+    """Return pricing data for the selected report type."""
+
+    if report_type == "lab":
+        lab_tests = frappe.get_all(
+            "Lab Test Template",
+            filters={"disabled": 0},
+            fields=[
+                "name",
+                "lab_test_name",
+                "lab_test_rate",
+                "op_rate",
+                "price",
+                "item",
+            ],
+            order_by="lab_test_name asc",
+            limit_page_length=0,
+        )
+
+        return {"lab_tests": lab_tests}
+
+    elif report_type == "services":
+        services = frappe.get_all(
+            "Healthcare Service Template",
+            filters={"disabled": 0},
+            fields=[
+                "name",
+                "service_name",
+                "rate",
+                "op_rate",
+                "item_code",
+            ],
+            order_by="service_name asc",
+            limit_page_length=0,
+        )
+
+        return {"services": services}
+
+    elif report_type == "packages":
+        packages = frappe.get_all(
+            "Inpatient Package",
+            filters={"active": 1},
+            fields=[
+                "name",
+                "package_name",
+                "package_category",
+                "no_of_days",
+                "package_rate",
+                "base_total",
+                "active",
+                "cost_center",
+            ],
+            order_by="package_name asc",
+            limit_page_length=0,
+        )
+
+        for package in packages:
+            package["duration_pricing"] = frappe.get_all(
+                "Inpatient Package Duration",
+                filters={"parent": package.name},
+                fields=[
+                    "duration_class",
+                    "from_day",
+                    "to_day",
+                    "amount",
+                ],
+                order_by="from_day asc",
+                limit_page_length=0,
+            )
+
+        return {"packages": packages}
+
+    else:
+        frappe.throw("Invalid report type.")
+
+@frappe.whitelist()
+def update_price_report_rate(doctype, name, fieldname, value):
+    """Update only an allowed price field from the Price Report."""
+
+    allowed_fields = {
+        "Lab Test Template": [
+            "lab_test_rate",
+            "op_rate",
+            "price",
+        ],
+        "Healthcare Service Template": [
+            "rate",
+            "op_rate",
+        ],
+        "Inpatient Package": [
+            "package_rate",
+            "base_total",
+        ],
+        "Inpatient Package Duration": [
+            "amount",
+        ],
+    }
+
+    if doctype not in allowed_fields:
+        frappe.throw("Invalid DocType.")
+
+    if fieldname not in allowed_fields[doctype]:
+        frappe.throw("This field cannot be updated.")
+
+    doc = frappe.get_doc(doctype, name)
+    doc.check_permission("write")
+
+    doc.db_set(fieldname, value, update_modified=True)
+
+    return {"success": True}
