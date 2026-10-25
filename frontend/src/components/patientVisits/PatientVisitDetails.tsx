@@ -400,9 +400,24 @@ export const PatientVisitDetails = ({ visitNo, onUpdate }: PatientVisitDetailsPr
                     <span className="font-medium">Department:</span> {visit.medical_department}
                   </div>
                 ) : null}
-                {visit.visit_type ? (
+                {visit.visit_type_label || visit.visit_type ? (
                   <div>
-                    <span className="font-medium">Visit Type:</span> {visit.visit_type}
+                    <span className="font-medium">Visit Type:</span>{' '}
+                    <span
+                      className={visit.legacy_visit_type ? 'italic text-slate-600' : undefined}
+                      title={
+                        visit.legacy_visit_type
+                          ? `Mapped from legacy visit type code ${visit.old_visit_type_ ?? ''}`.trim()
+                          : undefined
+                      }
+                    >
+                      {visit.visit_type_label || visit.visit_type}
+                    </span>
+                    {visit.legacy_visit_type ? (
+                      <span className="ml-1.5 rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-800 ring-1 ring-amber-200">
+                        Legacy
+                      </span>
+                    ) : null}
                   </div>
                 ) : null}
                 {visit.inpatient_record ? (

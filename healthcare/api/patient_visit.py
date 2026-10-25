@@ -12,12 +12,17 @@ from healthcare.api.patient_visit_practitioner import (
 	enrich_patient_visit_practitioner_names,
 	resolve_patient_visit_practitioner_name,
 )
+from healthcare.api.patient_visit_type_legacy import (
+	apply_legacy_visit_type_fallback,
+	legacy_codes_for_visit_type,
+)
 from healthcare.api.utils.api_utility import get_next_transaction_number
 from healthcare.healthcare.doctype.patient_visit.open_visit_guard import (
 	ensure_patient_can_open_new_visit,
 	get_open_patient_visits_for_patient,
 	is_block_new_patient_visit_if_open_exist_enabled,
 )
+from healthcare.healthcare.editing_lock import assert_editing_allowed
 
 
 def ensure_doctor_may_create_patient_or_visit():
@@ -52,82 +57,6 @@ def check_can_create_patient_visit(patient=None):
 		"blocking_enabled": True,
 	}
 
-
-@frappe.whitelist()
-def get_patient_visits(status=None, search=None, patient=None):
-	"""Get list of Patient Visits with optional status, search, and patient filter"""
-	filters = {}
-	if status:
-		filters['status'] = status
-	if patient:
-		filters['patient'] = patient
-
-	if search:
-		# Search by visit name, patient name, file number, or practitioner
-		visits = frappe.db.sql("""
-			SELECT 
-				pv.name,
-				pv.patient,
-				pv.patient_name,
-				pv.status,
-				pv.encounter_date,
-				pv.encounter_time,
-				pv.practitioner,
-				pv.practitioner_name,
-				pv.medical_department,
-				pv.visit_type,
-				pv.file_number,
-				pv.inpatient_record
-			FROM `tabPatient Visit` pv
-			LEFT JOIN `tabPatient` p ON pv.patient = p.name
-			WHERE 
-				(%(patient)s IS NULL OR pv.patient = %(patient)s)
-				AND (
-					pv.name LIKE %(search)s
-					OR pv.patient_name LIKE %(search)s
-					OR pv.patient LIKE %(search)s
-					OR p.file_no LIKE %(search)s
-					OR pv.practitioner_name LIKE %(search)s
-					OR pv.practitioner LIKE %(search)s
-				)
-		""", {
-			'search': f'%{search}%',
-			'patient': patient
-		}, as_dict=True)
-		
-		# Apply status filter if provided
-		if status:
-			visits = [v for v in visits if v.status == status]
-		
-		# Sort by encounter_date desc
-		visits.sort(key=lambda x: x.encounter_date or '', reverse=True)
-	else:
-		visits = frappe.get_all(
-			'Patient Visit',
-			filters=filters,
-			fields=[
-				'name',
-				'patient',
-				'patient_name',
-				'status',
-				'encounter_date',
-				'encounter_time',
-				'practitioner',
-				'practitioner_name',
-				'medical_department',
-				'visit_type',
-				'file_number',
-				'inpatient_record'
-			],
-			order_by='encounter_date desc, encounter_time desc'
-		)
-
-	return visits
-
-
-import frappe
-from frappe import _
-from healthcare.healthcare.editing_lock import assert_editing_allowed
 
 @frappe.whitelist()
 def get_patient_visits(
@@ -188,6 +117,7 @@ def get_patient_visits(
 			"practitioner_name",
 			"medical_department",
 			"visit_type",
+			"old_visit_type_",
 			"file_number",
 			"inpatient_record",
 			"ip_admission_no",
@@ -202,6 +132,7 @@ def get_patient_visits(
 
 	enrich_patient_visit_practitioner_names(visits)
 	enrich_patient_visit_patient_names(visits)
+	apply_legacy_visit_type_fallback(visits)
 
 	# Optional: further search filtering
 	if search:
@@ -241,6 +172,7 @@ def get_patient_visit(name):
 		}),
 		'medical_department': visit.medical_department,
 		'visit_type': visit.visit_type,
+		'old_visit_type_': visit.get('old_visit_type_'),
 		'file_number': visit.file_number,
 		'inpatient_record': visit.inpatient_record,
 		'inpatient_status': visit.inpatient_status,
@@ -271,6 +203,8 @@ def get_patient_visit(name):
 	except Exception:
 		# Do not block details view if something goes wrong with documents
 		pass
+
+	apply_legacy_visit_type_fallback([data])
 
 	return data
 
@@ -327,8 +261,16 @@ def get_patient_visits_full(search=None, patient=None, practitioner=None, from_d
 	if practitioner:
 		filters.append(["practitioner", "=", practitioner])
 
+	or_filters = None
 	if visit_type:
-		filters.append(["visit_type", "=", visit_type])
+		legacy_codes = legacy_codes_for_visit_type(visit_type)
+		if legacy_codes:
+			# Legacy visits only carry the old visit type number; include them
+			# when filtering by the matching Patient Visit Type.
+			or_filters = [["visit_type", "=", visit_type]]
+			or_filters.extend([["old_visit_type_", "=", code] for code in legacy_codes])
+		else:
+			filters.append(["visit_type", "=", visit_type])
 
 	if status:
 		filters.append(["status", "=", status])
@@ -359,6 +301,7 @@ def get_patient_visits_full(search=None, patient=None, practitioner=None, from_d
 	total_count = len(frappe.get_all(
 		"Patient Visit",
 		filters=filters,
+		or_filters=or_filters,
 		fields=["name"],
 		limit=0,
 	))
@@ -366,6 +309,7 @@ def get_patient_visits_full(search=None, patient=None, practitioner=None, from_d
 	visits = frappe.get_all(
 		"Patient Visit",
 		filters=filters,
+		or_filters=or_filters,
 		fields=[
 			"name",
 			"patient",
@@ -377,6 +321,7 @@ def get_patient_visits_full(search=None, patient=None, practitioner=None, from_d
 			"practitioner_name",
 			"medical_department",
 			"visit_type",
+			"old_visit_type_",
 			"file_number",
 			"inpatient_record",
 			"ip_admission_no",
@@ -395,6 +340,7 @@ def get_patient_visits_full(search=None, patient=None, practitioner=None, from_d
 
 	enrich_patient_visit_practitioner_names(visits)
 	enrich_patient_visit_patient_names(visits)
+	apply_legacy_visit_type_fallback(visits)
 
 	patient_ids = list({v.patient for v in visits if v.get("patient")})
 	cpr_map = {}
@@ -617,6 +563,9 @@ def get_patient_visits_full(search=None, patient=None, practitioner=None, from_d
 				"pharmacy_amount": pharmacy_amount_map.get(v.name, 0),
 				"cost_center": v.get("cost_center") or '',
 				"visit_type": v.get("visit_type") or '',
+				"visit_type_label": v.get("visit_type_label") or v.get("visit_type") or '',
+				"old_visit_type_": v.get("old_visit_type_") or '',
+				"legacy_visit_type": bool(v.get("legacy_visit_type")),
 				"file_no": v.get("file_number") or (cpr_map.get(v.patient) or {}).get("file_no") or '',
 				"cpr_no": (cpr_map.get(v.patient) or {}).get("id_number") or '',
 				"user": resolve_credited_user(v.get("visit_owner"), v.get("owner")),

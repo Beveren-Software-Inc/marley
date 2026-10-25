@@ -10,6 +10,7 @@ from frappe.utils import getdate
 from healthcare.api.clinical_note import _enrich_clinical_note_row
 from healthcare.api.patient_admission_clinical_bundle import _user_can_read_bundle
 from healthcare.api.patient_medication_order import get_medication_orders
+from healthcare.api.patient_visit_type_legacy import apply_legacy_visit_type_fallback
 
 
 def _date_key(val) -> str | None:
@@ -32,6 +33,7 @@ def _visits_for_patient(patient: str, limit: int = 100) -> list[dict]:
 			"encounter_date",
 			"status",
 			"visit_type",
+			"old_visit_type_",
 			"practitioner",
 			"practitioner_name",
 			"cost_center",
@@ -39,6 +41,7 @@ def _visits_for_patient(patient: str, limit: int = 100) -> list[dict]:
 		order_by="encounter_date desc, creation desc",
 		limit_page_length=limit,
 	)
+	apply_legacy_visit_type_fallback(rows)
 	# Prefer display name from link if blank
 	for row in rows:
 		if not row.get("practitioner_name") and row.get("practitioner"):
