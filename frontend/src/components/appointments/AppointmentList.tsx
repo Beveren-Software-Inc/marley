@@ -713,7 +713,7 @@ interface AppointmentListProps {
   /** Doctor dashboard: render a detailed 7-column table (File No., Patient, Date, Time, Doctor, Branch, Status). */
   detailedColumns?: boolean
   patient?: string
-  onAddAppointment?: () => void
+  onAddAppointment?: (filters: { date: string; practitioner: string }) => void
   onPatientClick?: (patient: string) => void
   /** After opening the linked visit in the OP header (e.g. return doctor to home). */
   onOpenVisitInHeader?: () => void
@@ -917,6 +917,7 @@ export const AppointmentList = ({
   compact = false,
   detailedColumns = false,
   patient,
+  onAddAppointment,
   onPatientClick,
   onOpenVisitInHeader,
   receptionWalkInActions = false,
@@ -999,6 +1000,12 @@ export const AppointmentList = ({
   const todayISO = localDateInputValue()
   const [filterDateFrom, setFilterDateFrom] = useState<string>(defaultTodayDates ? todayISO : '')
   const [filterDateTo, setFilterDateTo] = useState<string>(defaultTodayDates ? todayISO : '')
+  useEffect(() => {
+    onAddAppointment?.({
+      date: filterDateFrom,
+      practitioner: filterPractitioner,
+    })
+  }, [filterDateFrom, filterPractitioner, onAddAppointment])
   const [filterBranch, setFilterBranch] = useState<string>('')
   // Default the Branch filter to the global (top-bar) branch, once it resolves.
   const branchDefaultApplied = useRef(false)
