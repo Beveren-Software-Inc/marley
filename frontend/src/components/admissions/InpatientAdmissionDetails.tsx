@@ -381,8 +381,8 @@ const MedicalTeamSection = ({ record }: { record: InpatientRecord }) => (
     <SectionTitle title="Medical Team" />
     <div className="space-y-1">
       <Field label="Department" value={record.medical_department} />
-      <Field label="Primary Practitioner" value={record.primary_practitioner} />
-      <Field label="Secondary Practitioner" value={record.secondary_practitioner} />
+      <Field label="Primary Practitioner" value={record.primary_practitioner_name || record.primary_practitioner} />
+      <Field label="Secondary Practitioner" value={record.secondary_practitioner_name || record.secondary_practitioner} />
       <Field label="Admission By Doctor" value={record.admission_doctor_name || record.admission_by_doctor} />
       <Field label="Admission By NM" value={record.admission_by_nm} />
       <Field label="Psychologist" value={record.psychologist_doctor_name || record.psychologist_doctor} />
@@ -560,7 +560,7 @@ const DetailsTab = ({ record }: { record: InpatientRecord }) => {
           <SectionTitle title="References" />
           <div className="space-y-1">
             <Field label="Admission Encounter" value={record.admission_encounter} />
-            <Field label="Admission Practitioner" value={record.admission_practitioner} />
+            <Field label="Admission Practitioner" value={record.admission_practitioner_name || record.admission_practitioner} />
             <Field label="Service Unit Type" value={record.admission_service_unit_type} />
           </div>
         </div>
@@ -619,7 +619,7 @@ const DetailsTab = ({ record }: { record: InpatientRecord }) => {
             <Field label="Discharge Ordered" value={formatDate(record.discharge_ordered_date)} />
             <Field label="Discharge Date" value={formatDateTime(record.discharge_datetime)} />
             <Field label="Follow Up Date" value={formatDate(record.followup_date)} />
-            <Field label="Discharge Practitioner" value={record.discharge_practitioner} />
+            <Field label="Discharge Practitioner" value={record.discharge_practitioner_name || record.discharge_practitioner} />
           </div>
           {record.discharge_instructions && (
             <div className="mb-2">

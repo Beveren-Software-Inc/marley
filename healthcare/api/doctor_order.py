@@ -8,6 +8,15 @@ from healthcare.api.utils.api_utility import get_next_transaction_number
 from healthcare.healthcare.editing_lock import assert_editing_allowed
 
 
+# Link to Healthcare Practitioner → stored display-name field. Legacy/imported
+# orders often keep the practitioner id without the fetched name; the API
+# resolves the name from the master so the UI does not show a bare id.
+DOCTOR_ORDER_PRACTITIONER_NAME_FIELDS = {
+	"doctor": "doctor_name",
+	"nurse": "nurse_name",
+}
+
+
 def _normalize_datetime(value):
 	"""Parse portal datetimes to naive MySQL Datetime string (no TZ / microseconds)."""
 	if value is None or value == "":
@@ -111,6 +120,11 @@ def get_doctor_orders(
 		)
 		
 		total = frappe.db.count("Doctor Order", filters=filters)
+
+		from healthcare.api.common import fill_missing_practitioner_names
+
+		fill_missing_practitioner_names(records, DOCTOR_ORDER_PRACTITIONER_NAME_FIELDS)
+
 		return {"success": True, "data": records, "page": page, "page_size": page_size, "total": total}
 	except Exception as e:
 		frappe.logger().error(f"Error in get_doctor_orders: {str(e)}")

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Eye, MoreHorizontal, Pencil, Trash2 } from 'lucide-react'
-import { fetchDoctypeRows, deleteDoctypeRow } from '../../services/doctypeResource'
+import { deleteDoctypeRow } from '../../services/doctypeResource'
+import { fetchIPMedicalReports } from '../../services/medicalReport'
 import { toast } from '../../hooks/useToast'
 import { useCareContext } from '../../providers/CareContextProvider'
 import {
@@ -18,18 +19,6 @@ const STATUS_TONE: Record<string, string> = {
   Issued: 'bg-green-100 text-green-800 border-green-200',
   Cancelled: 'bg-red-100 text-red-800 border-red-200',
 }
-
-const LIST_FIELDS = [
-  'name',
-  'patient',
-  'patient_name',
-  'case_no',
-  'admission_date',
-  'discharge_date',
-  'practitioner',
-  'report_status',
-  'creation',
-]
 
 function formatDate(value?: unknown): string {
   if (value == null || value === '') return '—'
@@ -67,8 +56,7 @@ export function IPMedicalReportList({
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const filters = patient ? { patient } : {}
-      setRows(await fetchDoctypeRows('IP Medical Report', LIST_FIELDS, filters, 100, 'modified desc'))
+      setRows(await fetchIPMedicalReports(patient, 100))
     } catch (e) {
       setRows([])
       toast.error(e instanceof Error ? e.message : 'Failed to load IP Medical Reports')
@@ -197,7 +185,7 @@ export function IPMedicalReportList({
                     <td className="px-3 py-2 align-middle">{row.case_no || '—'}</td>
                     <td className="px-3 py-2 align-middle whitespace-nowrap">{formatDate(row.admission_date)}</td>
                     <td className="px-3 py-2 align-middle whitespace-nowrap">{formatDate(row.discharge_date)}</td>
-                    <td className="px-3 py-2 align-middle">{row.practitioner || '—'}</td>
+                    <td className="px-3 py-2 align-middle">{row.practitioner_name || row.practitioner || '—'}</td>
                     <td className="px-3 py-2 align-middle">
                       {status ? (
                         <span className={`inline-block rounded border px-2 py-0.5 text-[11px] font-medium ${tone}`}>

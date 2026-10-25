@@ -162,7 +162,11 @@ export const NursingTaskList = ({ patient, myTasks, onPatientClick }: NursingTas
                     </span>
                   </td>
                   <td className="px-3 py-2 text-slate-800">
-                    {t.assigned_to || t.assigned_by || '—'}
+                    {t.assigned_to_name ||
+                      t.assigned_to ||
+                      t.assigned_by_name ||
+                      t.assigned_by ||
+                      '—'}
                   </td>
                 </tr>
               )

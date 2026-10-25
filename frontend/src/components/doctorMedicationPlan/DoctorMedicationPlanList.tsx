@@ -322,7 +322,7 @@ export const DoctorMedicationPlanList = ({ patient, onPatientClick }: DoctorMedi
                           <span className="font-medium text-primary hover:underline">{row.patient || '—'}</span>
                         </td>
                       )}
-                      <td className="px-4 py-3 text-sm text-slate-700">{row.practitioner || '—'}</td>
+                      <td className="px-4 py-3 text-sm text-slate-700">{row.practitioner_name || row.practitioner || '—'}</td>
                       <td className="px-4 py-3 text-sm text-slate-700 max-w-[140px] truncate">
                         {row.reference_document || '—'}
                       </td>

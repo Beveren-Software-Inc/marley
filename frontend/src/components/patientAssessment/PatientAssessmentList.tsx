@@ -419,7 +419,7 @@ export const PatientAssessmentList = ({
                     )}
                   </td>
                   <td className="px-3 py-2 text-slate-700">
-                    {r.healthcare_practitioner || '—'}
+                    {r.practitioner_name || r.healthcare_practitioner || '—'}
                   </td>
                   <td className="px-3 py-2">{scoreDisplay(r)}</td>
                   {/* stopPropagation prevents the row click (detail modal) from firing when the print button is clicked */}

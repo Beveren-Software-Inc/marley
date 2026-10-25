@@ -5,6 +5,8 @@ export interface DoctorMedicationPlanRow {
   patient?: string
   posting_date?: string
   practitioner?: string
+  /** Resolved from Healthcare Practitioner by the list API. */
+  practitioner_name?: string
   medical_role?: string
   reference_doctype?: string
   reference_document?: string
@@ -46,37 +48,18 @@ export async function fetchDoctorMedicationPlans(
   referenceDocument?: string,
   extraFilters?: DoctorMedicationPlanListFilters,
 ): Promise<DoctorMedicationPlanRow[]> {
-  const filters: unknown[] = []
-  if (patient) filters.push(['patient', '=', patient])
-  if (referenceDoctype) filters.push(['reference_doctype', '=', referenceDoctype])
-  if (referenceDocument) filters.push(['reference_document', '=', referenceDocument])
-  if (extraFilters?.practitioner) filters.push(['practitioner', '=', extraFilters.practitioner])
-  if (extraFilters?.fromDate) filters.push(['posting_date', '>=', extraFilters.fromDate])
-  if (extraFilters?.toDate) filters.push(['posting_date', '<=', `${extraFilters.toDate} 23:59:59`])
-
   const params = new URLSearchParams()
-  params.append(
-    'fields',
-    JSON.stringify([
-      'name',
-      'patient',
-      'posting_date',
-      'practitioner',
-      'medical_role',
-      'reference_doctype',
-      'reference_document',
-      'plan',
-      'recommendation',
-      'reception_note',
-    ])
-  )
-  if (filters.length) params.append('filters', JSON.stringify(filters))
-  params.append('limit_page_length', String(limit))
-  params.append('limit_start', String(offset))
-  params.append('order_by', 'modified desc')
+  params.append('limit', String(limit))
+  params.append('offset', String(offset))
+  if (patient) params.append('patient', patient)
+  if (referenceDoctype) params.append('reference_doctype', referenceDoctype)
+  if (referenceDocument) params.append('reference_document', referenceDocument)
+  if (extraFilters?.practitioner) params.append('practitioner', extraFilters.practitioner)
+  if (extraFilters?.fromDate) params.append('from_date', extraFilters.fromDate)
+  if (extraFilters?.toDate) params.append('to_date', `${extraFilters.toDate} 23:59:59`)
 
   return apiRequest<DoctorMedicationPlanRow[]>(
-    `/api/resource/Doctor%20Medication%20Plan?${params.toString()}`
+    `/api/method/healthcare.api.doctor_medication_plan.get_doctor_medication_plans?${params.toString()}`
   )
 }
 

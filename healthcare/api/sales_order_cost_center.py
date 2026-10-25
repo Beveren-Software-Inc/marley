@@ -247,6 +247,79 @@ def sales_invoice_item_from_sales_order_item(so, item):
 	return line
 
 
+def sales_order_document_discount(so):
+	"""Header discount of a Sales Order as ``(apply_discount_on, %, amount)``."""
+	return (
+		getattr(so, "apply_discount_on", None) or "Grand Total",
+		flt(getattr(so, "additional_discount_percentage", 0)),
+		flt(getattr(so, "discount_amount", 0)),
+	)
+
+
+def apply_sales_order_document_discount(invoice, sales_orders) -> None:
+	"""Carry a Sales Order header discount onto the Sales Invoice.
+
+	``sales_invoice_item_from_sales_order_item`` only maps lines, so a discount
+	entered on the order header (``apply_discount_on`` /
+	``additional_discount_percentage`` / ``discount_amount``) used to be dropped and
+	the invoice was billed at list price — e.g. a 10% order discount came out as
+	150.00 instead of 135.00. ERPNext's own SO -> SI mapper copies the header
+	discount, so do the same when every order on the invoice carries the same one.
+
+	Orders with different discounts cannot share one header discount: their
+	discount is folded into their own lines (list rate + billed rate from the
+	order) so a mixed invoice still totals the sum of its orders.
+	"""
+	discounts = {}
+	for so in sales_orders:
+		signature = sales_order_document_discount(so)
+		if signature[1] or signature[2]:
+			discounts[so.name] = signature
+
+	if not discounts:
+		return
+
+	signatures = set(discounts.values())
+	if len(signatures) == 1 and len(discounts) == len(sales_orders):
+		apply_on, discount_pct, discount_amount = signatures.pop()
+		invoice.apply_discount_on = apply_on
+		invoice.additional_discount_percentage = discount_pct
+		# ERPNext recomputes the amount from the percentage on calculate_taxes_and_totals
+		invoice.discount_amount = 0 if discount_pct else discount_amount
+		return
+
+	_fold_order_discounts_into_lines(invoice, sales_orders, discounts)
+
+
+def _fold_order_discounts_into_lines(invoice, sales_orders, discounts):
+	"""Show each order's header discount as a line discount on its own rows."""
+	order_items = {}
+	for so in sales_orders:
+		if so.name not in discounts:
+			continue
+		for item in so.get("items") or []:
+			order_items[item.name] = item
+
+	for line in invoice.get("items") or []:
+		so_detail = line.get("so_detail")
+		so_item = order_items.get(so_detail) if so_detail else None
+		if not so_item:
+			continue
+		# Billed rate after the order header discount was distributed on the row
+		net_rate = flt(getattr(so_item, "net_rate", 0))
+		list_rate = (
+			flt(line.get("price_list_rate"))
+			or flt(getattr(so_item, "price_list_rate", 0))
+			or flt(line.get("rate"))
+		)
+		if net_rate <= 0 or list_rate <= 0 or net_rate >= list_rate:
+			continue
+		line.price_list_rate = list_rate
+		line.discount_percentage = flt((1 - (net_rate / list_rate)) * 100, 2)
+		line.discount_amount = 0
+		line.rate = net_rate
+
+
 def _so_item_has_submitted_delivery_note(so_detail: str) -> bool:
 	if not so_detail:
 		return False

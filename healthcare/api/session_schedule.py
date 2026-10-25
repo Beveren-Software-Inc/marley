@@ -8,6 +8,14 @@ SESSION_SCHEDULE_STATUSES = frozenset(
 	{"Draft", "In Progress", "Completed", "Submitted", "Cancelled"}
 )
 
+# Link to Healthcare Practitioner → stored display-name field. Legacy/imported
+# sessions often keep the practitioner id without the fetched name; the API
+# resolves the name from the master so the UI does not show a bare id.
+SESSION_SCHEDULE_PRACTITIONER_NAME_FIELDS = {
+	"doctor": "doctor_name",
+	"practitioner": "practitioner_name",
+}
+
 
 def _existing_session_schedule_sales_order(session_schedule_name):
 	return frappe.db.get_value(
@@ -485,6 +493,10 @@ def get_session_schedules(
 				pluck="name",
 			)
 		)
+
+	from healthcare.api.common import fill_missing_practitioner_names
+
+	fill_missing_practitioner_names(schedules, SESSION_SCHEDULE_PRACTITIONER_NAME_FIELDS)
 
 	return {
 		"data": _attach_sales_orders(schedules),

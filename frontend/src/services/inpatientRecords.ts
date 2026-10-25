@@ -50,7 +50,9 @@ export interface InpatientRecord {
   admission_service_unit_type?: string
   medical_department?: string
   primary_practitioner?: string
+  primary_practitioner_name?: string
   secondary_practitioner?: string
+  secondary_practitioner_name?: string
   admission_doctor_name?: string
   admission_by_doctor?: string
   admission_by_nm?: string
@@ -71,6 +73,7 @@ export interface InpatientRecord {
   case_management_fee?: number
   room_charges?: number
   admission_practitioner?: string
+  admission_practitioner_name?: string
   admission_instruction?: string
   weight?: number
   height?: number
@@ -93,6 +96,7 @@ export interface InpatientRecord {
   discharge_note?: string
   followup_date?: string
   discharge_practitioner?: string
+  discharge_practitioner_name?: string
   admission_nursing_checklist_template?: string
   discharge_nursing_checklist_template?: string
   inpatient_occupancies?: InpatientOccupancy[]

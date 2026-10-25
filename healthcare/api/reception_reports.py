@@ -346,20 +346,23 @@ def _admission_package_quotation_lines(admission):
 				"qty",
 				"rate",
 				"amount",
+				"net_amount",
 				"price_list_rate",
 				"discount_amount",
 				"discount_percentage",
+				"distributed_discount_amount",
 			],
 			limit_page_length=0,
 		)
 		for it in items:
+			net_amt, line_disc = _soa_order_line_amounts(it)
 			list_rate = flt(it.price_list_rate) or flt(it.rate) + flt(it.discount_amount)
 			lines.append(
 				_soa_line_from_item(
 					it,
 					rate=list_rate,
-					amount=flt(it.amount),
-					discount_amount=flt(it.discount_amount),
+					amount=net_amt,
+					discount_amount=line_disc,
 					discount_percentage=it.discount_percentage,
 					care_type="IP",
 				)
@@ -849,6 +852,28 @@ def _soa_apply_observation_display(code, name):
 	return display_code or code, display_name or name
 
 
+def _soa_order_line_amounts(it):
+	"""Net amount + total discount of an order/quotation line that is not an invoice.
+
+	A Sales Order header discount (e.g. a 10% package discount) is distributed onto
+	its lines: ``amount`` stays the gross list amount, ``distributed_discount_amount``
+	holds the line share of the header discount and ``net_amount`` is what the family
+	actually owes. Billing ``amount`` and then adding the header discount again
+	grossed a 150 order up to 165 and netted it back to 150 instead of 135, so always
+	use the net amount and show the discount on the line - exactly like the invoice
+	branch does, which is why an invoiced statement already reads 150 - 15 = 135.
+	"""
+	item_disc = flt(it.get("discount_amount"))
+	distributed = flt(it.get("distributed_discount_amount"))
+	line_disc = item_disc + distributed
+	net_amt = flt(it.get("net_amount"))
+	if net_amt <= 0 and line_disc > 0:
+		net_amt = max(flt(it.get("amount")) - distributed, 0)
+	elif net_amt <= 0:
+		net_amt = flt(it.get("amount"))
+	return net_amt, line_disc
+
+
 def _soa_line_from_item(
 	it, *, rate, amount, discount_amount, discount_percentage=0, base_reference=None, care_type="IP"
 ):
@@ -1075,22 +1100,25 @@ def get_ip_statement_of_account(admission, from_date=None, to_date=None):
 				"rate",
 				"qty",
 				"amount",
+				"net_amount",
 				"price_list_rate",
 				"discount_amount",
 				"discount_percentage",
+				"distributed_discount_amount",
 			],
 			limit_page_length=0,
 		)
 		for it in so_items:
 			if it.name in invoiced_so_details:
 				continue
+			net_amt, line_disc = _soa_order_line_amounts(it)
 			list_rate = flt(it.price_list_rate) or flt(it.rate) + flt(it.discount_amount)
 			raw_lines.append(
 				_soa_line_from_item(
 					it,
 					rate=list_rate,
-					amount=flt(it.amount),
-					discount_amount=flt(it.discount_amount),
+					amount=net_amt,
+					discount_amount=line_disc,
 					discount_percentage=it.discount_percentage,
 					base_reference=so_base_map.get(it.parent),
 				)
@@ -1122,26 +1150,6 @@ def get_ip_statement_of_account(admission, from_date=None, to_date=None):
 	line_discount = sum(flt(r["discount_amount"]) for r in lines.values())
 	bill_total = round(line_net + line_discount, 3)
 	discount_total = round(line_discount, 3)
-
-	# Unbilled SO header discounts not already reflected on lines
-	unbilled_so_header_disc = 0.0
-	if sos:
-		invoiced_sos = set()
-		if si_names:
-			invoiced_sos = set(
-				frappe.get_all(
-					"Sales Invoice Item",
-					filters={"parent": ["in", si_names], "sales_order": ["is", "set"]},
-					pluck="sales_order",
-					limit_page_length=0,
-				)
-			)
-		for so in sos:
-			if so.name in invoiced_sos:
-				continue
-			unbilled_so_header_disc += flt(so.discount_amount)
-	discount_total = round(discount_total + unbilled_so_header_disc, 3)
-	bill_total = round(bill_total + unbilled_so_header_disc, 3)
 
 	paid_entries = _admission_payments(admission)
 	net_total = round(bill_total - discount_total, 3)
@@ -1498,22 +1506,25 @@ def _soa_aggregate_lines(sos, invoices, care_type="OP"):
 				"rate",
 				"qty",
 				"amount",
+				"net_amount",
 				"price_list_rate",
 				"discount_amount",
 				"discount_percentage",
+				"distributed_discount_amount",
 			],
 			limit_page_length=0,
 		)
 		for it in so_items:
 			if it.name in invoiced_so_details:
 				continue
+			net_amt, line_disc = _soa_order_line_amounts(it)
 			list_rate = flt(it.price_list_rate) or flt(it.rate) + flt(it.discount_amount)
 			raw_lines.append(
 				_soa_line_from_item(
 					it,
 					rate=list_rate,
-					amount=flt(it.amount),
-					discount_amount=flt(it.discount_amount),
+					amount=net_amt,
+					discount_amount=line_disc,
 					discount_percentage=it.discount_percentage,
 					base_reference=so_base_map.get(it.parent),
 					care_type=care_type,
@@ -1535,25 +1546,6 @@ def _soa_aggregate_lines(sos, invoices, care_type="OP"):
 	line_discount = sum(flt(r["discount_amount"]) for r in lines.values())
 	bill_total = round(line_net + line_discount, 3)
 	discount_total = round(line_discount, 3)
-
-	unbilled_so_header_disc = 0.0
-	if sos:
-		invoiced_sos = set()
-		if si_names:
-			invoiced_sos = set(
-				frappe.get_all(
-					"Sales Invoice Item",
-					filters={"parent": ["in", si_names], "sales_order": ["is", "set"]},
-					pluck="sales_order",
-					limit_page_length=0,
-				)
-			)
-		for so in sos:
-			if so.name in invoiced_sos:
-				continue
-			unbilled_so_header_disc += flt(so.discount_amount)
-	discount_total = round(discount_total + unbilled_so_header_disc, 3)
-	bill_total = round(bill_total + unbilled_so_header_disc, 3)
 
 	return by_category, bill_total, discount_total
 
@@ -1648,7 +1640,9 @@ def _soa_item_net_amounts(it, is_invoice=False):
 		elif net_amt <= 0:
 			net_amt = flt(it.amount)
 		return net_amt, line_disc
-	return flt(it.amount), flt(it.discount_amount)
+	# Order line: same net-after-header-discount rule so an unbilled order prints the
+	# amount the family owes (150 - 15 = 135) instead of the gross rate.
+	return _soa_order_line_amounts(it)
 
 
 def _soa_pe_allocated_by_reference(ref_names):
@@ -1783,9 +1777,11 @@ def _soa_old_op_lines(sos, invoices, so_to_visit, visit_meta):
 				"rate",
 				"qty",
 				"amount",
+				"net_amount",
 				"price_list_rate",
 				"discount_amount",
 				"discount_percentage",
+				"distributed_discount_amount",
 			],
 			limit_page_length=0,
 		):
