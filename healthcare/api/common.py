@@ -504,6 +504,66 @@ def fill_missing_patient_names(rows, patient_field="patient", name_field="patien
 	return rows
 
 
+def get_practitioner_name_map(practitioner_ids):
+	"""Map Healthcare Practitioner ids to their display name (practitioner_name).
+
+	Ids that have no master record or no stored name are omitted so callers can
+	keep their id-based fallback.
+	"""
+	ids = {p for p in (practitioner_ids or []) if p}
+	if not ids:
+		return {}
+	return {
+		row.name: (row.practitioner_name or "").strip()
+		for row in frappe.get_all(
+			"Healthcare Practitioner",
+			filters={"name": ["in", list(ids)]},
+			fields=["name", "practitioner_name"],
+		)
+		if (row.practitioner_name or "").strip()
+	}
+
+
+def resolve_practitioner_name(practitioner):
+	"""Display name for a Healthcare Practitioner id; None when unknown."""
+	if not practitioner:
+		return None
+	return get_practitioner_name_map([practitioner]).get(practitioner)
+
+
+def fill_missing_practitioner_names(rows, field_map):
+	"""Fill missing doctor names on display rows from the Healthcare Practitioner master.
+
+	``field_map`` maps a Link field holding the practitioner id to the Data field
+	that should show their name, e.g.
+	``{"admission_by_doctor": "admission_doctor_name"}``.
+
+	Legacy/imported rows often keep the practitioner id without the fetched name,
+	which makes the UI show a number. When the master has a practitioner_name we
+	return it; otherwise the row is left untouched so the UI can fall back to the id.
+	"""
+	if not rows:
+		return rows
+	mappings = [(pract, name) for pract, name in field_map.items() if pract and name]
+	links = {
+		row.get(practitioner_field)
+		for row in rows
+		for practitioner_field, name_field in mappings
+		if row.get(practitioner_field) and not cstr(row.get(name_field)).strip()
+	}
+	name_map = get_practitioner_name_map(links)
+	if not name_map:
+		return rows
+	for row in rows:
+		for practitioner_field, name_field in mappings:
+			if cstr(row.get(name_field)).strip():
+				continue
+			link = row.get(practitioner_field)
+			if link and link in name_map:
+				row[name_field] = name_map[link]
+	return rows
+
+
 def get_medical_roles_under(group):
 	"""Medical Role names in a group: the group itself and every role under it.
 
@@ -6316,12 +6376,16 @@ def get_patient_assessments(
 			fields=[
 				"name", "patient", "patient_name", "assessment_template",
 				"reference_type", "encounter", "healthcare_practitioner",
+				"practitioner_name",
 				"assessment_datetime", "assessment_description",
 				"total_score", "total_score_obtained", "docstatus", "creation",
 			],
 			order_by="creation desc",
 			limit_page_length=page_size,
 			limit_start=(page - 1) * page_size,
+		)
+		fill_missing_practitioner_names(
+			records, {"healthcare_practitioner": "practitioner_name"}
 		)
 		total = frappe.db.count("Patient Assessment", filters=filters)
 		return {"success": True, "data": records, "page": page, "page_size": page_size, "total": total}

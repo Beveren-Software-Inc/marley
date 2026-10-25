@@ -196,14 +196,14 @@ export const AdmissionDetails = ({ admissionNo, onUpdate }: AdmissionDetailsProp
         {admission.primary_practitioner && (
           <div>
             <h3 className="text-sm font-semibold text-slate-700 mb-2">Primary Doctor</h3>
-            <div className="text-sm">{admission.primary_practitioner}</div>
+            <div className="text-sm">{admission.primary_practitioner_name || admission.primary_practitioner}</div>
           </div>
         )}
 
         {admission.secondary_practitioner && (
           <div>
             <h3 className="text-sm font-semibold text-slate-700 mb-2">Secondary Doctor</h3>
-            <div className="text-sm">{admission.secondary_practitioner}</div>
+            <div className="text-sm">{admission.secondary_practitioner_name || admission.secondary_practitioner}</div>
           </div>
         )}
 

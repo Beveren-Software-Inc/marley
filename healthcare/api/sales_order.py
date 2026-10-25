@@ -4,6 +4,7 @@ from frappe.utils import cint, today, getdate, flt
 from healthcare.api.sales_order_cost_center import (
 	apply_cost_center_to_sales_order,
 	apply_cost_center_to_sales_invoice,
+	apply_sales_order_document_discount,
 	cost_center_from_base_reference,
 	cost_center_from_sales_order,
 	cost_center_from_visit_or_admission,
@@ -837,6 +838,9 @@ def _create_service_sales_order_invoice(
 
 	if items_added == 0:
 		return None
+
+	# Order header discount (e.g. 10% package discount) must reach the invoice
+	apply_sales_order_document_discount(invoice, sales_orders)
 
 	name = _finalize_and_save_invoice(
 		invoice, header_cc=header_cc, ref_type=ref_type, ref_name=ref_name

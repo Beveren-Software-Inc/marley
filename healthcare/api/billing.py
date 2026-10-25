@@ -532,6 +532,7 @@ def _get_patient_visit_balances(patient=None, from_date=None, to_date=None, iop_
             "patient_name",
             "encounter_date",
             "practitioner",
+            "practitioner_name",
             "status",
             "cost_center",
             "visit_type",
@@ -593,6 +594,7 @@ def _get_patient_visit_balances(patient=None, from_date=None, to_date=None, iop_
                 "patient_id": visit.patient,
                 "visit_date": visit.encounter_date if visit.encounter_date else "",
                 "practitioner": visit.practitioner,
+                "practitioner_name": visit.get("practitioner_name"),
                 "cost_center": visit.get("cost_center"),
                 "latest_invoice_name": latest_invoice_name,
                 "total_amount": total_amount,
@@ -603,6 +605,11 @@ def _get_patient_visit_balances(patient=None, from_date=None, to_date=None, iop_
             })
 
     balances.sort(key=lambda x: (-x["outstanding_amount"], -x["days_overdue"]))
+    from healthcare.api.common import fill_missing_practitioner_names
+
+    fill_missing_practitioner_names(
+        balances, {"practitioner": "practitioner_name"}
+    )
     return balances
 
 
@@ -692,6 +699,7 @@ def _patient_visit_balance_row(visit, *, include_uninvoiced_orders=False):
         "patient_id": visit.patient,
         "visit_date": visit.encounter_date if visit.encounter_date else "",
         "practitioner": visit.practitioner,
+        "practitioner_name": visit.get("practitioner_name"),
         "cost_center": visit.get("cost_center"),
         "latest_invoice_name": latest_invoice_name,
         "total_amount": total_amount,
@@ -728,6 +736,7 @@ def get_daily_auto_visit_balances(patient=None, from_date=None, to_date=None):
             "patient_name",
             "encounter_date",
             "practitioner",
+            "practitioner_name",
             "status",
             "cost_center",
         ],
@@ -738,6 +747,12 @@ def get_daily_auto_visit_balances(patient=None, from_date=None, to_date=None):
         row = _patient_visit_balance_row(visit, include_uninvoiced_orders=True)
         if row:
             balances.append(row)
+
+    from healthcare.api.common import fill_missing_practitioner_names
+
+    fill_missing_practitioner_names(
+        balances, {"practitioner": "practitioner_name"}
+    )
 
     balances.sort(key=lambda x: (-x["outstanding_amount"], -x["days_overdue"]))
     return balances

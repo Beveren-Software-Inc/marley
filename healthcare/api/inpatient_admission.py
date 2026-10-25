@@ -23,6 +23,20 @@ except ImportError:
 		return frappe.db.get_single_value('Global Defaults', 'default_currency') or 'BHD'
 
 
+# Link to Healthcare Practitioner → stored display-name field. Legacy/imported
+# admissions often keep the practitioner id without the fetched name; the API
+# resolves the name from the master so the UI does not show a bare id.
+ADMISSION_PRACTITIONER_NAME_FIELDS = {
+	"admission_by_doctor": "admission_doctor_name",
+	"psychologist_doctor": "psychologist_doctor_name",
+	"residents_doctor_no": "resident_doctor_name",
+	"primary_practitioner": "primary_practitioner_name",
+	"secondary_practitioner": "secondary_practitioner_name",
+	"admission_practitioner": "admission_practitioner_name",
+	"discharge_practitioner": "discharge_practitioner_name",
+}
+
+
 @frappe.whitelist()
 def get_next_case_number():
 	"""Get the next case number for a new Inpatient Admission."""
@@ -233,7 +247,9 @@ def get_inpatient_records(
 				ia.case_no,
 				ia.admission_by_doctor,
 				ia.admission_doctor_name,
+				ia.residents_doctor_no,
 				ia.resident_doctor_name,
+				ia.psychologist_doctor,
 				ia.psychologist_doctor_name,
 				ia.room_service_no,
 				ia.bed_no,
@@ -292,7 +308,9 @@ def get_inpatient_records(
 				'case_no',
 				'admission_by_doctor',
 				'admission_doctor_name',
+				'residents_doctor_no',
 				'resident_doctor_name',
+				'psychologist_doctor',
 				'psychologist_doctor_name',
 				'room_service_no',
 				'bed_no',
@@ -312,8 +330,12 @@ def get_inpatient_records(
 			for r in records:
 				r["file_no"] = _file_map.get(r.get("patient"))
 
-	from healthcare.api.common import fill_missing_patient_names
+	from healthcare.api.common import (
+		fill_missing_patient_names,
+		fill_missing_practitioner_names,
+	)
 	fill_missing_patient_names(records)
+	fill_missing_practitioner_names(records, ADMISSION_PRACTITIONER_NAME_FIELDS)
 	_annotate_discharge_in_progress(records)
 	return {"data": records, "total_count": total_count}
 
@@ -535,7 +557,7 @@ def get_inpatient_record(name):
 			"signee_name": getattr(row, "signee_name", None),
 		})
 
-	return {
+	response = {
 		'name': record.name,
 		'patient': record.patient,
 		'patient_name': record.patient_name,
@@ -616,6 +638,10 @@ def get_inpatient_record(name):
 		'discharge_nursing_checklist_template': getattr(record, "discharge_nursing_checklist_template", None),
 		**_draft_discharge_fields(record.name),
 	}
+
+	from healthcare.api.common import fill_missing_practitioner_names
+	fill_missing_practitioner_names([response], ADMISSION_PRACTITIONER_NAME_FIELDS)
+	return response
 
 
 def _draft_discharge_fields(admission_name: str) -> dict:

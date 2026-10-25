@@ -16,6 +16,9 @@ export interface NursingTaskRow {
   activity?: string
   assigned_by?: string
   assigned_to?: string
+  /** Resolved from Healthcare Practitioner by the list API. */
+  assigned_by_name?: string
+  assigned_to_name?: string
 }
 
 export async function fetchNursingTasks(

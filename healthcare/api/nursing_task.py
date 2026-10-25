@@ -67,6 +67,16 @@ my_tasks: int | None = None,
 		limit_start=offset,
 		order_by="requested_start_time asc, date asc, name asc",
 	)
+
+	from healthcare.api.common import fill_missing_practitioner_names
+
+	fill_missing_practitioner_names(
+		tasks,
+		{
+			"assigned_to": "assigned_to_name",
+			"assigned_by": "assigned_by_name",
+		},
+	)
 	return tasks
 
 

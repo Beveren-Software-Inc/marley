@@ -10,6 +10,13 @@ from healthcare.api.utils.api_utility import get_next_prefixed, get_next_transac
 from healthcare.healthcare.utils import get_appointment_billing_item_and_rate
 from healthcare.healthcare.editing_lock import assert_editing_allowed
 
+
+# Link to Healthcare Practitioner → stored display-name field. Legacy/imported
+# appointments often keep the practitioner id without the fetched name; the API
+# resolves the name from the master so the UI does not show a bare id.
+APPOINTMENT_PRACTITIONER_NAME_FIELDS = {"practitioner": "practitioner_name"}
+
+
 @frappe.whitelist()
 def get_all_appointments(limit=50, offset=0, status=None, patient=None,
                          search=None, practitioner=None,
@@ -83,8 +90,14 @@ def get_all_appointments(limit=50, offset=0, status=None, patient=None,
 	_enrich_appointments_with_sales_order(appointments)
 	_enrich_appointments_with_file_no(appointments)
 	_enrich_appointments_with_visit_type(appointments)
-	from healthcare.api.common import fill_missing_patient_names
+	from healthcare.api.common import (
+		fill_missing_patient_names,
+		fill_missing_practitioner_names,
+	)
 	fill_missing_patient_names(appointments)
+	fill_missing_practitioner_names(
+		appointments, APPOINTMENT_PRACTITIONER_NAME_FIELDS
+	)
 
 	return {"data": appointments, "total_count": total_count}
 
@@ -242,8 +255,14 @@ def get_practitioner_appointments(limit=50, offset=0, status=None,
     appointments = frappe.get_all(**fetch_args)
     _enrich_appointments_with_file_no(appointments)
     _enrich_appointments_with_visit_type(appointments)
-    from healthcare.api.common import fill_missing_patient_names
+    from healthcare.api.common import (
+        fill_missing_patient_names,
+        fill_missing_practitioner_names,
+    )
     fill_missing_patient_names(appointments)
+    fill_missing_practitioner_names(
+        appointments, APPOINTMENT_PRACTITIONER_NAME_FIELDS
+    )
 
     return {"data": appointments, "total_count": total_count}
 

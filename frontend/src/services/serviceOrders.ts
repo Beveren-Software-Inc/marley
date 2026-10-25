@@ -51,6 +51,8 @@ export interface OutpatientBalance {
   patient_id: string
   visit_date: string
   practitioner?: string
+  /** Resolved from Healthcare Practitioner by the API. */
+  practitioner_name?: string
   /** Patient Visit branch */
   cost_center?: string | null
   /** Most recent submitted invoice for this visit (for quick open / print) */

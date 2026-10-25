@@ -1904,7 +1904,7 @@ const handleMakePayment = async (
                       <div className="grid grid-cols-2 md:grid-cols-5 gap-3 text-sm">
                         <div><p className="text-xs text-slate-400">Visit ID</p><p className="text-slate-700 font-mono text-xs">{balance.visit_id}</p></div>
                         <div><p className="text-xs text-slate-400">Visit Date</p><p className="text-slate-700">{balance.visit_date}</p></div>
-                        <div><p className="text-xs text-slate-400">Doctor</p><p className="text-slate-700">{balance.practitioner || '—'}</p></div>
+                        <div><p className="text-xs text-slate-400">Doctor</p><p className="text-slate-700">{balance.practitioner_name || balance.practitioner || '—'}</p></div>
                         <div><p className="text-xs text-slate-400">Branch</p><p className="text-slate-700">{balance.cost_center || '—'}</p></div>
                         {balance.days_overdue > 0 && <div><p className="text-xs text-slate-400">Days Overdue</p><p className="text-red-600 font-medium">{balance.days_overdue} days</p></div>}
                       </div>
@@ -2045,7 +2045,7 @@ const handleMakePayment = async (
                       <div className="grid grid-cols-2 md:grid-cols-5 gap-3 text-sm">
                         <div><p className="text-xs text-slate-400">Visit ID</p><p className="text-slate-700 font-mono text-xs">{balance.visit_id}</p></div>
                         <div><p className="text-xs text-slate-400">Visit Date</p><p className="text-slate-700">{balance.visit_date}</p></div>
-                        <div><p className="text-xs text-slate-400">Doctor</p><p className="text-slate-700">{balance.practitioner || '—'}</p></div>
+                        <div><p className="text-xs text-slate-400">Doctor</p><p className="text-slate-700">{balance.practitioner_name || balance.practitioner || '—'}</p></div>
                         <div><p className="text-xs text-slate-400">Branch</p><p className="text-slate-700">{balance.cost_center || '—'}</p></div>
                         {balance.days_overdue > 0 && <div><p className="text-xs text-slate-400">Days Overdue</p><p className="text-red-600 font-medium">{balance.days_overdue} days</p></div>}
                       </div>
@@ -2188,7 +2188,7 @@ const handleMakePayment = async (
                       <div className="grid grid-cols-2 md:grid-cols-5 gap-3 text-sm">
                         <div><p className="text-xs text-slate-400">Visit ID</p><p className="text-slate-700 font-mono text-xs">{balance.visit_id}</p></div>
                         <div><p className="text-xs text-slate-400">Visit Date</p><p className="text-slate-700">{balance.visit_date}</p></div>
-                        <div><p className="text-xs text-slate-400">Doctor</p><p className="text-slate-700">{balance.practitioner || '—'}</p></div>
+                        <div><p className="text-xs text-slate-400">Doctor</p><p className="text-slate-700">{balance.practitioner_name || balance.practitioner || '—'}</p></div>
                         <div><p className="text-xs text-slate-400">Branch</p><p className="text-slate-700">{balance.cost_center || '—'}</p></div>
                         {balance.days_overdue > 0 && <div><p className="text-xs text-slate-400">Days Overdue</p><p className="text-red-600 font-medium">{balance.days_overdue} days</p></div>}
                       </div>

@@ -86,6 +86,7 @@ class InpatientAdmission(Document):
 			)
 
 	def validate(self):
+		self.set_missing_practitioner_names()
 		self.validate_dates()
 		self.validate_already_scheduled_or_admitted()
 		self.validate_bed_and_service_units()
@@ -96,6 +97,31 @@ class InpatientAdmission(Document):
 			frappe.db.set_value(
 				"Patient", self.patient, {"inpatient_status": None, "inpatient_record": None}
 			)
+
+	def set_missing_practitioner_names(self):
+		"""Fill doctor name fields that ``fetch_from`` left empty on legacy/imported rows.
+
+		Those rows store only the Healthcare Practitioner id, which the UI would
+		otherwise show as a number. When the master has a practitioner_name we copy
+		it; unknown ids are left untouched so the UI keeps its id fallback.
+		"""
+		for practitioner_field, name_field in (
+			("admission_by_doctor", "admission_doctor_name"),
+			("psychologist_doctor", "psychologist_doctor_name"),
+			("residents_doctor_no", "resident_doctor_name"),
+		):
+			if not self.meta.has_field(name_field):
+				continue
+			if cstr(self.get(name_field)).strip():
+				continue
+			practitioner = cstr(self.get(practitioner_field)).strip()
+			if not practitioner:
+				continue
+			practitioner_name = frappe.db.get_value(
+				"Healthcare Practitioner", practitioner, "practitioner_name"
+			)
+			if practitioner_name:
+				self.set(name_field, practitioner_name)
 	
 	def generate_file_number_for_patient(self):
 		"""Generate sequential file number if this is the first encounter/inpatient record"""

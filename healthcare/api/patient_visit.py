@@ -815,14 +815,17 @@ def create_invoice(reference_doctype: str, reference_name: str):
     # Combine items from all Sales Orders
     from healthcare.api.sales_order_cost_center import (
         apply_cost_center_to_sales_invoice,
+        apply_sales_order_document_discount,
         cost_center_from_sales_order,
         cost_center_from_visit_or_admission,
         sales_invoice_item_from_sales_order_item,
     )
 
     header_cc = None
+    loaded_sales_orders = []
     for so in sales_orders:
         sales_order_doc = frappe.get_doc("Sales Order", so.name)
+        loaded_sales_orders.append(sales_order_doc)
         so_cc = cost_center_from_sales_order(sales_order_doc)
         if not header_cc and so_cc:
             header_cc = so_cc
@@ -870,6 +873,9 @@ def create_invoice(reference_doctype: str, reference_name: str):
     
     if not invoice.items:
         frappe.throw(_("No items found to create invoice"))
+
+    # Order header discount (e.g. 10% package discount) must reach the invoice
+    apply_sales_order_document_discount(invoice, loaded_sales_orders)
 
     if header_cc:
         apply_cost_center_to_sales_invoice(invoice, header_cc)
