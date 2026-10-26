@@ -1,6 +1,29 @@
 // Copyright (c) 2016, ESS
 // License: ESS license.txt
 
+// Auto lab test code: LAB-002 next after LAB-001, LAB-129-002 under group LAB-129.
+let set_next_lab_test_code = function(frm) {
+	if (!frm.is_new()) return;
+	frappe.call({
+		method: 'healthcare.api.lab_test_setup.get_next_lab_test_code',
+		args: {
+			parent_group: frm.doc.is_group ? '' : (frm.doc.lab_group || '')
+		},
+		callback: function(r) {
+			let code = r && r.message;
+			if (!code) return;
+			if (!frm.doc.no || frm.doc.no === frm.__lab_auto_code) {
+				frm.set_value('no', code);
+				frm.__lab_auto_code = code;
+			}
+			if (!frm.doc.link_existing_item && (!frm.doc.lab_test_code || frm.doc.lab_test_code === frm.__lab_auto_test_code)) {
+				frm.set_value('lab_test_code', code);
+				frm.__lab_auto_test_code = code;
+			}
+		}
+	});
+};
+
 frappe.ui.form.on('Lab Test Template', {
 	lab_test_name: function(frm) {
 		if (!frm.doc.lab_test_code)
@@ -9,6 +32,8 @@ frappe.ui.form.on('Lab Test Template', {
 			frm.set_value('lab_test_description', frm.doc.lab_test_name);
 	},
 	refresh : function(frm) {
+		// New templates: LAB-002 next after LAB-001 (LAB-129-002 under a group).
+		set_next_lab_test_code(frm);
 		// Restrict Special, Grouped type templates in Child Test Groups
 		// frm.set_query('lab_test_template', 'lab_test_groups', function() {
 		// 	return {
@@ -115,6 +140,14 @@ frappe.ui.form.on('Lab Test Template', 'lab_test_rate', function(frm) {
 
 frappe.ui.form.on('Lab Test Template', 'lab_test_description', function(frm) {
 	frm.doc.change_in_item = 1;
+});
+
+frappe.ui.form.on('Lab Test Template', 'is_group', function(frm) {
+	set_next_lab_test_code(frm);
+});
+
+frappe.ui.form.on('Lab Test Template', 'lab_group', function(frm) {
+	set_next_lab_test_code(frm);
 });
 
 frappe.ui.form.on('Lab Test Groups', 'template_or_new_line', function (frm, cdt, cdn) {

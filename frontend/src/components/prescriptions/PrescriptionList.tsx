@@ -12,7 +12,7 @@ import { SignPrescriptionModal } from './SignPrescriptionModal'
 import { CreatePrescriptionModal } from './CreatePrescriptionModal'
 import { AddMedicationEntryModal, EditMedicationEntryModal } from './SinglePrescription'
 import { prescriptionNeedsSignature, prescriptionIsSigned } from '../../utils/prescriptionSigning'
-import { isFuturePlanByStartDate, isMedicationEndDatePassed, isMedicationStopped, normalizePrescriptionType } from '../../utils/prescriptionType'
+import { isFuturePlanByStartDate, isMedicationEndDatePassed, isMedicationStopped } from '../../utils/prescriptionType'
 import { isOtherFrequency } from '../../utils/prescriptionDosage'
 import { useCareContext } from '../../providers/CareContextProvider'
 import { useCardFilters } from '../../contexts/CardFilterContext'
@@ -24,10 +24,9 @@ import { ClearFiltersButton } from '../ui/ClearFiltersButton'
 import { DateFilterInput } from '../ui/DateFilterInput'
 import {
   getMedicationTypeColor,
-  getMedicationTypeLabel,
   medicationRowStyle,
   medicationTypeBadgeStyle,
-  resolveMedicationTypeForDisplay,
+  resolveMedicationOrderType,
 } from '../../utils/medicationTypeColors'
 
 
@@ -61,9 +60,8 @@ function prescriptionLineListingStatus(
   if (discontinued) return 'Discontinued'
 
   // UI statuses from prescription type (same idea as Active / Future — display only).
-  const typeKey = normalizePrescriptionType(
-    resolveMedicationTypeForDisplay(m?.medication_type, m?.is_prn),
-  )
+  // Legacy lines carry the type in the free text only, so the inferred type counts too.
+  const typeKey = resolveMedicationOrderType(m).type
   if (typeKey === 'STAT') return 'STAT'
   if (typeKey === 'PRN') return 'PRN'
 
@@ -530,6 +528,9 @@ export const PrescriptionList = ({
       return prescriptionLineListingStatus(m, p) === statusFilter
     })
 
+  // Legacy lines have no coded Prescription Type — it is read from the free text.
+  const hasInferredType = medicineRows.some(({ m }) => resolveMedicationOrderType(m).inferred)
+
   return (
     <div className="min-w-full flex flex-col flex-1 min-h-0 h-full">
       {/* Active-context banner — shown when filtering by a specific visit or admission */}
@@ -702,6 +703,12 @@ export const PrescriptionList = ({
 
       <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
         <div className="flex-1 min-h-0 overflow-auto">
+      {hasInferredType && prescriptions.length > 0 ? (
+        <p className="sticky left-0 px-3 py-1.5 text-[11px] text-slate-500">
+          * Prescription type read from the line&apos;s instructions / frequency — the legacy
+          record has no coded type.
+        </p>
+      ) : null}
       {prescriptions.length === 0 ? (
         <div className="flex items-center justify-center p-8">
           <div className="text-slate-500">
@@ -772,8 +779,9 @@ export const PrescriptionList = ({
               setDetailName(row.name)
               onPrescriptionSelect?.(row.name)
             }
-            const typeForDisplay = resolveMedicationTypeForDisplay(m?.medication_type, m?.is_prn)
-            const typeLabel = getMedicationTypeLabel(typeForDisplay, m?.is_prn)
+            const resolvedType = resolveMedicationOrderType(m)
+            const typeForDisplay = resolvedType.type
+            const typeLabel = resolvedType.label
             const isPink = Boolean(row.is_pink || m?.is_pink)
             // Stopped lines mirror the Current Prescription screen: struck-through
             // name, a Stop chip and a small Reason / Stopped by note under the name.
@@ -807,8 +815,10 @@ export const PrescriptionList = ({
                     <span
                       className="inline-flex rounded px-1 py-px text-[9px] font-bold uppercase tracking-wide"
                       style={medicationTypeBadgeStyle(typeForDisplay)}
+                      title={resolvedType.inferredHint}
                     >
                       {typeLabel}
+                      {resolvedType.inferred ? '*' : ''}
                     </span>
                   ) : null}
                 </span>

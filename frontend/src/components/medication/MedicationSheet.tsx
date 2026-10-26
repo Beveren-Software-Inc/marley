@@ -7,7 +7,13 @@ import {
   type MedicationSheetDetail,
   type MedicationSheetMedicineRow,
 } from '../../services/medicineGiven'
-import { getMedicationTypeColor, isHexColor, medicationRowStyle } from '../../utils/medicationTypeColors'
+import {
+  getMedicationTypeColor,
+  isHexColor,
+  medicationRowStyle,
+  resolveMedicationOrderType,
+} from '../../utils/medicationTypeColors'
+
 import {
   displayMedicationDosage,
   displayMedicationDrugName,
@@ -102,7 +108,9 @@ export const MedicationSheet = ({ patient, admission: admissionProp }: Medicatio
   const medicines = sheet?.medicines ?? []
 
   const typeLegend = useMemo(() => {
-    const types = new Set(medicines.map((m) => m.medication_type).filter(Boolean))
+    const types = new Set(
+      medicines.map((m) => resolveMedicationOrderType(m).type).filter(Boolean),
+    )
     return Array.from(types) as string[]
   }, [medicines])
 
@@ -265,7 +273,8 @@ export const MedicationSheet = ({ patient, admission: admissionProp }: Medicatio
                 const isExpanded = expandedKey === rowKey
                 const givenCount = med.administrations.filter((a) => a.given).length
                 const missedCount = med.administrations.filter((a) => !a.given).length
-                const rowStyle = medicationRowStyle(med.medication_type, !!med.is_pink)
+                const resolvedType = resolveMedicationOrderType(med)
+                const rowStyle = medicationRowStyle(resolvedType.type, !!med.is_pink)
                 const dosageLabel = formatDosageWithUom(med)
                 const secondaryBits = [
                   med.dosage_form,
@@ -274,8 +283,8 @@ export const MedicationSheet = ({ patient, admission: admissionProp }: Medicatio
                 ].filter(Boolean)
                 const borderLeftColor = med.is_pink
                   ? '#ec4899'
-                  : isHexColor(getMedicationTypeColor(med.medication_type))
-                    ? getMedicationTypeColor(med.medication_type)
+                  : isHexColor(getMedicationTypeColor(resolvedType.type))
+                    ? getMedicationTypeColor(resolvedType.type)
                     : '#94a3b8'
 
                 return (
@@ -316,7 +325,11 @@ export const MedicationSheet = ({ patient, admission: admissionProp }: Medicatio
                         {dosageLabel}
                       </td>
                       <td className="px-3 py-3 align-top text-xs text-slate-700">
-                        {med.medication_type || '—'}
+                        <span title={resolvedType.inferredHint}>
+                          {resolvedType.inferred
+                            ? `${resolvedType.label}*`
+                            : med.medication_type || '—'}
+                        </span>
                         {med.is_pink ? (
                           <span className="ml-1 rounded bg-pink-100 px-1 text-[10px] text-pink-700">Pink</span>
                         ) : null}

@@ -181,6 +181,86 @@ export async function runDailyPatientVisitsBackfill(args: {
   return (out as Record<string, unknown>).message as DailyPatientVisitBackfillResult
 }
 
+export interface PatientVisitBranchBackfillPreview {
+  candidates: number
+  sampled: number
+  resolvable_sampled: number
+  unresolved_sampled: number
+  legacy_skipped: number
+  sample: Array<Record<string, unknown>>
+}
+
+export interface PatientVisitBranchBackfillStatus {
+  processed?: number
+  updated?: number
+  skip?: number
+  skip_has_branch?: number
+  skip_legacy?: number
+  skip_no_source?: number
+  errors?: number
+  total_visits?: number
+  done?: boolean
+  running?: boolean
+  error?: string | null
+}
+
+export async function previewPatientVisitBranchBackfill(): Promise<PatientVisitBranchBackfillPreview> {
+  const res = await fetch(
+    '/api/method/healthcare.api.patient_visit_branch.preview_patient_visit_branch_backfill'
+  )
+  const out = await res.json().catch(() => ({} as Record<string, unknown>))
+  if (!res.ok || (out as Record<string, unknown>)?.exc) {
+    const msg =
+      (out as Record<string, unknown>)?.message ||
+      (out as Record<string, unknown>)?.exc ||
+      'Failed to preview the branch backfill'
+    throw new Error(typeof msg === 'string' ? msg : String(msg))
+  }
+  return (out as Record<string, unknown>).message as PatientVisitBranchBackfillPreview
+}
+
+export async function startPatientVisitBranchBackfill(): Promise<{ ok: boolean; message?: string }> {
+  const csrf = (window as any).csrf_token
+
+  const res = await fetch(
+    '/api/method/healthcare.api.data_migration_jobs.start_patient_visit_branch_backfill_migration',
+    {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+        ...(csrf ? { 'X-Frappe-CSRF-Token': csrf } : {}),
+      },
+      body: JSON.stringify({}),
+    }
+  )
+  const out = await res.json().catch(() => ({} as Record<string, unknown>))
+  if (!res.ok || (out as Record<string, unknown>)?.exc) {
+    const msg =
+      (out as Record<string, unknown>)?.message ||
+      (out as Record<string, unknown>)?.exc ||
+      'Failed to start the branch backfill'
+    throw new Error(typeof msg === 'string' ? msg : String(msg))
+  }
+  return (out as Record<string, unknown>).message as { ok: boolean; message?: string }
+}
+
+export async function fetchPatientVisitBranchBackfillStatus(): Promise<PatientVisitBranchBackfillStatus> {
+  const res = await fetch(
+    '/api/method/healthcare.api.data_migration_jobs.get_migration_job_status?job=patient_visit_branch_backfill'
+  )
+  const out = await res.json().catch(() => ({} as Record<string, unknown>))
+  if (!res.ok || (out as Record<string, unknown>)?.exc) {
+    const msg =
+      (out as Record<string, unknown>)?.message ||
+      (out as Record<string, unknown>)?.exc ||
+      'Failed to read the branch backfill status'
+    throw new Error(typeof msg === 'string' ? msg : String(msg))
+  }
+  return (out as Record<string, unknown>).message as PatientVisitBranchBackfillStatus
+}
+
 export function normalizeSetupServices(setup: Partial<DailyPatientVisitSetup>): DailyPatientVisitSetupServiceLine[] {
   if (setup.services?.length) {
     return setup.services.map((line) => ({

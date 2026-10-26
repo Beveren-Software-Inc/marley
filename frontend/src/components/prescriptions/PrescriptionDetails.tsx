@@ -29,8 +29,8 @@ import {
 import {
   matchesPrescriptionTypeFilter,
   isFuturePlanByStartDate,
-  normalizePrescriptionType,
 } from '../../utils/prescriptionType'
+import { resolveMedicationOrderType } from '../../utils/medicationTypeColors'
 
 // ─── Medication type definitions ──────────────────────────────────────────────
 const MED_TYPES = [
@@ -182,7 +182,8 @@ const MedicationRow = ({
   onAction?: (entry: string, drug: string, action: MedicationAction) => void
 }) => {
   const isFuture = isFuturePlanByStartDate(order)
-  const color = getTypeColor(isFuture ? 'Future Plan' : order.medication_type)
+  const resolvedType = resolveMedicationOrderType(order, isFuture ? 'Future Plan' : null)
+  const color = getTypeColor(resolvedType.type)
   const rowStyle: React.CSSProperties = isHex(color)
     ? hexRowStyle(color)
     : order.is_pink ? {} : {}
@@ -271,12 +272,15 @@ const MedicationRow = ({
 // ─── Detail card ──────────────────────────────────────────────────────────────
 const MedicationDetailCard = ({ order, parentStartDate }: { order: any; parentStartDate?: string }) => {
   const isFuture = isFuturePlanByStartDate(order)
-  const color = getTypeColor(isFuture ? 'Future Plan' : order.medication_type)
+  const resolvedType = resolveMedicationOrderType(order, isFuture ? 'Future Plan' : null)
+  const color = getTypeColor(resolvedType.type)
   const cardStyle: React.CSSProperties = isHex(color) ? hexRowStyle(color) : {}
   const instructions = displayMedicationInstructions(order)
   const typeLabel = isFuture
-    ? `Future Plan · ${normalizePrescriptionType(order.medication_type) || order.medication_type || '—'}`
-    : order.medication_type
+    ? `Future Plan · ${resolvedType.type || '—'}`
+    : resolvedType.inferred
+      ? `${resolvedType.label}*`
+      : order.medication_type || '—'
 
   return (
     <div
@@ -291,7 +295,9 @@ const MedicationDetailCard = ({ order, parentStartDate }: { order: any; parentSt
     >
       <div className="flex items-center justify-between flex-wrap gap-1">
         <span className="font-semibold text-slate-800">{displayMedicationDrugName(order)}</span>
-        <span className="text-xs text-slate-400">{typeLabel}</span>
+        <span className="text-xs text-slate-400" title={resolvedType.inferredHint}>
+          {typeLabel}
+        </span>
       </div>
       <p className="text-[11px] leading-snug text-slate-500">
         {[

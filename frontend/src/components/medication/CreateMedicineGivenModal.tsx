@@ -7,6 +7,7 @@ import type { Prescription, MedicationOrderEntry } from '../../services/prescrip
 import { fetchPrescriptions, fetchMedicationOrders, fetchPrescriptionByInpatientOrEncounter } from '../../services/prescriptions'
 import { prescriptionAllowsMedicineGiving } from '../../utils/prescriptionSigning'
 import { isLongActingMedicationOrder } from '../../utils/prescriptionType'
+import { resolveMedicationOrderType } from '../../utils/medicationTypeColors'
 import { getPatientActiveAdmission, type InpatientRecord } from '../../services/inpatientRecords'
 import {
   createMedicineGiven,
@@ -252,9 +253,10 @@ export const CreateMedicineGivenModal = ({
   const [loadingDispensingLots, setLoadingDispensingLots] = useState(false)
   const [mergedCurrentRx, setMergedCurrentRx] = useState(false)
 
-  const prescriptionOrders = isPrn
-    ? orders.filter((o) => o.is_prn === 1 || o.medication_type === 'PRN')
-    : orders
+  // PRN lines: coded PRN, the is_prn flag, or a legacy line whose note says PRN.
+  const isPrnOrder = (order: MedicationOrderEntry) =>
+    order.is_prn === 1 || resolveMedicationOrderType(order).type === 'PRN'
+  const prescriptionOrders = isPrn ? orders.filter(isPrnOrder) : orders
   const selectedOrderLine = prescriptionOrders.find((o) => o.name === selectedOrder)
   const prescribedFrequency = (
     selectedOrderLine?.patient_frequency ||
@@ -1045,7 +1047,7 @@ export const CreateMedicineGivenModal = ({
                 disabled={loading || !orders.length}
               >
                 <option value="">
-                  {isPrn && orders.filter((o) => o.is_prn === 1 || o.medication_type === 'PRN').length === 0
+                  {isPrn && prescriptionOrders.length === 0
                     ? 'No PRN medicines on current prescriptions'
                     : 'Select medicine...'}
                 </option>

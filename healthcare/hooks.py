@@ -275,8 +275,9 @@ doctype_js = {"Sales Invoice": "public/js/sales_invoice.js",
               
               "Sales Order": "public/js/sales_order.js",
               "Quotation": "public/js/quotation.js",
-              "Item Group": "public/js/item_group.js",}
-# doctype_list_js = {"doctype" : "public/js/doctype_list.js"}
+              "Item Group": "public/js/item_group.js",
+              "Daily Patient Visit Setup": "public/js/patient_visit_branch_backfill.js",}
+doctype_list_js = {"Daily Patient Visit Setup": "public/js/patient_visit_branch_backfill.js"}
 # doctype_tree_js = {"doctype" : "public/js/doctype_tree.js"}
 # doctype_calendar_js = {"doctype" : "public/js/doctype_calendar.js"}
 

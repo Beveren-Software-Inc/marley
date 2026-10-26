@@ -5,6 +5,7 @@ from frappe import _
 from frappe.utils import add_days, flt, getdate, today
 
 from healthcare.api.patient_file_no_charge import _ensure_patient_customer
+from healthcare.api.patient_visit_branch import branch_for_patient
 from healthcare.api.patient_visit_charge import (
 	_existing_visit_charge_sales_order,
 	maybe_create_patient_visit_charge_sales_order,
@@ -487,16 +488,38 @@ def add_op_charge_to_patient_visit(visit_name, amount, charge_date=None):
         frappe.db.commit()
 
 
-def _resolve_setup_cost_center(setup):
-	"""Prefer setup.branch (Cost Center); fall back to linked admission branch."""
+def _resolve_setup_cost_center(setup, visit_date=None):
+	"""Prefer setup.branch (Cost Center), then the admission branch, then a setup of the patient."""
 	raw = _setup_field(setup, "branch")
 	branch = (raw or "").strip() if raw else None
 	if branch:
 		return branch
 	admission = _setup_field(setup, "admission")
 	if admission and frappe.db.exists("Inpatient Admission", admission):
-		return cost_center_from_visit_or_admission("Inpatient Admission", admission)
-	return None
+		cc = cost_center_from_visit_or_admission("Inpatient Admission", admission)
+		if cc:
+			return cc
+	# Older setups were created before Branch was mandatory; the same patient may
+	# already have a newer setup with a branch for this visit date.
+	return branch_for_patient(_setup_field(setup, "patient"), visit_date)
+
+
+def _ensure_daily_auto_visit_cost_center(setup, visit_name, visit_date) -> bool:
+	"""Fill a blank cost center on an existing daily auto visit from the setup."""
+	cost_center = _resolve_setup_cost_center(setup, visit_date)
+	if not cost_center:
+		return False
+	current = frappe.db.get_value("Patient Visit", visit_name, "cost_center")
+	if (current or "").strip():
+		return False
+	frappe.db.set_value(
+		"Patient Visit",
+		visit_name,
+		"cost_center",
+		cost_center,
+		update_modified=False,
+	)
+	return True
 
 
 def _setup_field(setup, field):
@@ -572,6 +595,7 @@ def _process_setup_visit_dates(setup, visit_dates) -> dict:
 			if visit_date in existing_dates:
 				visit_name = _get_daily_auto_visit_name(patient, visit_date)
 				if visit_name:
+					_ensure_daily_auto_visit_cost_center(setup, visit_name, visit_date)
 					_ensure_daily_auto_visit_billing(setup, visit_name, visit_date)
 					billed_existing += 1
 				skipped_existing += 1
@@ -671,7 +695,7 @@ def _get_daily_auto_visit_name(patient, visit_date):
 def _ensure_daily_auto_visit_billing(setup, visit_name, visit_date):
     if visit_type_no_charges(DAILY_AUTO_VISIT_TYPE):
         return
-    cost_center = _resolve_setup_cost_center(setup)
+    cost_center = _resolve_setup_cost_center(setup, visit_date)
     amount = _setup_total_amount(setup)
     if amount > 0:
         add_op_charge_to_patient_visit(visit_name, amount, visit_date)
@@ -692,7 +716,7 @@ def _ensure_daily_auto_visit_billing(setup, visit_name, visit_date):
 
 
 def _create_daily_auto_visit_for_date(setup, visit_date):
-    cost_center = _resolve_setup_cost_center(setup)
+    cost_center = _resolve_setup_cost_center(setup, visit_date)
     visit_fields = {
         'doctype': 'Patient Visit',
         'patient': _setup_field(setup, 'patient'),
