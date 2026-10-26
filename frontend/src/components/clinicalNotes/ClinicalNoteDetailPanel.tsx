@@ -34,8 +34,8 @@ import {
   isHexColor,
   MEDICATION_TYPES,
   medicationRowStyle,
+  resolveMedicationOrderType,
 } from '../../utils/medicationTypeColors'
-import { normalizePrescriptionType } from '../../utils/prescriptionType'
 import { DetailSlideOver } from '../ui/DetailSlideOver'
 import { CareModeBadges } from '../ui/CareModeBadges'
 import type { CareMode } from '../../providers/CareContextProvider'
@@ -104,20 +104,12 @@ function medicationMatchesTypeFilter(
   typeKey: string,
 ): boolean {
   if (typeKey === 'All') return true
-  const normalized = normalizePrescriptionType(med.medication_type)
-  if (typeKey === 'PRN') {
-    return normalized === 'PRN' || Boolean(med.is_prn)
-  }
-  return normalized === typeKey
+  // Legacy lines have no coded type — the type is read from their free text.
+  return resolveMedicationOrderType(med).type === typeKey
 }
 
 function resolveMedicationTypeLabel(med: ClinicalNoteDayMedication): string {
-  const normalized = normalizePrescriptionType(med.medication_type)
-  if (normalized) {
-    return MEDICATION_TYPES.find((t) => t.key === normalized)?.label || normalized
-  }
-  if (med.is_prn) return 'PRN'
-  return ''
+  return resolveMedicationOrderType(med).label
 }
 
 function NoteMedicationListItem({
@@ -134,14 +126,15 @@ function NoteMedicationListItem({
   const startDate = displayMedicationStartDate(med) || med.start_date || med.date
   const endDateRaw = displayMedicationEndDate(med)
   const endDate = endDateRaw && endDateRaw !== '-' ? endDateRaw : ''
+  const resolvedType = resolveMedicationOrderType(med)
   const typeLabel = resolveMedicationTypeLabel(med)
-  const typeColor = getMedicationTypeColor(med.medication_type || (med.is_prn ? 'PRN' : ''))
+  const typeColor = getMedicationTypeColor(resolvedType.type)
   const isPink = med.is_pink === 1 || med.is_pink === true
 
   return (
     <li
       className="rounded-md border px-2.5 py-2"
-      style={medicationRowStyle(med.medication_type || (med.is_prn ? 'PRN' : ''), isPink)}
+      style={medicationRowStyle(resolvedType.type, isPink)}
     >
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
@@ -155,6 +148,7 @@ function NoteMedicationListItem({
             {typeLabel ? (
               <span
                 className="inline-flex rounded px-1 py-px text-[9px] font-bold uppercase tracking-wide"
+                title={resolvedType.inferredHint}
                 style={
                   isHexColor(typeColor)
                     ? {
@@ -165,6 +159,7 @@ function NoteMedicationListItem({
                 }
               >
                 {typeLabel}
+                {resolvedType.inferred ? '*' : ''}
               </span>
             ) : null}
           </div>

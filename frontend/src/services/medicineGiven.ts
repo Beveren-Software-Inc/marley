@@ -487,11 +487,14 @@ export interface MedicationSheetMedicineRow {
   uom?: string | null
   dosage_form?: string
   patient_frequency?: string
+  written_frequency?: string
   medication_type?: string
   is_pink?: number
   route_of_administration?: string
   start_date?: string | null
   end_date?: string | null
+  /** Free-text instruction (legacy Oracle DOSE_NOTES) — used to read a missing type. */
+  instructions?: string | null
   administrations: MedicationSheetAdminRow[]
 }
 

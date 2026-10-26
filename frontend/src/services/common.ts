@@ -2070,6 +2070,24 @@ export async function fetchLabTestTemplateList(search?: string): Promise<LabTest
   return []
 }
 
+/**
+ * Next auto-generated lab test code.
+ * Top level: LAB-002 after LAB-001. With a parent group: LAB-129-002 under LAB-129.
+ */
+export async function fetchNextLabTestCode(parentGroup?: string): Promise<string> {
+  const params = new URLSearchParams()
+  if (parentGroup) params.append('parent_group', parentGroup)
+
+  const url = `/api/method/healthcare.api.lab_test_setup.get_next_lab_test_code${params.toString() ? `?${params.toString()}` : ''}`
+  try {
+    const response = await fetch(url, { credentials: 'include' })
+    const resData = await response.json()
+    return typeof resData?.message === 'string' ? resData.message : ''
+  } catch {
+    return ''
+  }
+}
+
 /** Partial update for Lab Test Template (single row). Prefer bulk for Lab Setup. */
 export async function updateLabTestTemplateQuickFields(
   name: string,

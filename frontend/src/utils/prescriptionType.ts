@@ -72,6 +72,115 @@ export function isPrnPrescriptionType(medicationType?: string | null): boolean {
   return normalizePrescriptionType(medicationType) === 'PRN'
 }
 
+// ─── Legacy free-text prescription type (display-only fallback) ───────────────
+/**
+ * The type a legacy line actually is, read from its free text when the coded
+ * Prescription Type is blank.
+ *
+ * Serene's Oracle data has no prescription-type column: the type was typed into
+ * DOSE_NOTES, imported here into the line's `instructions` (and often reused for the
+ * frequency columns as well), e.g. ``3BDPRN`` or ``AS PRN``. Per the prescription
+ * types/frequency/route reference the three types are:
+ *   • STAT    — given straight away, once only
+ *   • PRN     — given only when the patient needs it
+ *   • Regular — given on a schedule (the only type that carries a frequency)
+ *
+ * This only ever feeds the display: nothing is written back to the record.
+ */
+export type InferredPrescriptionType = {
+  type: 'STAT' | 'PRN' | 'Regular'
+  /** Field group the type was read from. */
+  source: 'instructions' | 'frequency'
+  /** Text that produced the match, e.g. ``PRN`` in ``3BDPRN``. */
+  evidence: string
+}
+
+type PrescriptionTypeTextSource = {
+  /** Free-text instruction — legacy Oracle DOSE_NOTES was imported here. */
+  instructions?: string | null
+  /** Dose notes on administration rows. */
+  dose_notes?: string | null
+  patient_frequency?: string | null
+  written_frequency?: string | null
+  frequency?: string | null
+}
+
+/** "STAT", "S.T.A.T.", "stat dose" — but not "state" / "status". */
+const STAT_TYPE_PATTERN = /(?:^|[^a-z])s\.?\s?t\.?\s?a\.?\s?t\.?(?![a-z])/i
+/** "PRN", "P.R.N.", "3BDPRN", "1/2prn", "as needed", "as required", "SOS". */
+const PRN_TYPE_PATTERN =
+  /prn|p\.\s?r\.\s?n|as\s+needed|as\s+required|(?:^|[^a-z])s\.?\s?o\.?\s?s\.?(?![a-z])/i
+/**
+ * Explicit "regular" / "routine", or a frequency code. Frequency only applies to
+ * regular prescriptions (PRN/STAT carry none), so a frequency means Regular.
+ */
+const REGULAR_TYPE_PATTERN =
+  /regular|routine|(?:^|[^a-z])(?:bd|b\.d|tds|t\.d\.s|tid|t\.i\.d|qid|q\.i\.d|qds|hs|h\.s|nocte|qam|qpm|mane|od|o\.d)(?![a-z])|(?:^|[^a-z])\d\s?-\s?\d\s?-\s?\d(?![a-z])/i
+
+const PRESCRIPTION_TYPE_PRIORITY: Record<InferredPrescriptionType['type'], number> = {
+  Regular: 1,
+  PRN: 2,
+  STAT: 3,
+}
+
+function textOf(...values: Array<string | null | undefined>): string {
+  return values
+    .map((value) => String(value ?? '').trim())
+    .filter(Boolean)
+    .join(' | ')
+}
+
+function detectPrescriptionTypeInText(
+  text: string,
+): { type: InferredPrescriptionType['type']; evidence: string } | null {
+  const value = (text || '').trim()
+  if (!value) return null
+  const checks: Array<{ type: InferredPrescriptionType['type']; pattern: RegExp }> = [
+    { type: 'STAT', pattern: STAT_TYPE_PATTERN },
+    { type: 'PRN', pattern: PRN_TYPE_PATTERN },
+    { type: 'Regular', pattern: REGULAR_TYPE_PATTERN },
+  ]
+  for (const { type, pattern } of checks) {
+    const match = value.match(pattern)
+    if (match) return { type, evidence: match[0].trim() }
+  }
+  return null
+}
+
+/**
+ * Read the prescription type from a legacy line's free text.
+ * Returns null when nothing recognisable is written (the line simply has no type).
+ */
+export function inferPrescriptionTypeFromOrder(
+  order?: PrescriptionTypeTextSource | null,
+): InferredPrescriptionType | null {
+  if (!order) return null
+  const fromInstructions = detectPrescriptionTypeInText(
+    textOf(order.instructions, order.dose_notes),
+  )
+  const fromFrequency = detectPrescriptionTypeInText(
+    textOf(order.patient_frequency, order.written_frequency, order.frequency),
+  )
+  if (!fromInstructions) {
+    return fromFrequency ? { ...fromFrequency, source: 'frequency' } : null
+  }
+  if (!fromFrequency) {
+    return { ...fromInstructions, source: 'instructions' }
+  }
+  // STAT outranks PRN outranks Regular; instructions win on an equal match.
+  return PRESCRIPTION_TYPE_PRIORITY[fromFrequency.type] >
+    PRESCRIPTION_TYPE_PRIORITY[fromInstructions.type]
+    ? { ...fromFrequency, source: 'frequency' }
+    : { ...fromInstructions, source: 'instructions' }
+}
+
+/** Tooltip for a type chip that was read from free text rather than the coded field. */
+export function describeInferredPrescriptionType(inferred: InferredPrescriptionType): string {
+  const source =
+    inferred.source === 'instructions' ? 'the instructions / dose notes' : 'the frequency'
+  return `Prescription type read from ${source}: "${inferred.evidence}". No coded type on this line.`
+}
+
 function isDaysValueCleared(value: unknown): boolean {
   if (value === '' || value === null || value === undefined) return true
   const n = Number(value)
@@ -199,6 +308,11 @@ export function matchesPrescriptionTypeFilter(
     effective_status?: string | null
     status?: string | null
     is_prn?: boolean | 0 | 1 | null
+    instructions?: string | null
+    dose_notes?: string | null
+    patient_frequency?: string | null
+    written_frequency?: string | null
+    frequency?: string | null
   },
   filterKey: string,
   asOf: Date = new Date()
@@ -215,11 +329,15 @@ export function matchesPrescriptionTypeFilter(
   // Real types only include lines that have started (not future-dated)
   if (future) return false
   if (filterKey === 'PRN') {
-    return (
-      normalizePrescriptionType(order.medication_type) === 'PRN' ||
-      order.is_prn === true ||
-      order.is_prn === 1
-    )
+    const coded = normalizePrescriptionType(order.medication_type)
+    if (coded === 'PRN' || order.is_prn === true || order.is_prn === 1) return true
+    // Legacy lines carry the type only in the free text ("3BDPRN").
+    return !coded && inferPrescriptionTypeFromOrder(order)?.type === 'PRN'
+  }
+  if (filterKey === 'STAT') {
+    const coded = normalizePrescriptionType(order.medication_type)
+    if (coded === 'STAT') return true
+    return !coded && inferPrescriptionTypeFromOrder(order)?.type === 'STAT'
   }
   return normalizePrescriptionType(order.medication_type) === filterKey
 }

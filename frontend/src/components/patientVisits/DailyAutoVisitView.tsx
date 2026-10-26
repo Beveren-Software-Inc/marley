@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { CalendarClock, ClipboardList, Settings, Eye, EyeOff, CalendarRange, X, Play } from 'lucide-react'
+import { CalendarClock, ClipboardList, Settings, Eye, EyeOff, CalendarRange, X, Play, RefreshCw } from 'lucide-react'
 import { toast } from '../../hooks/useToast'
 import { useCareContext } from '../../providers/CareContextProvider'
 import { PatientVisitList } from './PatientVisitList'
@@ -12,6 +12,9 @@ import {
   stopDailyPatientVisitSetup,
   updateDailyPatientVisitSetup,
   runDailyPatientVisitsBackfill,
+  previewPatientVisitBranchBackfill,
+  startPatientVisitBranchBackfill,
+  fetchPatientVisitBranchBackfillStatus,
   type DailyPatientVisitSetup,
   type DailyPatientVisitSetupServiceLine,
 } from '../../services/dailyPatientVisitSetup'
@@ -545,7 +548,7 @@ function readSavedTab(): TabId {
 }
 
 export const DailyAutoVisitView = ({ patient }: DailyAutoVisitViewProps) => {
-  const { userCostCenter, selectedPatient: contextPatient } = useCareContext()
+  const { userCostCenter, selectedPatient: contextPatient, userRole } = useCareContext()
   const effectivePatient = (patient || contextPatient || '').trim() || undefined
   const [activeTab, setActiveTab] = useState<TabId>(readSavedTab)
 
@@ -572,12 +575,23 @@ export const DailyAutoVisitView = ({ patient }: DailyAutoVisitViewProps) => {
   const [editSetupName, setEditSetupName] = useState<string | null>(null)
   const [openActionRow, setOpenActionRow] = useState<string | null>(null)
   const [toggling, setToggling] = useState<string | null>(null)
+  const [branchBackfillRunning, setBranchBackfillRunning] = useState(false)
   const [fromDate, setFromDate] = useState('')
   const [toDate, setToDate] = useState('')
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'stopped'>('active')
   const menuRef = useRef<HTMLDivElement>(null)
 
   const activeCount = useMemo(() => setups.filter((s) => !!s.is_active).length, [setups])
+
+  // Matches healthcare.api.data_migration_jobs._require_admin().
+  const canBackfillVisitBranch = useMemo(
+    () =>
+      (userRole || []).some((role) => {
+        const normalized = role.trim().toLowerCase()
+        return normalized === 'system manager' || normalized === 'healthcare administrator'
+      }),
+    [userRole]
+  )
 
   const effectivePatientLabel = useMemo(() => {
     if (!effectivePatient) return ''
@@ -616,6 +630,64 @@ export const DailyAutoVisitView = ({ patient }: DailyAutoVisitViewProps) => {
       toast.error(err instanceof Error ? err.message : 'Failed to load daily auto visit setups')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const backfillVisitBranch = async () => {
+    if (branchBackfillRunning) return
+    const stop = () => setBranchBackfillRunning(false)
+    setBranchBackfillRunning(true)
+    try {
+      const preview = await previewPatientVisitBranchBackfill()
+      if (!preview.candidates) {
+        toast.success('No Patient Visit with a blank branch to fix.')
+        stop()
+        return
+      }
+
+      const proceed = window.confirm(
+        'Copy the branch (Cost Center) from Daily Patient Visit Setup / Inpatient Admission onto Patient Visits without a branch?\n\n' +
+          `Visits to check: ${preview.candidates}\n` +
+          `Sampled as updatable: ${preview.resolvable_sampled}\n` +
+          `Sampled with no branch source: ${preview.unresolved_sampled}\n` +
+          `Legacy (imported) visits skipped: ${preview.legacy_skipped}\n\n` +
+          'It runs in the background. New visits already copy the branch on creation. Continue?'
+      )
+      if (!proceed) {
+        stop()
+        return
+      }
+
+      const started = await startPatientVisitBranchBackfill()
+      toast.success(started.message || 'Branch backfill started in the background')
+
+      const poll = async () => {
+        try {
+          const status = await fetchPatientVisitBranchBackfillStatus()
+          if (status.error) {
+            toast.error('Branch backfill failed — check Error Log')
+            stop()
+            return
+          }
+          if (status.done) {
+            toast.success(
+              `Branch backfill finished — updated ${status.updated || 0}, skipped ${status.skip || 0}` +
+                (status.errors ? `, ${status.errors} error(s)` : ''),
+            )
+            setRefreshKey((key) => key + 1)
+            stop()
+            return
+          }
+          setTimeout(poll, 5000)
+        } catch (err) {
+          toast.error(err instanceof Error ? err.message : 'Could not read the branch backfill status')
+          stop()
+        }
+      }
+      setTimeout(poll, 3000)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Branch backfill failed')
+      stop()
     }
   }
 
@@ -717,6 +789,18 @@ export const DailyAutoVisitView = ({ patient }: DailyAutoVisitViewProps) => {
               </p>
             </div>
             <div className="flex items-center gap-2">
+              {canBackfillVisitBranch && (
+                <button
+                  type="button"
+                  onClick={backfillVisitBranch}
+                  disabled={branchBackfillRunning}
+                  className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-emerald-200 bg-white px-3 text-xs font-medium text-emerald-800 shadow-sm hover:bg-emerald-50 disabled:opacity-60"
+                  title="Copy the setup / admission branch onto Patient Visits that have none (runs in the background)"
+                >
+                  <RefreshCw className={`h-3.5 w-3.5 ${branchBackfillRunning ? 'animate-spin' : ''}`} />
+                  Backfill branch
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() =>

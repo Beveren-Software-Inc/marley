@@ -8,7 +8,12 @@ import {
   createModalShellClass,
 } from '../ui/CreateModalChrome'
 import { apiRequest } from '../../services/apiClient'
-import { fetchUoms, fetchServiceRequestTemplates, type LinkFieldOption } from '../../services/common'
+import {
+  fetchNextLabTestCode,
+  fetchUoms,
+  fetchServiceRequestTemplates,
+  type LinkFieldOption,
+} from '../../services/common'
 
 interface MultipleResultRow {
   test_unit: string
@@ -343,6 +348,9 @@ export function CreateLabTestTemplateModal({
   const [labTestName, setLabTestName] = useState('')
   const [labGroup, setLabGroup] = useState(initialLabGroup || '')
   const [isGroup, setIsGroup] = useState(Boolean(initialIsGroup))
+  /** Create mode: keep the code in step with the next generated code until the user types one. */
+  const [codeAuto, setCodeAuto] = useState(!isEdit)
+  const [codeLoading, setCodeLoading] = useState(false)
   const [disabled, setDisabled] = useState(false)
   const [isMultiple, setIsMultiple] = useState(false)
   const [isBillable, setIsBillable] = useState(true)
@@ -420,6 +428,23 @@ export function CreateLabTestTemplateModal({
       cancelled = true
     }
   }, [isEdit, templateName])
+
+  // Create mode: prefill the next incremental code (LAB-130, or LAB-129-002 in a group).
+  useEffect(() => {
+    if (isEdit || !codeAuto) return
+    let cancelled = false
+    setCodeLoading(true)
+    fetchNextLabTestCode(isGroup ? undefined : labGroup || undefined)
+      .then((code) => {
+        if (!cancelled && code) setLabTestCode(code)
+      })
+      .finally(() => {
+        if (!cancelled) setCodeLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [isEdit, codeAuto, isGroup, labGroup])
 
   const updateMultipleRow = useCallback(
     (index: number, key: keyof MultipleResultRow, value: string | boolean) => {
@@ -587,11 +612,25 @@ export function CreateLabTestTemplateModal({
                       <input
                         type="text"
                         value={labTestCode}
-                        onChange={(e) => setLabTestCode(e.target.value)}
+                        onChange={(e) => {
+                          const next = e.target.value
+                          // Clearing the field hands control back to auto-generation.
+                          setCodeAuto(!next.trim())
+                          setLabTestCode(next)
+                        }}
                         disabled={isEdit}
-                        placeholder="e.g. LAB-001"
+                        placeholder={codeLoading ? 'Generating…' : 'e.g. LAB-001'}
                         className="w-full rounded border border-slate-300 px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary disabled:bg-slate-50"
                       />
+                      {!isEdit ? (
+                        <p className="mt-1 text-[11px] text-slate-500">
+                          {codeAuto
+                            ? labGroup && !isGroup
+                              ? `Auto: next child of ${labGroup}.`
+                              : 'Auto: next code after the highest lab test.'
+                            : 'Manual code — clear the field to go back to auto.'}
+                        </p>
+                      ) : null}
                     </div>
                     <div>
                       <FieldLabel required>Lab Test Template</FieldLabel>
@@ -678,6 +717,13 @@ export function CreateLabTestTemplateModal({
                       Enable External Lab Print
                     </label>
                   </div>
+                  {!isEdit && isGroup ? (
+                    <p className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-[11px] text-emerald-800">
+                      A first child template ({labTestCode ? `${labTestCode}-001` : 'LAB-xxx-001'}) is
+                      created automatically with the same details. Add the remaining children from the
+                      group&apos;s Children card.
+                    </p>
+                  ) : null}
                 </section>
 
                 <section className="space-y-3">

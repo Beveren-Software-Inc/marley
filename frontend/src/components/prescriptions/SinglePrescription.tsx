@@ -82,9 +82,8 @@ import {
 } from './CreateFrequencyMiniModal'
 import { DateFilterInput } from '../ui/DateFilterInput'
 import {
-  getMedicationTypeLabel,
   medicationTypeBadgeStyle,
-  resolveMedicationTypeForDisplay,
+  resolveMedicationOrderType,
 } from '../../utils/medicationTypeColors'
 
 function addDaysToDate(dateStr: string, days: number): string {
@@ -248,7 +247,7 @@ function pickTypeFilterWithOrders(rx: Prescription | null): string | null {
     return null
   }
   for (const order of orders) {
-    const type = normalizePrescriptionType(order.medication_type)
+    const type = resolveMedicationOrderType(order).type
     if (MED_TYPES.some((def) => def.key === type)) return type
   }
   return 'All'
@@ -1913,11 +1912,9 @@ const MedicationRow = ({
   historyPrescriptionName?: string
 }) => {
   const isFuture = isFuturePlanByStartDate(order)
-  const typeForDisplay = resolveMedicationTypeForDisplay(
-    isFuture ? 'Future Plan' : order.medication_type,
-    order.is_prn,
-  )
-  const typeLabel = getMedicationTypeLabel(typeForDisplay, order.is_prn)
+  const resolvedType = resolveMedicationOrderType(order, isFuture ? 'Future Plan' : null)
+  const typeForDisplay = resolvedType.type
+  const typeLabel = resolvedType.label
   const color = getTypeColor(typeForDisplay || (isFuture ? 'Future Plan' : order.medication_type))
   const rowStyle = isHex(color) ? hexRowStyle(color) : {}
   const reasonStopped = String(order.reason_stopped || '').trim()
@@ -2135,8 +2132,10 @@ const MedicationRow = ({
                 <span
                   className="inline-flex rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide"
                   style={medicationTypeBadgeStyle(typeForDisplay)}
+                  title={resolvedType.inferredHint}
                 >
                   {typeLabel}
+                  {resolvedType.inferred ? '*' : ''}
                 </span>
               ) : null}
               {order.is_long_acting_medicine && typeForDisplay !== 'Long Acting Medicine' ? (

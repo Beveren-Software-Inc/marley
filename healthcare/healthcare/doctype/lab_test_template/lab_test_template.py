@@ -11,6 +11,7 @@ from frappe.model.document import Document
 from frappe.model.rename_doc import rename_doc
 from frappe.utils import flt, today
 
+from healthcare.api.lab_test_setup import create_first_group_child, ensure_lab_test_code
 from healthcare.healthcare.doctype.clinical_procedure_template.clinical_procedure_template import (
 	make_item_price,
 	update_item_and_item_price,
@@ -19,7 +20,8 @@ from healthcare.healthcare.doctype.clinical_procedure_template.clinical_procedur
 
 class LabTestTemplate(Document):
 	def before_insert(self):
-		pass
+		# Setup UI / desk / API: LAB-002 next after LAB-001, LAB-129-002 under a group.
+		ensure_lab_test_code(self)
 		# if self.link_existing_item and self.item:
 		# 	price_list = frappe.db.get_all(
 		# 		"Item Price", {"item_code": self.item}, ["price_list_rate"], order_by="valid_from desc"
@@ -28,8 +30,14 @@ class LabTestTemplate(Document):
 		# 		self.lab_test_rate = price_list[0].get("price_list_rate")
 
 	def after_insert(self):
+		# Capture before create_item_from_template() reloads the document (reload clears flags).
+		auto_group_child = bool(self.get("is_group")) and not self.flags.get("ignore_auto_group_child")
 		if not self.item and not self.link_existing_item:
 			create_item_from_template(self)
+		if auto_group_child:
+			# Group template → also create its first child (LAB-129 → LAB-129-001).
+			self.flags.ignore_auto_group_child = True
+			create_first_group_child(self)
 
 	def validate(self):
 		# if (

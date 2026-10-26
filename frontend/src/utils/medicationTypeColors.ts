@@ -1,7 +1,12 @@
 /** Medication type color coding (matches prescription UI). */
 
 import type { CSSProperties } from 'react'
-import { normalizePrescriptionType } from './prescriptionType'
+import {
+  describeInferredPrescriptionType,
+  inferPrescriptionTypeFromOrder,
+  normalizePrescriptionType,
+  type InferredPrescriptionType,
+} from './prescriptionType'
 
 export const MEDICATION_TYPES = [
   { key: 'STAT', label: 'STAT', color: '#fe80c0' },
@@ -25,7 +30,7 @@ export function getMedicationTypeColor(medicationType?: string | null): string {
 /** Short label for inline type chips (e.g. Reg Psy Active). */
 export function getMedicationTypeLabel(
   medicationType?: string | null,
-  fallbackPrn?: boolean | 0 | 1 | null,
+  fallbackPrn?: boolean | number | null,
 ): string {
   const normalized = normalizePrescriptionType(medicationType)
   if (normalized) {
@@ -38,7 +43,7 @@ export function getMedicationTypeLabel(
 /** Resolve type used for color/label when medication_type may be empty but is_prn is set. */
 export function resolveMedicationTypeForDisplay(
   medicationType?: string | null,
-  isPrn?: boolean | 0 | 1 | null,
+  isPrn?: boolean | number | null,
 ): string {
   const normalized = normalizePrescriptionType(medicationType)
   if (normalized) return normalized
@@ -64,4 +69,54 @@ export function medicationRowStyle(medicationType?: string | null, isPink?: bool
     return { backgroundColor: `${color}22`, borderColor: `${color}55` }
   }
   return {}
+}
+
+/** Type shown for one medication line: coded type first, legacy free text as the fallback. */
+export type MedicationOrderTypeDisplay = {
+  /** Canonical type key, or display-only ``Regular`` / ``PRN`` / ``STAT`` read from the note. */
+  type: string
+  /** Chip label (``Reg Psy Active``, ``PRN``, ``Regular`` …). */
+  label: string
+  /** Set when the type was read from the line's free text instead of the coded field. */
+  inferred: InferredPrescriptionType | null
+  /** Tooltip explaining where an inferred type came from. */
+  inferredHint?: string
+}
+
+export type MedicationTypeSource = {
+  medication_type?: string | null
+  is_prn?: boolean | number | null
+  instructions?: string | null
+  dose_notes?: string | null
+  patient_frequency?: string | null
+  written_frequency?: string | null
+  frequency?: string | null
+}
+
+/**
+ * Resolve the prescription type of a medication line for display.
+ *
+ * Legacy Oracle rows have no coded Prescription Type — the type was typed into
+ * DOSE_NOTES (imported into ``instructions``) and sometimes into the frequency
+ * column. Those lines fall back to a display-only type read from that text so they
+ * no longer appear typeless. ``overrideType`` wins (e.g. the computed Future Plan).
+ */
+export function resolveMedicationOrderType(
+  order?: MedicationTypeSource | null,
+  overrideType?: string | null,
+): MedicationOrderTypeDisplay {
+  const explicit =
+    normalizePrescriptionType(overrideType) ||
+    resolveMedicationTypeForDisplay(order?.medication_type, order?.is_prn)
+  if (explicit) {
+    return { type: explicit, label: getMedicationTypeLabel(explicit, order?.is_prn), inferred: null }
+  }
+  const inferred = inferPrescriptionTypeFromOrder(order)
+  if (!inferred) return { type: '', label: '', inferred: null }
+  return {
+    type: inferred.type,
+    label: inferred.type,
+    inferred,
+    inferredHint: describeInferredPrescriptionType(inferred),
+  }
 }
