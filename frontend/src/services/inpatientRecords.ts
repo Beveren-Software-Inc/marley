@@ -34,6 +34,8 @@ export interface InpatientRecord {
   admitted_datetime?: string
   admission_date?: string
   admission_time?: string
+  /** Legacy Oracle SPEND_DAYS (inclusive day count) imported with the admission. */
+  spend_daysduration?: string
   expected_discharge?: string
   gender?: string
   blood_group?: string

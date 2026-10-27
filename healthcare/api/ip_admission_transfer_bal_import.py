@@ -233,6 +233,10 @@ def _update_inpatient_admission_from_transfer(
 	old_admission_num: str | None = None,
 	new_admission_num: str | None = None,
 ) -> None:
+	"""Apply a *real* admission change (OLD_ADMISSION_NUM != NEW_ADMISSION_NUM).
+
+	Never call this for plain balance transfers: those keep the admission untouched.
+	"""
 	updates: dict[str, Any] = {
 		"cost_center": to_cost_center,
 		"admission_date": getdate(transfer_dt),
@@ -301,13 +305,23 @@ def upsert_admission_transfer_balance_from_row(row: dict) -> dict:
 		existing = False
 
 	_persist_transfer_balance(doc, existing=existing)
-	_update_inpatient_admission_from_transfer(
-		new_admission,
-		to_cost_center=to_cost_center,
-		transfer_dt=transfer_dt,
-		old_admission_num=row.get("old_admission_num") or None,
-		new_admission_num=row.get("new_admission_num") or None,
-	)
+
+	# A balance row moves revenue between branches, it does not move the admission.
+	# In the legacy TRANS_BAL export OLD_ADMISSION_NUM == NEW_ADMISSION_NUM for every row,
+	# so writing cost_center / admission_date / admission_time here would silently rewrite
+	# the already imported admission (wrong branch and wrong start date). Only a real
+	# admission change (old != new) may touch the admission; the branch and dates of an
+	# admission transfer belong to ip_admission_transfer_import.
+	old_admission_num = (row.get("old_admission_num") or "").strip()
+	new_admission_num = (row.get("new_admission_num") or "").strip()
+	if old_admission_num and new_admission_num and old_admission_num != new_admission_num:
+		_update_inpatient_admission_from_transfer(
+			new_admission,
+			to_cost_center=to_cost_center,
+			transfer_dt=transfer_dt,
+			old_admission_num=old_admission_num,
+			new_admission_num=new_admission_num,
+		)
 
 	return {
 		"status": action,

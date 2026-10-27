@@ -4270,6 +4270,12 @@ frappe.ui.form.on('Healthcare Settings', {
 				},
 			});
 		}, __('Direct Upload'));
+
+		frm.add_custom_button(
+			__('Cleanup IP Admission'),
+			() => open_ip_admission_cleanup(frm),
+			__('Cleanup')
+		);
 	},
 
 	onload: function(frm) {
@@ -7831,6 +7837,167 @@ function poll_migration_status(jobKey) {
 		});
 	};
 	setTimeout(poll, 5000);
+}
+
+/**
+ * Healthcare Settings → Cleanup → Cleanup IP Admission.
+ * Opens a dialog first so the latest IP_ADMISSION_01 sheet can be uploaded; when no sheet
+ * is picked the IP_ADMISSION_01 file already stored on the server is used.
+ * Re-applies branch (legacy BRANCH_NUM), admission date and admission time from the
+ * IP_ADMISSION_01 Excel. admitted_datetime (the real start of the stay) is never touched.
+ */
+function open_ip_admission_cleanup(frm) {
+	const dialog = new frappe.ui.Dialog({
+		title: __('Cleanup IP Admission'),
+		size: 'large',
+		fields: [
+			{
+				fieldtype: 'HTML',
+				fieldname: 'help',
+				options:
+					'<p class="text-muted small">'
+					+ __(
+						'Restores the legacy branch (BRANCH_NUM), admission date and admission time of Inpatient Admissions from the IP_ADMISSION_01 sheet. admitted_datetime (the real start of the stay) is never changed. Upload the latest sheet if the one already imported is out of date.'
+					)
+					+ '</p>',
+			},
+			{
+				fieldtype: 'HTML',
+				fieldname: 'source_html',
+			},
+		],
+		primary_action_label: __('Preview'),
+		primary_action() {
+			preview_ip_admission_cleanup(frm, dialog._file_url, dialog);
+		},
+	});
+
+	dialog._file_url = null;
+	dialog._file_label = null;
+	render_ip_admission_cleanup_source(dialog);
+
+	dialog.$wrapper.find('.modal-footer').prepend(
+		$('<button type="button" class="btn btn-default btn-sm mr-2">')
+			.text(__('Upload Latest IP Admission Sheet…'))
+			.on('click', () => {
+				open_ip_admission_cleanup_upload(frm, dialog);
+			})
+	);
+
+	dialog.show();
+}
+
+function render_ip_admission_cleanup_source(dialog) {
+	const label = dialog._file_label
+		? __('Sheet to use: {0}', [frappe.utils.escape_html(dialog._file_label)])
+		: __('No sheet picked here — the IP_ADMISSION_01 file already stored on the server is used.');
+	dialog
+		.get_field('source_html')
+		.$wrapper.html(
+			'<p class="'
+			+ (dialog._file_label ? 'text-success' : 'text-muted')
+			+ ' small">'
+			+ label
+			+ '</p>'
+		);
+}
+
+function preview_ip_admission_cleanup(frm, file_url, dialog) {
+	frappe.call({
+		method: 'healthcare.api.ip_admission_cleanup.preview_ip_admission_cleanup',
+		args: { file_url: file_url || null },
+		freeze: true,
+		freeze_message: __('Reading IP_ADMISSION_01 Excel…'),
+		callback(preview) {
+			const counts = preview.message || {};
+			if (!counts.ok) {
+				if (counts.needs_file) {
+					frappe.msgprint({
+						title: __('IP_ADMISSION_01 file required'),
+						indicator: 'orange',
+						message: counts.message || __('Upload the IP_ADMISSION_01 Excel.'),
+					});
+					open_ip_admission_cleanup_upload(frm, dialog);
+					return;
+				}
+				frappe.msgprint({
+					title: __('Cleanup IP Admission'),
+					indicator: 'red',
+					message: counts.message || __('Preview failed.'),
+				});
+				return;
+			}
+
+			if (dialog) {
+				dialog._file_url = counts.file_url || file_url || null;
+				dialog._file_label = dialog._file_url;
+				render_ip_admission_cleanup_source(dialog);
+				dialog.hide();
+			}
+
+			const samples = (counts.samples || []).join('\n') || __('(none)');
+			frappe.confirm(
+				__(
+					'Restore Inpatient Admission branch, admission date and admission time from IP_ADMISSION_01?\n\n'
+						+ 'Sheet: {9}\n\n'
+						+ 'Excel rows: {0}\nMatched admissions: {1}\nAdmissions to update: {2}\n\n'
+						+ 'Branch missing (will set): {3}\nBranch wrong (will restore): {4}\n'
+						+ 'Branch from a later transfer: {5}\nAdmission date to restore: {6}\n'
+						+ 'Admission time to restore: {7}\n\n'
+						+ 'admitted_datetime (real stay start) is never changed.\n\n'
+						+ 'Sample changes:\n{8}\n\nContinue?',
+					[
+						counts.excel_rows || 0,
+						counts.matched_admissions || 0,
+						counts.total_changes || 0,
+						counts.missing_branch || 0,
+						counts.branch_drift || 0,
+						counts.branch_from_later_transfer || 0,
+						counts.admission_date_drift || 0,
+						counts.admission_time_drift || 0,
+						samples,
+						counts.file_url || __('(server file)'),
+					]
+				),
+				() => {
+					frappe.call({
+						method: 'healthcare.api.ip_admission_cleanup.run_ip_admission_cleanup',
+						args: { file_url: counts.file_url || file_url || null },
+						freeze: true,
+						freeze_message: __('Cleaning up Inpatient Admissions…'),
+						callback(r) {
+							const result = r.message || {};
+							frappe.msgprint({
+								title: __('Cleanup IP Admission'),
+								indicator: result.ok ? 'green' : 'red',
+								message: result.message || __('Done'),
+							});
+							frm.reload_doc();
+						},
+					});
+				}
+			);
+		},
+	});
+}
+
+function open_ip_admission_cleanup_upload(frm, dialog) {
+	new frappe.ui.FileUploader({
+		dialog_title: __('Select IP_ADMISSION_01 Excel'),
+		allow_multiple: false,
+		restrictions: {
+			allowed_file_types: ['.xlsx', '.xls'],
+		},
+		on_success(file) {
+			if (dialog) {
+				dialog._file_url = file.file_url;
+				dialog._file_label = file.file_name || file.file_url;
+				render_ip_admission_cleanup_source(dialog);
+				return;
+			}
+			preview_ip_admission_cleanup(frm, file.file_url);
+		},
+	});
 }
 
 var set_query_service_item = function(frm, service_item_field) {

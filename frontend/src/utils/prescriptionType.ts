@@ -96,10 +96,11 @@ export type InferredPrescriptionType = {
 }
 
 type PrescriptionTypeTextSource = {
-  /** Free-text instruction — legacy Oracle DOSE_NOTES was imported here. */
+  /**
+   * Free-text instruction — legacy Oracle DOSE_NOTES was imported here. This is the
+   * only free-text field the type is read from; administration dose notes are ignored.
+   */
   instructions?: string | null
-  /** Dose notes on administration rows. */
-  dose_notes?: string | null
   patient_frequency?: string | null
   written_frequency?: string | null
   frequency?: string | null
@@ -155,9 +156,8 @@ export function inferPrescriptionTypeFromOrder(
   order?: PrescriptionTypeTextSource | null,
 ): InferredPrescriptionType | null {
   if (!order) return null
-  const fromInstructions = detectPrescriptionTypeInText(
-    textOf(order.instructions, order.dose_notes),
-  )
+  // Legacy type is read from the instruction field only — never from dose notes.
+  const fromInstructions = detectPrescriptionTypeInText(textOf(order.instructions))
   const fromFrequency = detectPrescriptionTypeInText(
     textOf(order.patient_frequency, order.written_frequency, order.frequency),
   )
@@ -177,7 +177,7 @@ export function inferPrescriptionTypeFromOrder(
 /** Tooltip for a type chip that was read from free text rather than the coded field. */
 export function describeInferredPrescriptionType(inferred: InferredPrescriptionType): string {
   const source =
-    inferred.source === 'instructions' ? 'the instructions / dose notes' : 'the frequency'
+    inferred.source === 'instructions' ? 'the instructions' : 'the frequency'
   return `Prescription type read from ${source}: "${inferred.evidence}". No coded type on this line.`
 }
 
@@ -309,7 +309,6 @@ export function matchesPrescriptionTypeFilter(
     status?: string | null
     is_prn?: boolean | 0 | 1 | null
     instructions?: string | null
-    dose_notes?: string | null
     patient_frequency?: string | null
     written_frequency?: string | null
     frequency?: string | null

@@ -67,45 +67,63 @@ export interface AdmissionSpanFields extends AdmissionDateFields {
   /** Planned discharge date from a draft Discharge (Discharge in Progress). */
   draft_discharge_date?: string | null
   status?: string | null
+  /** Legacy Oracle SPEND_DAYS — inclusive of the admission and discharge day. */
+  spend_daysduration?: string | number | null
 }
 
 function startOfLocalDay(d: Date): Date {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate())
 }
 
-/** Calendar day difference (end − start), at least 1 when both dates resolve. */
-function calendarDaysBetween(start: Date, end: Date): number {
+/**
+ * Inclusive calendar day count: the first and the last day both count (end − start + 1).
+ * Same-day admission → discharge is 1 day.
+ */
+export function inclusiveCalendarDaysBetween(start: Date, end: Date): number {
   const ms = startOfLocalDay(end).getTime() - startOfLocalDay(start).getTime()
-  return Math.max(Math.round(ms / 86_400_000), 1)
+  return Math.max(Math.round(ms / 86_400_000) + 1, 1)
+}
+
+/** Legacy SPEND_DAYS when present and positive; null when missing / not a number. */
+function storedSpendDays(record: AdmissionSpanFields): number | null {
+  const raw = record.spend_daysduration
+  if (raw === null || raw === undefined) return null
+  const days = typeof raw === 'number' ? raw : Number.parseInt(String(raw).trim(), 10)
+  return Number.isFinite(days) && days > 0 ? days : null
 }
 
 /**
  * Stay days for the admission list Days column.
- * - Draft discharge with a discharge date → discharge date − admission date
- * - Fully discharged → discharge datetime − admission date
- * - Still Admitted (no planned discharge date) → today − admission date
+ * - Legacy rows: display the imported SPEND_DAYS exactly as stored — never recalculated
+ * - No stored days → calculate, counting the admission day and the last day (+1)
+ *   - Draft discharge with a discharge date → discharge date − admission date + 1
+ *   - Completed stay → discharge datetime − admission date + 1
+ *   - Still Admitted (no planned discharge date) → today − admission date + 1
  * - No admission date → null
  */
 export function resolveAdmissionStayDays(record: AdmissionSpanFields): number | null {
+  // Legacy Oracle imports carry the authoritative inclusive SPEND_DAYS: show it as-is.
+  const stored = storedSpendDays(record)
+  if (stored !== null) return stored
+
   const start = resolveAdmissionDateTime(record)
   if (!start) return null
 
   const draftEnd = (record.draft_discharge_date || '').trim()
   if (draftEnd) {
     const end = parseDate(draftEnd)
-    if (end) return calendarDaysBetween(start, end)
+    if (end) return inclusiveCalendarDaysBetween(start, end)
   }
 
   const dischargedEnd = (record.discharge_datetime || '').trim()
   if (dischargedEnd) {
     const end = parseDate(dischargedEnd)
-    if (end) return calendarDaysBetween(start, end)
+    if (end) return inclusiveCalendarDaysBetween(start, end)
   }
 
   const status = (record.status || '').trim()
-  if (status === 'Admitted' || status === 'Discharge Scheduled') {
-    return calendarDaysBetween(start, new Date())
-  }
+  const isLive = status === 'Admitted' || status === 'Discharge Scheduled'
+  if (isLive) return inclusiveCalendarDaysBetween(start, new Date())
 
   return null
 }

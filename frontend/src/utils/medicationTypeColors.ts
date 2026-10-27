@@ -87,7 +87,6 @@ export type MedicationTypeSource = {
   medication_type?: string | null
   is_prn?: boolean | number | null
   instructions?: string | null
-  dose_notes?: string | null
   patient_frequency?: string | null
   written_frequency?: string | null
   frequency?: string | null
@@ -97,9 +96,10 @@ export type MedicationTypeSource = {
  * Resolve the prescription type of a medication line for display.
  *
  * Legacy Oracle rows have no coded Prescription Type — the type was typed into
- * DOSE_NOTES (imported into ``instructions``) and sometimes into the frequency
- * column. Those lines fall back to a display-only type read from that text so they
- * no longer appear typeless. ``overrideType`` wins (e.g. the computed Future Plan).
+ * DOSE_NOTES, imported here into ``instructions`` (and sometimes into the frequency
+ * column). Those lines fall back to a display-only type read from the instruction
+ * (and frequency) text so they no longer appear typeless. Administration dose notes
+ * are never used to decide the type. ``overrideType`` wins (e.g. the computed Future Plan).
  */
 export function resolveMedicationOrderType(
   order?: MedicationTypeSource | null,

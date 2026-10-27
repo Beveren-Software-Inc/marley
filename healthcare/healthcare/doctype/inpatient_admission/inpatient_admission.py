@@ -20,6 +20,9 @@ from healthcare.healthcare.doctype.nursing_task.nursing_task import NursingTask
 from healthcare.healthcare.utils import validate_nursing_tasks
 
 
+ACTIVE_ADMISSION_STATUSES = ("Admitted", "Admission Scheduled", "Discharge Scheduled")
+
+
 def resolve_admission_datetime(
 	admitted_datetime=None,
 	admission_date=None,
@@ -94,9 +97,13 @@ class InpatientAdmission(Document):
 		if self.patient and self.is_new():
 			self.generate_file_number_for_patient()
 		if self.status in ["Discharged", "Cancelled"]:
-			frappe.db.set_value(
-				"Patient", self.patient, {"inpatient_status": None, "inpatient_record": None}
-			)
+			# Only clear the pointer when it refers to this admission - saving an older
+			# discharged stay must not unlink the patient's current active admission.
+			current_admission = frappe.db.get_value("Patient", self.patient, "inpatient_record")
+			if not current_admission or current_admission == self.name:
+				frappe.db.set_value(
+					"Patient", self.patient, {"inpatient_status": None, "inpatient_record": None}
+				)
 
 	def set_missing_practitioner_names(self):
 		"""Fill doctor name fields that ``fetch_from`` left empty on legacy/imported rows.
@@ -194,11 +201,26 @@ class InpatientAdmission(Document):
 			)
 
 	def validate_already_scheduled_or_admitted(self):
+		"""Block a *new* active admission when the patient already has one.
+
+		Only a new record, or a record being moved into an active status, is checked.
+		Editing a Discharged/Cancelled admission - or simply re-saving an admission
+		that is already active - must never be blocked by another (newer) admission
+		of the same patient.
+		"""
+		if self.status not in ACTIVE_ADMISSION_STATUSES:
+			return
+
+		if not self.is_new() and self.name:
+			stored_status = frappe.db.get_value("Inpatient Admission", self.name, "status")
+			if stored_status == self.status:
+				return
+
 		existing = frappe.get_all(
 			"Inpatient Admission",
 			filters={
 				"patient": self.patient,
-				"status": ["in", ["Admitted", "Admission Scheduled", "Discharge Scheduled"]],
+				"status": ["in", list(ACTIVE_ADMISSION_STATUSES)],
 				"name": ["!=", self.name or ""],
 			},
 			fields=["name", "status"],
@@ -211,7 +233,9 @@ class InpatientAdmission(Document):
 		patient_label = (
 			frappe.db.get_value("Patient", self.patient, "patient_name") or self.patient_name or self.patient
 		)
-		admission_link = frappe.get_desk_link("Inpatient Admission", row.name)
+		admission_link = frappe.get_desk_link(
+			"Inpatient Admission", row.name, show_title_with_name=True
+		)
 
 		if row.status == "Discharge Scheduled":
 			detail = _(

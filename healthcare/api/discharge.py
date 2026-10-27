@@ -48,6 +48,22 @@ def get_discharge(name=None):
 			)
 			if admission_spend:
 				doc["admission_spend_days"] = admission_spend
+
+		# Admission datetime so the portal can calculate spend days when none were imported.
+		admission_row = frappe.db.get_value(
+			"Inpatient Admission",
+			doc["admission"],
+			["admitted_datetime", "admission_date", "admission_time"],
+			as_dict=True,
+		)
+		if admission_row:
+			admission_dt = resolve_admission_datetime(
+				admission_row.get("admitted_datetime"),
+				admission_row.get("admission_date"),
+				admission_row.get("admission_time"),
+			)
+			if admission_dt:
+				doc["admission_date"] = str(admission_dt)
 	else:
 		doc["current_medications"] = []
 		doc["discharged_medications"] = []

@@ -127,6 +127,50 @@ class TestInpatientRecord(FrappeTestCase):
 		self.assertRaises(frappe.ValidationError, ip_record_new.save)
 		frappe.db.sql("""delete from `tabInpatient Admission`""")
 
+	def test_editing_discharged_admission_allowed_with_active_admission(self):
+		"""Saving an old Discharged admission must not be blocked by a newer active stay.
+
+		The duplicate-admission guard only applies to new admissions and to records
+		being moved into an active status.
+		"""
+		frappe.db.sql("""delete from `tabInpatient Admission`""")
+		patient = create_patient()
+
+		# Earlier stay, already discharged (set directly: discharge has billing checks)
+		old_record = create_inpatient(patient)
+		old_record.expected_length_of_stay = 0
+		old_record.save(ignore_permissions=True)
+		frappe.db.set_value("Inpatient Admission", old_record.name, "status", "Discharged")
+
+		# Current stay of the same patient is active
+		current_record = create_inpatient(patient)
+		current_record.expected_length_of_stay = 0
+		current_record.save(ignore_permissions=True)
+		service_unit = get_healthcare_service_unit()
+		admit_patient(current_record, service_unit, now_datetime())
+
+		# Updating the discharged stay is allowed
+		old_record.reload()
+		self.assertEqual(old_record.status, "Discharged")
+		old_record.admission_instruction = "_Edited after discharge"
+		old_record.save(ignore_permissions=True)
+		self.assertEqual(
+			frappe.db.get_value("Inpatient Admission", old_record.name, "admission_instruction"),
+			"_Edited after discharge",
+		)
+		# The patient stays linked to the current (active) admission
+		self.assertEqual(
+			frappe.db.get_value("Patient", patient, "inpatient_record"), current_record.name
+		)
+		self.assertEqual(frappe.db.get_value("Patient", patient, "inpatient_status"), "Admitted")
+
+		# Re-activating the discharged stay is still blocked
+		old_record.reload()
+		old_record.status = "Admitted"
+		self.assertRaises(frappe.ValidationError, old_record.save)
+
+		frappe.db.sql("""delete from `tabInpatient Admission`""")
+
 
 def mark_invoiced_inpatient_occupancy(ip_record):
 	if ip_record.inpatient_occupancies:
