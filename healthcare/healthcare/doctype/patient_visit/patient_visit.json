@@ -530,21 +530,25 @@
    "label": "Visit Price & Discount"
   },
   {
+   "allow_on_submit": 1,
    "fieldname": "visit_price",
    "fieldtype": "Currency",
    "label": "Visit Price"
   },
   {
+   "allow_on_submit": 1,
    "fieldname": "discount_percentage",
    "fieldtype": "Percent",
    "label": "Discount (%)"
   },
   {
+   "allow_on_submit": 1,
    "fieldname": "discount_amount",
    "fieldtype": "Currency",
    "label": "Discount Amount"
   },
   {
+   "allow_on_submit": 1,
    "fieldname": "charges",
    "fieldtype": "Table",
    "label": "Charges",
@@ -564,6 +568,7 @@
    "label": "Reason for Cance"
   },
   {
+   "allow_on_submit": 1,
    "default": "0",
    "fieldname": "invoice_created",
    "fieldtype": "Check",
@@ -783,8 +788,8 @@
    "link_fieldname": "reference_name"
   }
  ],
- "modified": "2026-08-25 19:11:43.650621",
- "modified_by": "mania@beverensoftware.com",
+ "modified": "2026-10-27 10:34:14.610830",
+ "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Patient Visit",
  "naming_rule": "By fieldname",
