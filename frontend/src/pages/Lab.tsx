@@ -1174,7 +1174,22 @@ export const LabPage = () => {
       <div className="flex flex-col flex-1 min-h-0 min-w-0 overflow-y-auto">
         <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
-          <DashboardCard title="Inventory Dashboard" filterable={false} noHeightLimit>
+          <DashboardCard
+            title="Inventory Dashboard"
+            filterable={false}
+            noHeightLimit
+            headerExtra={
+              <button
+                type="button"
+                onClick={() => {
+                  window.location.href = '/desk/stock/item'
+                }}
+                className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
+              >
+                Items
+              </button>
+            }
+          >
             <NursingInventoryDashboard warehouseContext="laboratory" />
           </DashboardCard>
         </div>
