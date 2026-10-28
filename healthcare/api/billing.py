@@ -1854,12 +1854,26 @@ def update_sales_invoice_items(invoice_name, items):
 
 
 def _ensure_sales_invoice_due_date(doc):
-    """ERPNext rejects Due Date before Posting Date. Old drafts often have a stale due date."""
+    """Keep Due Date on/after Posting Date without discarding a valid credit due date.
+
+    ERPNext rejects a Due Date before the Posting Date and old drafts often carry a
+    stale one, so invalid dates are moved. A valid due date is left untouched: blindly
+    overwriting it with today made the invoice-level due date disagree with its payment
+    schedule, which pushed the invoice into ERPNext's fallback "Submitted" status once
+    the due date passed (hiding "Record payment" in the reception UI).
+    """
     posting = getdate(doc.posting_date) or getdate(today())
-    due = getdate(today())
+
+    schedule_due_dates = [getdate(row.due_date) for row in (doc.get("payment_schedule") or []) if row.due_date]
+    fallback_due = max(schedule_due_dates) if schedule_due_dates else getdate(today())
+    if fallback_due < posting:
+        fallback_due = posting
+
+    due = getdate(doc.due_date) if doc.due_date else fallback_due
     if due < posting:
-        due = posting
+        due = fallback_due
     doc.due_date = due
+
     for row in doc.get("payment_schedule") or []:
         row_due = getdate(row.due_date) if row.due_date else None
         if not row_due or row_due < posting:
@@ -2018,15 +2032,12 @@ def create_payment_entry(
 
         total_paid = sum(flt(m["amount"]) for m in modes)
         company = frappe.get_doc("Company", invoice.company)
-        default_receivable_account = company.default_receivable_account
-        default_cash_account = company.default_cash_account
-        default_bank_account = company.default_bank_account
 
-        if not default_receivable_account:
-            frappe.throw(
-                "Default Receivable Account not set in Company {0}".format(invoice.company)
-            )
-
+        # Account resolution lives in one place so reception payments post to the
+        # same account as every other Payment Entry created by Healthcare: the
+        # Mode of Payment's default account for this company, falling back to the
+        # company's Cash/Bank default only when the mode has no account mapped.
+        from healthcare.api.payment_entry import _resolve_accounts
         from healthcare.api.receptionist_shift import stamp_receptionist_shift_on_doc
 
         group_identity = None
@@ -2042,19 +2053,7 @@ def create_payment_entry(
             payment_mode = mode_row["mode_of_payment"]
             ref_no = mode_row.get("reference_no") or reference_number or f"PAY-{invoice_name}"
 
-            paid_to_account = None
-            if payment_mode.lower() == "cash":
-                paid_to_account = default_cash_account
-            else:
-                paid_to_account = default_bank_account
-            if not paid_to_account:
-                paid_to_account = default_cash_account or default_bank_account
-            if not paid_to_account:
-                frappe.throw(
-                    "No Cash or Bank account found. Please set default_cash_account or default_bank_account in Company {0}".format(
-                        invoice.company
-                    )
-                )
+            paid_from_account, paid_to_account = _resolve_accounts(invoice.company, payment_mode)
 
             payment_entry = frappe.new_doc("Payment Entry")
             payment_entry.payment_type = "Receive"
@@ -2068,7 +2067,7 @@ def create_payment_entry(
             payment_entry.reference_no = ref_no
             payment_entry.mode_of_payment = payment_mode
             payment_entry.department = department
-            payment_entry.paid_from = default_receivable_account
+            payment_entry.paid_from = paid_from_account
             payment_entry.paid_to = paid_to_account
             if cost_center:
                 payment_entry.cost_center = cost_center

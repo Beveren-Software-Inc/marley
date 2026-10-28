@@ -2541,6 +2541,7 @@ frappe.ui.form.on('Healthcare Settings', {
 						'Import OP visit prescriptions (HIS) into Patient Medication Order from PATIENT_VISIT_PRESCRIPTION_HIS?\n\n'
 							+ 'Sheets read:\n{0}\n'
 							+ 'Raw medicine rows: {1}\n'
+							+ 'Rows without VISIT_CD (skipped): {7}\n'
 							+ 'Distinct visits: {2}\n'
 							+ 'Existing PMOs (will update): {3}\n'
 							+ 'Visits with resolvable patient: {4}\n'
@@ -2558,6 +2559,7 @@ frappe.ui.form.on('Healthcare Settings', {
 							counts.resolvable_patients || 0,
 							counts.resolvable_visits || 0,
 							(counts.sample_visit_cds || []).join(', ') || __('(none)'),
+							counts.skipped_rows || 0,
 						]
 					);
 				},
@@ -2581,6 +2583,7 @@ frappe.ui.form.on('Healthcare Settings', {
 						'Import OP visit prescriptions into Patient Medication Order from PATIENT_VISIT_PRESCRIPTION?\n\n'
 							+ 'Sheets read:\n{0}\n'
 							+ 'Raw medicine rows: {1}\n'
+							+ 'Rows without VISIT_CD (skipped): {7}\n'
 							+ 'Distinct visits: {2}\n'
 							+ 'Existing PMOs (will update): {3}\n'
 							+ 'Visits with resolvable patient: {4}\n'
@@ -2598,10 +2601,15 @@ frappe.ui.form.on('Healthcare Settings', {
 							counts.resolvable_patients || 0,
 							counts.resolvable_visits || 0,
 							(counts.sample_visit_cds || []).join(', ') || __('(none)'),
+							counts.skipped_rows || 0,
 						]
 					);
 				},
 			});
+		}, __('Direct Upload'));
+
+		frm.add_custom_button(__('Repair OP Prescriptions'), () => {
+			open_op_prescription_repair();
 		}, __('Direct Upload'));
 
 		frm.add_custom_button(__('IP Patient Short Leave — IP_PATIENT_SHORT_LEAVE'), () => {
@@ -4274,6 +4282,12 @@ frappe.ui.form.on('Healthcare Settings', {
 		frm.add_custom_button(
 			__('Cleanup IP Admission'),
 			() => open_ip_admission_cleanup(frm),
+			__('Cleanup')
+		);
+
+		frm.add_custom_button(
+			__('Create Missing Medication Orders'),
+			() => open_ip_medication_cleanup(frm),
 			__('Cleanup')
 		);
 	},
@@ -6272,6 +6286,266 @@ function open_ip_admission_bundle_upload() {
 	refreshStatus(dialog.fields_dict.bundle_status.$wrapper.find('.ip-admission-bundle-status'));
 }
 
+/**
+ * Healthcare Settings → Direct Upload → Repair OP Prescriptions.
+ *
+ * The first OP prescription import lost its cached work queue mid-run and reported success
+ * with part of the workbook unprocessed. This dialog re-imports only the visits that still
+ * have no Patient Medication Order and removes the duplicate HIS prescription created for
+ * visits that already have a PATIENT_VISIT_PRESCRIPTION prescription.
+ *
+ * Both workbooks are optional: when nothing is uploaded the most recent copy stored in the
+ * site files (PATIENT_VISIT_PRESCRIPTION.xlsx / _HIS.xlsx) is used.
+ */
+function open_op_prescription_repair() {
+	const files = {
+		visit: null,
+		his: null,
+	};
+
+	function pickFile(label, onDone) {
+		new frappe.ui.FileUploader({
+			dialog_title: label,
+			allow_multiple: false,
+			restrictions: {
+				allowed_file_types: ['.xlsx', '.xls'],
+			},
+			on_success(file) {
+				onDone(file.file_url);
+			},
+		});
+	}
+
+	function fileLabel(url) {
+		if (!url) {
+			return `<span class="text-muted">${__('Use the latest file stored on the server')}</span>`;
+		}
+		const name = url.split('/').pop();
+		return `<span class="text-success">✓ ${frappe.utils.escape_html(name)}</span>`;
+	}
+
+	function refreshStatus($wrapper) {
+		$wrapper.html(`
+			<table class="table table-bordered table-condensed" style="margin-bottom:0">
+				<tbody>
+					<tr>
+						<td><strong>1.</strong> ${__('PATIENT_VISIT_PRESCRIPTION')} (${__(
+							'missing visit prescriptions'
+						)})</td>
+						<td class="repair-visit-status">${fileLabel(files.visit)}</td>
+						<td><button type="button" class="btn btn-xs btn-default btn-pick-visit">${__(
+							'Upload'
+						)}</button></td>
+					</tr>
+					<tr>
+						<td><strong>2.</strong> ${__('PATIENT_VISIT_PRESCRIPTION_HIS')} (${__(
+							'missing HIS visits'
+						)})</td>
+						<td class="repair-his-status">${fileLabel(files.his)}</td>
+						<td><button type="button" class="btn btn-xs btn-default btn-pick-his">${__(
+							'Upload'
+						)}</button></td>
+					</tr>
+				</tbody>
+			</table>
+			<p class="text-muted small" style="margin-top:8px">${__(
+				'The scan is read-only. Only visits without an existing OP prescription are imported, so the repair is idempotent.'
+			)}</p>
+		`);
+
+		$wrapper.find('.btn-pick-visit').on('click', () => {
+			pickFile(__('PATIENT_VISIT_PRESCRIPTION Excel'), (url) => {
+				files.visit = url;
+				refreshStatus($wrapper);
+			});
+		});
+		$wrapper.find('.btn-pick-his').on('click', () => {
+			pickFile(__('PATIENT_VISIT_PRESCRIPTION_HIS Excel'), (url) => {
+				files.his = url;
+				refreshStatus($wrapper);
+			});
+		});
+	}
+
+
+	function buildConfirmMessage(plan) {
+		const visit = plan.visit_source || {};
+		const his = plan.his_source || {};
+		const dupes = plan.duplicates || {};
+		const keepLabel =
+			plan.keep_rule === 'richer'
+				? __('the prescription with more medicine lines')
+				: __('the PATIENT_VISIT_PRESCRIPTION record');
+
+		const rows = [__('Repair OP visit prescriptions?'), ''];
+		if (plan.visit_file_url) {
+			rows.push(
+				__(
+					'PATIENT_VISIT_PRESCRIPTION: {0} visits in the workbook, {1} already in ERP, {2} missing ({3} medicine lines) will be imported.',
+					[
+						visit.visits || 0,
+						(visit.visits || 0) - (visit.missing_visits || 0),
+						visit.missing_visits || 0,
+						visit.missing_lines || 0,
+					]
+				)
+			);
+		}
+		if (plan.his_file_url) {
+			rows.push(
+				__(
+					'PATIENT_VISIT_PRESCRIPTION_HIS: {0} visits in the workbook, {1} missing ({2} medicine lines) will be imported, {3} already covered by the visit import.',
+					[
+						his.visits || 0,
+						his.missing_visits || 0,
+						his.missing_lines || 0,
+						his.covered_by_visit_import || 0,
+					]
+				)
+			);
+		}
+		rows.push(
+			__(
+				'Duplicate prescriptions: {0} visit(s) hold both a visit and a HIS prescription. {1} record(s) / {2} medicine line(s) will be cancelled and deleted, keeping {3}.',
+				[dupes.visits || 0, dupes.visits || 0, dupes.lines_removed || 0, keepLabel]
+			)
+		);
+		const repeated = plan.line_duplicates || {};
+		if (repeated.visits) {
+			rows.push(
+				__(
+					'Repeated medicine lines: {0} prescription(s) store the same medicine more than once ({1} of {2} line(s) are exact repeats). One copy of each line is kept and {3} line(s) removed.',
+					[
+						repeated.visits || 0,
+						repeated.repeated_lines || 0,
+						repeated.total_lines || 0,
+						repeated.repeated_lines || 0,
+					]
+				)
+			);
+		}
+
+		const skippedRows = (visit.skipped_rows || 0) + (his.skipped_rows || 0);
+		if (skippedRows) {
+			rows.push(
+				__(
+					'Warning: {0} row(s) in the workbooks have no VISIT_CD and cannot be imported.',
+					[skippedRows]
+				)
+			);
+		}
+		rows.push('');
+		rows.push(
+			__(
+				'Both jobs run in the background and can be re-run safely without duplicating data. Continue?'
+			)
+		);
+		return rows.join('\n');
+	}
+
+	const dialog = new frappe.ui.Dialog({
+		title: __('Repair OP Prescriptions'),
+		size: 'large',
+		fields: [
+			{
+				fieldtype: 'HTML',
+				fieldname: 'repair_files',
+				options: '<div class="op-prescription-repair-files"></div>',
+			},
+			{
+				fieldtype: 'Check',
+				fieldname: 'import_missing',
+				label: __('Import missing visit prescriptions'),
+				default: 1,
+			},
+			{
+				fieldtype: 'Check',
+				fieldname: 'remove_duplicates',
+				label: __('Remove duplicate prescriptions (same visit imported by both jobs)'),
+				default: 1,
+			},
+			{
+				fieldtype: 'Check',
+				fieldname: 'dedupe_lines',
+				label: __(
+					'Remove repeated medicine lines inside each prescription (the Oracle export repeats a visit up to ~20 times)'
+				),
+				default: 1,
+			},
+			{
+				fieldtype: 'Select',
+				fieldname: 'keep_rule',
+				label: __('Duplicate: which prescription to keep'),
+				options: [
+					{ value: 'source', label: __('PATIENT_VISIT_PRESCRIPTION (recommended)') },
+					{ value: 'richer', label: __('The one with more medicine lines') },
+				],
+				default: 'source',
+			},
+			{
+				fieldtype: 'HTML',
+				fieldname: 'repair_note',
+				options: `<p class="text-muted small">${__(
+					'Duplicate prescriptions are cancelled and deleted (they remain in Deleted Document, so they can be restored).'
+				)}</p>`,
+			},
+		],
+		primary_action_label: __('Scan & Repair'),
+		primary_action(values) {
+			frappe.call({
+				method: 'healthcare.api.op_prescription_repair.preview_op_prescription_repair',
+				args: {
+					visit_file_url: files.visit,
+					his_file_url: files.his,
+					keep_rule: values.keep_rule,
+				},
+				freeze: true,
+				freeze_message: __('Scanning workbooks and ERP prescriptions…'),
+				callback(preview) {
+					const plan = preview.message || {};
+					frappe.confirm(buildConfirmMessage(plan), () => {
+						frappe.call({
+							method: 'healthcare.api.op_prescription_repair.start_op_prescription_repair',
+							args: {
+								visit_file_url: files.visit,
+								his_file_url: files.his,
+								keep_rule: values.keep_rule,
+								import_missing: values.import_missing ? 1 : 0,
+								remove_duplicates: values.remove_duplicates ? 1 : 0,
+								dedupe_lines: values.dedupe_lines ? 1 : 0,
+							},
+							freeze: true,
+							freeze_message: __('Queueing the repair jobs…'),
+							callback(r) {
+								const result = r.message || {};
+								if (!result.ok) {
+									return;
+								}
+								dialog.hide();
+								frappe.show_alert({
+									message: result.message || __('Repair started'),
+									indicator: result.nothing_to_do ? 'blue' : 'green',
+								});
+								(result.started || []).forEach((job) => {
+									if (job.job) {
+										poll_migration_status(job.job);
+									}
+								});
+							},
+						});
+					});
+				},
+			});
+		},
+	});
+
+	dialog.show();
+	refreshStatus(
+		dialog.fields_dict.repair_files.$wrapper.find('.op-prescription-repair-files')
+	);
+}
+
+
 function open_tricare_price_update_upload() {
 	const files = {
 		lab: null,
@@ -7555,6 +7829,11 @@ function poll_migration_status(jobKey) {
 								errN,
 							]
 						);
+						if (s.verified_visited) {
+							msg += __(' Verified: all {0} queued visits have a prescription.', [
+								s.verified_visited,
+							]);
+						}
 					} else if (jobKey === 'patient_visit_prescription_import') {
 						msg = __(
 							'{0} finished: {1} Patient Medication Order(s) created, {2} updated, {3} medicine line(s), {4} skipped, {5} errors.',
@@ -7567,6 +7846,37 @@ function poll_migration_status(jobKey) {
 								errN,
 							]
 						);
+						if (s.verified_visited) {
+							msg += __(' Verified: all {0} queued visits have a prescription.', [
+								s.verified_visited,
+							]);
+						}
+					} else if (jobKey === 'op_prescription_duplicate_cleanup') {
+						msg = __(
+							'{0} finished: {1} duplicate prescription(s) removed, {2} skipped, {3} errors.',
+							[jobKey, s.removed || 0, s.skipped || 0, errN]
+						);
+						if (s.duplicates_remaining != null) {
+							msg += __(' {0} duplicate visit(s) remaining.', [
+								s.duplicates_remaining,
+							]);
+						}
+					} else if (jobKey === 'op_prescription_line_cleanup') {
+						msg = __(
+							'{0} finished: {1} line(s) removed from {2} prescription(s), {3} skipped, {4} errors.',
+							[
+								jobKey,
+								s.lines_removed || 0,
+								s.visits_cleaned || 0,
+								s.skipped || 0,
+								errN,
+							]
+						);
+						if (s.line_duplicates_remaining != null) {
+							msg += __(' {0} repeated line(s) remaining.', [
+								s.line_duplicates_remaining,
+							]);
+						}
 					} else if (jobKey === 'ip_admission_medicine_sheet_given_import') {
 						msg = __(
 							'{0} finished: {1} given medicine row(s) created, {2} admission detail row(s) auto-created, {3} sheet row(s) created, {4} sheet row(s) updated, {5} skipped (not given), {6} skipped (no admission detail), {7} skipped (already mapped), {8} errors.',
@@ -7827,10 +8137,21 @@ function poll_migration_status(jobKey) {
 						indicator: missing > 0 ? 'orange' : 'green',
 					});
 				} else if (s.error) {
+					const detail = String(s.error || '')
+						.split('\n')
+						.filter((line) => line.trim())
+						.slice(-6)
+						.join('\n');
 					frappe.msgprint({
 						title: __('Job failed'),
 						indicator: 'red',
-						message: __('Check Error Log for details.'),
+						message:
+							`<pre style="white-space:pre-wrap;max-height:280px;overflow:auto">${frappe.utils.escape_html(
+								detail || s.error
+							)}</pre>` +
+							`<p class="text-muted small">${__(
+								'Full details are in Error Log.'
+							)}</p>`,
 					});
 				}
 			},
@@ -7881,6 +8202,15 @@ function open_ip_admission_cleanup(frm) {
 			.text(__('Upload Latest IP Admission Sheet…'))
 			.on('click', () => {
 				open_ip_admission_cleanup_upload(frm, dialog);
+			})
+	);
+
+	dialog.$wrapper.find('.modal-footer').prepend(
+		$('<button type="button" class="btn btn-default btn-sm mr-2">')
+			.text(__('Create Missing Medication Orders…'))
+			.on('click', () => {
+				dialog.hide();
+				open_ip_medication_cleanup(frm);
 			})
 	);
 
@@ -7999,6 +8329,187 @@ function open_ip_admission_cleanup_upload(frm, dialog) {
 		},
 	});
 }
+
+/**
+ * Healthcare Settings → Cleanup → Create Missing Medication Orders.
+ * Compares IP_ADMISSION_MEDICINE with the Patient Medication Orders already in ERP and
+ * creates (or completes) the prescription of any admission whose lines never imported —
+ * e.g. admission 2210 (patient 860640), created in ERP while the import was running.
+ * Nothing is deleted and already imported lines are never duplicated.
+ */
+function open_ip_medication_cleanup(frm) {
+	const dialog = new frappe.ui.Dialog({
+		title: __('Create Missing Medication Orders'),
+		size: 'large',
+		fields: [
+			{
+				fieldtype: 'HTML',
+				fieldname: 'help',
+				options:
+					'<p class="text-muted small">'
+					+ __(
+						'Compares IP_ADMISSION_MEDICINE with the Patient Medication Orders already in ERP. Admissions with no prescription, or with fewer lines than the sheet, are created / completed. Nothing is deleted and imported lines are never duplicated. Unsigned prescriptions are left as they are.'
+					)
+					+ '</p>',
+			},
+			{
+				fieldtype: 'HTML',
+				fieldname: 'source_html',
+			},
+		],
+		primary_action_label: __('Preview'),
+		primary_action() {
+			preview_ip_medication_cleanup(frm, dialog._file_url, dialog);
+		},
+	});
+
+	dialog._file_url = null;
+	dialog._file_label = null;
+	render_ip_medication_cleanup_source(dialog);
+
+	dialog.$wrapper.find('.modal-footer').prepend(
+		$('<button type="button" class="btn btn-default btn-sm mr-2">')
+			.text(__('Upload Latest IP_ADMISSION_MEDICINE…'))
+			.on('click', () => {
+				open_ip_medication_cleanup_upload(frm, dialog);
+			})
+	);
+
+	dialog.show();
+}
+
+function render_ip_medication_cleanup_source(dialog) {
+	const label = dialog._file_label
+		? __('Sheet to use: {0}', [frappe.utils.escape_html(dialog._file_label)])
+		: __('No sheet picked here — the IP_ADMISSION_MEDICINE file already stored on the server is used.');
+	dialog
+		.get_field('source_html')
+		.$wrapper.html(
+			'<p class="'
+			+ (dialog._file_label ? 'text-success' : 'text-muted')
+			+ ' small">'
+			+ label
+			+ '</p>'
+		);
+}
+
+function preview_ip_medication_cleanup(frm, file_url, dialog) {
+	frappe.call({
+		method: 'healthcare.api.ip_medication_cleanup.preview_ip_medication_cleanup',
+		args: { file_url: file_url || null },
+		freeze: true,
+		freeze_message: __('Reading IP_ADMISSION_MEDICINE and comparing prescriptions…'),
+		callback(preview) {
+			const counts = preview.message || {};
+			if (!counts.ok) {
+				if (counts.needs_file) {
+					frappe.msgprint({
+						title: __('IP_ADMISSION_MEDICINE file required'),
+						indicator: 'orange',
+						message: counts.message || __('Upload the IP_ADMISSION_MEDICINE Excel.'),
+					});
+					open_ip_medication_cleanup_upload(frm, dialog);
+					return;
+				}
+				frappe.msgprint({
+					title: __('Create Missing Medication Orders'),
+					indicator: 'red',
+					message: counts.message || __('Preview failed.'),
+				});
+				return;
+			}
+
+			if (dialog) {
+				dialog._file_url = counts.file_url || file_url || null;
+				dialog._file_label = dialog._file_url;
+				render_ip_medication_cleanup_source(dialog);
+				dialog.hide();
+			}
+
+			if (!counts.gaps) {
+				frappe.msgprint({
+					title: __('Create Missing Medication Orders'),
+					indicator: 'green',
+					message: __(
+						'Nothing to create. {0} admissions and {1} medicine lines in the sheet already match the prescriptions in ERP.',
+						[counts.resolved_admissions || 0, counts.medicine_lines || 0]
+					),
+				});
+				return;
+			}
+
+			const samples = (counts.samples || []).join('\n') || __('(none)');
+			const longActingSamples = (counts.long_acting_samples || []).join('\n') || __('(none)');
+			frappe.confirm(
+				__(
+					'Create the missing medication orders from IP_ADMISSION_MEDICINE?\n\n'
+						+ 'Sheet: {8}\n\n'
+						+ 'Medicine lines in sheet: {0}\nAdmissions in sheet: {1}\n'
+						+ 'Admissions already complete: {2}\nAdmissions with a gap: {3}\n'
+						+ 'Medicine lines to create: {4}\n'
+						+ 'Long-acting (depot) lines to flag: {9}\n'
+						+ 'Long Acting Medicine already linked: {10}\n\n'
+						+ 'Admissions not resolved: {5}\nRows without admission: {6}\n\n'
+						+ 'New prescriptions are submitted as Completed; existing prescriptions are only '
+						+ 'extended. Long-acting lines get a Long Acting Medicine record. '
+						+ 'Nothing is deleted.\n\n'
+						+ 'Sample gaps:\n{7}\n\nLong-acting samples:\n{11}\n\nContinue?',
+					[
+						counts.medicine_lines || 0,
+						counts.admissions_in_file || 0,
+						counts.complete_admissions || 0,
+						counts.gaps || 0,
+						counts.missing_lines || 0,
+						counts.unresolved_admissions || 0,
+						counts.rows_without_admission || 0,
+						samples,
+						counts.file_url || __('(server file)'),
+						counts.long_acting_lines || 0,
+						counts.long_acting_medicines_existing || 0,
+						longActingSamples,
+					]
+				),
+				() => {
+					frappe.call({
+						method: 'healthcare.api.ip_medication_cleanup.run_ip_medication_cleanup',
+						args: { file_url: counts.file_url || file_url || null },
+						freeze: true,
+						freeze_message: __('Creating the missing medication orders…'),
+						callback(r) {
+							const result = r.message || {};
+							frappe.msgprint({
+								title: __('Create Missing Medication Orders'),
+								indicator: result.ok ? 'green' : 'orange',
+								message: result.message || __('Done'),
+							});
+						},
+					});
+				}
+			);
+		},
+	});
+}
+
+function open_ip_medication_cleanup_upload(frm, dialog) {
+	new frappe.ui.FileUploader({
+		dialog_title: __('Select IP_ADMISSION_MEDICINE Excel'),
+		allow_multiple: false,
+		restrictions: {
+			allowed_file_types: ['.xlsx', '.xls', '.csv'],
+		},
+		on_success(file) {
+			if (dialog) {
+				dialog._file_url = file.file_url;
+				dialog._file_label = file.file_name || file.file_url;
+				render_ip_medication_cleanup_source(dialog);
+				return;
+			}
+			preview_ip_medication_cleanup(frm, file.file_url);
+		},
+	});
+}
+
+
 
 var set_query_service_item = function(frm, service_item_field) {
 	frm.set_query(service_item_field, function() {

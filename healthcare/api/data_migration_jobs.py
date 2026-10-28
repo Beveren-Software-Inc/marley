@@ -7784,14 +7784,80 @@ def start_patient_visit_prescription_his_import_migration(file_url: str) -> dict
 	}
 
 
+def _progress_snapshot(job: str) -> dict:
+	"""Counters accumulated so far, safe to carry into a fresh _set_progress payload."""
+	prev = frappe.cache().get_value(_job_progress_key(job)) or {}
+	skip = (
+		"processed",
+		"done",
+		"error",
+		"updated_at",
+		"incomplete",
+		# Set only on the final write; carrying them over would duplicate the kwarg.
+		"duplicates_remaining",
+		"line_duplicates_remaining",
+	)
+	return {
+		key: value
+		for key, value in prev.items()
+		if key not in skip and not key.startswith("verified_")
+	}
+
+
+def _fail_legacy_visit_import(job: str, processed: int, message: str) -> None:
+	"""Abort loudly instead of silently reporting a short run as complete."""
+	_set_progress(job, cint(processed), done=True, error=message, incomplete=1, **_progress_snapshot(job))
+	_release_lock(job)
+	frappe.log_error(title=f"{job}: import aborted", message=message)
+	raise frappe.ValidationError(message)
+
+
+def _verify_and_finish_legacy_visit_import(job: str, processed: int, verify) -> None:
+	"""Confirm every queued visit now has a prescription before reporting success."""
+	verification = verify() or {}
+	missing = cint(verification.get("missing", 0))
+	queued = cint(verification.get("queued", 0))
+	if missing:
+		_fail_legacy_visit_import(
+			job,
+			processed,
+			_(
+				"{0} stopped short: {1} of {2} queued visits still have no Patient Medication Order. "
+				"Re-run the job to import the remaining visits. Sample: {3}"
+			).format(
+				job,
+				missing,
+				queued,
+				", ".join(str(value) for value in (verification.get("sample_missing") or [])[:10])
+				or "-",
+			),
+		)
+	_set_progress(
+		job,
+		cint(processed),
+		done=True,
+		verified_visited=queued,
+		verified_missing=0,
+		**_progress_snapshot(job),
+	)
+	_release_lock(job)
+	frappe.log_error(
+		title=f"{job}: complete ({queued} visits verified)",
+		message=frappe.as_json(frappe.cache().get_value(_job_progress_key(job)) or {}),
+	)
+
+
 def process_patient_visit_prescription_his_import_batch(offset: int = 0) -> None:
 	from healthcare.api.patient_visit_prescription_his_import import (
+		_verify_queue_coverage,
 		run_patient_visit_prescription_his_import_batch,
 	)
 
 	job = "patient_visit_prescription_his_import"
 	try:
 		result = run_patient_visit_prescription_his_import_batch(offset=offset)
+		if result.get("error"):
+			_fail_legacy_visit_import(job, cint(result.get("processed", offset)), result["error"])
 		prev = frappe.cache().get_value(_job_progress_key(job)) or {}
 		processed = result.get("processed", offset)
 		_set_progress(
@@ -7802,7 +7868,7 @@ def process_patient_visit_prescription_his_import_batch(offset: int = 0) -> None
 			skipped=cint(prev.get("skipped", 0)) + cint(result.get("skipped", 0)),
 			errors=cint(prev.get("errors", 0)) + cint(result.get("errors", 0)),
 			lines_imported=cint(prev.get("lines_imported", 0)) + cint(result.get("lines_imported", 0)),
-			total_visits=prev.get("total_visits"),
+			total_visits=prev.get("total_visits") or result.get("total"),
 			medicine_lines=prev.get("medicine_lines"),
 			existing_records=prev.get("existing_records"),
 			resolvable_patients=prev.get("resolvable_patients"),
@@ -7818,12 +7884,7 @@ def process_patient_visit_prescription_his_import_batch(offset: int = 0) -> None
 				job_name=f"healthcare_patient_visit_prescription_his_import_{processed}",
 			)
 		else:
-			_set_progress(job, processed, done=True)
-			_release_lock(job)
-			frappe.log_error(
-				title="Patient Medication Order OP import (PATIENT_VISIT_PRESCRIPTION_HIS) complete",
-				message=frappe.as_json(frappe.cache().get_value(_job_progress_key(job)) or {}),
-			)
+			_verify_and_finish_legacy_visit_import(job, processed, _verify_queue_coverage)
 	except Exception:
 		frappe.db.rollback()
 		_set_progress(job, cint(offset), done=True, error=frappe.get_traceback())
@@ -7873,11 +7934,16 @@ def start_patient_visit_prescription_import_migration(file_url: str) -> dict:
 
 
 def process_patient_visit_prescription_import_batch(offset: int = 0) -> None:
-	from healthcare.api.patient_visit_prescription_import import run_patient_visit_prescription_import_batch
+	from healthcare.api.patient_visit_prescription_import import (
+		_verify_queue_coverage,
+		run_patient_visit_prescription_import_batch,
+	)
 
 	job = "patient_visit_prescription_import"
 	try:
 		result = run_patient_visit_prescription_import_batch(offset=offset)
+		if result.get("error"):
+			_fail_legacy_visit_import(job, cint(result.get("processed", offset)), result["error"])
 		prev = frappe.cache().get_value(_job_progress_key(job)) or {}
 		processed = result.get("processed", offset)
 		_set_progress(
@@ -7888,7 +7954,7 @@ def process_patient_visit_prescription_import_batch(offset: int = 0) -> None:
 			skipped=cint(prev.get("skipped", 0)) + cint(result.get("skipped", 0)),
 			errors=cint(prev.get("errors", 0)) + cint(result.get("errors", 0)),
 			lines_imported=cint(prev.get("lines_imported", 0)) + cint(result.get("lines_imported", 0)),
-			total_visits=prev.get("total_visits"),
+			total_visits=prev.get("total_visits") or result.get("total"),
 			medicine_lines=prev.get("medicine_lines"),
 			existing_records=prev.get("existing_records"),
 			resolvable_patients=prev.get("resolvable_patients"),
@@ -7904,10 +7970,125 @@ def process_patient_visit_prescription_import_batch(offset: int = 0) -> None:
 				job_name=f"healthcare_patient_visit_prescription_import_{processed}",
 			)
 		else:
-			_set_progress(job, processed, done=True)
+			_verify_and_finish_legacy_visit_import(job, processed, _verify_queue_coverage)
+	except Exception:
+		frappe.db.rollback()
+		_set_progress(job, cint(offset), done=True, error=frappe.get_traceback())
+		_release_lock(job)
+		raise
+
+
+# ── OP prescription repair (duplicate PATIENT_VISIT_PRESCRIPTION / _HIS PMOs) ─
+
+
+def process_op_prescription_duplicate_cleanup_batch(offset: int = 0) -> None:
+	from healthcare.api.op_prescription_repair import DEDUPE_JOB, run_duplicate_cleanup_batch
+
+	job = DEDUPE_JOB
+	try:
+		result = run_duplicate_cleanup_batch(offset=offset)
+		if result.get("error"):
+			_fail_legacy_visit_import(job, cint(result.get("processed", offset)), result["error"])
+		prev = frappe.cache().get_value(_job_progress_key(job)) or {}
+		processed = result.get("processed", offset)
+		_set_progress(
+			job,
+			processed,
+			removed=cint(prev.get("removed", 0)) + cint(result.get("removed", 0)),
+			skipped=cint(prev.get("skipped", 0)) + cint(result.get("skipped", 0)),
+			errors=cint(prev.get("errors", 0)) + cint(result.get("errors", 0)),
+			total_duplicates=prev.get("total_duplicates") or result.get("total"),
+			keep_rule=prev.get("keep_rule"),
+		)
+
+		if not result.get("done"):
+			frappe.enqueue(
+				"healthcare.api.data_migration_jobs.process_op_prescription_duplicate_cleanup_batch",
+				offset=processed,
+				queue="long",
+				timeout=3600,
+				job_name=f"healthcare_op_prescription_duplicate_cleanup_{processed}",
+			)
+		else:
+			remaining = 0
+			try:
+				from healthcare.api.patient_visit_prescription_common import (
+					duplicate_legacy_visit_pmos,
+				)
+
+				remaining = cint(duplicate_legacy_visit_pmos().get("duplicate_groups"))
+			except Exception:
+				frappe.log_error(title=f"{job}: duplicate recount failed")
+			_set_progress(
+				job,
+				processed,
+				done=True,
+				duplicates_remaining=remaining,
+				**_progress_snapshot(job),
+			)
 			_release_lock(job)
 			frappe.log_error(
-				title="Patient Medication Order OP import (PATIENT_VISIT_PRESCRIPTION) complete",
+				title="OP prescription duplicate cleanup complete",
+				message=frappe.as_json(frappe.cache().get_value(_job_progress_key(job)) or {}),
+			)
+	except Exception:
+		frappe.db.rollback()
+		_set_progress(job, cint(offset), done=True, error=frappe.get_traceback())
+		_release_lock(job)
+		raise
+
+
+def process_op_prescription_line_cleanup_batch(offset: int = 0) -> None:
+	from healthcare.api.op_prescription_repair import (
+		LINE_CLEANUP_JOB,
+		line_duplicate_summary,
+		run_line_cleanup_batch,
+	)
+
+	job = LINE_CLEANUP_JOB
+	try:
+		result = run_line_cleanup_batch(offset=offset)
+		if result.get("error"):
+			_fail_legacy_visit_import(job, cint(result.get("processed", offset)), result["error"])
+		prev = frappe.cache().get_value(_job_progress_key(job)) or {}
+		processed = cint(prev.get("processed", 0)) + cint(result.get("batch_count", 0))
+		counters = {
+			"visits_cleaned": cint(prev.get("visits_cleaned", 0))
+			+ cint(result.get("visits_cleaned", 0)),
+			"lines_removed": cint(prev.get("lines_removed", 0))
+			+ cint(result.get("lines_removed", 0)),
+			"skipped": cint(prev.get("skipped", 0)) + cint(result.get("skipped", 0)),
+			"errors": cint(prev.get("errors", 0)) + cint(result.get("errors", 0)),
+		}
+		_set_progress(
+			job,
+			processed,
+			total_visits=prev.get("total_visits"),
+			total_lines=prev.get("total_lines"),
+			lines_expected=prev.get("lines_expected"),
+			**counters,
+		)
+
+		if not result.get("done"):
+			frappe.enqueue(
+				"healthcare.api.data_migration_jobs.process_op_prescription_line_cleanup_batch",
+				offset=0,
+				queue="long",
+				timeout=3600,
+				job_name=f"healthcare_op_prescription_line_cleanup_{processed}",
+			)
+		else:
+			remaining = line_duplicate_summary()
+			_set_progress(
+				job,
+				processed,
+				done=True,
+				line_duplicates_remaining=cint(remaining.get("repeated_lines")),
+				**_progress_snapshot(job),
+			)
+			_release_lock(job)
+			frappe.log_error(
+				title="OP prescription line cleanup complete",
 				message=frappe.as_json(frappe.cache().get_value(_job_progress_key(job)) or {}),
 			)
 	except Exception:
@@ -7918,7 +8099,6 @@ def process_patient_visit_prescription_import_batch(offset: int = 0) -> None:
 
 
 # ── IP Patient Relatives Excel import (Oracle IP_PATIENT_RELATIVES) ───────────
-
 
 @frappe.whitelist()
 def start_ip_patient_relatives_import_migration(file_url: str) -> dict:
