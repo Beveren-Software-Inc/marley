@@ -8,29 +8,45 @@ function normalizeDocstatus(ds: unknown): number | undefined {
   return Number.isFinite(n) ? Math.trunc(n) : undefined
 }
 
-function isEffectivelySubmitted(row: { docstatus?: number | string; status: string }): boolean {
+/**
+ * ERPNext statuses that mean "nothing can be collected here", even when the invoice
+ * still shows a balance. Everything else (Unpaid, Overdue, Partly Paid, Submitted,
+ * …) is payable as long as money is outstanding.
+ */
+const NON_PAYABLE_STATUSES = new Set([
+  'paid',
+  'cancelled',
+  'return',
+  'credit note issued',
+  'internal transfer',
+  'draft',
+])
+
+/** Lower-cases the ERPNext status and drops the " and Discounted" suffix. */
+function normalizeStatus(status?: string): string {
+  const s = (status || '').toLowerCase().trim()
+  return s.replace(/\s+and\s+discounted$/, '').trim()
+}
+
+function isEffectivelySubmitted(row: { docstatus?: number | string; status?: string }): boolean {
   const n = normalizeDocstatus(row.docstatus)
   if (n === SUBMITTED) return true
   if (n === 0 || n === 2) return false
-  const s = (row.status || '').toLowerCase().trim()
+  const s = normalizeStatus(row.status)
   return s !== 'draft' && s !== 'cancelled'
 }
 
 export function canRecordPaymentAgainstSalesInvoice(row: {
   docstatus?: number | string
   outstanding_amount: number
-  status: string
+  status?: string
 }): boolean {
   if (!isEffectivelySubmitted(row)) return false
   if (Number(row.outstanding_amount) <= 0) return false
-  const s = (row.status || '').toLowerCase().trim()
-  if (s === 'paid' || s === 'cancelled') return false
-  return (
-    s === 'unpaid' ||
-    s === 'overdue' ||
-    s === 'partially paid' ||
-    s === 'partly paid'
-  )
+  // Gate on the balance, not on the status text: ERPNext reports "Submitted" for an
+  // invoice whose due date has passed while its payment-schedule date has not (which
+  // is what you get after cancelling the only Payment Entry of a credit invoice).
+  return !NON_PAYABLE_STATUSES.has(normalizeStatus(row.status))
 }
 
 export function isSubmittedSalesInvoice(docstatus?: number | string): boolean {

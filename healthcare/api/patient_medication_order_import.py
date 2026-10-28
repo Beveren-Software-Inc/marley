@@ -648,6 +648,30 @@ def _append_child_line(doc, row: dict) -> None:
 		entry.patient_frequency = frequency_label
 	entry.written_frequency = _cell_text(row.get("frequency")) or None
 
+	# Long-acting / depot lines: the row may carry the Long Acting Medicine flags
+	# (set by ip_medication_cleanup for legacy depot prescriptions) and the mapped Item.
+	long_acting_frequency = _cell_text(row.get("long_acting_frequency"))
+	is_long_acting = bool(
+		row.get("is_long_acting_medicine")
+		or (long_acting_frequency and _cell_text(row.get("medication_type")) == "Long Acting Medicine")
+	)
+	if is_long_acting:
+		from healthcare.api.common import ensure_prescription_frequency_for_long_acting
+
+		mapped_item = _cell_text(row.get("drug"))
+		if mapped_item and frappe.db.exists("Item", mapped_item):
+			entry.drug = mapped_item
+			entry.drug_name = _cell_text(row.get("drug_name")) or frappe.db.get_value(
+				"Item", mapped_item, "item_name"
+			)
+		entry.is_long_acting_medicine = 1
+		entry.medication_type = "Long Acting Medicine"
+		# Depot / long-acting lines are injections; the child field defaults to "Tablet".
+		entry.dosage_form = "Injection"
+		if long_acting_frequency:
+			ensure_prescription_frequency_for_long_acting(long_acting_frequency)
+			entry.patient_frequency = long_acting_frequency
+
 	entry.duration = _cell_text(row.get("duration")) or None
 	entry.trans_type = _cell_text(row.get("trans_type")) or None
 	entry.date = _parse_date_value(row.get("start_date") or row.get("trans_date"))
@@ -681,6 +705,21 @@ def _append_child_line(doc, row: dict) -> None:
 	entry.stopped = 1 if stopped_reason or status == "stopped" or effective_status == "stopped" else 0
 
 
+def _clip_field_values(doc) -> None:
+	"""Clip Data values to their field length so long legacy notes cannot block the insert.
+
+	Frappe raises ``CharacterLengthExceededError`` when a ``Data`` value is longer than the
+	column length (140 characters unless the field sets its own ``length``); some legacy DC /
+	instruction notes are longer.
+	"""
+	for row in [doc, *doc.get_all_children()]:
+		for df in row.meta.get("fields", {"fieldtype": "Data"}):
+			limit = int(df.get("length") or 0) or 140
+			value = row.get(df.get("fieldname"))
+			if isinstance(value, str) and len(value) > limit:
+				row.set(df.get("fieldname"), value[:limit])
+
+
 def _submit_and_complete_pmo(doc) -> None:
 	total = len(doc.get("medication_orders") or [])
 	for child in doc.get("medication_orders") or []:
@@ -688,9 +727,16 @@ def _submit_and_complete_pmo(doc) -> None:
 	doc.total_orders = total
 	doc.completed_orders = total
 	doc.flags.ignore_mandatory = True
+	# Legacy prescriptions keep the values the previous ERP stored (patient nationality text such
+	# as "Bahraini", the "Tablet" Dosage Form default, legacy frequencies). Those masters are not
+	# always present on a site, so link validation would reject the whole prescription even though
+	# nothing is wrong with the data. Existing prescriptions store exactly these values.
+	doc.flags.ignore_links = True
+	_clip_field_values(doc)
 	doc.save(ignore_permissions=True)
 	if doc.docstatus == 0:
 		doc.flags.ignore_mandatory = True
+		doc.flags.ignore_links = True
 		doc.submit()
 		doc.reload()
 	else:
@@ -756,8 +802,9 @@ def import_patient_medication_order_for_admission(admission_key: str, lines: lis
 	doc.practitioner = adm.primary_practitioner or adm.secondary_practitioner
 
 	patient_fields = _patient_display_fields(adm.patient)
-	if patient_fields.get("nationality") is not None:
-		doc.nationality = patient_fields["nationality"]
+	nationality = patient_fields.get("nationality")
+	if nationality and frappe.db.exists("Nationality", nationality):
+		doc.nationality = nationality
 	if patient_fields.get("patient_age") is not None:
 		doc.patient_age = patient_fields["patient_age"]
 

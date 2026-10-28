@@ -317,9 +317,13 @@ export const ServiceInvoicesList = ({
       case 'Paid':
         return 'bg-green-100 text-green-700'
       case 'Unpaid':
+      // ERPNext reports "Submitted" while a balance is still collectable (due date
+      // passed, payment-schedule date not), so treat it as pending.
+      case 'Submitted':
         return 'bg-yellow-100 text-yellow-700'
       case 'Overdue':
         return 'bg-red-100 text-red-700'
+      case 'Partly Paid':
       case 'Partially Paid':
         return 'bg-blue-100 text-blue-700'
       case 'Draft':
@@ -386,7 +390,7 @@ export const ServiceInvoicesList = ({
               <option value="Paid">Paid</option>
               <option value="Unpaid">Unpaid</option>
               <option value="Overdue">Overdue</option>
-              <option value="Partially Paid">Partially Paid</option>
+              <option value="Partly Paid">Partly Paid</option>
               <option value="Draft">Draft</option>
             </select>
           )}

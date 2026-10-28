@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 from typing import Any
 
 import frappe
@@ -24,20 +23,21 @@ from healthcare.api.patient_medication_order_import import (
 )
 from healthcare.api.patient_visit_prescription_common import (
 	existing_pmo_for_legacy_visit,
+	load_import_queue_batch,
+	load_import_queue_keys,
+	load_import_queue_meta,
+	missing_visits_for_legacy_source,
 	preview_counts_for_legacy_visit_pmo,
+	save_import_queue,
 	submit_and_complete_legacy_visit_pmo,
+	verify_legacy_visit_coverage,
 )
 from healthcare.api.utils.api_utility import get_next_transaction_number
 from healthcare.api.visit_diagnosis_sync import _resolve_patient_visit
 
 DOCTYPE = "Patient Medication Order"
+QUEUE_JOB = "patient_visit_prescription_his_import"
 VISIT_PRESCRIPTION_HIS_IMPORT_BATCH_SIZE = 200
-CACHE_TTL = 7200
-CACHE_KEYS = {
-	"file_url": "healthcare:data_migration:patient_visit_prescription_his_import:file_url",
-	"visit_keys": "healthcare:data_migration:patient_visit_prescription_his_import:visit_keys",
-	"visits": "healthcare:data_migration:patient_visit_prescription_his_import:visits",
-}
 
 EXCEL_HEADER_MAP = {
 	"PRESCRIP_ID": "prescrip_id",
@@ -109,11 +109,13 @@ def _default_company() -> str | None:
 
 def _prepare_line_row(row: dict[str, Any]) -> dict[str, Any] | None:
 	visit_cd = _clean_oracle_num(row.get("visit_cd"))
-	patient_file_no = row.get("patient_file_no")
-	if not visit_cd or patient_file_no in (None, ""):
+	if not visit_cd:
 		return None
 	row["visit_cd"] = visit_cd
-	row["patient_file_no"] = _clean_oracle_num(patient_file_no)
+	# PATIENT_FILE_NO is blank on a few thousand export rows. Those rows still carry a
+	# valid VISIT_CD, so keep them: the patient is resolved from the Patient Visit below
+	# instead of dropping the visit (and its medicines) from the import.
+	row["patient_file_no"] = _clean_oracle_num(row.get("patient_file_no")) or None
 	row["prescrip_id"] = _clean_oracle_num(row.get("prescrip_id")) or None
 	row["medicine_cd"] = _clean_oracle_num(row.get("medicine_cd")) or None
 	row["create_user_id"] = _clean_oracle_num(row.get("create_user_id")) or None
@@ -125,7 +127,7 @@ def _prepare_line_row(row: dict[str, Any]) -> dict[str, Any] | None:
 	return row
 
 
-def _parse_sheet_rows(ws) -> list[dict]:
+def _parse_sheet_rows(ws, stats: dict | None = None) -> list[dict]:
 	rows_iter = ws.iter_rows(values_only=True)
 	try:
 		header_row = next(rows_iter)
@@ -137,10 +139,14 @@ def _parse_sheet_rows(ws) -> list[dict]:
 	for raw in rows_iter:
 		if not raw or all(cell is None or str(cell).strip() == "" for cell in raw):
 			continue
+		if stats is not None:
+			stats["raw_rows"] = stats.get("raw_rows", 0) + 1
 		row = {headers[idx]: raw[idx] for idx in range(min(len(headers), len(raw))) if headers[idx]}
 		prepared = _prepare_line_row(row)
 		if prepared:
 			parsed.append(prepared)
+		elif stats is not None:
+			stats["rows_without_visit"] = stats.get("rows_without_visit", 0) + 1
 	return parsed
 
 
@@ -168,7 +174,9 @@ def _group_rows_by_visit(rows: list[dict]) -> dict[str, dict]:
 	return grouped
 
 
-def _parse_excel_rows(file_url: str) -> tuple[dict[str, dict], dict[str, int], int]:
+def _parse_excel_rows(
+	file_url: str, stats: dict | None = None
+) -> tuple[dict[str, dict], dict[str, int], int]:
 	try:
 		import openpyxl
 	except ImportError:
@@ -184,12 +192,15 @@ def _parse_excel_rows(file_url: str) -> tuple[dict[str, dict], dict[str, int], i
 	sheet_row_counts: dict[str, int] = {}
 	try:
 		for sheet_name in wb.sheetnames:
-			sheet_rows = _parse_sheet_rows(wb[sheet_name])
+			sheet_rows = _parse_sheet_rows(wb[sheet_name], stats)
 			sheet_row_counts[sheet_name] = len(sheet_rows)
 			all_rows.extend(sheet_rows)
 	finally:
 		wb.close()
 	grouped = _group_rows_by_visit(all_rows)
+	if stats is not None:
+		stats["medicine_lines"] = len(all_rows)
+		stats["visits"] = len(grouped)
 	return grouped, sheet_row_counts, len(all_rows)
 
 
@@ -321,15 +332,14 @@ def _preview_counts(grouped: dict[str, dict], raw_line_count: int) -> dict:
 
 
 def parse_and_cache_excel(file_url: str) -> dict:
-	grouped, sheet_row_counts, raw_line_count = _parse_excel_rows(file_url)
-	visit_keys = sorted(grouped.keys(), key=lambda key: cint(key) if str(key).isdigit() else key)
-
-	frappe.cache().set_value(CACHE_KEYS["file_url"], file_url, expires_in_sec=CACHE_TTL)
-	frappe.cache().set_value(CACHE_KEYS["visit_keys"], visit_keys, expires_in_sec=CACHE_TTL)
-	frappe.cache().set_value(
-		CACHE_KEYS["visits"],
-		json.dumps(grouped, default=str),
-		expires_in_sec=CACHE_TTL,
+	stats: dict = {}
+	grouped, sheet_row_counts, raw_line_count = _parse_excel_rows(file_url, stats)
+	save_import_queue(
+		QUEUE_JOB,
+		file_url=file_url,
+		grouped=grouped,
+		medicine_lines=raw_line_count,
+		batch_size=VISIT_PRESCRIPTION_HIS_IMPORT_BATCH_SIZE,
 	)
 
 	preview = _preview_counts(grouped, raw_line_count)
@@ -337,19 +347,42 @@ def parse_and_cache_excel(file_url: str) -> dict:
 	return {
 		"excel_rows": raw_line_count,
 		"raw_excel_rows": raw_row_total,
+		"raw_rows": cint(stats.get("raw_rows")),
+		"skipped_rows": cint(stats.get("rows_without_visit")),
 		"sheets": list(sheet_row_counts.keys()),
 		"sheet_row_counts": sheet_row_counts,
 		**preview,
 	}
 
 
-def _load_cached_visits() -> dict[str, dict]:
-	raw = frappe.cache().get_value(CACHE_KEYS["visits"])
-	if not raw:
-		return {}
-	if isinstance(raw, dict):
-		return raw
-	return json.loads(raw)
+def queue_missing_visit_imports(
+	grouped: dict[str, dict],
+	*,
+	file_url: str | None = None,
+	exclude_visit_cds: set[str] | None = None,
+) -> dict:
+	"""Queue only the HIS visits that have no HIS prescription in ERP yet."""
+	missing = missing_visits_for_legacy_source(
+		grouped,
+		source_flag="patient_visit_prescription_his",
+		exclude_visit_cds=exclude_visit_cds,
+	)
+	subset = {key: grouped[key] for key in missing}
+	medicine_lines = sum(len((payload or {}).get("lines") or []) for payload in subset.values())
+	meta = save_import_queue(
+		QUEUE_JOB,
+		file_url=file_url,
+		grouped=subset,
+		medicine_lines=medicine_lines,
+		batch_size=VISIT_PRESCRIPTION_HIS_IMPORT_BATCH_SIZE,
+		extra_meta={"mode": "gap_repair"},
+	)
+	return {
+		"visits": len(subset),
+		"medicine_lines": medicine_lines,
+		"total_visits": meta.get("total_visits"),
+		"batch_count": meta.get("batch_count"),
+	}
 
 
 @frappe.whitelist()
@@ -361,20 +394,44 @@ def preview_patient_visit_prescription_his_import(file_url: str) -> dict:
 
 
 def run_patient_visit_prescription_his_import_batch(*, offset: int = 0) -> dict:
-	visit_keys = frappe.cache().get_value(CACHE_KEYS["visit_keys"]) or []
-	visits_by_key = _load_cached_visits()
-	if not visit_keys or not visits_by_key:
-		return {"processed": offset, "done": True, "batch_count": 0}
+	meta = load_import_queue_meta(QUEUE_JOB)
+	total = cint(meta.get("total_visits"))
+	offset = cint(offset)
+	if not total:
+		return {
+			"processed": offset,
+			"done": False,
+			"batch_count": 0,
+			"total": 0,
+			"error": _(
+				"No parsed PATIENT_VISIT_PRESCRIPTION_HIS queue found on disk. Re-upload the workbook "
+				"(or run the OP prescription repair scan) before starting the import."
+			),
+		}
 
-	batch_keys = visit_keys[offset : offset + VISIT_PRESCRIPTION_HIS_IMPORT_BATCH_SIZE]
-	if not batch_keys:
-		return {"processed": offset, "done": True, "batch_count": 0}
+	if offset >= total:
+		return {"processed": offset, "done": True, "batch_count": 0, "total": total}
+
+	batch = load_import_queue_batch(
+		QUEUE_JOB, offset, batch_size=VISIT_PRESCRIPTION_HIS_IMPORT_BATCH_SIZE
+	)
+	if not batch:
+		return {
+			"processed": offset,
+			"done": False,
+			"batch_count": 0,
+			"total": total,
+			"error": _(
+				"The PATIENT_VISIT_PRESCRIPTION_HIS work queue is damaged at visit {0} of {1}. "
+				"Re-upload the workbook (or run the OP prescription repair scan) to rebuild it."
+			).format(offset, total),
+		}
 
 	created = updated = skipped = lines_imported = 0
 	errors: list[str] = []
 
-	for key in batch_keys:
-		payload = visits_by_key.get(key) or {}
+	for key in batch:
+		payload = batch.get(key) or {}
 		try:
 			result = import_patient_medication_order_for_visit(payload)
 			status = result.get("status")
@@ -391,14 +448,45 @@ def run_patient_visit_prescription_his_import_batch(*, offset: int = 0) -> dict:
 			frappe.log_error(title=f"PATIENT_VISIT_PRESCRIPTION_HIS PMO import failed: {key}")
 
 	frappe.db.commit()
-	processed = offset + len(batch_keys)
+	processed = offset + len(batch)
 	return {
 		"processed": processed,
-		"done": len(batch_keys) < VISIT_PRESCRIPTION_HIS_IMPORT_BATCH_SIZE,
-		"batch_count": len(batch_keys),
+		"done": processed >= total,
+		"batch_count": len(batch),
+		"total": total,
 		"created": created,
 		"updated": updated,
 		"skipped": skipped,
 		"lines_imported": lines_imported,
 		"errors": len(errors),
 	}
+
+
+def _verify_queue_coverage(sample_size: int = 20) -> dict:
+	"""How many visits of the current work queue now have a HIS prescription."""
+	meta = load_import_queue_meta(QUEUE_JOB)
+	visit_keys = load_import_queue_keys(QUEUE_JOB)
+	if not visit_keys:
+		return {
+			"queued": 0,
+			"total_visits": cint(meta.get("total_visits")),
+			"source_visits": 0,
+			"covered": 0,
+			"missing": 0,
+			"sample_missing": [],
+		}
+	grouped = {key: {"visit_cd": key} for key in visit_keys}
+	coverage = verify_legacy_visit_coverage(
+		grouped, source_flag="patient_visit_prescription_his", sample_size=sample_size
+	)
+	return {
+		"queued": len(visit_keys),
+		"total_visits": cint(meta.get("total_visits")),
+		**coverage,
+	}
+
+
+@frappe.whitelist()
+def verify_patient_visit_prescription_his_import(sample_size: int = 20) -> dict:
+	_require_admin()
+	return _verify_queue_coverage(sample_size=cint(sample_size) or 20)

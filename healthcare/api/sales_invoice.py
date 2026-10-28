@@ -1,5 +1,5 @@
 import frappe
-from frappe.utils import today, flt
+from frappe.utils import flt
 from collections import defaultdict
 
 
@@ -9,6 +9,28 @@ def _effective_paid_amount(grand_total, outstanding_amount, paid_amount=None) ->
 	if computed > 0:
 		return computed
 	return max(flt(paid_amount), 0.0)
+
+
+def _invoice_status_bucket(status) -> str:
+	"""Map an ERPNext Sales Invoice status onto an invoice-summary bucket.
+
+	ERPNext does not only report Unpaid/Overdue/Partly Paid/Paid: an invoice whose due
+	date has passed while its payment-schedule date has not is reported as "Submitted",
+	and discounted invoices get a " and Discounted" suffix. Both still carry an
+	outstanding balance, so they must be counted as pending.
+	"""
+	s = (status or "").strip().lower()
+	if s.endswith(" and discounted"):
+		s = s[: -len(" and discounted")].strip()
+	if s == "paid":
+		return "paid"
+	if s in ("unpaid", "submitted"):
+		return "unpaid"
+	if s == "overdue":
+		return "overdue"
+	if s in ("partly paid", "partially paid"):
+		return "partially_paid"
+	return ""
 
 
 @frappe.whitelist()
@@ -251,18 +273,11 @@ def get_invoice_summary(
     }
     
     for inv in invoices:
-        if inv.status == 'Paid':
-            summary['paid']['count'] += 1
-            summary['paid']['amount'] += inv.grand_total
-        elif inv.status == 'Unpaid':
-            summary['unpaid']['count'] += 1
-            summary['unpaid']['amount'] += inv.grand_total
-        elif inv.status == 'Overdue':
-            summary['overdue']['count'] += 1
-            summary['overdue']['amount'] += inv.grand_total
-        elif inv.status == 'Partially Paid':
-            summary['partially_paid']['count'] += 1
-            summary['partially_paid']['amount'] += inv.grand_total
+        bucket = _invoice_status_bucket(inv.status)
+        if not bucket:
+            continue
+        summary[bucket]['count'] += 1
+        summary[bucket]['amount'] += inv.grand_total
 
     return summary
 

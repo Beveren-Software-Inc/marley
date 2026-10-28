@@ -892,8 +892,11 @@ const handleMakePayment = async (
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'Paid': return 'text-green-600 bg-green-50'
-      case 'Unpaid': return 'text-yellow-600 bg-yellow-50'
+      case 'Unpaid':
+      // "Submitted" is ERPNext's fallback status for an invoice that still owes money.
+      case 'Submitted': return 'text-yellow-600 bg-yellow-50'
       case 'Overdue': return 'text-red-600 bg-red-50'
+      case 'Partly Paid':
       case 'Partially Paid': return 'text-blue-600 bg-blue-50'
       default: return 'text-gray-600 bg-gray-50'
     }
@@ -1228,7 +1231,7 @@ const handleMakePayment = async (
           patient={effectivePatient}
           admission={effectiveReferenceName}
           visit={effectiveReferenceType === 'Patient Visit' ? effectiveReferenceName : undefined}
-          statusFilter="Unpaid,Overdue"
+          statusFilter="Unpaid,Overdue,Partly Paid,Submitted"
           onOpenInvoiceDetail={openInvoiceDetail}
           invoiceRefreshKey={invoiceListRefreshKey}
           onAfterInvoiceMutation={notifyInvoiceDataChanged}
