@@ -599,7 +599,7 @@ import {
 } from '../ui/CreateModalChrome'
 import { NotebookPen } from 'lucide-react'
 import { createClinicalNote } from '../../services/clinicalNotes'
-import { searchPatients, fetchPatients, type PatientListItem } from '../../services/patients'
+import { searchPatients, fetchPatients, fetchPatientById, type PatientListItem } from '../../services/patients'
 import { fetchHealthcarePractitioners, fetchInpatientAdmissionOptions, fetchPatientVisits as fetchPatientVisitOptions, fetchCostCenters, type LinkFieldOption } from '../../services/common'
 import {
   linkComboboxDropdownClassTall,
@@ -749,22 +749,44 @@ export const CreateClinicalNoteModal = ({
     }
   }, [formData.patient_visit, activeVisit, contextIsIOPVisit])
 
-  // Auto-fetch patient name if context patient exists
+  /**
+   * Resolve the pre-selected patient's label with an exact ID lookup.
+   *
+   * A fuzzy patient search must never be used here: `search` matches on name / file no
+   * / ID number / mobile, so a file number such as `862383` also hits an unrelated
+   * patient whose national ID contains those digits — and the alphabetically-first row
+   * was then displayed as this note's patient.
+   */
+  const presetPatientId = initialPatient || contextPatient || ''
+
   useEffect(() => {
-    if (contextPatient && !initialPatient) {
-      const loadPatientName = async () => {
-        try {
-          const patients = await fetchPatients(1, 0, contextPatient)
-          if (patients.length > 0) {
-            setPatientQuery(patients[0].patient_name)
-          }
-        } catch (err) {
-          console.error('Failed to load patient name:', err)
-        }
+    if (!presetPatientId) return
+    let cancelled = false
+    const loadPresetPatient = async () => {
+      try {
+        const record = await fetchPatientById(presetPatientId)
+        if (cancelled) return
+        setPatientQuery(record?.patient_name || presetPatientId)
+      } catch (err) {
+        if (cancelled) return
+        console.error('Failed to load initial patient:', err)
+        setPatientQuery(presetPatientId)
       }
-      loadPatientName()
     }
-  }, [contextPatient, initialPatient])
+    loadPresetPatient()
+    return () => {
+      cancelled = true
+    }
+  }, [presetPatientId])
+
+  // Follow a patient switch made outside the modal (e.g. the navbar) so the note can
+  // never be saved against the previously selected patient.
+  useEffect(() => {
+    if (!presetPatientId) return
+    setFormData((prev) =>
+      prev.patient === presetPatientId ? prev : { ...prev, patient: presetPatientId },
+    )
+  }, [presetPatientId])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -826,24 +848,6 @@ export const CreateClinicalNoteModal = ({
   const handleChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }))
   }
-
-  // Load initial patient label
-  useEffect(() => {
-    if (initialPatient || contextPatient) {
-      const patientToLoad = initialPatient || contextPatient
-      const loadInitialPatient = async () => {
-        try {
-          const patients = await fetchPatients(1, 0, patientToLoad)
-          if (patients.length > 0) {
-            setPatientQuery(patients[0].patient_name)
-          }
-        } catch (err) {
-          console.error('Failed to load initial patient:', err)
-        }
-      }
-      loadInitialPatient()
-    }
-  }, [initialPatient, contextPatient])
 
   // Load practitioners
   useEffect(() => {

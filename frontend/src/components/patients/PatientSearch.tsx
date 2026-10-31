@@ -309,49 +309,51 @@ export const PatientSearch = ({
   useEffect(() => {
     let cancelled = false
 
-    if (selectedPatient) {
-      const loadPatientName = async () => {
-        const storedId = getStoredValue(STORAGE_KEYS.SELECTED_PATIENT)
-        const storedName = getStoredValue(STORAGE_KEYS.SELECTED_PATIENT_NAME)
-        if (
-          storedName &&
-          storedName !== selectedPatient &&
-          storedId === selectedPatient
-        ) {
-          if (cancelled) return
-          setSelectedPatientName(storedName)
-          setPatientQuery(storedName)
-          return
-        }
-
-        try {
-          const { patient_name: fullName, file_number: fileNumber } = await fetchPatientDisplayName(selectedPatient)
-          if (cancelled) return
-          const display = formatPatientSearchLabel(fullName, fileNumber, selectedPatient)
-          setSelectedPatientName(display)
-          setPatientQuery(display)
-          setStoredValue(STORAGE_KEYS.SELECTED_PATIENT_NAME, display)
-        } catch (error) {
-          if (cancelled) return
-          console.error('Failed to load patient name:', error)
-          if (selectedPatientName && selectedPatientName !== selectedPatient) {
-            setPatientQuery(selectedPatientName)
-            return
-          }
-          setSelectedPatientName(selectedPatient)
-          setPatientQuery(selectedPatient)
-          setStoredValue(STORAGE_KEYS.SELECTED_PATIENT_NAME, selectedPatient)
-        }
-      }
-      loadPatientName()
-      setStoredValue(STORAGE_KEYS.SELECTED_PATIENT, selectedPatient)
-    } else {
+    if (!selectedPatient) {
       setSelectedPatientName('')
       setPatientQuery('')
       clearPatientData()
+      return () => {
+        cancelled = true
+      }
     }
 
-    return () => { cancelled = true }
+    // Show the cached label instantly (avoids flashing the raw file number) — but only
+    // when it was stored for this exact patient, and always refresh it below so a stale
+    // entry can never stick to a different patient.
+    const storedId = getStoredValue(STORAGE_KEYS.SELECTED_PATIENT)
+    const storedName = getStoredValue(STORAGE_KEYS.SELECTED_PATIENT_NAME)
+    const cacheMatchesPatient =
+      storedId === selectedPatient && Boolean(storedName) && storedName !== selectedPatient
+    if (cacheMatchesPatient) {
+      setSelectedPatientName(storedName)
+      setPatientQuery(storedName)
+    }
+
+    setStoredValue(STORAGE_KEYS.SELECTED_PATIENT, selectedPatient)
+
+    const loadPatientName = async () => {
+      try {
+        const { patient_name: fullName, file_number: fileNumber } = await fetchPatientDisplayName(selectedPatient)
+        if (cancelled) return
+        const display = formatPatientSearchLabel(fullName, fileNumber, selectedPatient)
+        setSelectedPatientName(display)
+        setPatientQuery(display)
+        setStoredValue(STORAGE_KEYS.SELECTED_PATIENT_NAME, display)
+      } catch (error) {
+        if (cancelled) return
+        console.error('Failed to load patient name:', error)
+        if (cacheMatchesPatient) return
+        setSelectedPatientName(selectedPatient)
+        setPatientQuery(selectedPatient)
+        setStoredValue(STORAGE_KEYS.SELECTED_PATIENT_NAME, selectedPatient)
+      }
+    }
+    loadPatientName()
+
+    return () => {
+      cancelled = true
+    }
   }, [selectedPatient])
 
   useEffect(() => {
