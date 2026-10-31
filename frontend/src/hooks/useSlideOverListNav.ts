@@ -20,6 +20,11 @@ export function useSlideOverListNav<T>(opts: {
   setPage: Dispatch<SetStateAction<number>>
   pageSize: number
   totalCount: number
+  /**
+   * Identifies the list context (patient / encounter / filters). Changing it abandons
+   * any pending page jump, so the next page's first/last row is not auto-selected.
+   */
+  resetKey?: string
 }) {
   const {
     items,
@@ -32,6 +37,7 @@ export function useSlideOverListNav<T>(opts: {
     setPage,
     pageSize,
     totalCount,
+    resetKey,
   } = opts
 
   const itemsRef = useRef(items)
@@ -43,6 +49,14 @@ export function useSlideOverListNav<T>(opts: {
 
   const pendingNavRef = useRef<'first' | 'last' | null>(null)
   const waitForFetchRef = useRef(false)
+
+  const resetKeyRef = useRef(resetKey)
+  useEffect(() => {
+    if (resetKeyRef.current === resetKey) return
+    resetKeyRef.current = resetKey
+    pendingNavRef.current = null
+    waitForFetchRef.current = false
+  }, [resetKey])
 
   useEffect(() => {
     if (!pendingNavRef.current) return

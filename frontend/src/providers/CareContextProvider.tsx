@@ -449,8 +449,19 @@ export const CareContextProvider = ({ children }: { children: ReactNode }) => {
   }
 
   const setSelectedPatient = (patient: string | undefined) => {
-    setSelectedPatientState(patient)
-    writeStorage(PATIENT_STORAGE_KEY, patient)
+    const next = patient || undefined
+    // An OP visit / IP admission always belongs to the patient that was selected
+    // when it was picked. Switching (or clearing) the patient must drop it,
+    // otherwise clinical listings keep fetching the previous patient's encounter
+    // (e.g. Progress Notes opening another patient's notes).
+    if (next !== selectedPatient) {
+      setActiveVisit(undefined)
+      setActiveAdmission(undefined)
+      writeStorage(VISIT_LABEL_STORAGE_KEY, undefined)
+      writeStorage(ADMISSION_LABEL_STORAGE_KEY, undefined)
+    }
+    setSelectedPatientState(next)
+    writeStorage(PATIENT_STORAGE_KEY, next)
   }
 
   useEffect(() => {

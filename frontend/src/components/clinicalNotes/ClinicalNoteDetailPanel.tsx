@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import {
   Building2,
   Calendar,
@@ -352,8 +352,17 @@ export function ClinicalNoteDetailPanel({
   const [duplicateMedications, setDuplicateMedications] = useState<MedicationOrderRow[]>([])
   const [loadingDuplicate, setLoadingDuplicate] = useState(false)
 
+  /** Latest list row for the open note — read inside the fetch effect without refetching. */
+  const previewRef = useRef(preview)
+  previewRef.current = preview
+
   useEffect(() => {
     let cancelled = false
+    // Never leave the previously opened note (and its patient) on screen while the
+    // newly selected note loads — fall back to its list row only.
+    const nextPreview =
+      previewRef.current && previewRef.current.name === name ? previewRef.current : null
+    setDoc(nextPreview ? { ...nextPreview, name } : null)
     setLoading(true)
     setError(null)
     fetchClinicalNote(name)
