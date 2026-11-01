@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { apiRequest } from '../../services/apiClient'
 import { toast } from '../../hooks/useToast'
+import { ConfirmDialog } from '../ui/ConfirmDialog'
 
 type PriceReportData = {
     lab_tests?: Array<{
@@ -35,9 +36,23 @@ type PriceReportData = {
             amount?: number
         }>
     }>
+    insurance_prices?: Array<{
+        name: string
+        parent?: string
+        insurance_company?: string
+        item_code?: string
+        item_name?: string
+        price?: number
+        outpatient_discount?: number
+        inpatient_discount?: number
+        discount_apply?: number
+        from_date?: string
+        to_date?: string
+        service_type?: string
+    }>
 }
 
-type ReportTab = 'lab' | 'services' | 'packages'
+type ReportTab = 'lab' | 'services' | 'packages' | 'insurance'
 
 type EditableRate = {
     doctype: string
@@ -49,6 +64,7 @@ const tabs: { id: ReportTab; label: string }[] = [
     { id: 'lab', label: 'Lab Test Prices' },
     { id: 'services', label: 'Healthcare Service Prices' },
     { id: 'packages', label: 'Inpatient Package Prices' },
+    { id: 'insurance', label: 'Insurance Prices' },
 ]
 
 const amount = (value?: number | null) =>
@@ -231,6 +247,11 @@ export function PriceReport() {
     const [activeTab, setActiveTab] = useState<ReportTab>('lab')
     const [data, setData] = useState<PriceReportData | null>(null)
     const [loading, setLoading] = useState(false)
+    const [pendingRate, setPendingRate] = useState<{
+        rate: EditableRate
+        value: string
+    } | null>(null)
+    const [savingRate, setSavingRate] = useState(false)
 
     useEffect(() => {
         let cancelled = false
@@ -273,6 +294,13 @@ export function PriceReport() {
         rate: EditableRate,
         value: string,
     ): Promise<void> => {
+        setPendingRate({ rate, value })
+    }
+
+    const confirmSaveRate = async (): Promise<void> => {
+        if (!pendingRate) return
+
+        const { rate, value } = pendingRate
         const parsedValue = Number(value)
 
         if (
@@ -281,8 +309,11 @@ export function PriceReport() {
             parsedValue < 0
         ) {
             toast.error('Enter a valid non-negative price.')
+            setPendingRate(null)
             return
         }
+
+        setSavingRate(true)
 
         try {
             await apiRequest(
@@ -304,20 +335,54 @@ export function PriceReport() {
                 `/api/method/healthcare.api.reception_reports.get_price_report?report_type=${activeTab}`,
             )
             setData(result)
+            setPendingRate(null)
         } catch (error) {
             toast.error(
                 error instanceof Error ? error.message : 'Failed to update price.',
             )
+        } finally {
+            setSavingRate(false)
         }
     }
 
     const labTests = data?.lab_tests || []
     const services = data?.services || []
     const packages = data?.packages || []
+    const insurancePrices = data?.insurance_prices || []
+
+    const insuranceRows = insurancePrices.map((row) => [
+        row.item_code || '—',
+        row.insurance_company || row.parent || '—',
+        row.item_name || '—',
+        amount(row.price),
+        `${row.outpatient_discount ?? 0}%`,
+        `${row.inpatient_discount ?? 0}%`,
+        row.discount_apply ? 'Yes' : 'No',
+        row.from_date || '—',
+        row.to_date || '—',
+        row.service_type || '—',
+    ])
+
+    const insuranceEditableRates = insurancePrices.map((row) => [
+        null,
+        null,
+        null,
+        {
+            doctype: 'Insurance Item Detail',
+            name: row.name,
+            fieldname: 'price',
+        },
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+    ])
 
     const labRows = labTests.map((row) => [
-        row.lab_test_name || row.name,
         row.item || '—',
+        row.lab_test_name || row.name,
         amount(row.lab_test_rate),
         amount(row.op_rate),
         amount(row.price),
@@ -344,8 +409,8 @@ export function PriceReport() {
     ])
 
     const serviceRows = services.map((row) => [
-        row.service_name || row.name,
         row.item_code || '—',
+        row.service_name || row.name,
         amount(row.rate),
         amount(row.op_rate),
     ])
@@ -432,6 +497,24 @@ export function PriceReport() {
                 serviceRows,
                 mode,
                 'Healthcare Service Prices',
+            )
+        } else if (activeTab === 'insurance') {
+            exportPriceReport(
+                [
+                    'Item Code',
+                    'Insurance Company',
+                    'Item Name',
+                    'Price',
+                    'Outpatient Discount',
+                    'Inpatient Discount',
+                    'Discount Apply',
+                    'From Date',
+                    'To Date',
+                    'Service Type',
+                ],
+                insuranceRows,
+                mode,
+                'Insurance Prices',
             )
         } else {
             const packageHeaders = [
@@ -532,8 +615,8 @@ export function PriceReport() {
                         type="button"
                         onClick={() => setActiveTab(tab.id)}
                         className={`rounded-lg border px-4 py-2 text-sm font-medium transition-colors ${activeTab === tab.id
-                                ? 'border-primary bg-primary text-white'
-                                : 'border-[#cbd5e1] bg-white text-slate-700 hover:bg-slate-50'
+                            ? 'border-primary bg-primary text-white'
+                            : 'border-[#cbd5e1] bg-white text-slate-700 hover:bg-slate-50'
                             }`}
                     >
                         {tab.label}
@@ -570,8 +653,8 @@ export function PriceReport() {
                     {activeTab === 'lab' && (
                         <PriceTable
                             headers={[
-                                'Test Name',
                                 'Item Code',
+                                'Test Name',
                                 'IP Rate',
                                 'OP Rate',
                                 'General Price',
@@ -585,8 +668,8 @@ export function PriceReport() {
                     {activeTab === 'services' && (
                         <PriceTable
                             headers={[
-                                'Service Name',
                                 'Item Code',
+                                'Service Name',
                                 'IP Rate',
                                 'OP Rate',
                             ]}
@@ -634,8 +717,40 @@ export function PriceReport() {
                             />
                         </>
                     )}
+                    {activeTab === 'insurance' && (
+                        <PriceTable
+                            headers={[
+                                'Item Code',
+                                'Insurance Company',
+                                'Item Name',
+                                'Price',
+                                'Outpatient Discount',
+                                'Inpatient Discount',
+                                'Discount Apply',
+                                'From Date',
+                                'To Date',
+                                'Service Type',
+                            ]}
+                            rows={insuranceRows}
+                            editableRates={insuranceEditableRates}
+                            onSaveRate={saveRate}
+                        />
+                    )}
                 </>
             )}
+
+            <ConfirmDialog
+                open={!!pendingRate}
+                title="Confirm Price Change"
+                message={`Are you sure you want to update this price to ${pendingRate?.value}?`}
+                confirmLabel="Update Price"
+                cancelLabel="Cancel"
+                variant="info"
+                loading={savingRate}
+                onConfirm={confirmSaveRate}
+                onCancel={() => setPendingRate(null)}
+            />
+
         </div>
     )
 }
