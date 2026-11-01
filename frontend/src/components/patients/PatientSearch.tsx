@@ -221,9 +221,13 @@ export const PatientSearch = ({
     if (storedMode === 'OP' && storedVisit) {
       setActiveVisit(storedVisit)
       setSecondaryQuery(storedVisitLabel)
+      // Re-persist the label: aligning the patient (above) clears any encounter text
+      // stored for the previous patient.
+      setStoredValue(STORAGE_KEYS.ACTIVE_VISIT_LABEL, storedVisitLabel)
     } else if (storedMode === 'IP' && storedAdmission) {
       setActiveAdmission(storedAdmission)
       setSecondaryQuery(storedAdmissionLabel)
+      setStoredValue(STORAGE_KEYS.ACTIVE_ADMISSION_LABEL, storedAdmissionLabel)
     }
 
     setIsHydrated(true)
@@ -305,49 +309,51 @@ export const PatientSearch = ({
   useEffect(() => {
     let cancelled = false
 
-    if (selectedPatient) {
-      const loadPatientName = async () => {
-        const storedId = getStoredValue(STORAGE_KEYS.SELECTED_PATIENT)
-        const storedName = getStoredValue(STORAGE_KEYS.SELECTED_PATIENT_NAME)
-        if (
-          storedName &&
-          storedName !== selectedPatient &&
-          storedId === selectedPatient
-        ) {
-          if (cancelled) return
-          setSelectedPatientName(storedName)
-          setPatientQuery(storedName)
-          return
-        }
-
-        try {
-          const { patient_name: fullName, file_number: fileNumber } = await fetchPatientDisplayName(selectedPatient)
-          if (cancelled) return
-          const display = formatPatientSearchLabel(fullName, fileNumber, selectedPatient)
-          setSelectedPatientName(display)
-          setPatientQuery(display)
-          setStoredValue(STORAGE_KEYS.SELECTED_PATIENT_NAME, display)
-        } catch (error) {
-          if (cancelled) return
-          console.error('Failed to load patient name:', error)
-          if (selectedPatientName && selectedPatientName !== selectedPatient) {
-            setPatientQuery(selectedPatientName)
-            return
-          }
-          setSelectedPatientName(selectedPatient)
-          setPatientQuery(selectedPatient)
-          setStoredValue(STORAGE_KEYS.SELECTED_PATIENT_NAME, selectedPatient)
-        }
-      }
-      loadPatientName()
-      setStoredValue(STORAGE_KEYS.SELECTED_PATIENT, selectedPatient)
-    } else {
+    if (!selectedPatient) {
       setSelectedPatientName('')
       setPatientQuery('')
       clearPatientData()
+      return () => {
+        cancelled = true
+      }
     }
 
-    return () => { cancelled = true }
+    // Show the cached label instantly (avoids flashing the raw file number) — but only
+    // when it was stored for this exact patient, and always refresh it below so a stale
+    // entry can never stick to a different patient.
+    const storedId = getStoredValue(STORAGE_KEYS.SELECTED_PATIENT)
+    const storedName = getStoredValue(STORAGE_KEYS.SELECTED_PATIENT_NAME)
+    const cacheMatchesPatient =
+      storedId === selectedPatient && Boolean(storedName) && storedName !== selectedPatient
+    if (cacheMatchesPatient) {
+      setSelectedPatientName(storedName)
+      setPatientQuery(storedName)
+    }
+
+    setStoredValue(STORAGE_KEYS.SELECTED_PATIENT, selectedPatient)
+
+    const loadPatientName = async () => {
+      try {
+        const { patient_name: fullName, file_number: fileNumber } = await fetchPatientDisplayName(selectedPatient)
+        if (cancelled) return
+        const display = formatPatientSearchLabel(fullName, fileNumber, selectedPatient)
+        setSelectedPatientName(display)
+        setPatientQuery(display)
+        setStoredValue(STORAGE_KEYS.SELECTED_PATIENT_NAME, display)
+      } catch (error) {
+        if (cancelled) return
+        console.error('Failed to load patient name:', error)
+        if (cacheMatchesPatient) return
+        setSelectedPatientName(selectedPatient)
+        setPatientQuery(selectedPatient)
+        setStoredValue(STORAGE_KEYS.SELECTED_PATIENT_NAME, selectedPatient)
+      }
+    }
+    loadPatientName()
+
+    return () => {
+      cancelled = true
+    }
   }, [selectedPatient])
 
   useEffect(() => {
@@ -583,16 +589,9 @@ export const PatientSearch = ({
                   className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50"
                   onClick={() => {
                     setSecondaryQuery(row.label)
-                    if (mode === 'OP') {
-                      setActiveVisit(row.value)
-                      setStoredValue(STORAGE_KEYS.ACTIVE_VISIT, row.value)
-                      setStoredValue(STORAGE_KEYS.ACTIVE_VISIT_LABEL, row.label)
-                    } else if (mode === 'IP') {
-                      setActiveAdmission(row.value)
-                      setStoredValue(STORAGE_KEYS.ACTIVE_ADMISSION, row.value)
-                      setStoredValue(STORAGE_KEYS.ACTIVE_ADMISSION_LABEL, row.label)
-                    }
-                    if (!hasPatient && row.patient) {
+                    // Align the patient FIRST: selecting a patient clears any
+                    // encounter picked for the previously selected patient.
+                    if (row.patient && row.patient !== selectedPatient) {
                       onPatientSelect(row.patient)
                       setGlobalPatient(row.patient)
                       void fetchPatientDisplayName(row.patient).then(({ patient_name, file_number }) => {
@@ -606,6 +605,15 @@ export const PatientSearch = ({
                         setStoredValue(STORAGE_KEYS.SELECTED_PATIENT_NAME, display)
                       })
                       showPatientAlertsFromUserAction()
+                    }
+                    if (mode === 'OP') {
+                      setActiveVisit(row.value)
+                      setStoredValue(STORAGE_KEYS.ACTIVE_VISIT, row.value)
+                      setStoredValue(STORAGE_KEYS.ACTIVE_VISIT_LABEL, row.label)
+                    } else if (mode === 'IP') {
+                      setActiveAdmission(row.value)
+                      setStoredValue(STORAGE_KEYS.ACTIVE_ADMISSION, row.value)
+                      setStoredValue(STORAGE_KEYS.ACTIVE_ADMISSION_LABEL, row.label)
                     }
                     setSecondaryOpen(false)
                   }}

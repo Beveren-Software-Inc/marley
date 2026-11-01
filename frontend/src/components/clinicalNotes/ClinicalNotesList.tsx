@@ -139,6 +139,22 @@ export const ClinicalNotesList = ({
   const [practitionerOptions, setPractitionerOptions] = useState<LinkFieldOption[]>([])
   const [practitionerInitDone, setPractitionerInitDone] = useState(false)
 
+  /**
+   * Identifies the patient / encounter / note-type context the rows below belong to.
+   * Any change means the open note, edit/delete targets and cached rows from the
+   * previous context must be dropped — otherwise the screen (which stays mounted when
+   * only props change) keeps showing another patient's note.
+   */
+  const listContextKey = [
+    patient || '',
+    clinicalNoteType || '',
+    noteType || '',
+    mode || '',
+    activeVisit || '',
+    activeAdmission || '',
+  ].join('|')
+  const prevListContextKeyRef = useRef(listContextKey)
+
   /** Any typed note/order list: default practitioner filter to logged-in user's practitioner. */
   const applyDefaultPractitionerFilter = Boolean(clinicalNoteType?.trim())
 
@@ -184,6 +200,18 @@ export const ClinicalNotesList = ({
     }
   }, [useDoctorProgressMineOnly])
 
+  /** Drop the previous context's note, cached rows and row actions. */
+  useEffect(() => {
+    if (prevListContextKeyRef.current === listContextKey) return
+    prevListContextKeyRef.current = listContextKey
+    setDetailName(null)
+    setEditNote(null)
+    setDeleteNote(null)
+    setOpenActionRow(null)
+    setClinicalNotes([])
+    setTotalCount(0)
+  }, [listContextKey])
+
   useEffect(() => {
     if (!practitionerOpen || !showPractitionerPicker) return
     const t = setTimeout(() => {
@@ -196,6 +224,10 @@ export const ClinicalNotesList = ({
 
   useEffect(() => {
     if (!practitionerInitDone) return
+
+    // Guard against out-of-order responses: after a fast patient/encounter switch a
+    // slower request for the previous context must never overwrite the current rows.
+    let cancelled = false
 
     const loadClinicalNotes = async () => {
       try {
@@ -235,17 +267,23 @@ export const ClinicalNotesList = ({
           postingDateTo || undefined,
         )
         
+        if (cancelled) return
         setClinicalNotes(response.data)
         setTotalCount(response.total_count)
       } catch (err) {
+        if (cancelled) return
         console.error('Error loading clinical notes:', err)
         setError(err instanceof Error ? err : new Error('Failed to fetch clinical notes'))
       } finally {
-        setLoading(false)
+        if (!cancelled) setLoading(false)
       }
     }
 
     loadClinicalNotes()
+
+    return () => {
+      cancelled = true
+    }
   }, [
     patient,
     clinicalNoteType,
@@ -272,6 +310,7 @@ export const ClinicalNotesList = ({
     setPage,
     pageSize,
     totalCount,
+    resetKey: listContextKey,
   })
 
   useEffect(() => {
@@ -908,6 +947,7 @@ export const ClinicalNotesList = ({
 
       {detailName ? (
         <ClinicalNoteDetailPanel
+          key={detailName}
           name={detailName}
           title={clinicalNoteTypeDisplayLabel(clinicalNoteType)}
           preview={clinicalNotes.find((n) => n.name === detailName)}

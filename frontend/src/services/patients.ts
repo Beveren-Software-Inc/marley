@@ -153,6 +153,22 @@ export async function fetchPatients(
   return result.data
 }
 
+/**
+ * Fetch exactly one patient by ID.
+ *
+ * Never resolve a *selected* patient through `fetchPatients(…, search)`: `search` is a
+ * fuzzy LIKE match over patient name / file no / ID number / mobile, so a patient ID
+ * such as file no `862383` also matches an unrelated patient whose national ID contains
+ * those digits — and the alphabetically-first hit (`ORDER BY patient_name`) is returned
+ * instead of the selected patient. This helper uses the exact `patient` filter.
+ */
+export async function fetchPatientById(patient?: string): Promise<PatientListItem | undefined> {
+  const id = (patient || '').trim()
+  if (!id) return undefined
+  const result = await fetchPatientsPaginated(1, 0, undefined, id)
+  return result.data.find((row) => row.name === id)
+}
+
 export async function fetchPatientsPaginated(
   limit: number = 20,
   offset: number = 0,

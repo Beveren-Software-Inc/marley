@@ -58,6 +58,7 @@ frappe.ui.form.on('Patient Medication Order', {
 		frm.events.show_medication_order_button(frm);
 		frm.events.show_get_from_encounter_button(frm);
 		frm.events.show_subscription_button(frm);
+		frm.events.apply_deduplicate_prescription_visibility(frm);
 
 		// Recalculate quantity for all rows (no_of_days * dosage * frequency_in_a_day)
 		(frm.doc.medication_orders || []).forEach(function(row) {
@@ -72,6 +73,27 @@ frappe.ui.form.on('Patient Medication Order', {
 		// 		}
 		// 	};
 		// });
+	},
+
+	apply_deduplicate_prescription_visibility: function(frm) {
+		const grid = frm.fields_dict.medication_orders && frm.fields_dict.medication_orders.grid;
+		if (!grid) {
+			return;
+		}
+		frappe.db.get_single_value('Healthcare Settings', 'hide_deduplicate_prescription').then((hide) => {
+			const hide_dedupe = cint(hide);
+			(frm.doc.medication_orders || []).forEach(function(row) {
+				const grid_row = grid.grid_rows_by_docname && grid.grid_rows_by_docname[row.name];
+				if (!grid_row || !grid_row.wrapper) {
+					return;
+				}
+				if (hide_dedupe && cint(row.is_deduplicate)) {
+					grid_row.wrapper.hide();
+				} else {
+					grid_row.wrapper.show();
+				}
+			});
+		});
 	},
 
 	show_medication_order_button: function(frm) {

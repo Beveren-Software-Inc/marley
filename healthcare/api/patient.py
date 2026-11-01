@@ -191,9 +191,10 @@ def get_patients(limit=20, offset=0, search=None, patient=None):
 				p.blood_group, p.nationality, p.is_insurance, p.insurance,
 				p.is_black_list, p.blacklist_reason
 			FROM `tabPatient` p {where_clause}
-			ORDER BY p.patient_name
+			ORDER BY (p.name = %(exact_search)s OR p.file_no = %(exact_search)s) DESC,
+				p.patient_name
 			LIMIT %(limit)s OFFSET %(offset)s""",
-			{'search': search_param, 'limit': limit, 'offset': offset},
+			{'search': search_param, 'exact_search': search, 'limit': limit, 'offset': offset},
 			as_dict=True,
 		)
 

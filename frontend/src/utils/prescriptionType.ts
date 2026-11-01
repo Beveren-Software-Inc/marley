@@ -10,6 +10,8 @@ const VALID_PRESCRIPTION_TYPES = new Set([
   'Regular - Med (Inactive)',
   'Long Acting Medicine',
   'Future Plan',
+  // Legacy Oracle only — mapped Prescription Type of redundancy code 4.
+  'Contraindicated',
 ])
 
 /** Map common typos / spacing variants to the doctype Select values. */
@@ -33,6 +35,69 @@ export function normalizePrescriptionType(medicationType?: string | null): strin
   if (!type) return ''
   if (VALID_PRESCRIPTION_TYPES.has(type)) return type
   return PRESCRIPTION_TYPE_ALIASES[type] || type
+}
+
+// ─── Legacy Oracle lines (a redundancy code instead of a coded type) ─────────
+/** Fields only Oracle-imported lines carry — their Prescription Type was never coded. */
+const LEGACY_LINE_FIELDS = [
+  'redundancy_type',
+  'medicine_no',
+  'old_medicine_code',
+  'old_medicine_name',
+  'trans_num',
+] as const
+
+export type LegacyPrescriptionLineSource = {
+  /** Server flag set next to ``resolved_prescription_type``. */
+  is_legacy_line?: boolean | number | null
+  /** Flag the prescription / clinical-note payloads already carry for legacy lines. */
+  is_legacy?: boolean | number | null
+  /** Coded Prescription Type — a line that has one is not an untyped legacy line. */
+  medication_type?: string | null
+  /** Legacy Oracle line: Prescription Type is stored only as this redundancy code. */
+  redundancy_type?: number | string | null
+  medicine_no?: string | null
+  old_medicine_code?: string | null
+  old_medicine_name?: string | null
+  trans_num?: string | null
+}
+
+/**
+ * True for an Oracle-imported line (it carries an Oracle marker, not a coded type).
+ *
+ * Detected from the line itself — the prescription ``legacy`` flag is unreliable (Oracle
+ * rows synced by the current import carry ``legacy = 0`` while every line still only has
+ * a ``redundancy_type`` and an empty ``medication_type``).
+ */
+export function isLegacyPrescriptionLine(order?: LegacyPrescriptionLineSource | null): boolean {
+  if (!order) return false
+  if (String(order.medication_type ?? '').trim() !== '') return false
+  if (order.is_legacy_line === true || order.is_legacy_line === 1) return true
+  if (order.is_legacy === true || order.is_legacy === 1) return true
+  return LEGACY_LINE_FIELDS.some((field) => String(order[field] ?? '').trim() !== '')
+}
+
+/**
+ * Oracle fills the ``dc`` column with a free-text end note — ``DC``, ``DC by: ABRAR``,
+ * ``D/c``, ``stopped``, but also ``CHANGED``, ``dose increased``, ``by.Dr.AK``, a date —
+ * so anything written there (except a placeholder) means the line was discontinued.
+ */
+const DC_PLACEHOLDER_VALUES = new Set(['', '-', '--', '.', '0', 'no', 'n/a', 'na', 'nil', 'none'])
+
+export function isLegacyLineDiscontinued(
+  order?: { dc?: string | null; medication_status?: string | null } | null,
+): boolean {
+  if (!order) return false
+  if (String(order.medication_status || '').trim().toLowerCase() === 'discontinued') return true
+  return !DC_PLACEHOLDER_VALUES.has(String(order.dc || '').trim().toLowerCase())
+}
+
+/** Inactive twin of a Regular type — a DC'd line was stopped, so it is not Active. */
+export function inactivePrescriptionType(medicationType?: string | null): string {
+  const type = normalizePrescriptionType(medicationType)
+  if (type === 'Regular - Med (Active)') return 'Regular - Med (Inactive)'
+  if (type === 'Regular - Psy (Active)') return 'Regular - Psy (Inactive)'
+  return type
 }
 
 export function flagsFromPrescriptionType(medicationType?: string | null): {
@@ -264,6 +329,22 @@ export function isMedicationEndDatePassed(
 }
 
 /**
+ * True when the parent prescription itself has already ended (``_rx_end`` in the past).
+ *
+ * Legacy Oracle prescriptions ended years ago: measured against today every one of their
+ * lines looks expired, the type chips show 0 and everything lands under "All". A finished
+ * prescription is history, so its lines keep their own type bucket instead.
+ */
+export function isPrescriptionOver(
+  order?: { _rx_end?: string | null } | null,
+  asOf: Date = new Date()
+): boolean {
+  const end = String(order?._rx_end || '').trim().slice(0, 10)
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(end)) return false
+  return end < todayDateString(asOf)
+}
+
+/**
  * Stopped / discontinued line for listing filters (Current Prescription Stopped tab).
  *
  * Covers new UI stops and legacy imports — not free-text comments (too ambiguous).
@@ -297,6 +378,8 @@ export function isMedicationStopped(
 export function matchesPrescriptionTypeFilter(
   order: {
     medication_type?: string | null
+    /** Legacy Oracle line: Prescription Type mapped from the redundancy code. */
+    resolved_prescription_type?: string | null
     date?: string | null
     start_date?: string | null
     end_date?: string | null
@@ -312,7 +395,9 @@ export function matchesPrescriptionTypeFilter(
     patient_frequency?: string | null
     written_frequency?: string | null
     frequency?: string | null
-  },
+    /** Oracle DC note / line-left-import markers (legacy lines only). */
+    dc?: string | null
+  } & LegacyPrescriptionLineSource,
   filterKey: string,
   asOf: Date = new Date()
 ): boolean {
@@ -321,24 +406,35 @@ export function matchesPrescriptionTypeFilter(
   if (filterKey === '__stopped__') return isStopped
   if (isStopped) return false
   // Expired-by-end-date lines stay visible under All only — not Active Psy/Med/etc.
+  // A finished prescription (legacy Oracle imports) is history: every line keeps its
+  // own type bucket instead of disappearing into "All".
   if (filterKey === 'All') return true
-  if (isMedicationEndDatePassed(order, asOf)) return false
+  if (!isPrescriptionOver(order, asOf) && isMedicationEndDatePassed(order, asOf)) return false
   const future = isFuturePlanByStartDate(order, asOf)
   if (filterKey === 'Future Plan') return future
   // Real types only include lines that have started (not future-dated)
   if (future) return false
+  // Coded Prescription Type first; legacy Oracle lines only have a redundancy code, which
+  // the API maps through the Prescription Type doctype (``resolved_prescription_type``).
+  // A DC'd legacy line is the Inactive twin of its mapped Regular type.
+  const explicitType = normalizePrescriptionType(order.medication_type)
+  const mappedType = normalizePrescriptionType(order.resolved_prescription_type)
+  const coded =
+    explicitType ||
+    (isLegacyLineDiscontinued(order) ? inactivePrescriptionType(mappedType) : mappedType)
+  // A legacy line's type is never guessed from its free text: without a mapped type the
+  // line simply has no Prescription Type (it shows under All only).
+  const canInferType = !coded && !isLegacyPrescriptionLine(order)
   if (filterKey === 'PRN') {
-    const coded = normalizePrescriptionType(order.medication_type)
     if (coded === 'PRN' || order.is_prn === true || order.is_prn === 1) return true
-    // Legacy lines carry the type only in the free text ("3BDPRN").
-    return !coded && inferPrescriptionTypeFromOrder(order)?.type === 'PRN'
+    // New lines may carry the type only in the free text ("3BDPRN").
+    return canInferType && inferPrescriptionTypeFromOrder(order)?.type === 'PRN'
   }
   if (filterKey === 'STAT') {
-    const coded = normalizePrescriptionType(order.medication_type)
     if (coded === 'STAT') return true
-    return !coded && inferPrescriptionTypeFromOrder(order)?.type === 'STAT'
+    return canInferType && inferPrescriptionTypeFromOrder(order)?.type === 'STAT'
   }
-  return normalizePrescriptionType(order.medication_type) === filterKey
+  return coded === filterKey
 }
 
 /** Types doctors/nurses may pick when creating or adding a medication line. */

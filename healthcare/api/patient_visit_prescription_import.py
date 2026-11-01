@@ -272,6 +272,10 @@ def import_patient_medication_order_for_visit(visit_payload: dict) -> dict:
 	doc.patient_visit_prescription = 1
 	doc.patient_visit_prescription_his = 0
 	doc.legacy = 1
+	if any(row.get("from_hs_tb") for row in lines):
+		# The prescription was completed with lines that only the Oracle
+		# PATIENT_VISIT_PRESCRIPTION_HIS (HS) table has.
+		doc.from_hs_tb = 1
 	doc.visit_cd = visit_cd
 	if patient_visit:
 		doc.patient_encounter = patient_visit

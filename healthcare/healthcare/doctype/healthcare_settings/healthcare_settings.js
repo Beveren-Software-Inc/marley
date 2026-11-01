@@ -7,6 +7,46 @@ frappe.ui.form.on('Healthcare Settings', {
 			return;
 		}
 
+		// Legacy import / analysis buttons stay in this file for reference but are
+		// no longer rendered: Direct Upload, Migration Analysis and ECT are hidden.
+		hide_legacy_setting_buttons(frm);
+
+		frm.add_custom_button(__('IP Admission'), () => {
+			run_oracle_ip_admission_comparison(frm);
+		}, __('Oracle -> ERPNext'));
+
+		// Compare Oracle VISIT_00_01 with Patient Visit and create only the
+		// visits Oracle has that ERPNext is still missing. Visits that exist
+		// only in ERPNext are left alone.
+		frm.add_custom_button(__('OP Visit'), () => {
+			run_oracle_op_visit_comparison(frm);
+		}, __('Oracle -> ERPNext'));
+
+		frm.add_custom_button(
+			__('Cleanup IP Admission'),
+			() => open_ip_admission_cleanup(frm),
+			__('Oracle -> ERPNext')
+		);
+
+		// One button for every prescription (OP + IP + HIS): it reads the legacy
+		// prescriptions straight from Oracle, repairs what is missing and imports
+		// PATIENT_VISIT_PRESCRIPTION_HIS as transactions (deduplicate lines kept
+		// and flagged), in the background, for the whole site.
+		frm.add_custom_button(
+			__('Reconcile Prescriptions'),
+			() => open_prescription_reconcile(frm),
+			__('Oracle -> ERPNext')
+		);
+
+		// One button for the long-acting / depot register: it reads VISIT_00_04
+		// from Oracle, appends the injections ERPNext is missing, extends the end
+		// date and recalculates the next dose date, in the background.
+		frm.add_custom_button(
+			__('Reconcile Long Acting Medicine'),
+			() => open_long_acting_reconcile(frm),
+			__('Oracle -> ERPNext')
+		);
+
 		frm.add_custom_button(__('Generate Doctors Stamp'), () => {
 			frappe.call({
 				method: 'healthcare.api.practitioner_stamp.preview_generate_doctors_stamps',
@@ -4279,17 +4319,6 @@ frappe.ui.form.on('Healthcare Settings', {
 			});
 		}, __('Direct Upload'));
 
-		frm.add_custom_button(
-			__('Cleanup IP Admission'),
-			() => open_ip_admission_cleanup(frm),
-			__('Cleanup')
-		);
-
-		frm.add_custom_button(
-			__('Create Missing Medication Orders'),
-			() => open_ip_medication_cleanup(frm),
-			__('Cleanup')
-		);
 	},
 
 	onload: function(frm) {
@@ -8205,15 +8234,6 @@ function open_ip_admission_cleanup(frm) {
 			})
 	);
 
-	dialog.$wrapper.find('.modal-footer').prepend(
-		$('<button type="button" class="btn btn-default btn-sm mr-2">')
-			.text(__('Create Missing Medication Orders…'))
-			.on('click', () => {
-				dialog.hide();
-				open_ip_medication_cleanup(frm);
-			})
-	);
-
 	dialog.show();
 }
 
@@ -8336,6 +8356,10 @@ function open_ip_admission_cleanup_upload(frm, dialog) {
  * creates (or completes) the prescription of any admission whose lines never imported —
  * e.g. admission 2210 (patient 860640), created in ERP while the import was running.
  * Nothing is deleted and already imported lines are never duplicated.
+ *
+ * NOTE: not rendered any more - the Excel/upload flow of this dialog (and of
+ * open_op_prescription_cleanup below) is covered by the single "Reconcile
+ * Prescriptions" button, which reads Oracle directly. Kept for manual use.
  */
 function open_ip_medication_cleanup(frm) {
 	const dialog = new frappe.ui.Dialog({
@@ -8509,6 +8533,208 @@ function open_ip_medication_cleanup_upload(frm, dialog) {
 	});
 }
 
+/**
+ * Healthcare Settings → Cleanup → Reconcile OP Prescriptions.
+ * Compares PATIENT_VISIT_PRESCRIPTION with the Patient Medication Orders already in ERP: visits
+ * with no prescription (or with fewer lines than the sheet) are created / completed, and the
+ * duplicated PATIENT_VISIT_PRESCRIPTION_HIS lines (the same PRESCIP_ID imported 2-9 times) are
+ * removed. Nothing is deleted unless the line can be rebuilt from the sheet or is still present
+ * on a normal OP line; prescriptions are never duplicated.
+ * Leave Patient empty to reconcile every patient in the sheet.
+ *
+ * NOTE: not rendered any more - see "Reconcile Prescriptions" above.
+ */
+function open_op_prescription_cleanup(frm) {
+	const dialog = new frappe.ui.Dialog({
+		title: __('Reconcile OP Prescriptions'),
+		size: 'large',
+		fields: [
+			{
+				fieldtype: 'HTML',
+				fieldname: 'help',
+				options:
+					'<p class="text-muted small">'
+					+ __(
+						'Compares PATIENT_VISIT_PRESCRIPTION with the Patient Medication Orders already in ERP. Visits with no prescription, or with fewer lines than the sheet, are created / completed. Duplicated PVP_HIS lines (the same PRESCIP_ID imported several times) are removed and the leftover HIS prescription is cancelled. Nothing is deleted unless the line can be rebuilt.'
+					)
+					+ '</p>',
+			},
+			{
+				fieldtype: 'Link',
+				fieldname: 'patient',
+				label: __('Patient'),
+				options: 'Patient',
+				description: __('Leave empty to reconcile every patient in the sheet.'),
+			},
+			{
+				fieldtype: 'HTML',
+				fieldname: 'source_html',
+			},
+		],
+		primary_action_label: __('Preview'),
+		primary_action() {
+			preview_op_prescription_cleanup(frm, dialog._file_url, dialog);
+		},
+	});
+
+	dialog._file_url = null;
+	dialog._file_label = null;
+	render_op_prescription_cleanup_source(dialog);
+
+	dialog.$wrapper.find('.modal-footer').prepend(
+		$('<button type="button" class="btn btn-default btn-sm mr-2">')
+			.text(__('Upload Latest PATIENT_VISIT_PRESCRIPTION…'))
+			.on('click', () => {
+				open_op_prescription_cleanup_upload(frm, dialog);
+			})
+	);
+
+	dialog.show();
+}
+
+function render_op_prescription_cleanup_source(dialog) {
+	const label = dialog._file_label
+		? __('Sheet to use: {0}', [frappe.utils.escape_html(dialog._file_label)])
+		: __('No sheet picked here — the PATIENT_VISIT_PRESCRIPTION file already stored on the server is used.');
+	dialog
+		.get_field('source_html')
+		.$wrapper.html(
+			'<p class="'
+			+ (dialog._file_label ? 'text-success' : 'text-muted')
+			+ ' small">'
+			+ label
+			+ '</p>'
+		);
+}
+
+function preview_op_prescription_cleanup(frm, file_url, dialog) {
+	frappe.call({
+		method: 'healthcare.api.op_prescription_cleanup.preview_op_prescription_cleanup',
+		args: {
+			file_url: file_url || null,
+			patient: (dialog && dialog.get_value('patient')) || null,
+		},
+		freeze: true,
+		freeze_message: __('Reading PATIENT_VISIT_PRESCRIPTION and comparing prescriptions…'),
+		callback(preview) {
+			const counts = preview.message || {};
+			if (!counts.ok) {
+				if (counts.needs_file) {
+					frappe.msgprint({
+						title: __('PATIENT_VISIT_PRESCRIPTION file required'),
+						indicator: 'orange',
+						message: counts.message || __('Upload the PATIENT_VISIT_PRESCRIPTION Excel.'),
+					});
+					open_op_prescription_cleanup_upload(frm, dialog);
+					return;
+				}
+				frappe.msgprint({
+					title: __('Reconcile OP Prescriptions'),
+					indicator: 'red',
+					message: counts.message || __('Preview failed.'),
+				});
+				return;
+			}
+
+			if (dialog) {
+				dialog._file_url = counts.file_url || file_url || null;
+				dialog._file_label = dialog._file_url;
+				render_op_prescription_cleanup_source(dialog);
+				dialog.hide();
+			}
+
+			if (!counts.visits_to_import && !counts.his_duplicate_lines) {
+				frappe.msgprint({
+					title: __('Reconcile OP Prescriptions'),
+					indicator: 'green',
+					message: __(
+						'Nothing to repair. {0} visits and {1} prescription lines in the sheet already match ERP, and no duplicate PVP_HIS lines were found.',
+						[counts.source_visits || 0, counts.source_lines || 0]
+					),
+				});
+				return;
+			}
+
+			const samples = (counts.samples || []).join('\n') || __('(none)');
+			frappe.confirm(
+				__(
+					'Repair the OP prescriptions from PATIENT_VISIT_PRESCRIPTION?\n\n'
+						+ 'Sheet: {0}\nScope: {10}\n\n'
+						+ 'Visits in scope: {1}\nVisits already complete: {2}\n'
+						+ 'Visits with no prescription: {3} ({4} lines)\n'
+						+ '  of which covered only by PVP_HIS: {13}\n'
+						+ 'Visits with missing lines: {5} ({6} lines)\n\n'
+						+ 'Duplicate PVP_HIS lines to delete: {7}\n'
+						+ 'PVP_HIS prescriptions to cancel: {8}\n'
+						+ 'PVP_HIS lines kept (cannot be rebuilt): {9}\n'
+						+ 'Visits without a patient (will be skipped): {11}\n\n'
+						+ 'New prescriptions are submitted as Completed; existing prescriptions are only extended. '
+						+ 'Nothing else is deleted.\n\n'
+						+ 'Sample repairs:\n{12}\n\nContinue?',
+					[
+						counts.file_url || __('(server file)'),
+						counts.source_visits || 0,
+						counts.complete_visits || 0,
+						counts.missing_visits || 0,
+						counts.missing_lines || 0,
+						counts.partial_visits || 0,
+						counts.partial_lines || 0,
+						counts.his_duplicate_lines || 0,
+						counts.his_pmos_to_cancel || 0,
+						counts.his_lines_kept || 0,
+						counts.scope_patient || __('all patients'),
+						counts.unresolved_visits || 0,
+						samples,
+						counts.his_only_visits || 0,
+					]
+				),
+				() => {
+					frappe.call({
+						method: 'healthcare.api.op_prescription_cleanup.run_op_prescription_cleanup',
+						args: {
+							file_url: counts.file_url || file_url || null,
+							patient: counts.scope_patient || null,
+							dry_run: 0,
+							fix_missing: 1,
+							drop_his_duplicates: 1,
+							limit: 500,
+						},
+						freeze: true,
+						freeze_message: __('Repairing the OP prescriptions…'),
+						callback(r) {
+							const result = r.message || {};
+							frappe.msgprint({
+								title: __('Reconcile OP Prescriptions'),
+								indicator: result.ok ? 'green' : 'orange',
+								message: result.message || __('Done'),
+							});
+						},
+					});
+				}
+			);
+		},
+	});
+}
+
+function open_op_prescription_cleanup_upload(frm, dialog) {
+	new frappe.ui.FileUploader({
+		dialog_title: __('Select PATIENT_VISIT_PRESCRIPTION Excel'),
+		allow_multiple: false,
+		restrictions: {
+			allowed_file_types: ['.xlsx', '.xls'],
+		},
+		on_success(file) {
+			if (dialog) {
+				dialog._file_url = file.file_url;
+				dialog._file_label = file.file_name || file.file_url;
+				render_op_prescription_cleanup_source(dialog);
+				return;
+			}
+			preview_op_prescription_cleanup(frm, file.file_url);
+		},
+	});
+}
+
 
 
 var set_query_service_item = function(frm, service_item_field) {
@@ -8570,3 +8796,808 @@ frappe.tour['Healthcare Settings'] = [
 		description: __('If you want to send SMS alert on Patient Registration, you can enable this option. Similary, you can set up Out Patient SMS alerts for other functionalities in this section. Click ') + "<a href='https://frappehealth.com/docs/v13/user/manual/en/healthcare/healthcare_settings#4-out-patient-sms-alerts' target='_blank'>here</a>" + __(' to know more')
 	}
 ];
+
+// ---------------------------------------------------------------------------
+// Oracle -> ERPNext sync (Healthcare Settings)
+//
+// Legacy migration buttons are kept in this file for reference but are no
+// longer rendered on the form. Remove a group from this list to bring its
+// buttons back - no backend change is needed.
+// ---------------------------------------------------------------------------
+const ORACLE_SYNC_HIDDEN_GROUPS = ['Direct Upload', 'Migration Analysis', 'ECT'];
+const ORACLE_SYNC_HIDDEN_LABELS = [];
+const ORACLE_SYNC_POLL_INTERVAL = 2000;
+const ORACLE_SYNC_POLL_LIMIT = 150;
+// The prescription reconciliation walks the whole site, so the dialog polls for
+// up to 10 minutes and then leaves the job running in the background.
+const PRESCRIPTION_RECONCILE_POLL_LIMIT = 300;
+// Same idea for the long-acting / depot register (a few hundred groups at most).
+const LONG_ACTING_RECONCILE_POLL_LIMIT = 300;
+
+function hide_legacy_setting_buttons(frm) {
+	if (frm.__legacy_setting_buttons_hidden) {
+		return;
+	}
+	frm.__legacy_setting_buttons_hidden = true;
+
+	const hidden_groups = ORACLE_SYNC_HIDDEN_GROUPS.map((group) => __(group));
+	const hidden_labels = ORACLE_SYNC_HIDDEN_LABELS.map((label) => __(label));
+	const original_add_custom_button = frm.add_custom_button.bind(frm);
+
+	frm.add_custom_button = function (label, action, group) {
+		const group_label = typeof group === 'string' ? group : '';
+		if (hidden_labels.includes(label) || hidden_groups.includes(group_label)) {
+			return;
+		}
+		return original_add_custom_button(label, action, group);
+	};
+}
+
+function oracle_sync_escape(value) {
+	return frappe.utils.escape_html(value === undefined || value === null ? '' : String(value));
+}
+
+/**
+ * One button for every prescription: Oracle -> ERPNext.
+ *
+ * Reads PATIENT_VISIT_PRESCRIPTION, PATIENT_VISIT_PRESCRIPTION_HIS and
+ * IP_ADMISSION_MEDICINE straight from the Oracle database configured on the site
+ * (no Excel upload, no patient picker), repairs the missing Patient Medication
+ * Orders / lines, and imports every PATIENT_VISIT_PRESCRIPTION_HIS row as its
+ * own transaction (patient_visit_prescription_his). HIS lines that also exist on
+ * PATIENT_VISIT_PRESCRIPTION are kept and flagged Is Deduplicate on the child
+ * (Hide Deduplicate Prescription on Healthcare Settings hides them on the UI).
+ * The work runs in a background job.
+ */
+function open_prescription_reconcile(frm) {
+	const dialog = new frappe.ui.Dialog({
+		title: __('Reconcile Prescriptions'),
+		size: 'large',
+		fields: [
+			{
+				fieldtype: 'HTML',
+				fieldname: 'help',
+				options:
+					'<p class="text-muted small">'
+					+ __(
+						'Reads the legacy prescriptions straight from Oracle and repairs the Patient Medication Orders in ERPNext:'
+					)
+					+ '</p><ul class="text-muted small">'
+					+ '<li>'
+					+ __('creates the prescription of every outpatient visit that never imported')
+					+ '</li><li>'
+					+ __('adds the medicine lines missing on an existing prescription')
+					+ '</li><li>'
+					+ __(
+						'imports every PATIENT_VISIT_PRESCRIPTION_HIS row as a Patient Medication Order (patient_visit_prescription_his) transaction'
+					)
+					+ '</li><li>'
+					+ __(
+						'keeps HIS lines that also exist on PATIENT_VISIT_PRESCRIPTION and ticks Is Deduplicate on those child lines (hidden on the UI when Hide Deduplicate Prescription is enabled)'
+					)
+					+ '</li><li>'
+					+ __('creates the missing inpatient medicine lines, long-acting depots included')
+					+ '</li></ul>'
+					+ '<p class="text-muted small">'
+					+ __(
+						'Nothing has to be uploaded and no patient has to be picked: the whole site is compared in the background. HIS duplicates are no longer deleted. Running it again only finds what is still missing.'
+					)
+					+ '</p>',
+			},
+		],
+		primary_action_label: __('Start'),
+		primary_action() {
+			dialog.hide();
+			start_prescription_reconcile(frm);
+		},
+	});
+	dialog.show();
+}
+
+function start_prescription_reconcile(frm) {
+	frappe.call({
+		method: 'healthcare.api.prescription_sync.start_prescription_reconcile',
+		callback(r) {
+			const result = r.message || {};
+			if (result.queued || result.running) {
+				track_prescription_reconcile(frm);
+				return;
+			}
+			frappe.msgprint({
+				title: __('Reconcile Prescriptions'),
+				indicator: 'orange',
+				message: result.message || __('The reconciliation could not be started.'),
+			});
+		},
+	});
+}
+
+function track_prescription_reconcile(frm) {
+	let polls = 0;
+	const title = __('Reconciling prescriptions from Oracle');
+	frappe.show_progress(title, 0, 100, __('Reading Oracle…'));
+
+	const timer = setInterval(() => {
+		polls += 1;
+		frappe.call({
+			method: 'healthcare.api.prescription_sync.get_prescription_reconcile_status',
+			callback(r) {
+				const status = r.message || {};
+				const total = cint(status.total) || 0;
+				const processed = cint(status.processed) || 0;
+				frappe.show_progress(
+					title,
+					total ? processed : Math.min(polls, 95),
+					total || 100,
+					total
+						? __('{0} of {1} records', [processed, total])
+						: __('Reading Oracle…')
+				);
+				if (status.state === 'finished' || status.state === 'failed') {
+					clearInterval(timer);
+					frappe.hide_progress();
+					frappe.msgprint({
+						title: __('Reconcile Prescriptions'),
+						indicator: status.state === 'finished' ? 'green' : 'red',
+						wide: true,
+						message: frappe.utils.escape_html(status.message || __('Done')).replace(
+							/\n/g,
+							'<br>'
+						),
+					});
+					if (frm && frm.refresh) {
+						frm.refresh();
+					}
+				} else if (polls >= PRESCRIPTION_RECONCILE_POLL_LIMIT) {
+					clearInterval(timer);
+					frappe.hide_progress();
+					frappe.msgprint(
+						__(
+							'The reconciliation is still running in the background. Open Reconcile Prescriptions again in a few minutes to see the result.'
+						)
+					);
+				}
+			},
+			error() {
+				clearInterval(timer);
+				frappe.hide_progress();
+			},
+		});
+	}, ORACLE_SYNC_POLL_INTERVAL);
+}
+
+
+/**
+ * Long-acting / depot register: Oracle -> ERPNext.
+ *
+ * Reads CLINIC2.VISIT_00_04 (one row per injection that was actually given),
+ * shows how far ERPNext has drifted from it, and repairs the Long Acting
+ * Medicine records in the background: missing give-outs are appended, the
+ * start / end date follow the real history and the next dose date is
+ * recalculated, so a depot that is still being given is not left behind as
+ * Inactive with a dose date months in the past.
+ */
+function open_long_acting_reconcile(frm) {
+	frappe.dom.freeze(__('Comparing Long Acting Medicine with Oracle…'));
+	frappe.call({
+		method: 'healthcare.api.long_acting_reconcile.preview_long_acting_reconcile',
+		callback(r) {
+			frappe.dom.unfreeze();
+			if (!r.message) {
+				return;
+			}
+			show_long_acting_reconcile_dialog(frm, r.message);
+		},
+		error() {
+			frappe.dom.unfreeze();
+		},
+	});
+}
+
+function long_acting_reconcile_table_html(data) {
+	const rows = [
+		[__('Oracle table'), data.oracle_table],
+		[__('Injections in Oracle'), data.oracle_rows],
+		[__('Patient / medication groups'), data.oracle_groups],
+		[__('Long Acting Medicine records'), data.lam_total],
+		[__('Records matched'), data.lam_matched],
+		[__('Injections missing in ERPNext'), data.missing_give_outs],
+		[__('Groups with no Long Acting Medicine'), data.missing_groups],
+		[__('Duplicate records (left for review)'), data.duplicate_groups],
+		[__('Give-out rows without a parent (removed)'), data.orphan_give_outs],
+	];
+
+	const body = rows
+		.map(
+			([label, value]) =>
+				`<tr><td style="width:55%">${oracle_sync_escape(label)}</td><td><b>${oracle_sync_escape(
+					value
+				)}</b></td></tr>`
+		)
+		.join('');
+
+	const hint = data.in_sync
+		? `<div class="alert alert-success">${__(
+				'ERPNext already has every injection Oracle recorded. Running it again only refreshes the dates and the next dose.'
+		  )}</div>`
+		: `<div class="alert alert-warning">${__(
+				'ERPNext is missing injections that Oracle recorded. Running the reconciliation appends them and recalculates the next dose.'
+		  )}</div>`;
+
+	return `${hint}<table class="table table-bordered" style="margin-bottom:12px">${body}</table>`;
+}
+
+function long_acting_reconcile_sample_html(title, values) {
+	if (!values || !values.length) {
+		return '';
+	}
+	const items = values.map((value) => `<li>${oracle_sync_escape(value)}</li>`).join('');
+	return `<p class="text-muted small" style="margin-bottom:4px"><b>${oracle_sync_escape(
+		title
+	)}</b></p><ul class="text-muted small">${items}</ul>`;
+}
+
+function show_long_acting_reconcile_dialog(frm, data) {
+	const samples =
+		long_acting_reconcile_sample_html(__('Groups to create'), data.missing_group_sample) +
+		long_acting_reconcile_sample_html(__('Duplicates to review'), data.duplicate_group_sample) +
+		long_acting_reconcile_sample_html(__('Matched by medicine name'), data.similar_group_sample);
+
+	const dialog = new frappe.ui.Dialog({
+		title: __('Reconcile Long Acting Medicine'),
+		size: 'large',
+		fields: [
+			{
+				fieldtype: 'HTML',
+				fieldname: 'summary',
+				options:
+					long_acting_reconcile_table_html(data) +
+					'<p class="text-muted small">' +
+					__(
+						'Only missing give-outs are appended, dates and the next dose are refreshed from the Oracle history, and nothing is deleted except give-out rows whose record no longer exists.'
+					) +
+					'</p>' +
+					samples,
+			},
+		],
+		primary_action_label: __('Start'),
+		primary_action() {
+			dialog.hide();
+			start_long_acting_reconcile(frm);
+		},
+	});
+	dialog.show();
+}
+
+function start_long_acting_reconcile(frm) {
+	frappe.call({
+		method: 'healthcare.api.long_acting_reconcile.start_long_acting_reconcile',
+		callback(r) {
+			const result = r.message || {};
+			if (result.queued || result.running) {
+				track_long_acting_reconcile(frm);
+				return;
+			}
+			frappe.msgprint({
+				title: __('Reconcile Long Acting Medicine'),
+				indicator: 'orange',
+				message: result.message || __('The reconciliation could not be started.'),
+			});
+		},
+	});
+}
+
+function track_long_acting_reconcile(frm) {
+	let polls = 0;
+	const title = __('Reconciling Long Acting Medicine from Oracle');
+	frappe.show_progress(title, 0, 100, __('Reading Oracle…'));
+
+	const timer = setInterval(() => {
+		polls += 1;
+		frappe.call({
+			method: 'healthcare.api.long_acting_reconcile.get_long_acting_reconcile_status',
+			callback(r) {
+				const status = r.message || {};
+				const total = cint(status.total) || 0;
+				const processed = cint(status.processed) || 0;
+				frappe.show_progress(
+					title,
+					total ? processed : Math.min(polls, 95),
+					total || 100,
+					total
+						? __('{0} of {1} patient/medication groups', [processed, total])
+						: __('Reading Oracle…')
+				);
+				if (status.state === 'finished' || status.state === 'failed') {
+					clearInterval(timer);
+					frappe.hide_progress();
+					frappe.msgprint({
+						title: __('Reconcile Long Acting Medicine'),
+						indicator: status.state === 'finished' ? 'green' : 'red',
+						wide: true,
+						message: frappe.utils.escape_html(status.message || __('Done')).replace(
+							/\n/g,
+							'<br>'
+						),
+					});
+					if (frm && frm.refresh) {
+						frm.refresh();
+					}
+				} else if (polls >= LONG_ACTING_RECONCILE_POLL_LIMIT) {
+					clearInterval(timer);
+					frappe.hide_progress();
+					frappe.msgprint(
+						__(
+							'The reconciliation is still running in the background. Open Reconcile Long Acting Medicine again in a few minutes to see the result.'
+						)
+					);
+				}
+			},
+			error() {
+				clearInterval(timer);
+				frappe.hide_progress();
+			},
+		});
+	}, ORACLE_SYNC_POLL_INTERVAL);
+}
+
+
+function run_oracle_ip_admission_comparison(frm) {
+	frappe.dom.freeze(__('Comparing Oracle IP_ADMISSION_01 with Inpatient Admission…'));
+	frappe.call({
+		method: 'healthcare.api.oracle_sync.compare_ip_admissions',
+		callback: (r) => {
+			frappe.dom.unfreeze();
+			if (!r.message) {
+				return;
+			}
+			show_oracle_ip_admission_report(frm, r.message);
+		},
+		error: () => {
+			frappe.dom.unfreeze();
+		},
+	});
+}
+
+function oracle_sync_summary_html(data) {
+	const rows = [
+		[__('Oracle table'), data.oracle_table],
+		[__('ERPNext doctype'), data.doctype],
+		[__('Match key'), `${data.oracle_key} ↔ ${data.frappe_key}`],
+		[__('Rows in Oracle'), data.source_count],
+		[__('Rows in ERPNext'), data.target_count],
+		[__('Missing in ERPNext'), data.missing_count],
+		[__('Only in ERPNext (left untouched)'), data.extra_count],
+	];
+
+	const body = rows
+		.map(
+			([label, value]) =>
+				`<tr><td style="width:45%">${oracle_sync_escape(label)}</td><td><b>${oracle_sync_escape(
+					value
+				)}</b></td></tr>`
+		)
+		.join('');
+
+	return `<table class="table table-bordered" style="margin-bottom:12px">${body}</table>`;
+}
+
+function oracle_sync_missing_table_html(data) {
+	const rows = data.missing || [];
+	if (!rows.length) {
+		return `<div class="alert alert-success">${__(
+			'Nothing is missing: ERPNext already has every Oracle admission.'
+		)}</div>`;
+	}
+
+	const head = [
+		__('Case No'),
+		__('Patient'),
+		__('Patient Name'),
+		__('Admission Date'),
+		__('Discharge Date'),
+		__('Status'),
+		__('Bed'),
+	];
+
+	const body = rows
+		.map(
+			(row) => `<tr>
+				<td>${oracle_sync_escape(row.case_no)}</td>
+				<td>${oracle_sync_escape(row.patient)}</td>
+				<td>${oracle_sync_escape(row.patient_name)}${
+					row.patient_exists
+						? ''
+						: ` <span class="indicator-pill red">${__('missing patient')}</span>`
+				}</td>
+				<td>${oracle_sync_escape(row.admission_date)}</td>
+				<td>${oracle_sync_escape(row.discharge_date)}</td>
+				<td>${oracle_sync_escape(row.status)}</td>
+				<td>${oracle_sync_escape(row.bed_num)}</td>
+			</tr>`
+		)
+		.join('');
+
+	const footer = data.sample_limited
+		? `<div class="text-muted small" style="margin-top:6px">${__(
+				'Showing the first {0} of {1} missing rows.',
+				[rows.length, data.missing_count]
+		  )}</div>`
+		: '';
+
+	return `<table class="table table-bordered table-condensed">
+		<thead><tr>${head.map((label) => `<th>${oracle_sync_escape(label)}</th>`).join('')}</tr></thead>
+		<tbody>${body}</tbody>
+	</table>${footer}`;
+}
+
+function show_oracle_ip_admission_report(frm, data) {
+	const has_missing = cint(data.missing_count) > 0;
+
+	const dialog = new frappe.ui.Dialog({
+		title: __('Oracle -> ERPNext: IP Admission'),
+		size: 'extra-large',
+		fields: [{ fieldtype: 'HTML', fieldname: 'report_html' }],
+		primary_action_label: has_missing
+			? __('Import {0} Missing', [data.missing_count])
+			: __('Close'),
+		primary_action() {
+			if (!has_missing) {
+				dialog.hide();
+				return;
+			}
+			confirm_oracle_ip_admission_import(frm, dialog, data);
+		},
+	});
+
+	dialog.fields_dict.report_html.$wrapper.html(
+		oracle_sync_summary_html(data) + (has_missing ? oracle_sync_missing_table_html(data) : '')
+	);
+	dialog.show();
+}
+
+function confirm_oracle_ip_admission_import(frm, dialog, data) {
+	frappe.confirm(
+		__(
+			'Import {0} missing admission(s) from Oracle into ERPNext?<br><br>Only missing records are created — existing ERPNext admissions are never updated or deleted.',
+			[data.missing_count]
+		),
+		() => {
+			frappe.dom.freeze(__('Importing missing admissions from Oracle…'));
+			frappe.call({
+				method: 'healthcare.api.oracle_sync.import_ip_admissions',
+				args: { dry_run: 0 },
+				callback: (r) => {
+					frappe.dom.unfreeze();
+					const message = r.message || {};
+					dialog.hide();
+					if (message.queued) {
+						track_oracle_ip_admission_import(frm, message.total || data.missing_count);
+						return;
+					}
+					show_oracle_ip_admission_result(frm, message.result || {});
+				},
+				error: () => {
+					frappe.dom.unfreeze();
+				},
+			});
+		}
+	);
+}
+
+
+function show_oracle_ip_admission_result(frm, result, allow_blocker_retry) {
+	const created = cint(result.created);
+	const skipped = result.skipped || [];
+	const blocked = result.blocked || [];
+	const errors = result.errors || [];
+
+	const created_list = (result.rows || [])
+		.map((row) => __('{0} -> {1}', [row.case_no, row.action]))
+		.join('<br>');
+
+	const skipped_list = skipped.map((row) => __('{0} - {1}', [row.case_no, row.reason])).join('<br>');
+	const blocked_list = blocked
+		.map((row) =>
+			__('{0} - blocked by {1} ({2})', [
+				row.case_no,
+				row.blocking_admission,
+				row.blocking_status,
+			])
+		)
+		.join('<br>');
+	const error_list = errors.map((row) => __('{0} - {1}', [row.case_no, row.error])).join('<br>');
+
+	frappe.msgprint({
+		title: __('Oracle -> ERPNext: IP Admission'),
+		indicator: errors.length || blocked.length ? 'orange' : 'green',
+		message: [
+			__('Created: {0}', [created]),
+			blocked.length ? __('Blocked: {0}', [blocked.length]) : '',
+			skipped.length ? __('Skipped: {0}', [skipped.length]) : '',
+			errors.length ? __('Errors: {0}', [errors.length]) : '',
+			created_list ? `<hr><b>${__('Created')}</b><br>${created_list}` : '',
+			blocked_list ? `<hr><b>${__('Blocked')}</b><br>${blocked_list}` : '',
+			skipped_list ? `<hr><b>${__('Skipped')}</b><br>${skipped_list}` : '',
+			error_list ? `<hr><b>${__('Errors')}</b><br>${error_list}` : '',
+		]
+			.filter(Boolean)
+			.join('<br>'),
+	});
+
+	if (created && typeof cur_list !== 'undefined' && cur_list && cur_list.refresh) {
+		cur_list.refresh();
+	}
+
+	if (blocked.length && allow_blocker_retry !== false) {
+		prompt_resolve_oracle_blockers(frm, blocked);
+	}
+}
+
+function prompt_resolve_oracle_blockers(frm, blocked) {
+	frappe.confirm(
+		__(
+			'{0} admission(s) are blocked by an ERPNext admission that Oracle already shows as discharged.<br><br>Refresh those blocking admissions from Oracle and import again?',
+			[blocked.length]
+		),
+		() => {
+			frappe.dom.freeze(__('Refreshing blocking admissions from Oracle…'));
+			frappe.call({
+				method: 'healthcare.api.oracle_sync.import_ip_admissions',
+				args: { dry_run: 0, resolve_blockers: 1 },
+				callback: (r) => {
+					frappe.dom.unfreeze();
+					const message = r.message || {};
+					if (message.queued) {
+						track_oracle_ip_admission_import(frm, message.total || blocked.length);
+						return;
+					}
+					show_oracle_ip_admission_result(frm, message.result || {}, false);
+				},
+				error: () => {
+					frappe.dom.unfreeze();
+				},
+			});
+		}
+	);
+}
+
+function track_oracle_ip_admission_import(frm, total) {
+	let polls = 0;
+	const progress_title = __('Importing from Oracle');
+	frappe.show_progress(progress_title, 0, total || 1);
+
+	const timer = setInterval(() => {
+		polls += 1;
+		frappe.call({
+			method: 'healthcare.api.oracle_sync.get_import_status',
+			args: { job_key: 'ip_admission' },
+			callback: (r) => {
+				const status = r.message || {};
+				frappe.show_progress(progress_title, cint(status.processed) || 0, total || 1);
+				if (status.state === 'finished') {
+					clearInterval(timer);
+					frappe.hide_progress();
+					show_oracle_ip_admission_result(frm, status.result || {});
+				} else if (polls >= ORACLE_SYNC_POLL_LIMIT) {
+					clearInterval(timer);
+					frappe.hide_progress();
+					frappe.msgprint(
+						__(
+							'The import is still running in the background. Re-open the comparison in a few minutes.'
+						)
+					);
+				}
+			},
+			error: () => {
+				clearInterval(timer);
+				frappe.hide_progress();
+			},
+		});
+	}, ORACLE_SYNC_POLL_INTERVAL);
+}
+
+
+/**
+ * OP Visit: Oracle VISIT_00_01 -> Patient Visit.
+ *
+ * Compares VISIT_NUM with Patient Visit.case_no. Only visits that exist in
+ * Oracle and are missing in ERPNext are created. Visits that exist only in
+ * ERPNext are left alone (staff-created / newer data).
+ */
+function run_oracle_op_visit_comparison(frm) {
+	frappe.dom.freeze(__('Comparing Oracle VISIT_00_01 with Patient Visit…'));
+	frappe.call({
+		method: 'healthcare.api.oracle_sync.compare_op_visits',
+		callback: (r) => {
+			frappe.dom.unfreeze();
+			if (!r.message) {
+				return;
+			}
+			show_oracle_op_visit_report(frm, r.message);
+		},
+		error: () => {
+			frappe.dom.unfreeze();
+		},
+	});
+}
+
+function oracle_op_visit_missing_table_html(data) {
+	const rows = data.missing || [];
+	if (!rows.length) {
+		return `<div class="alert alert-success">${__(
+			'Nothing is missing: ERPNext already has every Oracle visit.'
+		)}</div>`;
+	}
+
+	const head = [
+		__('Visit No'),
+		__('Patient'),
+		__('Patient Name'),
+		__('Encounter Date'),
+		__('Visit Type'),
+		__('Doctor'),
+		__('Branch'),
+	];
+
+	const body = rows
+		.map(
+			(row) => `<tr>
+				<td>${oracle_sync_escape(row.case_no)}</td>
+				<td>${oracle_sync_escape(row.patient)}</td>
+				<td>${oracle_sync_escape(row.patient_name)}${
+					row.patient_exists
+						? ''
+						: ` <span class="indicator-pill orange">${__('will create patient')}</span>`
+				}</td>
+				<td>${oracle_sync_escape(row.encounter_date)}</td>
+				<td>${oracle_sync_escape(row.visit_type)}</td>
+				<td>${oracle_sync_escape(row.doctor)}</td>
+				<td>${oracle_sync_escape(row.branch)}</td>
+			</tr>`
+		)
+		.join('');
+
+	const footer = data.sample_limited
+		? `<div class="text-muted small" style="margin-top:6px">${__(
+				'Showing the first {0} of {1} missing rows.',
+				[rows.length, data.missing_count]
+		  )}</div>`
+		: '';
+
+	return `<table class="table table-bordered table-condensed">
+		<thead><tr>${head.map((label) => `<th>${oracle_sync_escape(label)}</th>`).join('')}</tr></thead>
+		<tbody>${body}</tbody>
+	</table>${footer}`;
+}
+
+function show_oracle_op_visit_report(frm, data) {
+	const has_missing = cint(data.missing_count) > 0;
+
+	const dialog = new frappe.ui.Dialog({
+		title: __('Oracle -> ERPNext: OP Visit'),
+		size: 'extra-large',
+		fields: [
+			{
+				fieldtype: 'HTML',
+				fieldname: 'help',
+				options:
+					'<p class="text-muted small">'
+					+ __(
+						'Compares Oracle VISIT_00_01 with Patient Visit. Only visits that exist in Oracle and are missing in ERPNext will be created. Visits that exist only in ERPNext are left untouched.'
+					)
+					+ '</p>',
+			},
+			{ fieldtype: 'HTML', fieldname: 'report_html' },
+		],
+		primary_action_label: has_missing
+			? __('Import {0} Missing', [data.missing_count])
+			: __('Close'),
+		primary_action() {
+			if (!has_missing) {
+				dialog.hide();
+				return;
+			}
+			confirm_oracle_op_visit_import(frm, dialog, data);
+		},
+	});
+
+	dialog.fields_dict.report_html.$wrapper.html(
+		oracle_sync_summary_html(data) + (has_missing ? oracle_op_visit_missing_table_html(data) : '')
+	);
+	dialog.show();
+}
+
+function confirm_oracle_op_visit_import(frm, dialog, data) {
+	frappe.confirm(
+		__(
+			'Import {0} missing visit(s) from Oracle into ERPNext?<br><br>Only missing records are created — existing ERPNext visits are never updated or deleted. Patients that do not exist yet are created as minimal Patient records.',
+			[data.missing_count]
+		),
+		() => {
+			frappe.dom.freeze(__('Importing missing visits from Oracle…'));
+			frappe.call({
+				method: 'healthcare.api.oracle_sync.import_op_visits',
+				args: { dry_run: 0 },
+				callback: (r) => {
+					frappe.dom.unfreeze();
+					const message = r.message || {};
+					dialog.hide();
+					if (message.queued) {
+						track_oracle_op_visit_import(frm, message.total || data.missing_count);
+						return;
+					}
+					show_oracle_op_visit_result(frm, message.result || {});
+				},
+				error: () => {
+					frappe.dom.unfreeze();
+				},
+			});
+		}
+	);
+}
+
+function show_oracle_op_visit_result(frm, result) {
+	const created = cint(result.created);
+	const updated = cint(result.updated);
+	const skipped = result.skipped || [];
+	const errors = result.errors || [];
+
+	const created_list = (result.rows || [])
+		.map((row) => __('{0} -> {1}', [row.case_no, row.action]))
+		.join('<br>');
+	const skipped_list = skipped.map((row) => __('{0} - {1}', [row.case_no, row.reason])).join('<br>');
+	const error_list = errors.map((row) => __('{0} - {1}', [row.case_no, row.error])).join('<br>');
+
+	frappe.msgprint({
+		title: __('Oracle -> ERPNext: OP Visit'),
+		indicator: errors.length ? 'orange' : 'green',
+		message: [
+			__('Created: {0}', [created]),
+			updated ? __('Updated: {0}', [updated]) : '',
+			skipped.length ? __('Skipped: {0}', [skipped.length]) : '',
+			errors.length ? __('Errors: {0}', [errors.length]) : '',
+			created_list ? `<hr><b>${__('Created / Updated')}</b><br>${created_list}` : '',
+			skipped_list ? `<hr><b>${__('Skipped')}</b><br>${skipped_list}` : '',
+			error_list ? `<hr><b>${__('Errors')}</b><br>${error_list}` : '',
+		]
+			.filter(Boolean)
+			.join('<br>'),
+	});
+}
+
+function track_oracle_op_visit_import(frm, total) {
+	let polls = 0;
+	const progress_title = __('Importing OP visits from Oracle');
+	frappe.show_progress(progress_title, 0, total || 1);
+
+	const timer = setInterval(() => {
+		polls += 1;
+		frappe.call({
+			method: 'healthcare.api.oracle_sync.get_import_status',
+			args: { job_key: 'op_visit' },
+			callback: (r) => {
+				const status = r.message || {};
+				frappe.show_progress(progress_title, cint(status.processed) || 0, total || 1);
+				if (status.state === 'finished') {
+					clearInterval(timer);
+					frappe.hide_progress();
+					show_oracle_op_visit_result(frm, status.result || {});
+				} else if (polls >= ORACLE_SYNC_POLL_LIMIT) {
+					clearInterval(timer);
+					frappe.hide_progress();
+					frappe.msgprint(
+						__(
+							'The import is still running in the background. Open OP Visit again in a few minutes to see the result.'
+						)
+					);
+				}
+			},
+			error: () => {
+				clearInterval(timer);
+				frappe.hide_progress();
+			},
+		});
+	}, ORACLE_SYNC_POLL_INTERVAL);
+}
+

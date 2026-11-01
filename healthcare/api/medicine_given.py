@@ -3,6 +3,10 @@ import frappe
 from frappe import _
 from frappe.utils import nowdate, nowtime, now_datetime, cint, cstr, flt, getdate, formatdate
 from healthcare.api.utils.api_utility import get_next_transaction_number
+from healthcare.api.prescription_type_mapping import (
+	is_legacy_line_discontinued,
+	resolve_prescription_type,
+)
 from healthcare.healthcare.care_episode_guard import assert_inpatient_admission_open_for_create
 from healthcare.healthcare.editing_lock import assert_editing_allowed
 
@@ -290,44 +294,91 @@ def _create_missed_row(
 	)
 
 
+def _medicine_given_prescription_types() -> set[str]:
+	"""Prescription Type options accepted by the Medicine Given Select field."""
+	field = frappe.get_meta("Medicine Given").get_field("prescription_type")
+	return {option.strip() for option in (field.options or "").splitlines() if option.strip()} if field else set()
+
+
 def _prescription_type_from_order_entry(
 	order_entry_name: str | None = None,
 	pmo=None,
 	drug_code: str | None = None,
 ) -> str | None:
-	"""Map prescription line medication_type to Medicine Given.prescription_type."""
+	"""Map prescription line medication_type to Medicine Given.prescription_type.
+
+	Legacy Oracle lines have no coded Prescription Type — only ``redundancy_type`` —
+	so the type is mapped through the Prescription Type doctype. Values the Select does
+	not offer (e.g. Contraindicated) are skipped rather than written.
+	"""
 	medication_type = None
+	redundancy_type = None
+	discontinued = False
 	if order_entry_name:
-		medication_type = frappe.db.get_value(
-			"Inpatient Medication Order Entry",
-			order_entry_name,
-			"medication_type",
-		)
+		fields = ["medication_type"]
+		if frappe.db.has_column("Inpatient Medication Order Entry", "redundancy_type"):
+			fields.append("redundancy_type")
+		if frappe.db.has_column("Inpatient Medication Order Entry", "dc"):
+			fields.append("dc")
+		values = frappe.db.get_value("Inpatient Medication Order Entry", order_entry_name, fields)
+		if isinstance(values, (list, tuple)):
+			row = dict(zip(fields, values))
+		else:
+			row = {"medication_type": values}
+		medication_type = row.get("medication_type")
+		redundancy_type = row.get("redundancy_type")
+		discontinued = is_legacy_line_discontinued(row)
 	elif pmo and drug_code:
 		for entry in pmo.medication_orders or []:
 			if entry.drug == drug_code:
 				medication_type = getattr(entry, "medication_type", None)
+				redundancy_type = getattr(entry, "redundancy_type", None)
+				discontinued = is_legacy_line_discontinued(entry)
 				break
 	elif pmo and getattr(pmo, "medication_orders", None):
-		medication_type = getattr(pmo.medication_orders[0], "medication_type", None)
+		entry = pmo.medication_orders[0]
+		medication_type = getattr(entry, "medication_type", None)
+		redundancy_type = getattr(entry, "redundancy_type", None)
+		discontinued = is_legacy_line_discontinued(entry)
 
-	return (medication_type or "").strip() or None
+	return (
+		resolve_prescription_type(
+			medication_type,
+			redundancy_type,
+			allowed=_medicine_given_prescription_types(),
+			discontinued=discontinued,
+		)
+		or None
+	)
 
 
 def _prescription_type_for_medication_order(medication_order: str | None, drug_code: str | None) -> str | None:
 	if not medication_order or not drug_code:
 		return None
+	fields = ["medication_type"]
+	if frappe.db.has_column("Inpatient Medication Order Entry", "redundancy_type"):
+		fields.append("redundancy_type")
+	if frappe.db.has_column("Inpatient Medication Order Entry", "dc"):
+		fields.append("dc")
 	rows = frappe.get_all(
 		"Inpatient Medication Order Entry",
 		filters={"parent": medication_order, "drug": drug_code},
-		fields=["medication_type"],
+		fields=fields,
 		order_by="modified desc, creation desc",
 		limit=1,
 		ignore_permissions=True,
 	)
 	if not rows:
 		return None
-	return (rows[0].get("medication_type") or "").strip() or None
+	return (
+		resolve_prescription_type(
+			rows[0].get("medication_type"),
+			rows[0].get("redundancy_type"),
+			allowed=_medicine_given_prescription_types(),
+			discontinued=is_legacy_line_discontinued(rows[0]),
+		)
+		or None
+	)
 
 
 def _set_medicine_given_prescription_type(row, prescription_type: str | None) -> None:
