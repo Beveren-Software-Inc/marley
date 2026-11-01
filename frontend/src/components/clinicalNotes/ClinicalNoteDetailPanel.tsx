@@ -30,10 +30,10 @@ import {
   displayMedicationStartDate,
 } from '../../utils/medicationOrderDisplayUtils'
 import {
-  getMedicationTypeColor,
   isHexColor,
   MEDICATION_TYPES,
   medicationRowStyle,
+  medicationTypeBadgeStyle,
   resolveMedicationOrderType,
 } from '../../utils/medicationTypeColors'
 import { DetailSlideOver } from '../ui/DetailSlideOver'
@@ -128,13 +128,12 @@ function NoteMedicationListItem({
   const endDate = endDateRaw && endDateRaw !== '-' ? endDateRaw : ''
   const resolvedType = resolveMedicationOrderType(med)
   const typeLabel = resolveMedicationTypeLabel(med)
-  const typeColor = getMedicationTypeColor(resolvedType.type)
   const isPink = med.is_pink === 1 || med.is_pink === true
 
   return (
     <li
       className="rounded-md border px-2.5 py-2"
-      style={medicationRowStyle(resolvedType.type, isPink)}
+      style={medicationRowStyle(isPink)}
     >
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
@@ -149,14 +148,7 @@ function NoteMedicationListItem({
               <span
                 className="inline-flex rounded px-1 py-px text-[9px] font-bold uppercase tracking-wide"
                 title={resolvedType.inferredHint}
-                style={
-                  isHexColor(typeColor)
-                    ? {
-                        backgroundColor: typeColor,
-                        color: '#1e293b',
-                      }
-                    : undefined
-                }
+                style={medicationTypeBadgeStyle(resolvedType.type)}
               >
                 {typeLabel}
                 {resolvedType.inferred ? '*' : ''}

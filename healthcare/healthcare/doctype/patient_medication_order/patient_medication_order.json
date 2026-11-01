@@ -38,6 +38,7 @@
   "time",
   "patient_visit_prescription_his",
   "legacy",
+  "from_hs_tb",
   "patient_visit_prescription",
   "visit_cd",
   "is_pharmacy_give_out",
@@ -477,12 +478,21 @@
    "fieldname": "is_pharmacy_give_out",
    "fieldtype": "Check",
    "label": "Is Pharmacy Give Out"
+  },
+  {
+   "allow_on_submit": 1,
+   "default": "0",
+   "description": "Ticked when the prescription was completed with lines that only the Oracle PATIENT_VISIT_PRESCRIPTION_HIS (HS) table has, so those prescriptions can be found (and removed) again.",
+   "fieldname": "from_hs_tb",
+   "fieldtype": "Check",
+   "in_standard_filter": 1,
+   "label": "From HS TB"
   }
  ],
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-07-09 12:23:02.639244",
+ "modified": "2026-11-01 22:10:00.000000",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Patient Medication Order",

@@ -9,8 +9,10 @@ import {
 } from '../../services/medicineGiven'
 import {
   getMedicationTypeColor,
+  getMedicationTypeTextColor,
   isHexColor,
   medicationRowStyle,
+  medicationTypeBadgeStyle,
   resolveMedicationOrderType,
 } from '../../utils/medicationTypeColors'
 
@@ -211,15 +213,17 @@ export const MedicationSheet = ({ patient, admission: admissionProp }: Medicatio
         <div className="flex flex-wrap gap-2">
           {typeLegend.map((type) => {
             const color = getMedicationTypeColor(type)
+            const textColor = getMedicationTypeTextColor(type)
             return (
               <span
                 key={type}
-                className="inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-medium text-slate-700"
-                style={
-                  isHexColor(color)
-                    ? { backgroundColor: `${color}22`, borderColor: `${color}66` }
-                    : undefined
-                }
+                className="inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-medium"
+                style={{
+                  ...(isHexColor(color)
+                    ? { backgroundColor: `${color}1f`, borderColor: `${color}70` }
+                    : {}),
+                  ...(textColor ? { color: textColor } : {}),
+                }}
               >
                 {type}
               </span>
@@ -274,7 +278,7 @@ export const MedicationSheet = ({ patient, admission: admissionProp }: Medicatio
                 const givenCount = med.administrations.filter((a) => a.given).length
                 const missedCount = med.administrations.filter((a) => !a.given).length
                 const resolvedType = resolveMedicationOrderType(med)
-                const rowStyle = medicationRowStyle(resolvedType.type, !!med.is_pink)
+                const rowStyle = medicationRowStyle(!!med.is_pink)
                 const dosageLabel = formatDosageWithUom(med)
                 const secondaryBits = [
                   med.dosage_form,
@@ -283,9 +287,7 @@ export const MedicationSheet = ({ patient, admission: admissionProp }: Medicatio
                 ].filter(Boolean)
                 const borderLeftColor = med.is_pink
                   ? '#ec4899'
-                  : isHexColor(getMedicationTypeColor(resolvedType.type))
-                    ? getMedicationTypeColor(resolvedType.type)
-                    : '#94a3b8'
+                  : getMedicationTypeTextColor(resolvedType.type) || '#94a3b8'
 
                 return (
                   <Fragment key={rowKey}>
@@ -325,10 +327,14 @@ export const MedicationSheet = ({ patient, admission: admissionProp }: Medicatio
                         {dosageLabel}
                       </td>
                       <td className="px-3 py-3 align-top text-xs text-slate-700">
-                        <span title={resolvedType.inferredHint}>
-                          {resolvedType.inferred
-                            ? `${resolvedType.label}*`
-                            : med.medication_type || '—'}
+                        <span
+                          className="inline-flex rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide"
+                          title={resolvedType.inferredHint || med.medication_type || undefined}
+                          style={medicationTypeBadgeStyle(resolvedType.type)}
+                        >
+                          {resolvedType.label
+                            ? `${resolvedType.label}${resolvedType.inferred ? '*' : ''}`
+                            : '—'}
                         </span>
                         {med.is_pink ? (
                           <span className="ml-1 rounded bg-pink-100 px-1 text-[10px] text-pink-700">Pink</span>

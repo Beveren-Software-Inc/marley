@@ -225,6 +225,7 @@ def _pmo_line_from_his_row(row: dict) -> dict[str, Any]:
 		"up_id": row.get("up_id"),
 		"up_date": row.get("update_date") or row.get("up_date"),
 		"trans_date": row.get("create_date"),
+		"is_deduplicate": cint(row.get("is_deduplicate")),
 	}
 	_ensure_prescription_frequency_label(row.get("frequency"))
 	return line

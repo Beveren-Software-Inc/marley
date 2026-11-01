@@ -489,6 +489,14 @@ export interface MedicationSheetMedicineRow {
   patient_frequency?: string
   written_frequency?: string
   medication_type?: string
+  /** Legacy Oracle line: Prescription Type is stored only as this redundancy code. */
+  redundancy_type?: number | string | null
+  /** Type resolved for a legacy line from ``redundancy_type`` via Prescription Type. */
+  resolved_prescription_type?: string
+  /** Oracle's free-text DC (discontinued) note — any note means the line was stopped. */
+  dc?: string | null
+  /** Server flag: the line is an Oracle import (no coded Prescription Type). */
+  is_legacy_line?: boolean | 0 | 1
   is_pink?: number
   route_of_administration?: string
   start_date?: string | null

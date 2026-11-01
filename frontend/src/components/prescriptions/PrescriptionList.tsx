@@ -792,7 +792,7 @@ export const PrescriptionList = ({
             <tr
               key={rowKey}
               className={`${dashboardCardRowHoverClass} cursor-pointer`}
-              style={typeForDisplay || isPink ? medicationRowStyle(typeForDisplay, isPink) : undefined}
+              style={isPink ? medicationRowStyle(isPink) : undefined}
               onClick={openDetail}
             >
               <td className="hidden px-3 py-2 text-slate-800 font-medium whitespace-nowrap">

@@ -10,7 +10,7 @@ from typing import Any
 
 import frappe
 from frappe import _
-from frappe.utils import get_datetime, getdate, get_time, nowdate
+from frappe.utils import cint, get_datetime, getdate, get_time, nowdate
 
 from healthcare.api.utils.api_utility import get_next_transaction_number
 from healthcare.api.discharge_checklist_import import _resolve_cost_center
@@ -519,7 +519,14 @@ def _ensure_prescription_frequency_label(frequency_label: str | None) -> str | N
 		return None
 	from healthcare.api.common import _ensure_prescription_frequency_exists
 
-	_ensure_prescription_frequency_exists(label)
+	try:
+		_ensure_prescription_frequency_exists(label)
+	except (frappe.NameError, frappe.ValidationError):
+		# Prescription Frequency is named after the dosage, so Frappe refuses free-text
+		# legacy labels such as "hsx7d,>100mghs" (name may not contain , < > ...). The
+		# prescription line keeps the written value - the child row is saved with
+		# ignore_links - only the Prescription Frequency master is skipped.
+		frappe.clear_messages()
 	return label
 
 
@@ -583,33 +590,47 @@ def _existing_pmo_for_admission(admission_name: str) -> str | None:
 	)
 
 
-def _line_signature(row: dict) -> str:
+def _legacy_line_signature(
+	trans_no: Any, medicine_num: Any, start_date: Any, trans_date: Any, cr_id: Any
+) -> str:
+	"""Identity of one legacy IP line.
+
+	Both sides of the comparison - the Oracle row and the line already stored on the
+	prescription - are normalised the same way, otherwise the padded Oracle medicine code
+	(``000583``) never matches the stored one (``583``) and every re-import duplicates the line.
+	"""
 	return "|".join(
 		[
-			_cell_text(row.get("trans_no")),
-			_cell_text(row.get("medicine_num")),
-			_cell_text(row.get("start_date")),
-			_cell_text(row.get("trans_date")),
-			_cell_text(row.get("cr_id")),
+			_cell_text(trans_no),
+			_cell_text(_normalize_oracle_medicine_num(medicine_num)),
+			_cell_text(_parse_date_value(start_date)),
+			_cell_text(_parse_date_value(trans_date)),
+			_cell_text(_clean_oracle_num(cr_id)),
 		]
 	)
 
 
+def _line_signature(row: dict) -> str:
+	return _legacy_line_signature(
+		row.get("trans_no"),
+		row.get("medicine_num"),
+		row.get("start_date"),
+		row.get("trans_date"),
+		row.get("cr_id"),
+	)
+
+
 def _existing_child_signatures(doc) -> set[str]:
-	signatures: set[str] = set()
-	for child in doc.get("medication_orders") or []:
-		signatures.add(
-			"|".join(
-				[
-					(child.reference_no or "").strip(),
-					(child.medicine_no or "").strip(),
-					str(child.date or ""),
-					str(child.trans_date or ""),
-					(child.cr_id or "").strip(),
-				]
-			)
+	return {
+		_legacy_line_signature(
+			child.reference_no,
+			child.medicine_no,
+			child.date,
+			child.trans_date,
+			child.cr_id,
 		)
-	return signatures
+		for child in doc.get("medication_orders") or []
+	}
 
 
 def _append_child_line(doc, row: dict) -> None:
@@ -623,6 +644,8 @@ def _append_child_line(doc, row: dict) -> None:
 	prescrip_id = _cell_text(row.get("prescrip_id"))
 	if prescrip_id:
 		entry.prescrip_id = prescrip_id
+	if row.get("is_deduplicate") not in (None, ""):
+		entry.is_deduplicate = 1 if cint(row.get("is_deduplicate")) else 0
 	ip_med_link = _resolve_ip_admission_medicine_link(trans_no)
 	if ip_med_link:
 		entry.trans_num = ip_med_link
@@ -733,6 +756,12 @@ def _submit_and_complete_pmo(doc) -> None:
 	# nothing is wrong with the data. Existing prescriptions store exactly these values.
 	doc.flags.ignore_links = True
 	_clip_field_values(doc)
+	if doc.docstatus == 1:
+		# Missing lines are still being appended to an already submitted legacy prescription, so
+		# the order counters (read-only, not allow-on-submit) have to move with them. Nothing else
+		# on a submitted prescription is changed here: the header is only built when a new one is
+		# created and the line table itself is allow-on-submit.
+		doc.flags.ignore_validate_update_after_submit = True
 	doc.save(ignore_permissions=True)
 	if doc.docstatus == 0:
 		doc.flags.ignore_mandatory = True
@@ -790,52 +819,70 @@ def import_patient_medication_order_for_admission(admission_key: str, lines: lis
 		doc.trans_no = get_next_transaction_number("Patient Medication Order", fieldname="trans_no")
 		created = True
 
-	care_context = _map_care_context(first.get("context_type"))
-	doc.care_context = care_context
-	doc.inpatient_record = admission_name
-	doc.written_inpatient_admission = admission_key
-	doc.old_admission_no = old_admission_no or None
-	doc.ip_admission_rec_id = _clean_oracle_num(first.get("ip_admission_rec_id")) or None
-	doc.patient = adm.patient
-	doc.patient_name = adm.patient_name
-	doc.company = adm.company
-	doc.practitioner = adm.primary_practitioner or adm.secondary_practitioner
+	if created:
+		# The header is only built for a new prescription. Appending the lines that are still
+		# missing to an already imported (submitted) prescription must not touch the header:
+		# Posting Date and friends cannot change after submit, and rebuilding them from a newer
+		# Oracle row aborted with "Not allowed to change Posting Date after submission" whenever
+		# that row had no TRANS_DATE - exactly the case of the newest admission's lines, which
+		# then stayed missing on every run.
+		doc.care_context = _map_care_context(first.get("context_type"))
+		doc.inpatient_record = admission_name
+		doc.written_inpatient_admission = admission_key
+		doc.old_admission_no = old_admission_no or None
+		doc.ip_admission_rec_id = _clean_oracle_num(first.get("ip_admission_rec_id")) or None
+		doc.patient = adm.patient
+		doc.patient_name = adm.patient_name
+		doc.company = adm.company
+		doc.practitioner = adm.primary_practitioner or adm.secondary_practitioner
 
-	patient_fields = _patient_display_fields(adm.patient)
-	nationality = patient_fields.get("nationality")
-	if nationality and frappe.db.exists("Nationality", nationality):
-		doc.nationality = nationality
-	if patient_fields.get("patient_age") is not None:
-		doc.patient_age = patient_fields["patient_age"]
+		patient_fields = _patient_display_fields(adm.patient)
+		nationality = patient_fields.get("nationality")
+		if nationality and frappe.db.exists("Nationality", nationality):
+			doc.nationality = nationality
+		if patient_fields.get("patient_age") is not None:
+			doc.patient_age = patient_fields["patient_age"]
 
-	doc.posting_date = _parse_date_value(first.get("trans_date")) or nowdate()
-	doc.time = _normalize_time_value(first.get("trans_time"))
-	doc.start_date = (
-		_parse_date_value(first.get("start_date"))
-		or _parse_date_value(first.get("trans_date"))
-		or adm.get("admission_date")
-		or adm.get("scheduled_date")
-		or nowdate()
-	)
-	doc.end_date = _parse_date_value(first.get("end_date"))
-	doc.cost_center = _resolve_cost_center(first.get("branch"))
-	doc.effective_status = _cell_text(first.get("effective_status")) or None
-	doc.trans_type = _cell_text(first.get("trans_type")) or None
-	doc.strength = _cell_text(first.get("strength")) or None
-	doc.duration_type = _cell_text(first.get("duration_type")) or None
-	doc.route = _cell_text(first.get("route")) or None
-	doc.user_name = _cell_text(first.get("username")) or None
+		doc.posting_date = _parse_date_value(first.get("trans_date")) or nowdate()
+		doc.time = _normalize_time_value(first.get("trans_time"))
+		doc.start_date = (
+			_parse_date_value(first.get("start_date"))
+			or _parse_date_value(first.get("trans_date"))
+			or adm.get("admission_date")
+			or adm.get("scheduled_date")
+			or nowdate()
+		)
+		doc.end_date = _parse_date_value(first.get("end_date"))
+		doc.cost_center = _resolve_cost_center(first.get("branch"))
+		doc.effective_status = _cell_text(first.get("effective_status")) or None
+		doc.trans_type = _cell_text(first.get("trans_type")) or None
+		doc.strength = _cell_text(first.get("strength")) or None
+		doc.duration_type = _cell_text(first.get("duration_type")) or None
+		doc.route = _cell_text(first.get("route")) or None
+		doc.user_name = _cell_text(first.get("username")) or None
 
 	existing_signatures = _existing_child_signatures(doc)
+	existing_references = {
+		(child.reference_no or "").strip()
+		for child in doc.get("medication_orders") or []
+		if (child.reference_no or "").strip()
+	}
 	added = 0
 	skipped = 0
 	for row in lines:
+		trans_no = _cell_text(row.get("trans_no"))
+		if trans_no and trans_no in existing_references:
+			# This legacy TRANS_NUM is already on the prescription.
+			skipped += 1
+			continue
 		signature = _line_signature(row)
 		if signature in existing_signatures:
 			skipped += 1
 			continue
 		_append_child_line(doc, row)
 		existing_signatures.add(signature)
+		if trans_no:
+			existing_references.add(trans_no)
 		added += 1
 
 	if added == 0 and not created:

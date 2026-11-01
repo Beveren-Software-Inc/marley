@@ -22,7 +22,6 @@ import {
   isLongActingPrescriptionType,
   matchesPrescriptionTypeFilter,
   normalizeMedicationOrderForSave,
-  normalizePrescriptionType,
   isFuturePlanByStartDate,
   isMedicationStopped,
   SELECTABLE_PRESCRIPTION_TYPES,
@@ -202,6 +201,8 @@ const MED_TYPES = [
   { key: 'Regular - Med (Inactive)',   label: 'Reg Med Inactive', icon: '💉', color: 'slate'   },
   { key: 'Long Acting Medicine',       label: 'Long Acting',      icon: '⏳', color: 'teal'    },
   { key: 'Future Plan',                label: 'Future Plan',      icon: '📅', color: 'indigo'  },
+  // Legacy Oracle prescriptions only: mapped Prescription Type of redundancy code 4.
+  { key: 'Contraindicated',            label: 'Contraindicated',  icon: '⚠️', color: '#ef4444' },
   { key: '__stopped__',                label: 'Stopped',          icon: '🛑', color: 'rose'    },
 ]
 
@@ -226,14 +227,6 @@ const hexBadgeStyle = (hex: string, active: boolean): React.CSSProperties =>
     ? { backgroundColor: 'rgba(0,0,0,0.15)', color: '#1e293b' }
     : { backgroundColor: `${hex}33`, color: '#334155' }
 
-const hexRowStyle = (hex: string): React.CSSProperties => ({
-  backgroundColor: `${hex}18`,
-  borderColor: `${hex}44`,
-})
-
-const getTypeColor = (medicationType: string): string =>
-  MED_TYPES.find(t => t.key === normalizePrescriptionType(medicationType))?.color ?? 'slate'
-
 /**
  * Type-filter key to open on when the default filter ("Reg Psy Active") would show no lines
  * but the prescription does have lines. Falls back to the first line's recognised type, or
@@ -243,7 +236,10 @@ const getTypeColor = (medicationType: string): string =>
 function pickTypeFilterWithOrders(rx: Prescription | null): string | null {
   const orders = (rx?.medication_orders || []) as any[]
   if (!orders.length) return null
-  if (orders.some((o) => matchesPrescriptionTypeFilter(o, DEFAULT_PRESCRIPTION_TYPE_FILTER))) {
+  // A finished (legacy) prescription keeps its lines in the type buckets, so the default
+  // filter can match — the parent end date is passed as ``_rx_end`` for that decision.
+  const forFilter = (order: any) => ({ ...order, _rx_end: order._rx_end || rx?.end_date })
+  if (orders.some((o) => matchesPrescriptionTypeFilter(forFilter(o), DEFAULT_PRESCRIPTION_TYPE_FILTER))) {
     return null
   }
   for (const order of orders) {
@@ -1915,8 +1911,6 @@ const MedicationRow = ({
   const resolvedType = resolveMedicationOrderType(order, isFuture ? 'Future Plan' : null)
   const typeForDisplay = resolvedType.type
   const typeLabel = resolvedType.label
-  const color = getTypeColor(typeForDisplay || (isFuture ? 'Future Plan' : order.medication_type))
-  const rowStyle = isHex(color) ? hexRowStyle(color) : {}
   const reasonStopped = String(order.reason_stopped || '').trim()
   const isStopped = isMedicationStopped(order)
   const isLegacyRow = isLegacyMedicationOrderRow(order)
@@ -2109,16 +2103,11 @@ const MedicationRow = ({
   return (
     <>
       {stopModal}
-      <tr
-        className={`${order.is_pink ? 'bg-pink-50/60' : ''} ${isStopped ? 'opacity-90' : ''}`}
-        style={!order.is_pink && isHex(color) ? rowStyle : undefined}
-      >
+      <tr className={`${order.is_pink ? 'bg-pink-50/60' : ''} ${isStopped ? 'opacity-90' : ''}`}>
         <td className="px-3 py-2.5 min-w-0">
           <div className="flex flex-col gap-0.5 min-w-0">
             <div className="flex items-center flex-wrap gap-x-1.5 gap-y-1 min-w-0">
-              <span
-                className={`font-medium ${isStopped ? 'text-slate-500 line-through' : 'text-slate-800'}`}
-              >
+              <span className={`font-medium ${isStopped ? 'text-slate-500 line-through' : 'text-slate-800'}`}>
                 {displayDrugName}
               </span>
               <CardRowPopoverHint content={instructionTooltip} title="Instructions" />
@@ -2989,8 +2978,10 @@ export const RxPage = ({ readOnly = false }: { readOnly?: boolean } = {}) => {
       user_name: prescription.user_name,
     }
   }
+  // ``_rx_end`` is the parent prescription end: the type chips use it to keep a finished
+  // (legacy) prescription's lines in their own bucket instead of dropping them into "All".
   const orderForTypeFilter = (order: any) => {
-    if (order.end_date || order._rx_end) return order
+    if (order._rx_end) return order
     const parentName = order.parent || order._prescription_name || prescription.name
     const fromActive = activePrescriptions.find((r) => r.name === parentName) as
       | { end_date?: string }
@@ -3001,9 +2992,11 @@ export const RxPage = ({ readOnly = false }: { readOnly?: boolean } = {}) => {
     }
   }
   const countFor = (key: string) =>
-    orders.filter((o: any) => matchesPrescriptionTypeFilter(orderForTypeFilter(o), key)).length
+    orders.filter((o: any) =>
+      matchesPrescriptionTypeFilter(orderForTypeFilter(o), key),
+    ).length
   const filteredOrders = orders.filter((o: any) =>
-    matchesPrescriptionTypeFilter(orderForTypeFilter(o), activeType)
+    matchesPrescriptionTypeFilter(orderForTypeFilter(o), activeType),
   )
   const activeTypeDef = MED_TYPES.find((t) => t.key === activeType)
   const completionPct =

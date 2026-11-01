@@ -157,98 +157,101 @@ fixtures = [
     # {
 	# 	"doctype": "Prescription Frequency"
 	# },
-    {
-		"doctype": "Patient Assessment Parameter"
-	},
-    {
-		"doctype":"Patient Health History Template 2"	
-	},
-    {
-		"doctype": "ECT Procedure Consent Terms"
-	},
-    {
-		"doctype": "Environmental Checklist Template"
-	},
-    {
-		"doctype": "History Form Details Template"
-	},
+    # {
+	# 	"doctype": "Patient Assessment Parameter"
+	# },
+    # {
+	# 	"doctype":"Patient Health History Template 2"	
+	# },
+    # {
+	# 	"doctype": "ECT Procedure Consent Terms"
+	# },
+    # {
+	# 	"doctype": "Environmental Checklist Template"
+	# },
+    # {
+	# 	"doctype": "History Form Details Template"
+	# },
     # {
 	# 	"doctype": "Room Category"
 	# },
-    {
-		"doctype":"Package Duration Class"
-	},
+    # {
+	# 	"doctype":"Package Duration Class"
+	# },
     # {
 	# 	"doctype":"Patient Source"
 	# },
     # {
 	# 	"doctype":"Patient Visit Type"
 	# },
-    {
-		"doctype":"Time Out Procedure Template"
-	},
-    {
-	"doctype":"Anesthesia Terms"	
-	},
+    # {
+	# 	"doctype":"Time Out Procedure Template"
+	# },
+    # {
+	# "doctype":"Anesthesia Terms"	
+	# },
     # {
 	# "doctype":"Patient History Template"	
 	# },
-    {
-	"doctype":"Patient Assessment Template"	
-	},
-    {
-	"doctype":"Homicide Reason for Assessment"	
-	},
-    {
-		"doctype":"Depression Assessment Template"
-	},
-    {
-		"doctype":"GAD7 Template"
-	},
-    {
-		"doctype":"Mood Disorder Template"
-	},
-    {
-		"doctype":"ADHD Assessment Template"
-	},
-    {
-		"doctype":"PHQ9 Template"
-	},
-    {
-		"doctype":"Modified Alderete Score Template"
-	},
-    {
-		"doctype":"Healthcare Activity"
-	},
+    # {
+	# "doctype":"Patient Assessment Template"	
+	# },
+    # {
+	# "doctype":"Homicide Reason for Assessment"	
+	# },
+    # {
+	# 	"doctype":"Depression Assessment Template"
+	# },
+    # {
+	# 	"doctype":"GAD7 Template"
+	# },
+    # {
+	# 	"doctype":"Mood Disorder Template"
+	# },
+    # {
+	# 	"doctype":"ADHD Assessment Template"
+	# },
+    # {
+	# 	"doctype":"PHQ9 Template"
+	# },
+    # {
+	# 	"doctype":"Modified Alderete Score Template"
+	# },
+    # {
+	# 	"doctype":"Healthcare Activity"
+	# },
     # {
 	# 	"doctype":"Nursing Checklist Template"
 	# },
     # {
 	# 	"doctype":"Observation Level"
 	# },
-    {
-		"doctype":"Patient Relative Relationship"
-	},
-    {
-		"doctype":"DAMA Type"
-	},
+    # {
+	# 	"doctype":"Patient Relative Relationship"
+	# },
+    # {
+	# 	"doctype":"DAMA Type"
+	# },
     # {
 	# 	"doctype":"Patient Category"
 	# },
-    {
-		"doctype":"Service Template Group"
-	},
+    # {
+	# 	"doctype":"Service Template Group"
+	# },
     # {
 	# 	"doctype": "Lab Test Result Rule"
 	# },
+    # {
+	# 	"doctype":"Practitioner Schedule"
+	# },
+    # {
+	# 	"doctype":"YBOCS Template"
+	# },
+    # {
+	# 	"doctype":"YMRS Template"
+	# },
     {
-		"doctype":"Practitioner Schedule"
-	},
-    {
-		"doctype":"YBOCS Template"
-	},
-    {
-		"doctype":"YMRS Template"
+		"doctype":"Prescription Type"
 	}
 ]
 

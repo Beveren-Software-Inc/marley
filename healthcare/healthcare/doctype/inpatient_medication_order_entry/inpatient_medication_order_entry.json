@@ -35,6 +35,7 @@
   "uom",
   "is_pink",
   "prescrip_id",
+  "is_deduplicate",
   "reference_no",
   "route_of_administration",
   "is_long_acting_medicine",
@@ -203,6 +204,14 @@
    "fieldtype": "Data",
    "in_list_view": 1,
    "label": "Prescrip ID"
+  },
+  {
+   "allow_on_submit": 1,
+   "default": "0",
+   "description": "Ticked when this line comes from PATIENT_VISIT_PRESCRIPTION_HIS and the same PRESCRIP_ID also exists on PATIENT_VISIT_PRESCRIPTION. Kept in the backend; hidden on the form when Healthcare Settings → Hide Deduplicate Prescription is enabled.",
+   "fieldname": "is_deduplicate",
+   "fieldtype": "Check",
+   "label": "Is Deduplicate"
   },
   {
    "allow_on_submit": 1,

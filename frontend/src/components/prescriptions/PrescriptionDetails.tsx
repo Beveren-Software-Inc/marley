@@ -30,7 +30,10 @@ import {
   matchesPrescriptionTypeFilter,
   isFuturePlanByStartDate,
 } from '../../utils/prescriptionType'
-import { resolveMedicationOrderType } from '../../utils/medicationTypeColors'
+import {
+  medicationTypeBadgeStyle,
+  resolveMedicationOrderType,
+} from '../../utils/medicationTypeColors'
 
 // ─── Medication type definitions ──────────────────────────────────────────────
 const MED_TYPES = [
@@ -43,6 +46,8 @@ const MED_TYPES = [
   { key: 'Regular - Med (Inactive)',   label: 'Reg Med Inactive',icon: '💉', color: 'slate'   },
   { key: 'Long Acting Medicine',       label: 'Long Acting',     icon: '⏳', color: 'teal'    },
   { key: 'Future Plan',                label: 'Future Plan',     icon: '📅', color: 'indigo'  },
+  // Legacy Oracle prescriptions only: mapped Prescription Type of redundancy code 4.
+  { key: 'Contraindicated',            label: 'Contraindicated', icon: '⚠️', color: 'red'     },
 ]
 
 const DEFAULT_PRESCRIPTION_TYPE_FILTER = 'Regular - Psy (Active)'
@@ -84,18 +89,6 @@ const hexBadgeStyle = (hex: string, active: boolean): React.CSSProperties =>
   active
     ? { backgroundColor: 'rgba(255,255,255,0.25)', color: '#fff' }
     : { backgroundColor: `${hex}33`, color: '#334155' }
-
-// Returns a very subtle row/card tint for medication items
-const hexRowStyle = (hex: string): React.CSSProperties => ({
-  backgroundColor: `${hex}18`,
-  borderColor: `${hex}44`,
-})
-
-// Gets the color for a given medication_type key
-const getTypeColor = (medicationType: string): string => {
-  const typeDef = MED_TYPES.find(t => t.key === medicationType)
-  return typeDef?.color ?? 'slate'
-}
 
 // ─── Primitives ───────────────────────────────────────────────────────────────
 const StatusPill = ({ status }: { status: string }) => (
@@ -183,10 +176,6 @@ const MedicationRow = ({
 }) => {
   const isFuture = isFuturePlanByStartDate(order)
   const resolvedType = resolveMedicationOrderType(order, isFuture ? 'Future Plan' : null)
-  const color = getTypeColor(resolvedType.type)
-  const rowStyle: React.CSSProperties = isHex(color)
-    ? hexRowStyle(color)
-    : order.is_pink ? {} : {}
   const isLegacyRow = isLegacyMedicationOrderRow(order)
   const displayDrugName = displayMedicationDrugName(order)
   const displayDrugCode = displayMedicationDrugCode(order)
@@ -198,13 +187,20 @@ const MedicationRow = ({
   const displayEndDate = displayMedicationEndDate(order, parentEndDate)
 
   return (
-    <tr
-      className={order.is_pink ? 'bg-pink-50/60' : ''}
-      style={!order.is_pink && isHex(color) ? rowStyle : undefined}
-    >
+    <tr className={order.is_pink ? 'bg-pink-50/60' : ''}>
       <td className="px-3 py-2.5">
         <div className="flex items-center flex-wrap gap-1.5">
           <span className="font-medium text-slate-800">{displayDrugName}</span>
+          {resolvedType.label ? (
+            <span
+              className="inline-flex rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide"
+              style={medicationTypeBadgeStyle(resolvedType.type)}
+              title={resolvedType.inferredHint}
+            >
+              {resolvedType.label}
+              {resolvedType.inferred ? '*' : ''}
+            </span>
+          ) : null}
           {isLegacyRow && <SmallBadge cls="bg-amber-100 text-amber-800 border border-amber-200">Legacy</SmallBadge>}
           {order.is_pink && <SmallBadge cls="bg-pink-100 text-pink-700">🩷 Pink</SmallBadge>}
           {order.is_prn  && <SmallBadge cls="bg-amber-100 text-amber-700">PRN</SmallBadge>}
@@ -273,29 +269,24 @@ const MedicationRow = ({
 const MedicationDetailCard = ({ order, parentStartDate }: { order: any; parentStartDate?: string }) => {
   const isFuture = isFuturePlanByStartDate(order)
   const resolvedType = resolveMedicationOrderType(order, isFuture ? 'Future Plan' : null)
-  const color = getTypeColor(resolvedType.type)
-  const cardStyle: React.CSSProperties = isHex(color) ? hexRowStyle(color) : {}
   const instructions = displayMedicationInstructions(order)
-  const typeLabel = isFuture
-    ? `Future Plan · ${resolvedType.type || '—'}`
-    : resolvedType.inferred
-      ? `${resolvedType.label}*`
-      : order.medication_type || '—'
+  const typeLabel = resolvedType.label
+    ? `${resolvedType.label}${resolvedType.inferred ? '*' : ''}`
+    : '—'
 
   return (
     <div
       className={`rounded-md border px-4 py-3 text-sm space-y-2 ${
-        order.is_pink
-          ? 'border-pink-200 bg-pink-50/40'
-          : isHex(color)
-          ? ''
-          : 'border-slate-200 bg-slate-50/40'
+        order.is_pink ? 'border-pink-200 bg-pink-50/40' : 'border-slate-200 bg-slate-50/40'
       }`}
-      style={!order.is_pink && isHex(color) ? cardStyle : undefined}
     >
       <div className="flex items-center justify-between flex-wrap gap-1">
         <span className="font-semibold text-slate-800">{displayMedicationDrugName(order)}</span>
-        <span className="text-xs text-slate-400" title={resolvedType.inferredHint}>
+        <span
+          className="inline-flex rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide"
+          title={resolvedType.inferredHint || order.medication_type || undefined}
+          style={medicationTypeBadgeStyle(resolvedType.type)}
+        >
           {typeLabel}
         </span>
       </div>
@@ -450,10 +441,12 @@ export const PrescriptionDetails = ({ prescriptionName, onUpdate }: Prescription
   )
 
   const orders = prescription.medication_orders || []
-  const orderForTypeFilter = (order: any) =>
-    order.end_date || order._rx_end
-      ? order
-      : { ...order, _rx_end: prescription.end_date }
+  // ``_rx_end`` is the parent prescription end: the type chips use it to keep a finished
+  // (legacy) prescription's lines in their own bucket instead of dropping them into "All".
+  const orderForTypeFilter = (order: any) => ({
+    ...order,
+    _rx_end: order._rx_end || prescription.end_date,
+  })
   const countFor = (key: string) =>
     orders.filter((o: any) => matchesPrescriptionTypeFilter(orderForTypeFilter(o), key)).length
   const filteredOrders = orders.filter((o: any) =>

@@ -261,6 +261,14 @@ def get_medication_orders(
 			entry_fields.append('healthcare_practitioner_name')
 		if frappe.db.has_column('Inpatient Medication Order Entry', 'effective_status'):
 			entry_fields.append('effective_status')
+		# Legacy Oracle lines have no Prescription Type — only ``redundancy_type``,
+		# which the UI resolves through the Prescription Type doctype mapping.
+		if frappe.db.has_column('Inpatient Medication Order Entry', 'redundancy_type'):
+			entry_fields.append('redundancy_type')
+		# Oracle writes a DC (discontinued) note in ``dc`` — the type resolution turns a
+		# DC'd legacy line into the Inactive variant of its mapped Regular type.
+		if frappe.db.has_column('Inpatient Medication Order Entry', 'dc'):
+			entry_fields.append('dc')
 		# Who stopped / held the medicine — the listing shows a small
 		# "Reason: … / Stopped by: …" note on stopped lines (same as the
 		# Current Prescription screen).
@@ -438,6 +446,12 @@ def get_medication_orders(
 			stopped_by = cstr(e.get('stoped_by') or '').strip()
 			if stopped_by and not cstr(e.get('stopped_by_name') or '').strip():
 				e['stopped_by_name'] = stopped_by_names.get(stopped_by) or stopped_by
+
+	# Legacy lines carry no coded Prescription Type — expose the type mapped from the
+	# Oracle ``redundancy_type`` so the UI groups them with the new prescriptions.
+	from healthcare.api.prescription_type_mapping import apply_resolved_prescription_type
+
+	apply_resolved_prescription_type([e for o in orders for e in o['medication_orders']])
 
 	return orders
 
@@ -1318,7 +1332,18 @@ def get_medication_order_by_id(name):
 		if not flt(getattr(row, "amount", 0)):
 			row.amount = qty * flt(getattr(row, "rate", 0))
 
-	return doc
+	payload = doc.as_dict()
+	# ``invoice`` is a display-only value (not a Patient Medication Order field), so
+	# ``as_dict`` drops it — carry it over to keep the UI payload unchanged.
+	if getattr(doc, "invoice", None):
+		payload["invoice"] = doc.invoice
+
+	# Legacy lines: show the Prescription Type mapped from Oracle ``redundancy_type``.
+	from healthcare.api.prescription_type_mapping import apply_resolved_prescription_type
+
+	apply_resolved_prescription_type(payload.get("medication_orders") or [])
+
+	return payload
 
 
 # Roles allowed to hold / continue / discontinue a prescribed drug (prescriber decision).
@@ -1818,6 +1843,12 @@ def get_medication_order_by_inpatient_or_encounter(inpatient_record=None, patien
 			row["_prescription_name"] = doc.name
 			row["_prescription_status"] = doc.status
 			merged_entries.append(row)
+
+	# Legacy Oracle lines carry the Prescription Type only in ``redundancy_type`` — expose
+	# the type mapped through the Prescription Type doctype so the UI groups them too.
+	from healthcare.api.prescription_type_mapping import apply_resolved_prescription_type
+
+	apply_resolved_prescription_type(merged_entries)
 
 	result = primary.as_dict()
 	result["medication_orders"] = merged_entries
@@ -2432,6 +2463,17 @@ def get_medications_for_clinical_note_day(
 		"IFNULL(parent.status, '') != 'Cancelled'",
 		f"({started_or_prescribed_on_note_day} OR {ongoing_active_on_note_day})",
 	]
+	# Legacy Oracle lines: the Prescription Type is only in ``redundancy_type`` (mapped
+	# through the Prescription Type doctype) — selected so the UI can group the line.
+	redundancy_select = (
+		"child.redundancy_type,"
+		if frappe.db.has_column("Inpatient Medication Order Entry", "redundancy_type")
+		else ""
+	)
+	# Oracle's ``dc`` note marks a discontinued line (mapped to the Inactive type).
+	dc_select = (
+		"child.dc," if frappe.db.has_column("Inpatient Medication Order Entry", "dc") else ""
+	)
 	params = {
 		"patient": patient,
 		"note_day": str(note_day),
@@ -2490,6 +2532,8 @@ def get_medications_for_clinical_note_day(
 			child.time,
 			child.is_prn,
 			child.medication_type,
+			{redundancy_select}
+			{dc_select}
 			child.is_pink,
 			child.route_of_administration,
 			child.strength,
@@ -2529,6 +2573,11 @@ def get_medications_for_clinical_note_day(
 	from healthcare.api.medication_order_display import (
 		is_legacy_medication_entry,
 		medication_entry_display_fields,
+	)
+	from healthcare.api.prescription_type_mapping import (
+		is_legacy_line_discontinued,
+		is_legacy_prescription_line,
+		resolve_prescription_type,
 	)
 
 	seen = set()
@@ -2608,6 +2657,14 @@ def get_medications_for_clinical_note_day(
 				"time": row.get("time"),
 				"is_prn": row.get("is_prn"),
 				"medication_type": row.get("medication_type") or "",
+				"redundancy_type": row.get("redundancy_type"),
+				"resolved_prescription_type": resolve_prescription_type(
+					row.get("medication_type"),
+					row.get("redundancy_type"),
+					discontinued=is_legacy_line_discontinued(row),
+				),
+				"dc": row.get("dc"),
+				"is_legacy_line": 1 if is_legacy_prescription_line(row) else 0,
 				"is_pink": row.get("is_pink"),
 				"route_of_administration": row.get("route_of_administration"),
 				"display_drug_name": display["display_drug_name"],

@@ -1,10 +1,15 @@
 import frappe
 from frappe import _
-from frappe.utils import cint, cstr, getdate, nowdate, add_days
+from frappe.utils import cint, getdate, nowdate, add_days
 
 from healthcare.api.medicine_given import (
 	is_daily_prescription_frequency,
 	_date_in_range,
+)
+from healthcare.api.prescription_type_mapping import (
+	is_legacy_line_discontinued,
+	is_legacy_prescription_line,
+	resolve_prescription_type,
 )
 
 
@@ -101,26 +106,33 @@ def get_daily_medication_chart(admission: str, date: str | None = None) -> dict:
 
 	pmo_by_name = {p.name: p for p in prescriptions}
 	pmo_names = list(pmo_by_name.keys())
+	entry_fields = [
+		"name",
+		"parent",
+		"drug",
+		"drug_name",
+		"dosage",
+		"dosage_form",
+		"patient_frequency",
+		"date",
+		"end_date",
+		"medication_status",
+		"stopped",
+		"reason_stopped",
+		"is_prn",
+		"medication_type",
+		"instructions",
+	]
+	# Legacy Oracle lines carry the Prescription Type only in ``redundancy_type``.
+	if frappe.db.has_column("Inpatient Medication Order Entry", "redundancy_type"):
+		entry_fields.append("redundancy_type")
+	# Oracle's ``dc`` note marks a discontinued line (mapped to the Inactive type).
+	if frappe.db.has_column("Inpatient Medication Order Entry", "dc"):
+		entry_fields.append("dc")
 	order_rows = frappe.get_all(
 		"Inpatient Medication Order Entry",
 		filters={"parent": ["in", pmo_names]},
-		fields=[
-			"name",
-			"parent",
-			"drug",
-			"drug_name",
-			"dosage",
-			"dosage_form",
-			"patient_frequency",
-			"date",
-			"end_date",
-			"medication_status",
-			"stopped",
-			"reason_stopped",
-			"is_prn",
-			"medication_type",
-			"instructions",
-		],
+		fields=entry_fields,
 		order_by="parent asc, idx asc",
 	)
 
@@ -193,7 +205,15 @@ def get_daily_medication_chart(admission: str, date: str | None = None) -> dict:
 		if not _frequency_on_daily_chart(freq_name):
 			continue
 
-		is_prn = cint(entry.get("is_prn")) or (cstr(entry.get("medication_type") or "").strip() == "PRN")
+		# Legacy Oracle lines have no coded Prescription Type — resolve it from the
+		# ``redundancy_type`` code through the Prescription Type doctype mapping (a DC'd
+		# line resolves to the Inactive variant of its Regular type).
+		resolved_type = resolve_prescription_type(
+			entry.get("medication_type"),
+			entry.get("redundancy_type"),
+			discontinued=is_legacy_line_discontinued(entry),
+		)
+		is_prn = cint(entry.get("is_prn")) or resolved_type.strip() == "PRN"
 		times = frequency_times.get(freq_name, []) if freq_name else []
 
 		slot_list = []
@@ -220,6 +240,10 @@ def get_daily_medication_chart(admission: str, date: str | None = None) -> dict:
 			"patient_frequency": freq_name,
 			"instructions": entry.get("instructions") or "",
 			"is_prn": 1 if is_prn else 0,
+			"redundancy_type": entry.get("redundancy_type"),
+			"resolved_prescription_type": resolved_type,
+			"dc": entry.get("dc"),
+			"is_legacy_line": 1 if is_legacy_prescription_line(entry) else 0,
 			"slots": slot_list,
 		}
 		# PRN still follows frequency sessions — shown in a separate section only
@@ -424,6 +448,12 @@ def get_medication_sheet_detail(
 		"stopped",
 		"reason_stopped",
 	]
+	# Legacy Oracle lines carry the Prescription Type only in ``redundancy_type``.
+	if frappe.db.has_column("Inpatient Medication Order Entry", "redundancy_type"):
+		entry_fields.append("redundancy_type")
+	# Oracle's ``dc`` note marks a discontinued line (mapped to the Inactive type).
+	if frappe.db.has_column("Inpatient Medication Order Entry", "dc"):
+		entry_fields.append("dc")
 	order_entries = frappe.get_all(
 		"Inpatient Medication Order Entry",
 		filters={"parent": ["in", pmo_names]},
@@ -565,6 +595,14 @@ def get_medication_sheet_detail(
 				"dosage_form": entry.get("dosage_form"),
 				"patient_frequency": display["display_frequency"],
 				"medication_type": entry.get("medication_type") or "",
+				"redundancy_type": entry.get("redundancy_type"),
+				"resolved_prescription_type": resolve_prescription_type(
+					entry.get("medication_type"),
+					entry.get("redundancy_type"),
+					discontinued=is_legacy_line_discontinued(entry),
+				),
+				"dc": entry.get("dc"),
+				"is_legacy_line": 1 if is_legacy_prescription_line(entry) else 0,
 				"is_pink": cint(entry.get("is_pink")),
 				"route_of_administration": entry.get("route_of_administration"),
 				"start_date": display["display_start_date"],
