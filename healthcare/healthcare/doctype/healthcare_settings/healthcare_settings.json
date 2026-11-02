@@ -81,6 +81,7 @@
   "remove_collect_sample_button_from_child_test",
   "collect_sample_from_request_listing",
   "hide_test_and_result_from_lab",
+  "display_unconfirmed_request_on_lab_page",
   "column_break_34",
   "lab_test_approval_required",
   "employee_name_and_designation_in_print",
@@ -1252,11 +1253,18 @@
    "fieldtype": "Link",
    "label": "Default ECT IP Service",
    "options": "Healthcare Service Template"
+  },
+  {
+   "default": "0",
+   "description": "When checked, the Lab page → Lab Request listing also shows Lab Requests whose payment is not confirmed yet. Those rows are read only and list the tests only.",
+   "fieldname": "display_unconfirmed_request_on_lab_page",
+   "fieldtype": "Check",
+   "label": "Display Unconfirmed Request on Lab Page"
   }
  ],
  "issingle": 1,
  "links": [],
- "modified": "2026-10-13 12:30:22.352221",
+ "modified": "2026-11-02 19:37:17.186010",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Healthcare Settings",

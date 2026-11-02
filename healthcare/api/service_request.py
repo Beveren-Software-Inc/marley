@@ -608,6 +608,27 @@ def _lab_request_template_names(sr, items) -> list[str]:
 	return names
 
 
+def _display_unconfirmed_request_on_lab_page() -> bool:
+	"""True when Healthcare Settings allows not-yet-booked Lab Requests in the Lab page.
+
+	Healthcare Settings is a Single, so the value comes from ``tabSingles`` (a Single
+	has no table of its own — ``has_column`` would raise ``TableMissingError``). The
+	field is added by a migration; on a site where it has not been synced yet the
+	lookup simply returns ``None`` and the Lab page keeps the old (booked only)
+	behaviour.
+	"""
+	try:
+		return bool(
+			cint(
+				frappe.db.get_single_value(
+					"Healthcare Settings", "display_unconfirmed_request_on_lab_page"
+				)
+			)
+		)
+	except Exception:
+		return False
+
+
 def _compute_lab_request_virtual_status(sr) -> str:
 	"""Compute UI-only virtual status for a Lab Test Service Request.
 
@@ -699,6 +720,7 @@ def get_service_requests(
 	virtual_status=None,
 	cost_center=None,
 	include_hidden_from_ui=None,
+	include_unconfirmed=None,
 ):
 	"""Get list of Service Requests.
 
@@ -711,8 +733,23 @@ def get_service_requests(
 	Optional ``include_hidden_from_ui``: audit / export escape hatch. Lab Test Template
 	listings (Lab page → Lab Request tab, nurse lab request card) never return Service
 	Requests flagged *Hide from UI* unless this is passed as 1.
+	Optional ``include_unconfirmed``: Lab page only. When Healthcare Settings →
+	*Display Unconfirmed Request on Lab Page* is on, the ``booked`` filter is dropped
+	and requests that are not forwarded to the lab yet (no Lab Tests) are returned
+	too, flagged ``unconfirmed`` (tests only in the portal). Ignored when
+	the setting is off.
 	"""
 	from healthcare.api.common import resolve_cost_center_filter
+
+	# Lab page → "Display Unconfirmed Request on Lab Page": also return Lab Requests
+	# whose payment has not been confirmed yet. The setting is the single source of
+	# truth, so a stale portal flag can never leak unpaid requests into the listing.
+	show_unconfirmed = bool(
+		cint(include_unconfirmed)
+		and template_dt == 'Lab Test Template'
+		and _display_unconfirmed_request_on_lab_page()
+	)
+
 	filters = {'docstatus': ['!=', 2]}
 
 	# Service Requests flagged "Hide from UI" must not appear in any Lab Request
@@ -758,7 +795,7 @@ def get_service_requests(
 			filters['inpatient_record'] = ['is', 'not set']
 		elif care == "IP" and not patient_visit:
 			filters['inpatient_record'] = ['is', 'set']
-	if booked is not None and str(booked).strip() != '':
+	if booked is not None and str(booked).strip() != '' and not show_unconfirmed:
 		filters['booked'] = 1 if cint(booked) else 0
 
 	# Portal navbar branch (UI) + Cost Center User Permission when present.
@@ -834,7 +871,16 @@ def get_service_requests(
 
 		# Compute UI-only virtual status (sample progress / result progress) for Lab Requests
 		if sr.template_dt == 'Lab Test Template':
-			sr['virtual_status'] = _compute_lab_request_virtual_status(sr)
+			if show_unconfirmed and not cint(sr.get('booked')):
+				# Not forwarded to the lab yet (no Lab Tests exist), so the portal
+				# lists the tests on the row and opens the review modal tests-only
+				# (no sample / result / print actions). Rows still waiting
+				# for payment (``patient_accepted_cost`` unset) are labelled
+				# "Unconfirmed"; paid-but-not-booked ones "Awaiting Booking".
+				sr['unconfirmed'] = 1
+				sr['virtual_status'] = 'booked'
+			else:
+				sr['virtual_status'] = _compute_lab_request_virtual_status(sr)
 
 		items = sort_lab_request_display_items(parse_lab_request_items(sr))
 		if sr.template_dt == 'Lab Test Template':
@@ -1087,7 +1133,10 @@ def get_lab_request_review(name):
 	"""Read-only Lab Request review payload for the Lab page modal.
 
 	Returns request header + test groups with child rows (code, name, price, result type, unit, min/max).
-	Only for booked Lab Test Template Service Requests.
+	Booked Lab Test Template Service Requests are always reviewable. Not-yet-booked ones
+	(no Lab Tests yet) are also returned *tests only* — the portal hides every lab action
+	for them — but only when Healthcare Settings → *Display Unconfirmed Request on Lab
+	Page* is on, the same setting that lists them on the Lab page.
 	"""
 	from healthcare.healthcare.lab_request_items import (
 		expand_lab_test_specs,
@@ -1105,7 +1154,9 @@ def get_lab_request_review(name):
 	doc = frappe.get_doc("Service Request", name)
 	if doc.template_dt != "Lab Test Template":
 		frappe.throw(_("This Service Request is not a Lab Request"))
-	if not cint(doc.booked):
+	# Not forwarded to the lab yet → no Lab Tests to act on; the modal only lists tests.
+	unconfirmed = not cint(doc.booked)
+	if unconfirmed and not _display_unconfirmed_request_on_lab_page():
 		frappe.throw(_("Only booked Lab Requests can be reviewed here"))
 
 	items = sort_lab_request_display_items(parse_lab_request_items(doc))
@@ -1322,9 +1373,13 @@ def get_lab_request_review(name):
 		"practitioner": doc.practitioner,
 		"practitioner_name": _practitioner_display_name(doc.practitioner),
 		# Lab users only care that it is booked — not Service Request workflow status.
-		"status": "Booked",
+		"status": "Unconfirmed" if unconfirmed else "Booked",
 		"service_request_status": doc.status,
-		"booked": 1,
+		"booked": 0 if unconfirmed else 1,
+		# Not forwarded to the lab yet: portal shows the tests only (no lab actions) and
+		# uses ``patient_accepted_cost`` to tell unpaid from paid-but-not-booked.
+		"unconfirmed": 1 if unconfirmed else 0,
+		"patient_accepted_cost": cint(doc.get("patient_accepted_cost")),
 		"order_date": doc.order_date,
 		"order_time": doc.order_time,
 		"template_name": lab_request_items_summary(items) or doc.template_dn,

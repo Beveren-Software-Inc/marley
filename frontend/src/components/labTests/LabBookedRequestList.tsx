@@ -80,7 +80,19 @@ const VIRTUAL_STATUS_LABELS: Record<string, string> = {
   rejected: 'Rejected',
 }
 
-const isNewRequestRow = (sr: ServiceRequest) => (sr.virtual_status || 'booked') === 'booked'
+const isUnconfirmedRow = (sr: ServiceRequest) => Number(sr.unconfirmed) === 1
+
+/** Not forwarded to the lab yet: unpaid, or paid but not yet booked. */
+const unconfirmedRowLabel = (sr: ServiceRequest): string =>
+  sr.patient_accepted_cost ? 'Awaiting Booking' : 'Unconfirmed'
+
+const unconfirmedRowReason = (sr: ServiceRequest): string =>
+  sr.patient_accepted_cost
+    ? 'Payment confirmed — awaiting lab booking'
+    : 'Payment not confirmed'
+
+const isNewRequestRow = (sr: ServiceRequest) =>
+  (sr.virtual_status || 'booked') === 'booked' && !isUnconfirmedRow(sr)
 
 const FilterToggleButton = ({
   active,
@@ -112,7 +124,8 @@ const FilterToggleButton = ({
  * Lab page → Lab Request tab only.
  * Lists Lab Test Template Service Requests (one row per request).
  * Virtual statuses: New Request (booked), sample progress, Pending Review, Reviewed, Rejected.
- * Click opens a read-only review modal (no edit).
+ * Click opens the review modal: booked requests in full; requests not forwarded to the
+ * lab yet (no Lab Tests) as a tests-only view with the payment note.
  * Scoped by header OP/IP and the top-navbar branch (userCostCenter).
  * OP hides inpatient requests; active visit/admission narrows further.
  * Requests flagged "Hide from UI" are dropped server-side by get_service_requests,
@@ -136,6 +149,8 @@ export function LabBookedRequestList({
   const [listTick, setListTick] = useState(0)
   const [showFiltersInternal, setShowFiltersInternal] = useState(false)
   const [collectFromListing, setCollectFromListing] = useState(false)
+  /** Healthcare Settings → also list requests not yet forwarded to the lab on the Lab page. */
+  const [displayUnconfirmed, setDisplayUnconfirmed] = useState(false)
   const [selectedNames, setSelectedNames] = useState<Set<string>>(() => new Set())
   const [showBulkCollect, setShowBulkCollect] = useState(false)
   /** Service Request name currently resolving its Lab Test before printing. */
@@ -161,10 +176,14 @@ export function LabBookedRequestList({
     let cancelled = false
     fetchHealthcarePortalSettings()
       .then((s) => {
-        if (!cancelled) setCollectFromListing(Boolean(s.collect_sample_from_request_listing))
+        if (cancelled) return
+        setCollectFromListing(Boolean(s.collect_sample_from_request_listing))
+        setDisplayUnconfirmed(Boolean(s.display_unconfirmed_request_on_lab_page))
       })
       .catch(() => {
-        if (!cancelled) setCollectFromListing(false)
+        if (cancelled) return
+        setCollectFromListing(false)
+        setDisplayUnconfirmed(false)
       })
     return () => {
       cancelled = true
@@ -192,6 +211,10 @@ export function LabBookedRequestList({
     let cancelled = false
     // ``hide_from_ui`` Service Requests are filtered out by get_service_requests, so
     // the rows/total_count below never contain them (all status tabs included).
+    // When Healthcare Settings → Display Unconfirmed Request on Lab Page is on, the
+    // backend also returns requests not yet forwarded to the lab (flagged ``unconfirmed``).
+    // Those rows open the request review modal, which lists the tests only — sample,
+    // result and print actions stay hidden until the request is booked.
     fetchServiceRequests(
       pageSize,
       (page - 1) * pageSize,
@@ -203,10 +226,11 @@ export function LabBookedRequestList({
       undefined,
       patientVisit,
       inpatientRecord,
-      1, // booked only
+      1, // booked only (ignored when unconfirmed requests are included)
       careType,
       virtualStatus === 'all' ? undefined : virtualStatus,
       userCostCenter || undefined,
+      displayUnconfirmed,
     )
       .then((res) => {
         if (cancelled) return
@@ -225,13 +249,15 @@ export function LabBookedRequestList({
     return () => {
       cancelled = true
     }
-  }, [patient, page, pageSize, refreshKey, listTick, careType, patientVisit, inpatientRecord, virtualStatus, userCostCenter])
+  }, [patient, page, pageSize, refreshKey, listTick, careType, patientVisit, inpatientRecord, virtualStatus, userCostCenter, displayUnconfirmed])
 
   const virtualStatusLabel = (sr: ServiceRequest): string => {
+    if (isUnconfirmedRow(sr)) return unconfirmedRowLabel(sr)
     return VIRTUAL_STATUS_LABELS[sr.virtual_status || 'booked'] || 'New Request'
   }
 
   const virtualStatusColor = (sr: ServiceRequest): string => {
+    if (isUnconfirmedRow(sr)) return sr.patient_accepted_cost ? 'info' : 'warning'
     return VIRTUAL_STATUS_COLORS[sr.virtual_status || 'booked'] || 'default'
   }
 
@@ -402,6 +428,7 @@ export function LabBookedRequestList({
               sr.lab_request_groups?.reduce((n, g) => n + (g.children?.length || 0), 0) || 0
             const amount = Number(sr.grand_total ?? sr.amount ?? sr.cost ?? 0)
             const vs = sr.virtual_status || 'booked'
+            const unconfirmed = isUnconfirmedRow(sr)
             const vLabel = virtualStatusLabel(sr)
             const vColor = virtualStatusColor(sr)
             const doctorName = (
@@ -446,7 +473,12 @@ export function LabBookedRequestList({
                 <button
                   type="button"
                   onClick={() => setSelectedName(sr.name)}
-                  className={`w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-left shadow-sm ${dashboardCardRowHoverClass}`}
+                  title={unconfirmed ? unconfirmedRowReason(sr) : undefined}
+                  className={`w-full rounded-lg border px-3 py-2.5 text-left shadow-sm ${
+                    unconfirmed
+                      ? `border-amber-200 bg-amber-50/40 ${dashboardCardRowHoverClass}`
+                      : `border-slate-200 bg-white ${dashboardCardRowHoverClass}`
+                  }`}
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0 flex-1">
@@ -520,6 +552,37 @@ export function LabBookedRequestList({
                       <CardRowMetaHint fields={metaFields} />
                     </div>
                   </div>
+                  {unconfirmed ? (
+                    <div className="mt-2 border-t border-amber-200/70 pt-2">
+                      <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-amber-700">
+                        {unconfirmedRowReason(sr)}
+                      </p>
+                      <div className="flex flex-wrap items-center gap-1">
+                        {groupCount > 0 ? (
+                          sr.lab_request_groups?.map((group) => (
+                            <span
+                              key={group.template}
+                              className="inline-flex flex-wrap items-center gap-1 rounded-md border border-amber-200 bg-white px-2 py-0.5 text-[11px] text-slate-700"
+                            >
+                              <span className="font-semibold">{group.label}</span>
+                              {group.children.map((child) => (
+                                <span
+                                  key={child.template}
+                                  className="rounded bg-slate-50 px-1 py-0.5 text-[10px] text-slate-600"
+                                >
+                                  {child.label}
+                                </span>
+                              ))}
+                            </span>
+                          ))
+                        ) : (
+                          <span className="rounded-md border border-amber-200 bg-white px-2 py-0.5 text-[11px] text-slate-700">
+                            {testName}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  ) : null}
                 </button>
                 {vs !== 'booked' ? (
                   <button

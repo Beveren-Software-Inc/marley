@@ -95,6 +95,13 @@ def get_healthcare_portal_settings():
 		"hide_test_and_result_from_lab": bool(
 			cint(frappe.db.get_single_value("Healthcare Settings", "hide_test_and_result_from_lab"))
 		),
+		"display_unconfirmed_request_on_lab_page": bool(
+			cint(
+				frappe.db.get_single_value(
+					"Healthcare Settings", "display_unconfirmed_request_on_lab_page"
+				)
+			)
+		),
 		"have_multiresults_on_lab_test": bool(
 			cint(frappe.db.get_single_value("Healthcare Settings", "have_multiresults_on_lab_test"))
 		),

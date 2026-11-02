@@ -322,6 +322,16 @@ export function LabRequestReviewModal({
     service_request_status: review?.service_request_status,
   })
 
+  /**
+   * Request not forwarded to the lab yet (no Lab Tests). Healthcare Settings → Display
+   * Unconfirmed Request on Lab Page lets the Lab page list it, so the modal opens as a
+   * tests-only view: no sample, result, complete or print actions.
+   */
+  const isUnconfirmed = Number(review?.unconfirmed) === 1
+  const unconfirmedReason = review?.patient_accepted_cost
+    ? 'Payment confirmed — awaiting lab booking'
+    : 'Payment not confirmed'
+
   const isGroupFinished = useCallback(
     (group: LabRequestReviewGroup) => requestFinished || Number(group.finished) === 1,
     [requestFinished]
@@ -614,7 +624,8 @@ export function LabRequestReviewModal({
 
   useEffect(() => {
     const tpl = selectedGroup?.template
-    if (!tpl || !review?.name) {
+    // Rules drive inline result entry — nothing to compute for a not-yet-booked request.
+    if (!tpl || !review?.name || isUnconfirmed) {
       setPanelRules(null)
       return
     }
@@ -629,7 +640,7 @@ export function LabRequestReviewModal({
     return () => {
       cancelled = true
     }
-  }, [review?.name, selectedGroup?.template, reloadToken])
+  }, [review?.name, selectedGroup?.template, reloadToken, isUnconfirmed])
 
   const allRequestTests = useMemo(
     () => (review?.groups || []).flatMap((group) => group.tests || []),
@@ -637,7 +648,8 @@ export function LabRequestReviewModal({
   )
 
   useEffect(() => {
-    if (!review?.name || loading) return
+    // Formulas recalculate stored Lab Test results — skip tests-only (unbooked) requests.
+    if (!review?.name || loading || isUnconfirmed) return
     let cancelled = false
     recalculatePanelForServiceRequest(review.name)
       .then((res) => {
@@ -648,7 +660,7 @@ export function LabRequestReviewModal({
     return () => {
       cancelled = true
     }
-  }, [review?.name, reloadToken, loading, applyCalculatedUpdates])
+  }, [review?.name, reloadToken, loading, applyCalculatedUpdates, isUnconfirmed])
 
   const formulaLines = useMemo(
     () =>
@@ -867,7 +879,11 @@ export function LabRequestReviewModal({
                   {review.name}
                   {review.patient_name ? ` · ${review.patient_name}` : ''}
                   {review.order_date ? ` · ${formatDashboardDate(review.order_date)}` : ''}
-                  {' · New Request'}
+                  {isUnconfirmed
+                    ? review.patient_accepted_cost
+                      ? ' · Awaiting Booking'
+                      : ' · Unconfirmed'
+                    : ' · New Request'}
                 </p>
               )}
             </div>
@@ -909,6 +925,12 @@ export function LabRequestReviewModal({
             )}
             {!loading && !error && review && (
               <>
+                {isUnconfirmed ? (
+                  <div className="shrink-0 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                    <span className="font-semibold">{unconfirmedReason}</span>
+                    {' — tests only. Lab actions become available once the request is booked.'}
+                  </div>
+                ) : null}
                 <div className="shrink-0 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
                   <div
                     className={
@@ -984,6 +1006,10 @@ export function LabRequestReviewModal({
                               </td>
                               <td className="px-2.5 py-1.5 text-right" onClick={(e) => e.stopPropagation()}>
                                 {(() => {
+                                  // Not forwarded to the lab yet → tests-only view.
+                                  if (isUnconfirmed) {
+                                    return <span className="text-[10px] text-slate-300">—</span>
+                                  }
                                   const progress = getGroupResultProgress(group)
                                   const needsSample = groupNeedsSample(group)
                                   const groupFinished = isGroupFinished(group)
@@ -1249,7 +1275,14 @@ export function LabRequestReviewModal({
                                   />
                                 ) : null}
                                 {!sampleDone ? (
-                                  hideChildCollectSample ? (
+                                  isUnconfirmed ? (
+                                    <span
+                                      className="text-[10px] text-slate-400"
+                                      title={unconfirmedReason}
+                                    >
+                                      —
+                                    </span>
+                                  ) : hideChildCollectSample ? (
                                     <span
                                       className="text-[10px] text-slate-400"
                                       title="Collect sample from the group"
@@ -1343,7 +1376,8 @@ export function LabRequestReviewModal({
                               </td>
                               <td className="px-2.5 py-1.5 text-right">
                                 <div className="flex flex-wrap items-center justify-end gap-1.5">
-                                {singleLine ? (
+                                {/* Not booked yet (tests-only view) → no result entry, just the flag slot. */}
+                                {isUnconfirmed || singleLine ? (
                                   sampleDone ? (
                                     <ResultFlagIndicator
                                       resultValue={resultValue}

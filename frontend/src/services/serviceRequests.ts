@@ -22,6 +22,14 @@ export interface ServiceRequest {
   intent?: string
   patient_accepted_cost?: boolean | number
   booked?: boolean | number
+  /**
+   * Lab page only: 1 when the request is not forwarded to the lab yet (no Lab
+   * Tests). Such rows list their tests on the card and open the Lab Request review
+   * modal as a tests-only view (no sample / result / print actions). Combined with
+   * ``patient_accepted_cost`` it distinguishes unpaid requests from paid ones that
+   * are still waiting for lab booking.
+   */
+  unconfirmed?: boolean | number
   order_group?: string
   cost_center?: string
   cost?: number
@@ -108,6 +116,7 @@ export async function fetchServiceRequests(
   patientCareType?: string,
   virtualStatus?: string,
   costCenter?: string,
+  includeUnconfirmed?: boolean,
 ): Promise<PaginatedServiceRequests> {
   const params = new URLSearchParams()
   params.append('limit', limit.toString())
@@ -126,6 +135,7 @@ export async function fetchServiceRequests(
   if (patientCareType?.trim()) params.append('patient_care_type', patientCareType.trim().toUpperCase())
   if (virtualStatus?.trim()) params.append('virtual_status', virtualStatus.trim())
   if (costCenter?.trim()) params.append('cost_center', costCenter.trim())
+  if (includeUnconfirmed) params.append('include_unconfirmed', '1')
 
   const response = await fetch(
     `/api/method/healthcare.api.service_request.get_service_requests?${params.toString()}`
@@ -214,6 +224,10 @@ export interface LabRequestReview {
   /** Raw Service Request.status (for Finish Group / finished tracking). */
   service_request_status?: string
   booked?: number
+  /** 1 when the Lab Request is not forwarded to the lab yet (no Lab Tests): tests only. */
+  unconfirmed?: number
+  /** Service Request.patient_accepted_cost — unpaid vs paid-but-not-booked. */
+  patient_accepted_cost?: number
   order_date?: string
   order_time?: string
   template_name?: string
