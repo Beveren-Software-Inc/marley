@@ -17,6 +17,11 @@ export type HealthcarePortalSettings = {
   /** When true, hide the Tests & Results tab on the Lab page. */
   hide_test_and_result_from_lab: boolean
   /**
+   * When true, the Lab page → Lab Request listing also shows requests whose
+   * payment has not been confirmed yet (read-only, tests only).
+   */
+  display_unconfirmed_request_on_lab_page: boolean
+  /**
    * When true, lab tests whose template has Multiple Results enter per-unit results
    * (external multi-results modal / Multiple Unit Results table). When false, every
    * lab test falls back to the normal single result entry.
@@ -43,6 +48,9 @@ export async function fetchHealthcarePortalSettings(): Promise<HealthcarePortalS
     ),
     collect_sample_from_request_listing: Boolean(msg?.collect_sample_from_request_listing),
     hide_test_and_result_from_lab: Boolean(msg?.hide_test_and_result_from_lab),
+    display_unconfirmed_request_on_lab_page: Boolean(
+      msg?.display_unconfirmed_request_on_lab_page,
+    ),
     have_multiresults_on_lab_test: Boolean(msg?.have_multiresults_on_lab_test),
   }
 }
