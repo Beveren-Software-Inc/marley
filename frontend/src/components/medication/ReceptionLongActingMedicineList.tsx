@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState, useMemo, useRef } from 'react'
 import { fetchReceptionLongActingMedicineList } from '../../services/receptionLongActingMedicine'
 import type { LongActingMedicineRow, ReminderChannel, InjectionSide } from '../../services/longActingMedicine'
-import { sendLongActingMedicineReminder, updateLongActingMedicineRemarks, recordLongActingMedicineGiveOut, stopLongActingMedicine, fetchLongActingMedicine, formatInjectionSide, formatInjectionSideShort, formatLongActingDose, suggestedNextInjectionSide, fetchLongActingGiveOutsForPatient, type LongActingGiveOutHistoryRow } from '../../services/longActingMedicine'
+import { sendLongActingMedicineReminder, updateLongActingMedicineRemarks, recordLongActingMedicineGiveOut, stopLongActingMedicine, fetchLongActingMedicine, formatInjectionSide, formatInjectionSideShort, formatLongActingDose, suggestedNextInjectionSide, fetchLongActingGiveOutsForPatient, resolveGiveOutGivenBy, type LongActingGiveOutHistoryRow } from '../../services/longActingMedicine'
 import {
   LONG_ACTING_FREQUENCY_OPTIONS,
   mapLongActingMedicineToDuplicateMedications,
@@ -750,6 +750,7 @@ export const ReceptionLongActingMedicineList = ({
                   <th className="px-3 py-2 text-center text-xs font-semibold text-slate-600 uppercase">Side</th>
                   <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Given by</th>
                   <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Notes</th>
+                  <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap">Reception Remarks</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -767,8 +768,22 @@ export const ReceptionLongActingMedicineList = ({
                       {mask(<>{h.dose || '-'}{h.dose_term ? ` ${h.dose_term}` : ''}</>)}
                     </td>
                     <td className="px-3 py-2 text-center text-xs text-slate-600">{mask(h.rt_flag ? 'R' : h.lt_flag ? 'L' : '-')}</td>
-                    <td className="px-3 py-2 text-slate-600">{h.user || '-'}</td>
-                    <td className="px-3 py-2 text-slate-600">{mask(h.is_cancelled ? (h.cancelled_notes || 'Cancelled') : (h.notes || '-'))}</td>
+                    <td className="px-3 py-2 text-slate-600">{resolveGiveOutGivenBy(h.user, h.notes) || '-'}</td>
+                    <td className="px-3 py-2 text-slate-600">
+                      {mask(
+                        h.is_cancelled ? (
+                          <span className="inline-flex items-center gap-1">
+                            <span className="rounded bg-red-100 px-1 py-0.5 text-[10px] font-semibold text-red-700 no-underline">
+                              Cancelled
+                            </span>
+                            {h.notes || ''}
+                          </span>
+                        ) : (
+                          h.notes || '-'
+                        ),
+                      )}
+                    </td>
+                    <td className="px-3 py-2 text-slate-600">{mask(h.cancelled_notes || '-')}</td>
                   </tr>
                 ))}
               </tbody>

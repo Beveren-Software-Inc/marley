@@ -4,6 +4,7 @@ import {
   fetchLongActingMedicineGiveOuts,
   formatInjectionSideShort,
   injectionSideFromGiveOut,
+  resolveGiveOutGivenBy,
   type LongActingMedicineGiveOutRow,
 } from '../../services/longActingMedicine'
 
@@ -72,6 +73,7 @@ function GiveOutsTable({ rows }: { rows: LongActingMedicineGiveOutRow[] }) {
             <th className="px-2.5 py-2 font-semibold text-center">Side</th>
             <th className="px-2.5 py-2 font-semibold">Given by</th>
             <th className="px-2.5 py-2 font-semibold">Notes</th>
+            <th className="px-2.5 py-2 font-semibold whitespace-nowrap">Reception Remarks</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-100">
@@ -92,18 +94,23 @@ function GiveOutsTable({ rows }: { rows: LongActingMedicineGiveOutRow[] }) {
                 <td className="px-2.5 py-2 whitespace-nowrap text-center font-semibold text-slate-700">
                   {formatInjectionSideShort(injectionSideFromGiveOut(row))}
                 </td>
-                <td className="px-2.5 py-2 whitespace-nowrap">{row.user || '—'}</td>
+                <td className="px-2.5 py-2 whitespace-nowrap">
+                  {resolveGiveOutGivenBy(row.user, row.notes) || '—'}
+                </td>
                 <td className="px-2.5 py-2 text-slate-600 max-w-[200px]">
                   {cancelled ? (
                     <span className="inline-flex items-center gap-1">
                       <span className="rounded bg-red-100 px-1 py-0.5 text-[10px] font-semibold text-red-700">
                         Cancelled
                       </span>
-                      {row.cancelled_notes || row.notes || '—'}
+                      {row.notes || ''}
                     </span>
                   ) : (
                     row.notes || '—'
                   )}
+                </td>
+                <td className="px-2.5 py-2 text-slate-600 max-w-[200px]">
+                  {row.cancelled_notes || '—'}
                 </td>
               </tr>
             )

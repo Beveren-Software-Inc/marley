@@ -47,13 +47,12 @@ frappe.ui.form.on('Healthcare Settings', {
 			__('Oracle -> ERPNext')
 		);
 
-		// One button for the doctor progress notes: Oracle keeps the current OP
-		// diagnosis (VISIT_00_01), every earlier version of it
-		// (VISIT_00_01_HISTORY) and the IP notes (IP_ADMISSION_DIAGNOSES), while
-		// ERPNext only ever imported the first and the third. This compares all
-		// three and creates the notes that are missing.
+		// Clinical Notes: Oracle OP diagnosis (VISIT_00_01), OP history
+		// (VISIT_00_01_HISTORY) and IP notes (IP_ADMISSION_DIAGNOSES). Creates
+		// missing Doctor Progress Notes, then merges duplicate OP visit notes
+		// left by earlier re-imports.
 		frm.add_custom_button(
-			__('Reconcile Doctor Progress Notes'),
+			__('Clinical Notes'),
 			() => open_clinical_note_reconcile(frm),
 			__('Oracle -> ERPNext')
 		);
@@ -9190,7 +9189,7 @@ function track_long_acting_reconcile(frm) {
  */
 function open_clinical_note_reconcile(frm) {
 	const dialog = new frappe.ui.Dialog({
-		title: __('Reconcile Doctor Progress Notes'),
+		title: __('Oracle -> ERPNext: Clinical Notes'),
 		fields: [
 			{
 				fieldtype: 'Data',
@@ -9205,6 +9204,12 @@ function open_clinical_note_reconcile(frm) {
 				fieldname: 'skip_duplicate_text',
 				label: __('Skip history rows that only repeat the current diagnosis'),
 				default: 0,
+			},
+			{
+				fieldtype: 'Check',
+				fieldname: 'remove_duplicates',
+				label: __('Merge duplicate OP visit clinical notes after reconcile'),
+				default: 1,
 			},
 			{
 				fieldtype: 'Check',
@@ -9385,7 +9390,7 @@ function show_clinical_note_reconcile_dialog(frm, data, values) {
 					: ''),
 		is_patient ? clinical_note_reconcile_samples_html(data.samples) : '',
 		`<p class="text-muted small">${__(
-			'Only missing Clinical Notes are created (as “Doctor Progress Note”, keyed by trans_no). Nothing is updated, cancelled or deleted, and running it again finds nothing left to do.'
+			'Missing Clinical Notes are created (as “Doctor Progress Note”, keyed by trans_no). After that, duplicate OP visit notes from re-imports are merged into one note (all trans numbers kept on the survivor).'
 		)}</p>`,
 	]
 		.filter(Boolean)
@@ -9393,8 +9398,8 @@ function show_clinical_note_reconcile_dialog(frm, data, values) {
 
 	const dialog = new frappe.ui.Dialog({
 		title: is_patient
-			? __('Reconcile Doctor Progress Notes — {0}', [data.patient])
-			: __('Reconcile Doctor Progress Notes'),
+			? __('Oracle -> ERPNext: Clinical Notes — {0}', [data.patient])
+			: __('Oracle -> ERPNext: Clinical Notes'),
 		size: 'large',
 		fields: [
 			{ fieldtype: 'HTML', fieldname: 'summary' },
@@ -9403,6 +9408,15 @@ function show_clinical_note_reconcile_dialog(frm, data, values) {
 				fieldname: 'skip_duplicate_text',
 				label: __('Skip history rows that only repeat the current diagnosis'),
 				default: cint(values && values.skip_duplicate_text),
+			},
+			{
+				fieldtype: 'Check',
+				fieldname: 'remove_duplicates',
+				label: __('Merge duplicate OP visit clinical notes after reconcile'),
+				default:
+					values && values.remove_duplicates != null
+						? cint(values.remove_duplicates)
+						: 1,
 			},
 			{
 				fieldtype: 'Check',
@@ -9417,6 +9431,7 @@ function show_clinical_note_reconcile_dialog(frm, data, values) {
 			start_clinical_note_reconcile(frm, {
 				patient: data.patient || '',
 				skip_duplicate_text: cint(dialog_values.skip_duplicate_text),
+				remove_duplicates: cint(dialog_values.remove_duplicates),
 				dry_run: cint(dialog_values.dry_run),
 			});
 		},
@@ -9431,6 +9446,7 @@ function start_clinical_note_reconcile(frm, values) {
 		args: {
 			patient: (values && values.patient) || '',
 			skip_duplicate_text: cint(values && values.skip_duplicate_text),
+			remove_duplicates: cint(values && values.remove_duplicates != null ? values.remove_duplicates : 1),
 			dry_run: cint(values && values.dry_run),
 		},
 		callback(r) {
@@ -9440,7 +9456,7 @@ function start_clinical_note_reconcile(frm, values) {
 				return;
 			}
 			frappe.msgprint({
-				title: __('Reconcile Doctor Progress Notes'),
+				title: __('Oracle -> ERPNext: Clinical Notes'),
 				indicator: 'orange',
 				message: result.message || __('The reconciliation could not be started.'),
 			});
@@ -9450,7 +9466,7 @@ function start_clinical_note_reconcile(frm, values) {
 
 function track_clinical_note_reconcile(frm) {
 	let polls = 0;
-	const title = __('Reconciling doctor progress notes from Oracle');
+	const title = __('Reconciling clinical notes from Oracle');
 	frappe.show_progress(title, 0, 100, __('Reading Oracle…'));
 
 	const timer = setInterval(() => {
@@ -9471,7 +9487,7 @@ function track_clinical_note_reconcile(frm) {
 					clearInterval(timer);
 					frappe.hide_progress();
 					frappe.msgprint({
-						title: __('Reconcile Doctor Progress Notes'),
+						title: __('Oracle -> ERPNext: Clinical Notes'),
 						indicator: status.state === 'finished' ? 'green' : 'red',
 						wide: true,
 						message: frappe.utils.escape_html(status.message || __('Done')).replace(
@@ -9487,7 +9503,7 @@ function track_clinical_note_reconcile(frm) {
 					frappe.hide_progress();
 					frappe.msgprint(
 						__(
-							'The reconciliation is still running in the background. Open Reconcile Doctor Progress Notes again in a few minutes to see the result.'
+							'The reconciliation is still running in the background. Open Clinical Notes again in a few minutes to see the result.'
 						)
 					);
 				}

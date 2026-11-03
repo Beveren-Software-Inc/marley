@@ -12,6 +12,7 @@ import {
   formatInjectionSideShort,
   formatLongActingDose,
   injectionSideFromGiveOut,
+  resolveGiveOutGivenBy,
   type LongActingMedicineRow,
 } from '../../services/longActingMedicine'
 import { DetailSlideOver } from '../ui/DetailSlideOver'
@@ -229,7 +230,8 @@ export function LongActingMedicineDetailPanel({
                       <th className="py-2 pr-3">Scheduled Run</th>
                       <th className="py-2 pr-3 text-center">Side</th>
                       <th className="py-2 pr-3">Given By</th>
-                      <th className="py-2">Notes</th>
+                      <th className="py-2 pr-3">Notes</th>
+                      <th className="py-2">Reception Remarks</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -241,8 +243,11 @@ export function LongActingMedicineDetailPanel({
                         <td className="py-2 pr-3 text-center text-slate-700 font-semibold">
                           {formatInjectionSideShort(injectionSideFromGiveOut(row))}
                         </td>
-                        <td className="py-2 pr-3 text-slate-700">{row.user || '—'}</td>
-                        <td className="py-2 text-slate-600">{row.notes || '—'}</td>
+                        <td className="py-2 pr-3 text-slate-700">
+                          {resolveGiveOutGivenBy(row.user, row.notes) || '—'}
+                        </td>
+                        <td className="py-2 pr-3 text-slate-600">{row.notes || '—'}</td>
+                        <td className="py-2 text-slate-600">{row.cancelled_notes || '—'}</td>
                       </tr>
                     ))}
                   </tbody>

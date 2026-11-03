@@ -113,8 +113,25 @@ def _note_preview(text: str | None, length: int = 90) -> str:
 	return flat if len(flat) <= length else flat[: length - 3] + "..."
 
 
+def _patient_where(patient: str | None = None) -> tuple[str, list[str]]:
+	patient = (patient or "").strip()
+	if not patient:
+		return "", []
+	return " AND patient = %s", [patient]
+
+
+def _run_sql(query: str, params: list | tuple | None = None, **kwargs):
+	"""Run SQL; never pass ``None`` as values (MySQLdb wraps it as ``(None,)``)."""
+	if params:
+		return frappe.db.sql(query, tuple(params), **kwargs)
+	return frappe.db.sql(query, **kwargs)
+
+
 def _group_rows(
-	scope: str = SCOPE_ALL, limit: int = 0, after_signature: str | None = None
+	scope: str = SCOPE_ALL,
+	limit: int = 0,
+	after_signature: str | None = None,
+	patient: str | None = None,
 ) -> list[dict]:
 	"""One row per duplicate group, member names comma separated (oldest first).
 
@@ -124,6 +141,8 @@ def _group_rows(
 	limit_sql = f"LIMIT {cint(limit)}" if cint(limit) else ""
 	having = ["COUNT(*) > 1"]
 	params: list[str] = []
+	patient_sql, patient_params = _patient_where(patient)
+	params.extend(patient_params)
 	if after_signature:
 		# The alias is resolved by MySQL; repeating the md5() expression in HAVING fails
 		# because it mentions columns that are not grouped individually.
@@ -144,17 +163,13 @@ def _group_rows(
 			GROUP_CONCAT(trans_no ORDER BY creation, name SEPARATOR ',') AS trans_nos,
 			MIN(note) AS note
 		FROM `tabClinical Note`
-		WHERE docstatus < 2 {_scope_where(scope)}
+		WHERE docstatus < 2 {_scope_where(scope)}{patient_sql}
 		GROUP BY {SIGNATURE_SQL}
 		HAVING {' AND '.join(having)}
 		{order_sql}
 		{limit_sql}
 		"""
-	rows = (
-		frappe.db.sql(query, tuple(params), as_dict=True)
-		if params
-		else frappe.db.sql(query, as_dict=True)
-	)
+	rows = _run_sql(query, params, as_dict=True)
 	for row in rows:
 		row["names"] = [name for name in (row.get("names") or "").split(",") if name]
 		row["trans_nos"] = [number for number in (row.get("trans_nos") or "").split(",") if number]
@@ -164,57 +179,72 @@ def _group_rows(
 	return rows
 
 
-def _group_count(scope: str = SCOPE_ALL) -> int:
+def _group_count(scope: str = SCOPE_ALL, patient: str | None = None) -> int:
+	patient_sql, patient_params = _patient_where(patient)
 	return int(
-		frappe.db.sql(
+		_run_sql(
 			f"""
 			SELECT COUNT(*) FROM (
 				SELECT 1
 				FROM `tabClinical Note`
-				WHERE docstatus < 2 {_scope_where(scope)}
+				WHERE docstatus < 2 {_scope_where(scope)}{patient_sql}
 				GROUP BY {SIGNATURE_SQL}
 				HAVING COUNT(*) > 1
 			) dup
-			"""
+			""",
+			patient_params,
 		)[0][0]
 		or 0
 	)
 
 
-def _extra_copies(scope: str = SCOPE_ALL) -> int:
+def _extra_copies(scope: str = SCOPE_ALL, patient: str | None = None) -> int:
+	patient_sql, patient_params = _patient_where(patient)
 	return int(
-		frappe.db.sql(
+		_run_sql(
 			f"""
 			SELECT IFNULL(SUM(copies - 1), 0) FROM (
 				SELECT COUNT(*) AS copies
 				FROM `tabClinical Note`
-				WHERE docstatus < 2 {_scope_where(scope)}
+				WHERE docstatus < 2 {_scope_where(scope)}{patient_sql}
 				GROUP BY {SIGNATURE_SQL}
 				HAVING COUNT(*) > 1
 			) dup
-			"""
+			""",
+			patient_params,
 		)[0][0]
 		or 0
 	)
 
 
 @frappe.whitelist()
-def preview_clinical_note_duplicates(sample_limit=DEFAULT_SAMPLE_LIMIT, scope: str = SCOPE_ALL) -> dict:
+def preview_clinical_note_duplicates(
+	sample_limit=DEFAULT_SAMPLE_LIMIT, scope: str = SCOPE_ALL, patient: str = ""
+) -> dict:
 	"""Read-only duplicate report. Safe to call on production."""
 	_require_admin()
 	sample_limit = cint(sample_limit) or DEFAULT_SAMPLE_LIMIT
-	where = _scope_where(scope)
+	patient = (patient or "").strip()
+	patient_sql, patient_params = _patient_where(patient)
+	where = f"{_scope_where(scope)}{patient_sql}"
 
 	return {
 		"scope": scope,
-		"total_notes": frappe.db.count("Clinical Note", {"docstatus": ("<", 2)}),
-		"duplicate_groups": _group_count(scope),
-		"extra_copies": _extra_copies(scope),
+		"patient": patient,
+		"total_notes": frappe.db.count(
+			"Clinical Note",
+			{"docstatus": ("<", 2), **({"patient": patient} if patient else {})},
+		),
+		"duplicate_groups": _group_count(scope, patient=patient),
+		"extra_copies": _extra_copies(scope, patient=patient),
 		"by_scope": {
-			name: {"groups": _group_count(name), "extra_copies": _extra_copies(name)}
+			name: {
+				"groups": _group_count(name, patient=patient),
+				"extra_copies": _extra_copies(name, patient=patient),
+			}
 			for name in (SCOPE_VISITS, SCOPE_INPATIENT)
 		},
-		"by_size": frappe.db.sql(
+		"by_size": _run_sql(
 			f"""
 			SELECT copies, COUNT(*) FROM (
 				SELECT COUNT(*) AS copies
@@ -225,9 +255,10 @@ def preview_clinical_note_duplicates(sample_limit=DEFAULT_SAMPLE_LIMIT, scope: s
 			) dup
 			GROUP BY copies ORDER BY copies
 			""",
+			patient_params,
 			as_list=True,
 		),
-		"by_reference": frappe.db.sql(
+		"by_reference": _run_sql(
 			f"""
 			SELECT IFNULL(reference, '(none)'), COUNT(*) FROM (
 				SELECT MIN({REFERENCE_SQL}) AS reference
@@ -238,12 +269,13 @@ def preview_clinical_note_duplicates(sample_limit=DEFAULT_SAMPLE_LIMIT, scope: s
 			) dup
 			GROUP BY 1 ORDER BY 2 DESC
 			""",
+			patient_params,
 			as_list=True,
 		),
-		"copies_created_per_day": frappe.db.sql(
+		"copies_created_per_day": _run_sql(
 			f"""
 			SELECT DATE(creation), COUNT(*) FROM `tabClinical Note`
-			WHERE docstatus < 2 AND {SIGNATURE_SQL} IN (
+			WHERE docstatus < 2 {patient_sql} AND {SIGNATURE_SQL} IN (
 				SELECT h FROM (
 					SELECT {SIGNATURE_SQL} AS h
 					FROM `tabClinical Note`
@@ -253,6 +285,7 @@ def preview_clinical_note_duplicates(sample_limit=DEFAULT_SAMPLE_LIMIT, scope: s
 			)
 			GROUP BY 1 ORDER BY 1
 			""",
+			(patient_params + patient_params) if patient_params else None,
 			as_list=True,
 		),
 		"sample": [
@@ -269,7 +302,7 @@ def preview_clinical_note_duplicates(sample_limit=DEFAULT_SAMPLE_LIMIT, scope: s
 				"merged_trans_nos": ", ".join(row["trans_nos"]),
 				"note": row["preview"],
 			}
-			for row in _group_rows(scope=scope, limit=sample_limit)
+			for row in _group_rows(scope=scope, limit=sample_limit, patient=patient)
 		],
 	}
 
@@ -542,6 +575,7 @@ def cleanup_clinical_note_duplicates(
 	limit=0,
 	commit_every=DEFAULT_COMMIT_EVERY,
 	page=DEFAULT_BATCH_SIZE,
+	patient: str = "",
 ) -> dict:
 	"""Delete extra copies, keeping the oldest (and any locked) note of each identical group.
 
@@ -559,6 +593,8 @@ def cleanup_clinical_note_duplicates(
 
 	``match_posting_time=1`` (default) requires identical posting time to the minute;
 	pass ``0`` to treat same-day copies typed minutes apart as duplicates as well.
+
+	``patient`` optionally limits the cleanup to one patient file number.
 	"""
 	_require_admin()
 	dry_run = cint(dry_run)
@@ -566,10 +602,12 @@ def cleanup_clinical_note_duplicates(
 	match_posting_time = cint(match_posting_time)
 	commit_every = cint(commit_every) or DEFAULT_COMMIT_EVERY
 	page = cint(page) or DEFAULT_BATCH_SIZE
+	patient = (patient or "").strip()
 
 	result = _new_result(dry_run, scope, include_legacy_inpatient, match_posting_time)
+	result["patient"] = patient
 
-	groups = _group_rows(scope=scope, limit=limit)
+	groups = _group_rows(scope=scope, limit=limit, patient=patient)
 	for start in range(0, len(groups), page):
 		_process_page(
 			groups[start : start + page],
@@ -583,8 +621,8 @@ def cleanup_clinical_note_duplicates(
 	if not dry_run:
 		frappe.db.commit()
 
-	result["duplicate_groups_remaining"] = _group_count(scope)
-	result["extra_copies_remaining"] = _extra_copies(scope)
+	result["duplicate_groups_remaining"] = _group_count(scope, patient=patient)
+	result["extra_copies_remaining"] = _extra_copies(scope, patient=patient)
 	return result
 
 

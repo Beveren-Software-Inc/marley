@@ -39,9 +39,12 @@ What one run does
                        the IP_ADMISSION_DIAGNOSES import stores it
    ==================  ======================================================
 
-3. Creates only the notes that are missing. Nothing is updated, deleted or
-   cancelled and a second run finds nothing left to do (idempotent).
-4. Reports what could not be linked: patients that do not exist in ERPNext, OP
+3. Creates only the notes that are missing (idempotent on ``trans_no`` / visit link).
+4. Merges duplicate OP visit Clinical Notes left by earlier re-imports of the
+   same Review Details text (same patient + visit + note body under a new
+   synthetic ``trans_no``). The oldest note is kept; every ``trans_no`` is
+   stored on ``merged_trans_nos``. Disable with ``remove_duplicates=0``.
+5. Reports what could not be linked: patients that do not exist in ERPNext, OP
    rows whose Patient Visit was never imported, and history rows that only
    repeat the current diagnosis text (optionally skipped).
 
@@ -203,7 +206,11 @@ def _lock_held() -> bool:
 
 
 def _new_progress(
-	patient: str = "", limit: int = 0, dry_run: int = 0, skip_duplicate_text: int = 0
+	patient: str = "",
+	limit: int = 0,
+	dry_run: int = 0,
+	skip_duplicate_text: int = 0,
+	remove_duplicates: int = 1,
 ) -> dict:
 	stamp = str(now_datetime())
 	return {
@@ -213,9 +220,15 @@ def _new_progress(
 		"limit": cint(limit),
 		"dry_run": cint(dry_run),
 		"skip_duplicate_text": cint(skip_duplicate_text),
+		"remove_duplicates": cint(remove_duplicates),
 		"index": 0,
 		"processed": 0,
 		"total": 0,
+		# Visit-scope duplicate cleanup (re-imported OP Review Details copies)
+		"duplicate_groups_before": 0,
+		"duplicate_extra_copies_before": 0,
+		"duplicate_groups_merged": 0,
+		"duplicate_notes_deleted": 0,
 		# Oracle side (rows per source, as the Oracle dev counts them)
 		"oracle_op": 0,
 		"oracle_history": 0,
@@ -1332,6 +1345,36 @@ def _process_chunk(
 		progress["processed"] = cint(progress.get("processed")) + 1
 
 
+def _run_visit_duplicate_cleanup(progress: dict) -> None:
+	"""Merge re-imported OP visit clinical notes (same patient+visit+text, new trans_no)."""
+	from healthcare.api.clinical_note_duplicate_cleanup import (
+		SCOPE_VISITS,
+		cleanup_clinical_note_duplicates,
+		_extra_copies,
+		_group_count,
+	)
+
+	patient = (progress.get("patient") or "").strip()
+	dry_run = cint(progress.get("dry_run"))
+	progress["duplicate_groups_before"] = _group_count(SCOPE_VISITS, patient=patient)
+	progress["duplicate_extra_copies_before"] = _extra_copies(SCOPE_VISITS, patient=patient)
+	if not progress["duplicate_groups_before"]:
+		return
+
+	progress["message"] = _("Merging duplicate OP visit clinical notes...")
+	_set_progress(progress)
+
+	# Same calendar day is enough: OP re-imports usually share midnight posting_date.
+	outcome = cleanup_clinical_note_duplicates(
+		dry_run=dry_run,
+		scope=SCOPE_VISITS,
+		match_posting_time=0,
+		patient=patient,
+	)
+	progress["duplicate_groups_merged"] = cint(outcome.get("groups_merged"))
+	progress["duplicate_notes_deleted"] = cint(outcome.get("notes_deleted"))
+
+
 def _run(
 	token: str,
 	resume: int,
@@ -1339,14 +1382,19 @@ def _run(
 	limit: int = 0,
 	dry_run: int = 0,
 	skip_duplicate_text: int = 0,
+	remove_duplicates: int = 1,
 ) -> dict[str, Any]:
 	started = time.monotonic()
 
 	if cint(resume):
-		progress = _load_progress() or _new_progress(patient, limit, dry_run, skip_duplicate_text)
+		progress = _load_progress() or _new_progress(
+			patient, limit, dry_run, skip_duplicate_text, remove_duplicates
+		)
 		patients = (_load_work() or {}).get("patients") or []
 	else:
-		progress = _new_progress(patient, limit, dry_run, skip_duplicate_text)
+		progress = _new_progress(
+			patient, limit, dry_run, skip_duplicate_text, remove_duplicates
+		)
 		patients = _build_patient_list(patient, limit)
 		_set_work({"patients": patients, "built_at": str(now_datetime())})
 
@@ -1381,6 +1429,15 @@ def _run(
 			return {"state": "queued", "handed_over": True, "progress": progress}
 
 	frappe.db.commit()
+	if cint(progress.get("remove_duplicates")):
+		try:
+			_run_visit_duplicate_cleanup(progress)
+			frappe.db.commit()
+		except Exception:
+			frappe.db.rollback()
+			_record_errors(progress, [f"duplicate cleanup: {frappe.get_traceback()}"])
+			frappe.log_error(title="Clinical note reconcile duplicate cleanup failed")
+
 	progress["processed"] = cint(progress.get("total")) or cint(progress.get("processed"))
 	progress["state"] = "finished"
 	progress["finished_at"] = str(now_datetime())
@@ -1457,6 +1514,21 @@ def _summary_message(progress: dict) -> str:
 				cint(progress.get("skipped_other"))
 			)
 		)
+	if cint(progress.get("remove_duplicates")):
+		lines.extend(
+			[
+				"",
+				_("OP visit clinical note duplicates"),
+				_("Duplicate groups found: {0} ({1} extra copies)").format(
+					cint(progress.get("duplicate_groups_before")),
+					cint(progress.get("duplicate_extra_copies_before")),
+				),
+				_("Groups merged: {0}; extra notes removed: {1}").format(
+					cint(progress.get("duplicate_groups_merged")),
+					cint(progress.get("duplicate_notes_deleted")),
+				),
+			]
+		)
 	if dry:
 		lines.insert(1, _("DRY RUN - nothing was changed."))
 	if progress.get("failed"):
@@ -1498,6 +1570,7 @@ def start_clinical_note_reconcile(
 	patient: str = "",
 	dry_run: int = 0,
 	skip_duplicate_text: int = 0,
+	remove_duplicates: int = 1,
 	limit: int = 0,
 ) -> dict[str, Any]:
 	"""Queue one reconciliation (the Healthcare Settings button entry point)."""
@@ -1510,7 +1583,13 @@ def start_clinical_note_reconcile(
 			"status": _load_progress(),
 		}
 
-	progress = _new_progress((patient or "").strip(), limit, dry_run, skip_duplicate_text)
+	progress = _new_progress(
+		(patient or "").strip(),
+		limit,
+		dry_run,
+		skip_duplicate_text,
+		remove_duplicates,
+	)
 	progress["state"] = "queued"
 	progress["message"] = _("Queued. Oracle is read in the background.")
 	_set_progress(progress)
@@ -1523,6 +1602,7 @@ def start_clinical_note_reconcile(
 		limit=cint(limit),
 		dry_run=cint(dry_run),
 		skip_duplicate_text=cint(skip_duplicate_text),
+		remove_duplicates=cint(remove_duplicates),
 	)
 	return {"queued": True, "job_key": JOB_KEY, "status": progress}
 
@@ -1546,6 +1626,7 @@ def run_clinical_note_reconcile(
 	token: str | None = None,
 	dry_run: int = 0,
 	skip_duplicate_text: int = 0,
+	remove_duplicates: int = 1,
 ) -> dict[str, Any]:
 	"""Background entry point (also callable inline from the bench console)."""
 	if cint(resume):
@@ -1571,6 +1652,7 @@ def run_clinical_note_reconcile(
 			limit=cint(limit),
 			dry_run=cint(dry_run),
 			skip_duplicate_text=cint(skip_duplicate_text),
+			remove_duplicates=cint(remove_duplicates),
 		)
 	except Exception:
 		progress = _load_progress() or _new_progress()
