@@ -146,44 +146,149 @@ def setup_healthcare():
 
 	setup_domain()
 
-	# Ensure Healthcare app icon appears on desk for all users (v15/v16)
+	# Ensure Healthcare app icon appears on desk (Desktop Icons mode).
+	# Apps mode uses add_to_apps_screen in hooks — do not change Desktop Settings.desktop_page.
 	try:
 		from frappe.desk.doctype.desktop_icon.desktop_icon import (
 			create_desktop_icons_from_installed_apps,
 			clear_desktop_icons_cache,
+			clear_every_users_desktop_icons,
 		)
 		create_desktop_icons_from_installed_apps()
 		_ensure_healthcare_desktop_icon_visible()
 		_create_healthcare_role_desktop_icons()
+		clear_every_users_desktop_icons()
 		clear_desktop_icons_cache()
 	except Exception:
-		pass
+		frappe.log_error(frappe.get_traceback(), "Healthcare desktop icon setup")
 
 	frappe.clear_cache()
 
 
+def _healthcare_app_icon_values():
+	"""Values for the Healthcare App Desktop Icon (Desktop Icons mode only)."""
+	app_details = frappe.get_hooks("add_to_apps_screen", app_name="healthcare")
+	app_icon = frappe.get_hooks("app_icon", app_name="healthcare")
+	app_icon_url = frappe.get_hooks("app_icon_url", app_name="healthcare")
+	app_title = (frappe.get_hooks("app_title", app_name="healthcare") or ["Healthcare"])[0]
+	logo_url = (app_details[0].get("logo") if app_details else None) or (
+		app_icon_url[0] if app_icon_url else "/assets/healthcare/images/healthcare.svg"
+	)
+	route = (app_details[0].get("route") if app_details else None) or "/health"
+	return {
+		"label": app_title,
+		"icon_type": "App",
+		"app": "healthcare",
+		"link_type": "External",
+		"link": route,
+		"logo_url": logo_url,
+		"icon": (app_icon[0] if app_icon else "octicon octicon-file-directory"),
+		"standard": 1,
+		"hidden": 0,
+		"parent_icon": "",
+	}
+
+
 def _ensure_healthcare_desktop_icon_visible():
-	"""Set Healthcare Desktop Icon to standard and set logo_url/icon so it shows for all users."""
+	"""Create/repair Healthcare App Desktop Icon so it shows on Desktop Icons mode.
+
+	Does not change Desktop Settings.desktop_page. Apps mode is covered by
+	``add_to_apps_screen`` in hooks independently of this row.
+	"""
+	values = _healthcare_app_icon_values()
 	icon_name = frappe.db.get_value(
 		"Desktop Icon",
 		{"icon_type": "App", "app": "healthcare"},
 		"name",
 	)
-	if not icon_name:
+
+	# Label is the docname; a non-App row named Healthcare blocks App icon creation.
+	if not icon_name and frappe.db.exists("Desktop Icon", values["label"]):
+		icon_name = values["label"]
+
+	if icon_name:
+		for field, value in values.items():
+			frappe.db.set_value("Desktop Icon", icon_name, field, value)
+	else:
+		icon = frappe.new_doc("Desktop Icon")
+		icon.update(values)
+		icon.insert(ignore_permissions=True)
+		icon_name = icon.name
+
+	_inject_healthcare_into_desktop_layouts(values, icon_name)
+	return icon_name
+
+
+def _inject_healthcare_into_desktop_layouts(icon_values: dict, icon_name: str | None = None):
+	"""Saved Desktop Layouts pin a fixed icon list — new icons do not appear until added."""
+	import json
+
+	if not frappe.db.exists("DocType", "Desktop Layout"):
 		return
-	app_details = frappe.get_hooks("add_to_apps_screen", app_name="healthcare")
-	app_icon = frappe.get_hooks("app_icon", app_name="healthcare")
-	app_icon_url = frappe.get_hooks("app_icon_url", app_name="healthcare")
-	app_title = frappe.get_hooks("app_title", app_name="healthcare")[0]
-	logo_url = app_details[0].get("logo") if app_details else (app_icon_url[0] if app_icon_url else None)
-	icon_class = app_icon[0] if app_icon else "octicon octicon-file-directory"
-	frappe.db.set_value("Desktop Icon", icon_name, "standard", 1)
-	if logo_url:
-		frappe.db.set_value("Desktop Icon", icon_name, "logo_url", logo_url)
-	frappe.db.set_value("Desktop Icon", icon_name, "icon", icon_class)
-	frappe.db.set_value("Desktop Icon", icon_name, "label", app_title)
-	if app_details:
-		frappe.db.set_value("Desktop Icon", icon_name, "link", app_details[0].get("route", "/health"))
+
+	label = icon_values.get("label") or "Healthcare"
+	name = icon_name or label
+	payload = {
+		"label": label,
+		"name": name,
+		"bg_color": "gray",
+		"link": icon_values.get("link") or "/health",
+		"link_type": icon_values.get("link_type") or "External",
+		"app": "healthcare",
+		"icon_type": "App",
+		"parent_icon": "",
+		"icon": icon_values.get("icon"),
+		"link_to": None,
+		"idx": 0,
+		"standard": 1,
+		"logo_url": icon_values.get("logo_url"),
+		"hidden": 0,
+		"restrict_removal": 0,
+		"icon_image": None,
+	}
+
+	for row in frappe.get_all("Desktop Layout", fields=["name", "layout"]):
+		try:
+			layout = json.loads(row.layout or "[]")
+		except Exception:
+			continue
+		if not isinstance(layout, list):
+			continue
+
+		items = [i for i in layout if isinstance(i, dict)]
+		existing = next(
+			(
+				i
+				for i in items
+				if i.get("label") == label
+				or i.get("name") == name
+				or (i.get("app") == "healthcare" and i.get("icon_type") == "App")
+			),
+			None,
+		)
+		if existing:
+			existing.update(
+				{
+					"label": payload["label"],
+					"name": payload["name"],
+					"link": payload["link"],
+					"link_type": payload["link_type"],
+					"hidden": 0,
+					"parent_icon": "",
+					"icon": payload["icon"],
+					"logo_url": payload["logo_url"],
+					"standard": 1,
+					"app": "healthcare",
+					"icon_type": "App",
+				}
+			)
+		else:
+			items.insert(0, dict(payload))
+
+		for idx, item in enumerate(items):
+			item["idx"] = idx
+
+		frappe.db.set_value("Desktop Layout", row.name, "layout", json.dumps(items))
 
 
 def _create_healthcare_role_desktop_icons():
