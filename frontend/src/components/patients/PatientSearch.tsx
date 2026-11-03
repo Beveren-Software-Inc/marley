@@ -419,7 +419,7 @@ export const PatientSearch = ({
               label: v.value,
               patient: v.patient,
               patient_name: v.patient_name,
-              meta: v.encounter_date ? `${v.encounter_date} • ${v.status}` : v.status
+              meta: [v.encounter_date, v.status, v.visit_type_label || v.visit_type].filter(Boolean).join(' • ')
             }))
           )
         } else if (mode === 'IP') {

@@ -6,7 +6,7 @@ import {
   type Appointment,
   type SlotDetail,
   type AvailabilitySlotInfo,
-  type PractitionerAvailabilityResponse,
+  type PractitionerAvailabilityResponse
 } from '../../services/appointments'
 import { toast } from '../../hooks/useToast'
 import { X, AlertCircle, CalendarOff } from 'lucide-react'
@@ -101,7 +101,11 @@ function flattenSlots(
   appointmentDate: string,
   currentAppointmentName: string
 ): { slot: AvailabilitySlotInfo; slotInfo: SlotDetail; disabled: boolean }[] {
-  const out: { slot: AvailabilitySlotInfo; slotInfo: SlotDetail; disabled: boolean }[] = []
+  const out: {
+    slot: AvailabilitySlotInfo
+    slotInfo: SlotDetail
+    disabled: boolean
+  }[] = []
   for (const slotInfo of slotDetails) {
     for (const slot of getAvailSlots(slotInfo)) {
       if (slot && (slot.from_time != null || slot.to_time != null)) {
@@ -126,17 +130,21 @@ function toApiTime(t: string | number | null | undefined): string {
   return `${h}:${m}:${s}`
 }
 
-export const RescheduleAppointmentModal = ({
-  appointment,
-  onClose,
-  onSuccess
-}: RescheduleAppointmentModalProps) => {
+function parseCustomDurationMinutes(raw: string): number {
+  const value = parseInt(raw.trim(), 10)
+  return Number.isFinite(value) && value >= 1 ? value : 0
+}
+
+export const RescheduleAppointmentModal = ({ appointment, onClose, onSuccess }: RescheduleAppointmentModalProps) => {
   const initialDate = appointment.appointment_date
     ? new Date(appointment.appointment_date).toISOString().split('T')[0]
     : new Date().toISOString().split('T')[0]
 
   const [appointment_date, setAppointmentDate] = useState(initialDate)
   const [appointment_time, setAppointmentTime] = useState('')
+  const [timeMode, setTimeMode] = useState<'schedule' | 'custom'>('schedule')
+  const [customTime, setCustomTime] = useState('')
+  const [customDurationMinutes, setCustomDurationMinutes] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [slotsLoading, setSlotsLoading] = useState(false)
@@ -148,8 +156,7 @@ export const RescheduleAppointmentModal = ({
     service_unit?: string | null
   } | null>(null)
   const [isPractitionerOnLeave, setIsPractitionerOnLeave] = useState(false)
-  const [unavailabilityInfo, setUnavailabilityInfo] =
-    useState<PractitionerAvailabilityResponse | null>(null)
+  const [unavailabilityInfo, setUnavailabilityInfo] = useState<PractitionerAvailabilityResponse | null>(null)
 
   const hasPractitioner = Boolean(appointment.practitioner)
 
@@ -194,10 +201,7 @@ export const RescheduleAppointmentModal = ({
 
     const run = async () => {
       try {
-        const availability = await checkPractitionerAvailability(
-          appointment.practitioner!,
-          appointment_date
-        )
+        const availability = await checkPractitionerAvailability(appointment.practitioner!, appointment_date)
         if (cancelled) return
         if (availability.available === false) {
           setIsPractitionerOnLeave(true)
@@ -205,30 +209,20 @@ export const RescheduleAppointmentModal = ({
           setSlotsLoading(false)
           return
         }
-        const res = await getAvailabilityData(
-          appointment_date,
-          appointment.practitioner!,
-          appointment.name
-        )
+        const res = await getAvailabilityData(appointment_date, appointment.practitioner!, appointment.name)
         if (cancelled) return
         setSlotDetails(res.slot_details || [])
         if (res.user_message) {
           setSlotsError(res.user_message)
         } else if (!res.slot_details?.length) {
-          setSlotsError(
-            "No slots available for this date. The doctor may be on leave or it's a holiday."
-          )
+          setSlotsError("No slots available for this date. The doctor may be on leave or it's a holiday.")
         }
       } catch (err) {
         if (cancelled) return
         const errorMessage = err instanceof Error ? err.message : 'Failed to load slots'
-        if (
-          /holiday|leave|unavailable|not available/i.test(errorMessage)
-        ) {
+        if (/holiday|leave|unavailable|not available/i.test(errorMessage)) {
           setIsPractitionerOnLeave(true)
-          setSlotsError(
-            `Doctor is not available on ${appointment_date}. Please select a different date.`
-          )
+          setSlotsError(`Doctor is not available on ${appointment_date}. Please select a different date.`)
         } else {
           setSlotsError(errorMessage)
         }
@@ -253,7 +247,7 @@ export const RescheduleAppointmentModal = ({
       setError('Appointment date is required')
       return
     }
-    
+
     // Check if practitioner is on leave / unavailable before submitting
     if (isPractitionerOnLeave) {
       setError(
@@ -262,15 +256,38 @@ export const RescheduleAppointmentModal = ({
       )
       return
     }
-    
-    const timeToSend = selectedSlot
-      ? toApiTime(selectedSlot.from_time)
-      : appointment_time
-        ? `${appointment_time.replace(/^(\d{1,2}):(\d{2}).*/, (_, h, m) => `${h.padStart(2, '0')}:${m}:00`)}`
-        : undefined
-    if (!timeToSend && hasPractitioner) {
-      setError('Please select an available slot.')
-      return
+
+    let timeToSend: string | undefined
+    let durationToSend: number | undefined
+
+    if (hasPractitioner) {
+      if (timeMode === 'schedule') {
+        if (!selectedSlot) {
+          setError('Select a slot from the schedule, or switch to Custom time.')
+          return
+        }
+
+        timeToSend = toApiTime(selectedSlot.from_time)
+        durationToSend = selectedSlot.duration
+      } else {
+        if (!customTime.trim()) {
+          setError('Enter a start time for the custom appointment.')
+          return
+        }
+
+        timeToSend = toApiTime(customTime)
+
+        if (customDurationMinutes.trim()) {
+          durationToSend = parseCustomDurationMinutes(customDurationMinutes)
+
+          if (durationToSend < 1) {
+            setError('Duration must be at least 1 minute, or leave it blank.')
+            return
+          }
+        }
+      }
+    } else {
+      timeToSend = appointment_time ? toApiTime(appointment_time) : undefined
     }
     try {
       setLoading(true)
@@ -279,7 +296,7 @@ export const RescheduleAppointmentModal = ({
         appointment.name,
         appointment_date,
         timeToSend,
-        selectedSlot?.duration,
+        durationToSend,
         selectedSlot?.service_unit ?? undefined
       )
       toast.success('Appointment rescheduled successfully')
@@ -287,7 +304,7 @@ export const RescheduleAppointmentModal = ({
       onClose()
     } catch (err) {
       let message = err instanceof Error ? err.message : 'Failed to reschedule appointment'
-      
+
       // Check for holiday/leave error in the response
       if (message.toLowerCase().includes('holiday')) {
         message = `❌ Cannot reschedule: ${message}`
@@ -296,7 +313,7 @@ export const RescheduleAppointmentModal = ({
         message = `❌ Doctor is not available on ${appointment_date}. Please select a different date.`
         setIsPractitionerOnLeave(true)
       }
-      
+
       setError(message)
       toast.error(message)
     } finally {
@@ -371,59 +388,127 @@ export const RescheduleAppointmentModal = ({
 
           {hasPractitioner && !isPractitionerOnLeave && (
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">
-                Available slots <span className="text-red-500">*</span>
-              </label>
-              {slotsLoading && (
-                <div className="flex items-center justify-center py-4">
-                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
-                  <span className="ml-2 text-sm text-slate-500">Loading available slots...</span>
-                </div>
-              )}
-              {slotsError && !slotsLoading && (
-                <div className="bg-amber-50 border border-amber-200 rounded-md p-3">
-                  <p className="text-sm text-amber-800">{slotsError}</p>
-                </div>
-              )}
-              {!slotsLoading && !slotsError && flatSlots.length === 0 && slotDetails && (
-                <div className="bg-amber-50 border border-amber-200 rounded-md p-3">
-                  <p className="text-sm text-amber-800">No slots available for this date. The doctor may be on leave or fully booked.</p>
-                </div>
-              )}
-              {!slotsLoading && flatSlots.length > 0 && (
-                <div className="flex flex-wrap gap-2 max-h-48 overflow-y-auto p-1">
-                  {flatSlots.map(({ slot, slotInfo, disabled }, idx) => {
-                    const key = `${slotInfo.slot_name}-${slot.from_time}-${idx}`
-                    const isSelected =
-                      selectedSlot?.from_time === slot.from_time &&
-                      selectedSlot?.service_unit === slotInfo.service_unit
-                    return (
-                      <button
-                        key={key}
-                        type="button"
-                        disabled={disabled}
-                        onClick={() =>
-                          setSelectedSlot({
-                            from_time: slot.from_time,
-                            duration: slot.duration,
-                            service_unit: slotInfo.service_unit
-                          })
+              <div>
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <label className="block text-sm font-medium text-slate-700">Appointment time</label>
+                  <div className="inline-flex rounded-md border border-slate-300 overflow-hidden text-xs font-medium">
+                    <button
+                      type="button"
+                      onClick={() => setTimeMode('schedule')}
+                      className={`px-3 py-1.5 transition-colors ${
+                        timeMode === 'schedule' ? 'bg-primary text-white' : 'bg-white text-slate-600 hover:bg-slate-50'
+                      }`}
+                    >
+                      Schedule slots
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setTimeMode('custom')
+                        if (selectedSlot && !customTime) {
+                          setCustomTime(formatSlotTime(selectedSlot.from_time))
                         }
-                        className={`rounded-md border px-3 py-2 text-sm font-medium transition-colors ${
-                          disabled
-                            ? 'border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed line-through'
-                            : isSelected
-                              ? 'border-primary bg-primary text-white'
-                              : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
-                        }`}
-                      >
-                        {formatSlotTime(slot.from_time)}
-                        {slot.to_time ? ` – ${formatSlotTime(slot.to_time)}` : ''}
-                      </button>
-                    )
-                  })}
+                        if (selectedSlot?.duration) {
+                          setCustomDurationMinutes(String(selectedSlot.duration))
+                        }
+                      }}
+                      className={`px-3 py-1.5 border-l border-slate-300 transition-colors ${
+                        timeMode === 'custom' ? 'bg-primary text-white' : 'bg-white text-slate-600 hover:bg-slate-50'
+                      }`}
+                    >
+                      Custom time
+                    </button>
+                  </div>
                 </div>
-              )}
+
+                {timeMode === 'schedule' ? (
+                  <>
+                    {slotsLoading && <p className="text-sm text-slate-500">Loading slots…</p>}
+                    {slotsError && !slotsLoading && (
+                      <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-md p-2">
+                        {slotsError}
+                      </p>
+                    )}
+                    {!slotsLoading && !slotsError && flatSlots.length > 0 && (
+                      <div className="flex flex-wrap gap-2 max-h-40 overflow-y-auto">
+                        {flatSlots.map(({ slot, slotInfo, disabled }, idx) => {
+                          const isSelected =
+                            selectedSlot?.from_time === slot.from_time &&
+                            selectedSlot?.service_unit === slotInfo.service_unit
+                          return (
+                            <button
+                              key={`${slot.from_time}-${idx}`}
+                              type="button"
+                              disabled={disabled}
+                              onClick={() =>
+                                setSelectedSlot({
+                                  from_time: slot.from_time,
+                                  duration: slot.duration,
+                                  service_unit: slotInfo.service_unit
+                                })
+                              }
+                              className={`rounded-md border px-3 py-2 text-sm font-medium transition-colors ${
+                                disabled
+                                  ? 'border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed'
+                                  : isSelected
+                                    ? 'border-primary bg-primary text-white'
+                                    : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
+                              }`}
+                            >
+                              {formatSlotTime(slot.from_time)}
+                              {slot.to_time ? ` – ${formatSlotTime(slot.to_time)}` : ''}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    )}
+                    {!slotsLoading && !slotsError && flatSlots.length === 0 && slotDetails && (
+                      <p className="text-sm text-slate-500">No slots available for this date.</p>
+                    )}
+                  </>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 rounded-lg border border-slate-200 bg-slate-50/80 p-4">
+                    <div>
+                      <label className="block text-xs font-medium text-slate-600 mb-1">
+                        Start time <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="time"
+                        value={customTime}
+                        onChange={(e) => setCustomTime(e.target.value)}
+                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+                        required={timeMode === 'custom'}
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-medium text-slate-600 mb-1">Duration (minutes)</label>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
+                        value={customDurationMinutes}
+                        onChange={(e) => setCustomDurationMinutes(e.target.value.replace(/\D/g, ''))}
+                        onBlur={() => {
+                          if (!customDurationMinutes.trim()) return
+                          const n = parseCustomDurationMinutes(customDurationMinutes)
+                          if (n >= 1) {
+                            setCustomDurationMinutes(String(n))
+                          }
+                        }}
+                        placeholder="Optional — e.g. 45"
+                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+                      />
+                      <p className="text-[11px] text-slate-500 mt-1">Leave blank if no duration is needed.</p>
+                    </div>
+
+                    <p className="sm:col-span-2 text-xs text-slate-500">
+                      Use custom time when the visit needs a length other than the standard schedule slots (e.g. 45 or
+                      90 minutes). Overlap checks still apply.
+                    </p>
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
@@ -438,9 +523,7 @@ export const RescheduleAppointmentModal = ({
 
           {!hasPractitioner && (
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
-                Appointment Time
-              </label>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Appointment Time</label>
               <input
                 type="time"
                 value={appointment_time}
@@ -463,7 +546,9 @@ export const RescheduleAppointmentModal = ({
             </button>
             <button
               type="submit"
-              disabled={loading || (hasPractitioner && !selectedSlot && flatSlots.length > 0) || isPractitionerOnLeave}
+              disabled={
+                loading || (hasPractitioner && timeMode === 'schedule' && !selectedSlot) || isPractitionerOnLeave
+              }
               className="px-4 py-2 text-sm font-medium text-white bg-primary rounded-md hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? 'Rescheduling…' : 'Reschedule'}
