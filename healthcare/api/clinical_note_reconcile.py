@@ -229,6 +229,7 @@ def _new_progress(
 		"duplicate_extra_copies_before": 0,
 		"duplicate_groups_merged": 0,
 		"duplicate_notes_deleted": 0,
+		"duplicate_cleanup_errors": 0,
 		# Oracle side (rows per source, as the Oracle dev counts them)
 		"oracle_op": 0,
 		"oracle_history": 0,
@@ -1345,8 +1346,12 @@ def _process_chunk(
 		progress["processed"] = cint(progress.get("processed")) + 1
 
 
-def _run_visit_duplicate_cleanup(progress: dict) -> None:
-	"""Merge re-imported OP visit clinical notes (same patient+visit+text, new trans_no)."""
+def _run_visit_duplicate_cleanup(progress: dict, patients: list[str]) -> None:
+	"""Merge re-imported OP visit clinical notes (same patient+visit+text, new trans_no).
+
+	Cleanup is always limited to the reconcile work list from ``_build_patient_list``.
+	A ``limit=1`` (or single-patient) run must never merge notes for other patients.
+	"""
 	from healthcare.api.clinical_note_duplicate_cleanup import (
 		SCOPE_VISITS,
 		cleanup_clinical_note_duplicates,
@@ -1354,25 +1359,52 @@ def _run_visit_duplicate_cleanup(progress: dict) -> None:
 		_group_count,
 	)
 
-	patient = (progress.get("patient") or "").strip()
 	dry_run = cint(progress.get("dry_run"))
-	progress["duplicate_groups_before"] = _group_count(SCOPE_VISITS, patient=patient)
-	progress["duplicate_extra_copies_before"] = _extra_copies(SCOPE_VISITS, patient=patient)
-	if not progress["duplicate_groups_before"]:
+	work_patients = [(p or "").strip() for p in (patients or []) if (p or "").strip()]
+	scoped = bool((progress.get("patient") or "").strip() or cint(progress.get("limit")))
+	# Full-site reconcile (no patient, no limit): one site-wide pass.
+	# Limited / single-patient runs: only the patients on this work list.
+	targets = work_patients if scoped else [""]
+
+	groups_before = 0
+	extras_before = 0
+	for target in targets:
+		groups_before += _group_count(SCOPE_VISITS, patient=target)
+		extras_before += _extra_copies(SCOPE_VISITS, patient=target)
+	progress["duplicate_groups_before"] = groups_before
+	progress["duplicate_extra_copies_before"] = extras_before
+	if not groups_before:
 		return
 
 	progress["message"] = _("Merging duplicate OP visit clinical notes...")
 	_set_progress(progress)
 
+	merged = 0
+	deleted = 0
+	cleanup_errors = 0
 	# Same calendar day is enough: OP re-imports usually share midnight posting_date.
-	outcome = cleanup_clinical_note_duplicates(
-		dry_run=dry_run,
-		scope=SCOPE_VISITS,
-		match_posting_time=0,
-		patient=patient,
-	)
-	progress["duplicate_groups_merged"] = cint(outcome.get("groups_merged"))
-	progress["duplicate_notes_deleted"] = cint(outcome.get("notes_deleted"))
+	for target in targets:
+		outcome = cleanup_clinical_note_duplicates(
+			dry_run=dry_run,
+			scope=SCOPE_VISITS,
+			match_posting_time=0,
+			patient=target,
+		)
+		merged += cint(outcome.get("groups_merged"))
+		deleted += cint(outcome.get("notes_deleted"))
+		cleanup_errors += cint(outcome.get("errors"))
+	progress["duplicate_groups_merged"] = merged
+	progress["duplicate_notes_deleted"] = deleted
+	progress["duplicate_cleanup_errors"] = cleanup_errors
+	if cleanup_errors:
+		_record_errors(
+			progress,
+			[
+				_("OP visit clinical note duplicate cleanup reported {0} error(s).").format(
+					cleanup_errors
+				)
+			],
+		)
 
 
 def _run(
@@ -1431,7 +1463,7 @@ def _run(
 	frappe.db.commit()
 	if cint(progress.get("remove_duplicates")):
 		try:
-			_run_visit_duplicate_cleanup(progress)
+			_run_visit_duplicate_cleanup(progress, patients)
 			frappe.db.commit()
 		except Exception:
 			frappe.db.rollback()
@@ -1529,6 +1561,12 @@ def _summary_message(progress: dict) -> str:
 				),
 			]
 		)
+		if cint(progress.get("duplicate_cleanup_errors")):
+			lines.append(
+				_("Duplicate cleanup errors: {0}").format(
+					cint(progress.get("duplicate_cleanup_errors"))
+				)
+			)
 	if dry:
 		lines.insert(1, _("DRY RUN - nothing was changed."))
 	if progress.get("failed"):

@@ -25,13 +25,18 @@ export interface LongActingMedicineGiveOutRow {
 /**
  * Prefer the linked User on the give-out. When legacy rows have no user
  * (Oracle VISIT_00_04), fall back to a name typed in remarks as "given by …".
+ *
+ * Only the giver name is returned — never the rest of the clinical note.
+ * Callers that mask clinical details must pass ``allowNotesFallback=false``.
  */
 export function resolveGiveOutGivenBy(
   user?: string | null,
   notes?: string | null,
+  allowNotesFallback: boolean = true,
 ): string {
   const fromUser = (user || '').trim()
   if (fromUser) return fromUser
+  if (!allowNotesFallback) return ''
 
   const text = (notes || '').trim()
   if (!text) return ''
@@ -40,8 +45,10 @@ export function resolveGiveOutGivenBy(
   if (!match) return ''
 
   let name = match[1].trim()
-  // Stop before common trailing clauses: ", DC…", ".DC…", " as per…"
-  const cut = name.search(/\s*(?:,|\.\s*DC\b|\bDC\b|\bas per\b|\bnext\b)/i)
+  // Stop before trailing clauses / the next sentence so clinical text stays out.
+  const cut = name.search(
+    /\s*(?:,|;|\.(?:\s|$)|!\s|\?\s|\bDC\b|\bas per\b|\bnext\b|\bpatient\b|\n)/i,
+  )
   if (cut > 0) name = name.slice(0, cut).trim()
   return name.replace(/[.\s]+$/g, '').trim()
 }
