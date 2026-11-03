@@ -178,7 +178,15 @@ def _apply_legacy_import_flags(doc) -> None:
 	doc.flags.legacy_import = True
 
 
-def upsert_clinical_note_from_row(row: dict) -> dict:
+def upsert_clinical_note_from_row(row: dict, *, create_name: str | None = None) -> dict:
+	"""Create or update the Clinical Note of one Oracle IP note row.
+
+	``create_name`` forces a name other than the Oracle ``TRANS_NUM``, and with
+	it the row is only ever created - never written over an existing note. The
+	IP import names notes after that number, but Clinical Note names are also a
+	numeric series on this site, so a ``TRANS_NUM`` can be the name of an
+	unrelated note; the caller then passes a fresh series name.
+	"""
 	trans_no = row.get("trans_num") or ""
 	if not trans_no:
 		return {"status": "skip_no_trans_num"}
@@ -191,12 +199,16 @@ def upsert_clinical_note_from_row(row: dict) -> dict:
 	if not fields.get("note"):
 		return {"status": "skip_no_note", "trans_no": trans_no}
 
-	existing_name = _existing_clinical_note_name(trans_no)
+	existing_name = None if create_name else _existing_clinical_note_name(trans_no)
 	if existing_name:
 		doc = frappe.get_doc("Clinical Note", existing_name)
 		action = "updated"
 	else:
-		doc = frappe.get_doc({"doctype": "Clinical Note", "name": trans_no, **fields})
+		# The name is set here (not by autoname) so a row whose TRANS_NUM is
+		# already another note's name can still be created.
+		doc = frappe.get_doc({"doctype": "Clinical Note", **fields})
+		doc.name = create_name or trans_no
+		doc.flags.name_set = True
 		action = "created"
 
 	if existing_name:

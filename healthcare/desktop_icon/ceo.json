@@ -1,0 +1,21 @@
+{
+ "app": "healthcare",
+ "bg_color": "gray",
+ "creation": "2026-11-03 23:29:47.417093",
+ "docstatus": 0,
+ "doctype": "Desktop Icon",
+ "hidden": 0,
+ "icon": "circle-user-round",
+ "icon_type": "Link",
+ "idx": 0,
+ "label": "CEO",
+ "link": "/desk/ceo",
+ "link_type": "External",
+ "modified": "2026-11-03 23:29:47.417093",
+ "modified_by": "Administrator",
+ "name": "CEO",
+ "owner": "Administrator",
+ "restrict_removal": 0,
+ "roles": [],
+ "standard": 1
+}

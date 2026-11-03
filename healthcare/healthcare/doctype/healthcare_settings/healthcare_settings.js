@@ -47,6 +47,26 @@ frappe.ui.form.on('Healthcare Settings', {
 			__('Oracle -> ERPNext')
 		);
 
+		// One button for the doctor progress notes: Oracle keeps the current OP
+		// diagnosis (VISIT_00_01), every earlier version of it
+		// (VISIT_00_01_HISTORY) and the IP notes (IP_ADMISSION_DIAGNOSES), while
+		// ERPNext only ever imported the first and the third. This compares all
+		// three and creates the notes that are missing.
+		frm.add_custom_button(
+			__('Reconcile Doctor Progress Notes'),
+			() => open_clinical_note_reconcile(frm),
+			__('Oracle -> ERPNext')
+		);
+
+		// Repeated backfills stored the same words on the same transaction under a new
+		// trans number every time. This merges such copies into one note (every trans
+		// number stays on the surviving note) and deletes the rest.
+		frm.add_custom_button(
+			__('Merge Duplicate Clinical Notes'),
+			() => open_clinical_note_duplicates(frm),
+			__('Data Maintenance')
+		);
+
 		frm.add_custom_button(__('Generate Doctors Stamp'), () => {
 			frappe.call({
 				method: 'healthcare.api.practitioner_stamp.preview_generate_doctors_stamps',
@@ -7694,6 +7714,20 @@ function poll_migration_status(jobKey) {
 								errN,
 							]
 						);
+					} else if (jobKey === 'clinical_note_duplicate_cleanup') {
+						const skippedDuplicates =
+							(s.skipped_inpatient_legacy || 0) +
+							(s.skipped_locked || 0) +
+							(s.skipped_attachment || 0) +
+							(s.skipped_variance || 0) +
+							(s.skipped_submitted || 0);
+						msg = __(
+							'{0} finished: {1} group(s) merged, {2} duplicate note(s) deleted, {3} skipped, {4} errors.',
+							[jobKey, s.groups_merged || 0, s.notes_deleted || 0, skippedDuplicates, errN]
+						);
+						if (s.groups_remaining != null) {
+							msg += __(' {0} duplicate group(s) remaining.', [s.groups_remaining]);
+						}
 					} else if (jobKey === 'ip_admission_02_import') {
 						const phStats = s.stats || {};
 						msg = __(
@@ -8813,6 +8847,9 @@ const ORACLE_SYNC_POLL_LIMIT = 150;
 const PRESCRIPTION_RECONCILE_POLL_LIMIT = 300;
 // Same idea for the long-acting / depot register (a few hundred groups at most).
 const LONG_ACTING_RECONCILE_POLL_LIMIT = 300;
+// The doctor progress note reconciliation can walk every patient in Oracle, so
+// the dialog polls for up to 10 minutes and then leaves the job running.
+const CLINICAL_NOTE_RECONCILE_POLL_LIMIT = 300;
 
 function hide_legacy_setting_buttons(frm) {
 	if (frm.__legacy_setting_buttons_hidden) {
@@ -9141,6 +9178,467 @@ function track_long_acting_reconcile(frm) {
 	}, ORACLE_SYNC_POLL_INTERVAL);
 }
 
+
+/**
+ * Doctor progress notes: Oracle -> ERPNext.
+ *
+ * Oracle counts a patient's progress notes in three tables - the current OP
+ * diagnosis (VISIT_00_01), every earlier version of it
+ * (VISIT_00_01_HISTORY) and the IP notes (IP_ADMISSION_DIAGNOSES). ERPNext only
+ * ever wrote the first and the third, so the OP diagnosis history is missing.
+ * This compares all three and creates only the notes that are missing.
+ */
+function open_clinical_note_reconcile(frm) {
+	const dialog = new frappe.ui.Dialog({
+		title: __('Reconcile Doctor Progress Notes'),
+		fields: [
+			{
+				fieldtype: 'Data',
+				fieldname: 'patient',
+				label: __('Patient (optional)'),
+				description: __(
+					'Leave empty to compare every patient in Oracle. A patient number gives the note-by-note breakdown for that patient.'
+				),
+			},
+			{
+				fieldtype: 'Check',
+				fieldname: 'skip_duplicate_text',
+				label: __('Skip history rows that only repeat the current diagnosis'),
+				default: 0,
+			},
+			{
+				fieldtype: 'Check',
+				fieldname: 'dry_run',
+				label: __('Dry run (report only, create nothing)'),
+				default: 0,
+			},
+		],
+		primary_action_label: __('Preview'),
+		primary_action(values) {
+			dialog.hide();
+			preview_clinical_note_reconcile(frm, values || {});
+		},
+	});
+	dialog.show();
+}
+
+function preview_clinical_note_reconcile(frm, values) {
+	frappe.dom.freeze(__('Comparing doctor progress notes with Oracle…'));
+	frappe.call({
+		method: 'healthcare.api.clinical_note_reconcile.preview_clinical_note_reconcile',
+		args: { patient: (values && values.patient) || '' },
+		callback(r) {
+			frappe.dom.unfreeze();
+			if (!r.message) {
+				return;
+			}
+			show_clinical_note_reconcile_dialog(frm, r.message, values || {});
+		},
+		error() {
+			frappe.dom.unfreeze();
+		},
+	});
+}
+
+function clinical_note_reconcile_sources_html(data) {
+	const is_patient = data.mode === 'patient';
+	const head = is_patient
+		? `<tr><th>${__('Oracle source')}</th><th class="text-right">${__(
+				'In Oracle'
+		  )}</th><th class="text-right">${__('In ERPNext')}</th><th class="text-right">${__(
+				'Missing'
+		  )}</th></tr>`
+		: `<tr><th>${__('Oracle source')}</th><th class="text-right">${__('In Oracle')}</th></tr>`;
+
+	const body = (data.sources || [])
+		.map((source) => {
+			if (!is_patient) {
+				return `<tr><td>${oracle_sync_escape(source.label)}</td><td class="text-right"><b>${oracle_sync_escape(
+					source.oracle_count
+				)}</b></td></tr>`;
+			}
+			return `<tr><td>${oracle_sync_escape(source.label)}</td>
+				<td class="text-right">${oracle_sync_escape(source.oracle_count)}</td>
+				<td class="text-right">${oracle_sync_escape(source.erpnext_count)}</td>
+				<td class="text-right"><b>${oracle_sync_escape(source.missing_count)}</b></td></tr>`;
+		})
+		.join('');
+
+	const totals = data.totals || {};
+	const footer = is_patient
+		? `<tr><th>${__('Total')}</th><th class="text-right">${oracle_sync_escape(
+				totals.oracle
+		  )}</th><th class="text-right">${oracle_sync_escape(
+				totals.erpnext
+		  )}</th><th class="text-right">${oracle_sync_escape(totals.missing)}</th></tr>`
+		: '';
+
+	return `<table class="table table-bordered" style="margin-bottom:12px"><thead>${head}</thead><tbody>${body}${footer}</tbody></table>`;
+}
+
+function clinical_note_reconcile_samples_html(samples) {
+	if (!samples || !samples.length) {
+		return '';
+	}
+	const items = samples
+		.map(
+			(sample) =>
+				`<li>${oracle_sync_escape(sample.key)}${
+					sample.posting_date ? ` — ${oracle_sync_escape(sample.posting_date)}` : ''
+				}<br><span class="text-muted">${oracle_sync_escape(sample.text)}</span></li>`
+		)
+		.join('');
+	return `<p class="text-muted small" style="margin-bottom:4px"><b>${__(
+		'Missing notes (first {0})',
+		[samples.length]
+	)}</b></p><ul class="text-muted small">${items}</ul>`;
+}
+
+function clinical_note_reconcile_patients_html(rows) {
+	if (!rows || !rows.length) {
+		return '';
+	}
+	const head = `<tr><th>${__('Patient')}</th><th>${__('Name')}</th><th class="text-right">${__(
+		'OP'
+	)}</th><th class="text-right">${__('History')}</th><th class="text-right">${__(
+		'IP'
+	)}</th><th class="text-right">${__('In Oracle')}</th><th class="text-right">${__(
+		'Clinical Notes'
+	)}</th></tr>`;
+	const body = rows
+		.map(
+			(row) => `<tr>
+				<td>${oracle_sync_escape(row.patient)}${
+				row.patient_exists
+					? ''
+					: ` <span class="indicator-pill red">${__('missing patient')}</span>`
+			}</td>
+				<td>${oracle_sync_escape(row.patient_name)}</td>
+				<td class="text-right">${oracle_sync_escape(row.op)}</td>
+				<td class="text-right">${oracle_sync_escape(row.history)}</td>
+				<td class="text-right">${oracle_sync_escape(row.ip)}</td>
+				<td class="text-right"><b>${oracle_sync_escape(row.total)}</b></td>
+				<td class="text-right">${oracle_sync_escape(row.erpnext_notes)}</td>
+			</tr>`
+		)
+		.join('');
+	return `<table class="table table-bordered" style="margin-bottom:12px"><thead>${head}</thead><tbody>${body}</tbody></table>`;
+}
+
+function show_clinical_note_reconcile_dialog(frm, data, values) {
+	const is_patient = data.mode === 'patient';
+	const erpnext = data.erpnext || {};
+	const totals = data.totals || {};
+	const missing = cint(totals.missing);
+
+	let hint;
+	if (is_patient) {
+		hint = missing
+			? `<div class="alert alert-warning">${__(
+					'ERPNext is missing {0} note(s) of this patient. Running the reconciliation creates only those.',
+					[missing]
+			  )}</div>`
+			: `<div class="alert alert-success">${__(
+					'ERPNext already has every progress note Oracle recorded for this patient.'
+			  )}</div>`;
+		if (cint(data.duplicate_history_rows)) {
+			hint += `<div class="text-muted small">${__(
+				'{0} history row(s) only repeat the diagnosis of their own visit, so tick “Skip history rows that only repeat the current diagnosis” if you do not want them as separate notes.',
+				[cint(data.duplicate_history_rows)]
+			)}</div>`;
+		}
+		if (cint(data.ip_fresh_name_count)) {
+			hint += `<div class="text-muted small">${__(
+				'{0} IP row(s) keep their Oracle trans number but take a fresh Clinical Note name, because that number is already the name of another patient’s note. The other note is never touched.',
+				[cint(data.ip_fresh_name_count)]
+			)}</div>`;
+		}
+	} else {
+		hint = `<div class="alert alert-info">${__(
+			'Oracle has {0} progress note(s) for {1} patient(s); ERPNext holds {2} Clinical Note(s) in total, {3} of them Doctor Progress Notes.',
+			[
+				cint(totals.oracle),
+				cint(data.patients_in_oracle),
+				cint(erpnext.clinical_notes),
+				cint(erpnext.doctor_progress_notes),
+			]
+		)}</div>`;
+	}
+
+	const body = [
+		hint,
+		clinical_note_reconcile_sources_html(data),
+		is_patient
+			? `<p class="text-muted small">${__(
+					'Clinical Notes for this patient: {0} ({1} Doctor Progress Notes) over {2} Patient Visit(s).',
+					[
+						cint(erpnext.clinical_notes),
+						cint(erpnext.doctor_progress_notes),
+						cint(data.patient_visits),
+					]
+			  )}</p>`
+			: clinical_note_reconcile_patients_html(data.rows) +
+			  (data.truncated
+					? `<div class="text-muted small" style="margin-top:-8px">${__(
+							'Showing the busiest patients only.'
+					  )}</div>`
+					: ''),
+		is_patient ? clinical_note_reconcile_samples_html(data.samples) : '',
+		`<p class="text-muted small">${__(
+			'Only missing Clinical Notes are created (as “Doctor Progress Note”, keyed by trans_no). Nothing is updated, cancelled or deleted, and running it again finds nothing left to do.'
+		)}</p>`,
+	]
+		.filter(Boolean)
+		.join('');
+
+	const dialog = new frappe.ui.Dialog({
+		title: is_patient
+			? __('Reconcile Doctor Progress Notes — {0}', [data.patient])
+			: __('Reconcile Doctor Progress Notes'),
+		size: 'large',
+		fields: [
+			{ fieldtype: 'HTML', fieldname: 'summary' },
+			{
+				fieldtype: 'Check',
+				fieldname: 'skip_duplicate_text',
+				label: __('Skip history rows that only repeat the current diagnosis'),
+				default: cint(values && values.skip_duplicate_text),
+			},
+			{
+				fieldtype: 'Check',
+				fieldname: 'dry_run',
+				label: __('Dry run (report only, create nothing)'),
+				default: cint(values && values.dry_run),
+			},
+		],
+		primary_action_label: __('Start'),
+		primary_action(dialog_values) {
+			dialog.hide();
+			start_clinical_note_reconcile(frm, {
+				patient: data.patient || '',
+				skip_duplicate_text: cint(dialog_values.skip_duplicate_text),
+				dry_run: cint(dialog_values.dry_run),
+			});
+		},
+	});
+	dialog.fields_dict.summary.$wrapper.html(body);
+	dialog.show();
+}
+
+function start_clinical_note_reconcile(frm, values) {
+	frappe.call({
+		method: 'healthcare.api.clinical_note_reconcile.start_clinical_note_reconcile',
+		args: {
+			patient: (values && values.patient) || '',
+			skip_duplicate_text: cint(values && values.skip_duplicate_text),
+			dry_run: cint(values && values.dry_run),
+		},
+		callback(r) {
+			const result = r.message || {};
+			if (result.queued || result.running) {
+				track_clinical_note_reconcile(frm);
+				return;
+			}
+			frappe.msgprint({
+				title: __('Reconcile Doctor Progress Notes'),
+				indicator: 'orange',
+				message: result.message || __('The reconciliation could not be started.'),
+			});
+		},
+	});
+}
+
+function track_clinical_note_reconcile(frm) {
+	let polls = 0;
+	const title = __('Reconciling doctor progress notes from Oracle');
+	frappe.show_progress(title, 0, 100, __('Reading Oracle…'));
+
+	const timer = setInterval(() => {
+		polls += 1;
+		frappe.call({
+			method: 'healthcare.api.clinical_note_reconcile.get_clinical_note_reconcile_status',
+			callback(r) {
+				const status = r.message || {};
+				const total = cint(status.total) || 0;
+				const processed = cint(status.processed) || 0;
+				frappe.show_progress(
+					title,
+					total ? processed : Math.min(polls, 95),
+					total || 100,
+					total ? __('{0} of {1} patients', [processed, total]) : __('Reading Oracle…')
+				);
+				if (status.state === 'finished' || status.state === 'failed') {
+					clearInterval(timer);
+					frappe.hide_progress();
+					frappe.msgprint({
+						title: __('Reconcile Doctor Progress Notes'),
+						indicator: status.state === 'finished' ? 'green' : 'red',
+						wide: true,
+						message: frappe.utils.escape_html(status.message || __('Done')).replace(
+							/\n/g,
+							'<br>'
+						),
+					});
+					if (frm && frm.refresh) {
+						frm.refresh();
+					}
+				} else if (polls >= CLINICAL_NOTE_RECONCILE_POLL_LIMIT) {
+					clearInterval(timer);
+					frappe.hide_progress();
+					frappe.msgprint(
+						__(
+							'The reconciliation is still running in the background. Open Reconcile Doctor Progress Notes again in a few minutes to see the result.'
+						)
+					);
+				}
+			},
+			error() {
+				clearInterval(timer);
+				frappe.hide_progress();
+			},
+		});
+	}, ORACLE_SYNC_POLL_INTERVAL);
+}
+
+
+function open_clinical_note_duplicates(frm) {
+	const dialog = new frappe.ui.Dialog({
+		title: __('Merge Duplicate Clinical Notes'),
+		fields: [
+			{
+				fieldtype: 'Select',
+				fieldname: 'scope',
+				label: __('Scope'),
+				options: [
+					{ value: 'visits', label: __('OP visit notes (VISIT_00_01)') },
+					{ value: 'inpatient', label: __('IP notes (IP_ADMISSION_DIAGNOSES)') },
+					{ value: 'all', label: __('Everything') },
+				],
+				default: 'visits',
+			},
+			{
+				fieldtype: 'Check',
+				fieldname: 'include_legacy_inpatient',
+				label: __(
+					'Also merge repeated legacy IP notes (their Oracle trans numbers stay on the surviving note)'
+				),
+				default: 0,
+			},
+			{
+				fieldtype: 'Check',
+				fieldname: 'dry_run',
+				label: __('Dry run (report only, delete nothing)'),
+				default: 1,
+			},
+		],
+		primary_action_label: __('Preview'),
+		primary_action(values) {
+			dialog.hide();
+			preview_clinical_note_duplicates(frm, values || {});
+		},
+	});
+	dialog.show();
+}
+
+function preview_clinical_note_duplicates(frm, values) {
+	frappe.dom.freeze(__('Looking for duplicate Clinical Notes…'));
+	frappe.call({
+		method: 'healthcare.api.clinical_note_duplicate_cleanup.preview_clinical_note_duplicates',
+		args: { scope: values.scope || 'visits', sample_limit: 5 },
+		callback(r) {
+			frappe.dom.unfreeze();
+			show_clinical_note_duplicates_dialog(frm, r.message || {}, values);
+		},
+		error() {
+			frappe.dom.unfreeze();
+		},
+	});
+}
+
+function clinical_note_duplicates_sample_html(sample) {
+	if (!sample || !sample.length) {
+		return '';
+	}
+	const head = `<tr><th>${__('Patient')}</th><th>${__('Transaction')}</th><th>${__(
+		'Posting date'
+	)}</th><th class="text-right">${__('Copies')}</th><th>${__('Keeping')}</th><th>${__(
+		'All Trans Nos'
+	)}</th></tr>`;
+	const body = sample
+		.map(
+			(row) => `<tr>
+				<td>${oracle_sync_escape(row.patient)}</td>
+				<td>${oracle_sync_escape(row.reference)}</td>
+				<td>${oracle_sync_escape(row.posting_date)}</td>
+				<td class="text-right">${oracle_sync_escape(row.copies)}</td>
+				<td>${oracle_sync_escape(row.keep)}</td>
+				<td>${oracle_sync_escape(row.merged_trans_nos || '')}</td>
+			</tr>`
+		)
+		.join('');
+	return `<table class="table table-bordered" style="margin-bottom:12px"><thead>${head}</thead><tbody>${body}</tbody></table>`;
+}
+
+function show_clinical_note_duplicates_dialog(frm, data, values) {
+	const groups = cint(data.duplicate_groups);
+	const copies = cint(data.extra_copies);
+	if (!groups || !copies) {
+		frappe.msgprint({
+			title: __('Merge Duplicate Clinical Notes'),
+			message: __('No duplicate notes found.'),
+			indicator: 'green',
+		});
+		return;
+	}
+
+	const scope_labels = {
+		visits: __('OP visit notes'),
+		inpatient: __('IP notes'),
+		all: __('All notes'),
+	};
+	const body = [
+		`<div class="alert alert-warning">${__(
+			'Notes that are word for word the same on the same transaction (same patient, same visit/admission, same day) are one note: the oldest one is kept, it receives every trans number in “All Trans Nos” and the number of copies in “Repeat Count”, and the other copies are deleted.'
+		)}</div>`,
+		`<p class="text-muted small">${__('Scope')}: ${oracle_sync_escape(
+			scope_labels[values.scope] || values.scope
+		)} · ${__('Duplicate groups')}: <b>${groups}</b> · ${__('Copies to delete')}: <b>${copies}</b></p>`,
+		clinical_note_duplicates_sample_html(data.sample),
+	]
+		.filter(Boolean)
+		.join('');
+
+	const dialog = new frappe.ui.Dialog({
+		title: __('Merge Duplicate Clinical Notes'),
+		size: 'large',
+		fields: [
+			{ fieldtype: 'HTML', fieldname: 'summary' },
+			{
+				fieldtype: 'Check',
+				fieldname: 'dry_run',
+				label: __('Dry run (report only, delete nothing)'),
+				default: cint(values.dry_run),
+			},
+		],
+		primary_action_label: __('Start'),
+		primary_action(dialog_values) {
+			dialog.hide();
+			run_migration_job(
+				frm,
+				'start_clinical_note_duplicate_cleanup_migration',
+				'clinical_note_duplicate_cleanup',
+				{
+					scope: values.scope || 'visits',
+					include_legacy_inpatient: cint(values.include_legacy_inpatient),
+					match_posting_time: 1,
+					dry_run: cint(dialog_values.dry_run),
+				}
+			);
+		},
+	});
+	dialog.fields_dict.summary.$wrapper.html(body);
+	dialog.show();
+}
 
 function run_oracle_ip_admission_comparison(frm) {
 	frappe.dom.freeze(__('Comparing Oracle IP_ADMISSION_01 with Inpatient Admission…'));

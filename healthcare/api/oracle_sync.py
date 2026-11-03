@@ -359,16 +359,18 @@ def _table_columns(table: str) -> list[dict[str, str]]:
 def _select_list(table: str) -> str:
 	"""SELECT list that renders DATE/TIMESTAMP columns as ISO strings.
 
-	CLOBs are capped below LINESIZE so a huge value can never wrap the row and
-	corrupt the CSV stream (the legacy CLOB columns are at most 4000 chars).
+	CLOBs are selected as they are: ``dbms_lob.substr(col, 32000, 1)`` looks
+	harmless but the value has to fit the 4000-byte VARCHAR2 of a SQL context,
+	so on a multibyte database (AL32UTF8) any note longer than ~2000 Arabic
+	characters fails the *whole* statement with ORA-06502. SQL*Plus prints the
+	LOB itself (``set long`` / ``longchunksize`` in ``_run_sql``), and because
+	the legacy note columns hold at most 4000 characters it stays on one line.
 	"""
 	parts: list[str] = []
 	for column in _table_columns(table):
 		name = column["name"]
 		if column["type"] == "DATE" or column["type"].startswith("TIMESTAMP"):
 			parts.append(f"to_char({name}, 'YYYY-MM-DD HH24:MI:SS') as {name}")
-		elif column["type"] in ("CLOB", "NCLOB"):
-			parts.append(f"dbms_lob.substr({name}, 32000, 1) as {name}")
 		else:
 			parts.append(name)
 	return ", ".join(parts)

@@ -201,6 +201,7 @@ def _create_healthcare_role_desktop_icons():
 		("Nurse", "/health/nurse", "heart-pulse"),
 		("Pharmacist", "/health/pharmacy", "pill"),
 		("Laboratory", "/health/lab", "flask"),
+		("CEO", "/desk/ceo", "circle-user-round"),
 	]
 	for idx, (label, link, icon) in enumerate(role_icons):
 		if frappe.db.exists("Desktop Icon", {"label": label, "link_type": "External", "link": link}):

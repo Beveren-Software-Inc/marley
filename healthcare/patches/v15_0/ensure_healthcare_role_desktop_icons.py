@@ -29,12 +29,14 @@ def execute():
 			return
 
 		# Role-based icons: label -> (link, icon) — like HRMS Expenses, Leaves, ERPNext Selling, etc.
+		# CEO opens the Desk CEO Dashboard workspace (not the /health SPA).
 		role_icons = [
 			("Doctor", "/health/doctor", "user-md"),
 			("Reception", "/health/reception", "layout-list"),
 			("Nurse", "/health/nurse", "heart-pulse"),
 			("Pharmacist", "/health/pharmacy", "pill"),
 			("Laboratory", "/health/lab", "flask"),
+			("CEO", "/desk/ceo", "circle-user-round"),
 		]
 
 		idx = 0

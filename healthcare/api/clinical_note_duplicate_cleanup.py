@@ -17,6 +17,11 @@ A duplicate is a note that is byte-identical to another note on patient + refere
 posting date + note text. Nothing is deleted unless every copy matches on COMPARED_FIELDS.
 Locked, submitted and attachment-holding notes are always kept.
 
+Such copies are one transaction stored several times (every import run numbered the note
+again), so the kept note takes over the identity of the whole group before the other copies
+go: ``merged_trans_nos`` lists every trans number the transaction was stored under and
+``repeat_count`` the number of copies it had (3 = the same note came in three times).
+
 Usage (System Manager / Healthcare Administrator only):
 
     bench --site <site> execute healthcare.api.clinical_note_duplicate_cleanup.preview_clinical_note_duplicates
@@ -108,30 +113,51 @@ def _note_preview(text: str | None, length: int = 90) -> str:
 	return flat if len(flat) <= length else flat[: length - 3] + "..."
 
 
-def _group_rows(scope: str = SCOPE_ALL, limit: int = 0) -> list[dict]:
-	"""One row per duplicate group, member names comma separated (oldest first)."""
+def _group_rows(
+	scope: str = SCOPE_ALL, limit: int = 0, after_signature: str | None = None
+) -> list[dict]:
+	"""One row per duplicate group, member names comma separated (oldest first).
+
+	``after_signature`` walks the groups in a stable order, so a background job can delete
+	as it goes: an OFFSET would skip groups once the deletions shrink the result set.
+	"""
 	limit_sql = f"LIMIT {cint(limit)}" if cint(limit) else ""
-	rows = frappe.db.sql(
-		f"""
+	having = ["COUNT(*) > 1"]
+	params: list[str] = []
+	if after_signature:
+		# The alias is resolved by MySQL; repeating the md5() expression in HAVING fails
+		# because it mentions columns that are not grouped individually.
+		having.append("signature > %s")
+		params.append(after_signature)
+		order_sql = "ORDER BY signature"
+	else:
+		order_sql = "ORDER BY copies DESC, posting_date DESC"
+	query = f"""
 		SELECT
+			{SIGNATURE_SQL} AS signature,
 			MIN(patient) AS patient,
 			MIN({REFERENCE_SQL}) AS reference,
 			MIN({REFERENCE_NAME_SQL}) AS reference_name,
 			DATE(MIN(posting_date)) AS posting_date,
 			COUNT(*) AS copies,
 			GROUP_CONCAT(name ORDER BY creation, name SEPARATOR ',') AS names,
+			GROUP_CONCAT(trans_no ORDER BY creation, name SEPARATOR ',') AS trans_nos,
 			MIN(note) AS note
 		FROM `tabClinical Note`
 		WHERE docstatus < 2 {_scope_where(scope)}
 		GROUP BY {SIGNATURE_SQL}
-		HAVING COUNT(*) > 1
-		ORDER BY copies DESC, posting_date DESC
+		HAVING {' AND '.join(having)}
+		{order_sql}
 		{limit_sql}
-		""",
-		as_dict=True,
+		"""
+	rows = (
+		frappe.db.sql(query, tuple(params), as_dict=True)
+		if params
+		else frappe.db.sql(query, as_dict=True)
 	)
 	for row in rows:
 		row["names"] = [name for name in (row.get("names") or "").split(",") if name]
+		row["trans_nos"] = [number for number in (row.get("trans_nos") or "").split(",") if number]
 		row["scope"] = _scope_of(row.get("reference") or "")
 		row["legacy_import"] = _looks_like_legacy_import(row["names"])
 		row["preview"] = _note_preview(row.pop("note", None))
@@ -239,6 +265,8 @@ def preview_clinical_note_duplicates(sample_limit=DEFAULT_SAMPLE_LIMIT, scope: s
 				"legacy_import": row["legacy_import"],
 				"keep": row["names"][0],
 				"delete": row["names"][1:],
+				"trans_nos": row["trans_nos"],
+				"merged_trans_nos": ", ".join(row["trans_nos"]),
 				"note": row["preview"],
 			}
 			for row in _group_rows(scope=scope, limit=sample_limit)
@@ -298,7 +326,9 @@ def report_inpatient_duplicates(limit=0) -> dict:
 def _load_group_members(names: list[str]) -> list[dict]:
 	placeholders = ", ".join(["%s"] * len(names))
 	fields = ", ".join(
-		dict.fromkeys(("name", "creation", "owner", "docstatus", "note_locked", *COMPARED_FIELDS))
+		dict.fromkeys(
+			("name", "creation", "owner", "docstatus", "note_locked", "trans_no", *COMPARED_FIELDS)
+		)
 	)
 	return frappe.db.sql(
 		f"""
@@ -337,6 +367,172 @@ def _attachment_holders(names: list[str]) -> set[str]:
 	return {row[0] for row in rows}
 
 
+def _merge_payload(members: list[dict]) -> dict:
+	"""One transaction, one note: keep every trans number the copies were stored under.
+
+	The oldest member comes first (``_load_group_members`` orders by creation), so the
+	surviving note's own number leads and the numbers of the copies follow it.
+	"""
+	numbers: list[str] = []
+	for member in members:
+		number = str(member.get("trans_no") or "").strip() or str(member.get("name") or "").strip()
+		if number and number not in numbers:
+			numbers.append(number)
+	return {"merged_trans_nos": ", ".join(numbers), "repeat_count": len(members)}
+
+
+def _new_result(
+	dry_run: int, scope: str, include_legacy_inpatient: int, match_posting_time: int
+) -> dict:
+	return {
+		"dry_run": dry_run,
+		"scope": scope,
+		"include_legacy_inpatient": include_legacy_inpatient,
+		"match_posting_time": match_posting_time,
+		"groups_scanned": 0,
+		"groups_merged": 0,
+		"notes_deleted": 0,
+		"skipped_inpatient_legacy": 0,
+		"skipped_locked": 0,
+		"skipped_attachment": 0,
+		"skipped_variance": 0,
+		"skipped_submitted": 0,
+		"errors": 0,
+		"actions": [],
+	}
+
+
+def _append_action(result: dict, action: dict) -> None:
+	if len(result["actions"]) < DEFAULT_SAMPLE_LIMIT:
+		result["actions"].append(action)
+
+
+def _process_group(
+	group: dict,
+	members_by_name: dict[str, dict],
+	with_files: set[str],
+	*,
+	include_legacy_inpatient: int,
+	match_posting_time: int,
+	dry_run: int,
+	result: dict,
+) -> int:
+	"""Merge one identical group; returns the number of notes deleted (or to delete)."""
+	result["groups_scanned"] += 1
+
+	# Repeated IP text is normally a real repeat in Oracle IP_ADMISSION_DIAGNOSES, so the
+	# legacy copies are left alone unless the caller explicitly asks for them.
+	if group["scope"] == SCOPE_INPATIENT and group["legacy_import"] and not include_legacy_inpatient:
+		result["skipped_inpatient_legacy"] += 1
+		return 0
+
+	members = [members_by_name[name] for name in group["names"] if name in members_by_name]
+	if len(members) < 2:
+		result["skipped_variance"] += 1
+		return 0
+
+	if len({_signature(member, match_posting_time) for member in members}) > 1:
+		result["skipped_variance"] += 1
+		return 0
+
+	locked_names = {member["name"] for member in members if cint(member.get("note_locked"))}
+	keep = min(locked_names) if locked_names else members[0]["name"]
+
+	deletable: list[str] = []
+	for member in members:
+		name = member["name"]
+		if name == keep:
+			continue
+		if name in locked_names:
+			result["skipped_locked"] += 1
+			continue
+		if name in with_files:
+			result["skipped_attachment"] += 1
+			continue
+		if cint(member.get("docstatus")) == 1:
+			result["skipped_submitted"] += 1
+			continue
+		deletable.append(name)
+
+	payload = _merge_payload(members)
+	action = {
+		"patient": group["patient"],
+		"scope": group["scope"],
+		"reference": f"{group['reference'] or '(none)'} {group['reference_name']}".strip(),
+		"posting_date": str(group["posting_date"]),
+		"keep": keep,
+		"delete": deletable,
+		"merged_trans_nos": payload["merged_trans_nos"],
+		"repeat_count": payload["repeat_count"],
+	}
+
+	if dry_run:
+		result["groups_merged"] += 1
+		result["notes_deleted"] += len(deletable)
+		_append_action(result, action)
+		return len(deletable)
+
+	# The surviving note must carry every trans number before a copy is deleted, so the
+	# transaction stays complete even if the delete fails half way.
+	try:
+		frappe.db.set_value("Clinical Note", keep, payload, update_modified=False)
+		result["groups_merged"] += 1
+	except Exception:
+		frappe.db.rollback()
+		result["errors"] += 1
+		frappe.log_error(
+			title=f"Clinical Note duplicate merge failed: {keep}",
+			message=frappe.get_traceback(),
+		)
+		return 0
+
+	deleted = 0
+	for name in deletable:
+		try:
+			frappe.delete_doc("Clinical Note", name, ignore_permissions=True, ignore_missing=True)
+			deleted += 1
+		except Exception:
+			frappe.db.rollback()
+			deleted = 0
+			result["errors"] += 1
+			frappe.log_error(
+				title=f"Clinical Note duplicate cleanup failed: {name}",
+				message=frappe.get_traceback(),
+			)
+	result["notes_deleted"] += deleted
+	_append_action(result, action)
+	return deleted
+
+
+def _process_page(
+	groups: list[dict],
+	*,
+	include_legacy_inpatient: int,
+	match_posting_time: int,
+	dry_run: int,
+	result: dict,
+	commit_every: int = 0,
+) -> None:
+	names = [name for group in groups for name in group["names"]]
+	members_by_name = {member["name"]: member for member in _load_group_members(names)} if names else {}
+	with_files = _attachment_holders(names)
+
+	since_commit = 0
+	for group in groups:
+		since_commit += _process_group(
+			group,
+			members_by_name,
+			with_files,
+			include_legacy_inpatient=include_legacy_inpatient,
+			match_posting_time=match_posting_time,
+			dry_run=dry_run,
+			result=result,
+		)
+		if not dry_run and commit_every and since_commit >= commit_every:
+			frappe.db.commit()
+			since_commit = 0
+
+
 @frappe.whitelist()
 def cleanup_clinical_note_duplicates(
 	dry_run=1,
@@ -351,6 +547,10 @@ def cleanup_clinical_note_duplicates(
 
 	``dry_run=1`` (default) only reports what would be deleted.
 	Locked, submitted and attachment-holding notes are never deleted.
+
+	The surviving note takes over the identity of the whole group before a copy is removed:
+	``merged_trans_nos`` receives every trans number of the group and ``repeat_count`` the
+	number of copies, so one transaction stays readable as one note.
 
 	``scope`` defaults to ``visits`` (Patient Visit "Review Details" duplicates). Inpatient
 	notes are only cleaned when the scope includes them *and* either the copies were created
@@ -367,102 +567,18 @@ def cleanup_clinical_note_duplicates(
 	commit_every = cint(commit_every) or DEFAULT_COMMIT_EVERY
 	page = cint(page) or DEFAULT_BATCH_SIZE
 
-	result = {
-		"dry_run": dry_run,
-		"scope": scope,
-		"include_legacy_inpatient": include_legacy_inpatient,
-		"match_posting_time": match_posting_time,
-		"groups_scanned": 0,
-		"notes_deleted": 0,
-		"skipped_inpatient_legacy": 0,
-		"skipped_locked": 0,
-		"skipped_attachment": 0,
-		"skipped_variance": 0,
-		"skipped_submitted": 0,
-		"errors": 0,
-		"actions": [],
-	}
+	result = _new_result(dry_run, scope, include_legacy_inpatient, match_posting_time)
 
 	groups = _group_rows(scope=scope, limit=limit)
-	deleted_since_commit = 0
-
 	for start in range(0, len(groups), page):
-		chunk = groups[start : start + page]
-		names = [name for group in chunk for name in group["names"]]
-		members_by_name = {member["name"]: member for member in _load_group_members(names)}
-		with_files = _attachment_holders(names)
-
-		for group in chunk:
-			result["groups_scanned"] += 1
-
-			# Repeated IP text is normally a real repeat in Oracle IP_ADMISSION_DIAGNOSES, so the
-			# legacy copies are left alone unless the caller explicitly asks for them.
-			if (
-				group["scope"] == SCOPE_INPATIENT
-				and group["legacy_import"]
-				and not include_legacy_inpatient
-			):
-				result["skipped_inpatient_legacy"] += 1
-				continue
-
-			members = [members_by_name[name] for name in group["names"] if name in members_by_name]
-			if len(members) < 2:
-				result["skipped_variance"] += 1
-				continue
-
-			if len({_signature(member, match_posting_time) for member in members}) > 1:
-				result["skipped_variance"] += 1
-				continue
-
-			locked_names = {member["name"] for member in members if cint(member.get("note_locked"))}
-			keep = min(locked_names) if locked_names else members[0]["name"]
-
-			for member in members:
-				name = member["name"]
-				if name == keep:
-					continue
-				if name in locked_names:
-					result["skipped_locked"] += 1
-					continue
-				if name in with_files:
-					result["skipped_attachment"] += 1
-					continue
-				if cint(member.get("docstatus")) == 1:
-					result["skipped_submitted"] += 1
-					continue
-
-				action = {
-					"patient": group["patient"],
-					"scope": group["scope"],
-					"reference": f"{group['reference'] or '(none)'} {group['reference_name']}".strip(),
-					"posting_date": str(group["posting_date"]),
-					"keep": keep,
-					"delete": name,
-				}
-
-				if dry_run:
-					result["notes_deleted"] += 1
-					if len(result["actions"]) < DEFAULT_SAMPLE_LIMIT:
-						result["actions"].append(action)
-					continue
-
-				try:
-					frappe.delete_doc("Clinical Note", name, ignore_permissions=True, ignore_missing=True)
-					result["notes_deleted"] += 1
-					deleted_since_commit += 1
-					if len(result["actions"]) < DEFAULT_SAMPLE_LIMIT:
-						result["actions"].append(action)
-					if deleted_since_commit >= commit_every:
-						frappe.db.commit()
-						deleted_since_commit = 0
-				except Exception:
-					frappe.db.rollback()
-					deleted_since_commit = 0
-					result["errors"] += 1
-					frappe.log_error(
-						title=f"Clinical Note duplicate cleanup failed: {name}",
-						message=frappe.get_traceback(),
-					)
+		_process_page(
+			groups[start : start + page],
+			include_legacy_inpatient=include_legacy_inpatient,
+			match_posting_time=match_posting_time,
+			dry_run=dry_run,
+			result=result,
+			commit_every=commit_every,
+		)
 
 	if not dry_run:
 		frappe.db.commit()
@@ -470,3 +586,47 @@ def cleanup_clinical_note_duplicates(
 	result["duplicate_groups_remaining"] = _group_count(scope)
 	result["extra_copies_remaining"] = _extra_copies(scope)
 	return result
+
+
+def run_cleanup_batch(
+	offset=0,
+	after_signature: str | None = None,
+	batch_size: int = DEFAULT_BATCH_SIZE,
+	scope: str = SCOPE_VISITS,
+	include_legacy_inpatient=0,
+	match_posting_time=1,
+	dry_run=0,
+) -> dict:
+	"""One background batch: the next page of duplicate groups, in signature order.
+
+	The groups are walked by signature instead of OFFSET because deleting the copies takes
+	the group out of the result set - an offset would skip every group that moved up.
+	"""
+	batch_size = max(cint(batch_size), 1)
+	include_legacy_inpatient = cint(include_legacy_inpatient)
+	match_posting_time = cint(match_posting_time)
+	dry_run = cint(dry_run)
+
+	groups = _group_rows(scope=scope, limit=batch_size, after_signature=after_signature)
+	result = _new_result(dry_run, scope, include_legacy_inpatient, match_posting_time)
+	_process_page(
+		groups,
+		include_legacy_inpatient=include_legacy_inpatient,
+		match_posting_time=match_posting_time,
+		dry_run=dry_run,
+		result=result,
+	)
+	if not dry_run:
+		frappe.db.commit()
+
+	samples = result.pop("actions")
+	outcome = {
+		"processed": cint(offset) + len(groups),
+		"batch_count": len(groups),
+		"done": len(groups) < batch_size,
+		"last_signature": groups[-1]["signature"] if groups else after_signature,
+		"total": _group_count(scope),
+		"sample": samples,
+	}
+	outcome.update(result)
+	return outcome
