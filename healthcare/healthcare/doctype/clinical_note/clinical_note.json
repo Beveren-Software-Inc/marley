@@ -19,6 +19,8 @@
   "terms_and_conditions",
   "username",
   "trans_no",
+  "merged_trans_nos",
+  "repeat_count",
   "column_break_jw2e",
   "posting_date",
   "practitioner",
@@ -258,6 +260,23 @@
    "unique": 1
   },
   {
+   "description": "Every trans number this note was stored under. The reconciliation merges byte-identical notes of the same visit/admission and day into one note, so one transaction can carry several numbers (comma separated).",
+   "fieldname": "merged_trans_nos",
+   "fieldtype": "Small Text",
+   "label": "All Trans Nos",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "default": "1",
+   "description": "How many identical copies of this note the same visit/admission and day had. 1 = the note was never duplicated.",
+   "fieldname": "repeat_count",
+   "fieldtype": "Int",
+   "label": "Repeat Count",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
    "fieldname": "old_admission_no",
    "fieldtype": "Data",
    "label": "Old Admission No"
@@ -271,7 +290,7 @@
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-09-07 15:31:32.983477",
+ "modified": "2026-11-03 10:00:00.000000",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Clinical Note",

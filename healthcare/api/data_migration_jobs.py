@@ -7796,6 +7796,8 @@ def _progress_snapshot(job: str) -> dict:
 		# Set only on the final write; carrying them over would duplicate the kwarg.
 		"duplicates_remaining",
 		"line_duplicates_remaining",
+		"groups_remaining",
+		"extra_copies_remaining",
 	)
 	return {
 		key: value
@@ -8034,6 +8036,159 @@ def process_op_prescription_duplicate_cleanup_batch(offset: int = 0) -> None:
 	except Exception:
 		frappe.db.rollback()
 		_set_progress(job, cint(offset), done=True, error=frappe.get_traceback())
+		_release_lock(job)
+		raise
+
+
+# ── Clinical Note duplicate merge (one transaction, one note) ──
+
+CLINICAL_NOTE_DUPLICATE_JOB = "clinical_note_duplicate_cleanup"
+
+
+@frappe.whitelist()
+def start_clinical_note_duplicate_cleanup_migration(
+	scope: str = "visits",
+	include_legacy_inpatient=0,
+	match_posting_time=1,
+	dry_run=0,
+	batch_size: int = 500,
+) -> dict:
+	"""Merge identical Clinical Notes of one transaction (Healthcare Settings button)."""
+	_require_admin()
+	from healthcare.api.clinical_note_duplicate_cleanup import (
+		SCOPES,
+		_extra_copies,
+		_group_count,
+	)
+
+	job = CLINICAL_NOTE_DUPLICATE_JOB
+	if scope not in SCOPES:
+		frappe.throw(_("Unknown scope {0}; expected one of {1}.").format(scope, ", ".join(SCOPES)))
+
+	_acquire_lock(job)
+	groups = _group_count(scope)
+	extras = _extra_copies(scope)
+	_set_progress(
+		job,
+		0,
+		scope=scope,
+		dry_run=cint(dry_run),
+		include_legacy_inpatient=cint(include_legacy_inpatient),
+		match_posting_time=cint(match_posting_time),
+		batch_size=max(cint(batch_size), 1),
+		groups_total=groups,
+		extra_copies_total=extras,
+		groups_scanned=0,
+		groups_merged=0,
+		notes_deleted=0,
+		skipped_inpatient_legacy=0,
+		skipped_locked=0,
+		skipped_attachment=0,
+		skipped_variance=0,
+		skipped_submitted=0,
+		errors=0,
+		last_signature=None,
+	)
+	frappe.enqueue(
+		"healthcare.api.data_migration_jobs.process_clinical_note_duplicate_cleanup_batch",
+		queue="long",
+		timeout=3600,
+		job_name="healthcare_clinical_note_duplicate_cleanup_0",
+	)
+	return {
+		"ok": True,
+		"job": job,
+		"groups_total": groups,
+		"extra_copies_total": extras,
+		"message": _(
+			"Clinical note duplicate merge started: {0} group(s), {1} extra copy(ies){2}."
+		).format(groups, extras, _(" (dry run)") if cint(dry_run) else ""),
+	}
+
+
+def _duplicate_job_config(prev: dict) -> dict:
+	"""Run settings that every batch must inherit from the progress record."""
+	return {
+		"scope": prev.get("scope") or "visits",
+		"dry_run": cint(prev.get("dry_run")),
+		"include_legacy_inpatient": cint(prev.get("include_legacy_inpatient")),
+		"match_posting_time": cint(prev.get("match_posting_time")),
+		"batch_size": cint(prev.get("batch_size")) or 500,
+		"groups_total": prev.get("groups_total"),
+		"extra_copies_total": prev.get("extra_copies_total"),
+	}
+
+
+def process_clinical_note_duplicate_cleanup_batch() -> None:
+	from healthcare.api.clinical_note_duplicate_cleanup import run_cleanup_batch
+
+	job = CLINICAL_NOTE_DUPLICATE_JOB
+	prev = frappe.cache().get_value(_job_progress_key(job)) or {}
+	config = _duplicate_job_config(prev)
+	processed = cint(prev.get("processed"))
+	try:
+		if _stop_requested(job):
+			_set_progress(job, processed, done=True, stopped=True, stop_requested=True, **config)
+			_release_lock(job)
+			return
+
+		result = run_cleanup_batch(
+			offset=processed,
+			after_signature=prev.get("last_signature"),
+			batch_size=config["batch_size"],
+			scope=config["scope"],
+			include_legacy_inpatient=config["include_legacy_inpatient"],
+			match_posting_time=config["match_posting_time"],
+			dry_run=config["dry_run"],
+		)
+		processed = cint(result.get("processed"))
+		_renew_lock(job)
+		_set_progress(
+			job,
+			processed,
+			last_signature=result.get("last_signature"),
+			groups_scanned=cint(prev.get("groups_scanned")) + cint(result.get("groups_scanned")),
+			groups_merged=cint(prev.get("groups_merged")) + cint(result.get("groups_merged")),
+			notes_deleted=cint(prev.get("notes_deleted")) + cint(result.get("notes_deleted")),
+			skipped_inpatient_legacy=cint(prev.get("skipped_inpatient_legacy"))
+			+ cint(result.get("skipped_inpatient_legacy")),
+			skipped_locked=cint(prev.get("skipped_locked")) + cint(result.get("skipped_locked")),
+			skipped_attachment=cint(prev.get("skipped_attachment"))
+			+ cint(result.get("skipped_attachment")),
+			skipped_variance=cint(prev.get("skipped_variance")) + cint(result.get("skipped_variance")),
+			skipped_submitted=cint(prev.get("skipped_submitted"))
+			+ cint(result.get("skipped_submitted")),
+			errors=cint(prev.get("errors")) + cint(result.get("errors")),
+			**config,
+		)
+
+		if not result.get("done"):
+			frappe.enqueue(
+				"healthcare.api.data_migration_jobs.process_clinical_note_duplicate_cleanup_batch",
+				queue="long",
+				timeout=3600,
+				job_name=f"healthcare_clinical_note_duplicate_cleanup_{processed}",
+			)
+			return
+
+		from healthcare.api.clinical_note_duplicate_cleanup import _extra_copies, _group_count
+
+		_set_progress(
+			job,
+			processed,
+			done=True,
+			groups_remaining=_group_count(config["scope"]),
+			extra_copies_remaining=_extra_copies(config["scope"]),
+			**_progress_snapshot(job),
+		)
+		_release_lock(job)
+		frappe.log_error(
+			title="Clinical note duplicate merge complete",
+			message=frappe.as_json(frappe.cache().get_value(_job_progress_key(job)) or {}),
+		)
+	except Exception:
+		frappe.db.rollback()
+		_set_progress(job, processed, done=True, error=frappe.get_traceback(), **config)
 		_release_lock(job)
 		raise
 

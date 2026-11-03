@@ -1,6 +1,8 @@
 # Copyright (c) 2026, earthians Health Informatics Pvt. Ltd. and contributors
 # For license information, please see license.txt
 
+from collections.abc import Iterable
+
 import frappe
 from frappe import _
 from frappe.model.document import Document
@@ -276,6 +278,42 @@ def _normalize_injection_given_on(value):
 	return None
 
 
+def _injection_side_from_row(row) -> str | None:
+	"""Side recorded on one give-out row (``RT_FLAG`` / ``LT_FLAG`` from the legacy register)."""
+	if not row:
+		return None
+	lt = str(_row_field(row, "lt_flag") or "").strip().upper()
+	rt = str(_row_field(row, "rt_flag") or "").strip().upper()
+	if lt and lt not in ("0", "N", "FALSE"):
+		return "LT"
+	if rt and rt not in ("0", "N", "FALSE"):
+		return "RT"
+	return None
+
+
+def _last_injection_side(give_outs: Iterable) -> str | None:
+	"""Side recorded on the *most recent* give-out (rows may arrive in any order).
+
+	Only the newest injection answers "which side was last used?" - falling back to an
+	older flagged row would suggest the wrong side to alternate to.
+	"""
+	newest = None
+	newest_key = None
+	for row in give_outs or []:
+		row_date = _row_field(row, "date") or _row_field(row, "scheduled_run_date")
+		if not row_date:
+			continue
+		key = (
+			str(row_date),
+			str(_row_field(row, "time") or ""),
+			str(_row_field(row, "creation") or ""),
+		)
+		if newest_key is None or key > newest_key:
+			newest_key = key
+			newest = row
+	return _injection_side_from_row(newest)
+
+
 def _injection_flags_from_side(side):
 	if side == "LT":
 		return {"lt_flag": "1", "rt_flag": None}
@@ -328,11 +366,27 @@ def enrich_long_acting_medicine_row(doc):
 	today = getdate()
 	next_run = _safe_getdate(data.get("next_run_date"))
 	give_outs = data.get("give_outs") or []
-	last_row = give_outs[0] if give_outs else None
+	# Child rows arrive in insertion order (oldest first on migrated records), so sort a
+	# copy before reading "the last give-out" instead of trusting give_outs[0].
+	ordered_give_outs = sorted(
+		give_outs,
+		key=lambda row: (
+			str(_row_field(row, "date") or _row_field(row, "scheduled_run_date") or ""),
+			str(_row_field(row, "time") or ""),
+			str(_row_field(row, "creation") or ""),
+		),
+		reverse=True,
+	)
+	last_row = ordered_give_outs[0] if ordered_give_outs else None
 
 	data["last_give_out_date"] = _row_field(last_row, "date")
 	data["last_give_out_time"] = _row_field(last_row, "time")
 	data["last_give_out_by"] = _row_field(last_row, "user")
+	# Side of the most recent injection: stored field first, else the give-out history.
+	last_side = _last_injection_side(give_outs)
+	data["last_injection_side"] = last_side
+	if not _normalize_injection_given_on(data.get("injection_given_on")):
+		data["injection_given_on"] = last_side
 	data["is_given_out_for_current_run"] = bool(
 		next_run
 		and any(
@@ -404,7 +458,16 @@ def enrich_long_acting_medicine_list_rows(rows):
 		give_out_rows = frappe.get_all(
 			"Long Acting Medicine Give Out",
 			filters={"parent": ["in", names]},
-			fields=["parent", "date", "time", "user", "scheduled_run_date", "creation"],
+			fields=[
+				"parent",
+				"date",
+				"time",
+				"user",
+				"scheduled_run_date",
+				"creation",
+				"rt_flag",
+				"lt_flag",
+			],
 			order_by="date desc, time desc, creation desc",
 		)
 
@@ -432,6 +495,13 @@ def enrich_long_acting_medicine_list_rows(rows):
 		item["last_give_out_date"] = last_row.date if last_row else None
 		item["last_give_out_time"] = last_row.time if last_row else None
 		item["last_give_out_by"] = last_row.user if last_row else None
+		# The legacy register stores the side per injection (RT_FLAG / LT_FLAG);
+		# the nurse must see the previous side to alternate. Fall back to the
+		# give-out history when the stored field is empty (imported records).
+		last_side = _last_injection_side(parent_give_outs)
+		item["last_injection_side"] = last_side
+		if not _normalize_injection_given_on(item.get("injection_given_on")):
+			item["injection_given_on"] = last_side
 		item["is_given_out_for_current_run"] = is_given
 		item["can_give_out"] = bool(
 			can_give
