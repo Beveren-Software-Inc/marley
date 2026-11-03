@@ -1397,7 +1397,8 @@ def _run_visit_duplicate_cleanup(progress: dict, patients: list[str]) -> None:
 	progress["duplicate_notes_deleted"] = deleted
 	progress["duplicate_cleanup_errors"] = cleanup_errors
 	if cleanup_errors:
-		_record_errors(
+		# Do not bump ``failed`` — that counter is for patient reconcile failures only.
+		_append_errors(
 			progress,
 			[
 				_("OP visit clinical note duplicate cleanup reported {0} error(s).").format(
@@ -1467,7 +1468,8 @@ def _run(
 			frappe.db.commit()
 		except Exception:
 			frappe.db.rollback()
-			_record_errors(progress, [f"duplicate cleanup: {frappe.get_traceback()}"])
+			progress["duplicate_cleanup_errors"] = cint(progress.get("duplicate_cleanup_errors")) + 1
+			_append_errors(progress, [f"duplicate cleanup: {frappe.get_traceback()}"])
 			frappe.log_error(title="Clinical note reconcile duplicate cleanup failed")
 
 	progress["processed"] = cint(progress.get("total")) or cint(progress.get("processed"))
@@ -1571,6 +1573,10 @@ def _summary_message(progress: dict) -> str:
 		lines.insert(1, _("DRY RUN - nothing was changed."))
 	if progress.get("failed"):
 		lines.extend(["", _("Failed patients: {0}").format(cint(progress.get("failed")))])
+		for error in progress.get("errors") or []:
+			lines.append(f"• {error}")
+	elif progress.get("errors"):
+		lines.extend(["", _("Warnings")])
 		for error in progress.get("errors") or []:
 			lines.append(f"• {error}")
 	samples = progress.get("samples") or []
