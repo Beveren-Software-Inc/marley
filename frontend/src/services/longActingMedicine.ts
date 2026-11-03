@@ -22,6 +22,30 @@ export interface LongActingMedicineGiveOutRow {
   rt_flag?: string
 }
 
+/**
+ * Prefer the linked User on the give-out. When legacy rows have no user
+ * (Oracle VISIT_00_04), fall back to a name typed in remarks as "given by …".
+ */
+export function resolveGiveOutGivenBy(
+  user?: string | null,
+  notes?: string | null,
+): string {
+  const fromUser = (user || '').trim()
+  if (fromUser) return fromUser
+
+  const text = (notes || '').trim()
+  if (!text) return ''
+
+  const match = text.match(/given\s+by\s+(.+)/i)
+  if (!match) return ''
+
+  let name = match[1].trim()
+  // Stop before common trailing clauses: ", DC…", ".DC…", " as per…"
+  const cut = name.search(/\s*(?:,|\.\s*DC\b|\bDC\b|\bas per\b|\bnext\b)/i)
+  if (cut > 0) name = name.slice(0, cut).trim()
+  return name.replace(/[.\s]+$/g, '').trim()
+}
+
 export function formatInjectionSide(value?: string | null): string {
   if (value === 'LT') return 'Left (L)'
   if (value === 'RT') return 'Right (R)'
