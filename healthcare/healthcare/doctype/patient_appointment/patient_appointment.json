@@ -123,7 +123,7 @@
    "fieldtype": "Int",
    "in_filter": 1,
    "label": "Duration (In Minutes)",
-   "set_only_once": 1
+   "set_only_once": 0
   },
   {
    "fieldname": "column_break_1",
