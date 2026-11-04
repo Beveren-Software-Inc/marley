@@ -104,7 +104,6 @@ class TestMainNursingNoteReconcileRows(IntegrationTestCase):
 		self.assertEqual(_norm_text(None), "")
 
 
-
 class TestMainNursingNoteReconcileWorkList(IntegrationTestCase):
 	"""Which Oracle numbers one run imports, and in which order."""
 
