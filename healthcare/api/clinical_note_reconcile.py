@@ -80,6 +80,7 @@ from healthcare.api.discharge_checklist_import import _resolve_cost_center
 from healthcare.api.ip_admission_clinical_note_import import (
 	upsert_clinical_note_from_row as _upsert_ip_note,
 )
+from healthcare.api.oracle_excel_source import excel_source, normalize_files
 from healthcare.api.oracle_sync import (
 	_fetch_rows,
 	_in_clause,
@@ -122,6 +123,9 @@ IP_ADMISSION_TABLE = "IP_ADMISSION_01"
 OP_DIAGNOSIS_FIELD = "VISIT_DIAGNOSIS_DETAIL"
 IP_DIAGNOSIS_FIELD = "DIAGNOSES_DESC"
 HISTORY_DOCTYPE = "VISIT_00_01_HISTORY"
+
+# The tables an Excel upload has to provide (direct reads ignore this list).
+ORACLE_TABLES = [OP_TABLE, OP_HISTORY_TABLE, IP_DIAGNOSES_TABLE, IP_ADMISSION_TABLE]
 
 # Clinical Note.trans_no namespaces. The prefix keeps the reconciliation notes
 # apart from the numbers ERPNext assigned itself, and makes a re-run cheap: the
@@ -1285,13 +1289,14 @@ def _site_diff(patient_limit: int = PREVIEW_PATIENT_LIMIT) -> dict:
 # ---------------------------------------------------------------------------
 
 
-def _queue_next(token: str) -> None:
+def _queue_next(token: str, files: Any = None) -> None:
 	frappe.enqueue(
 		"healthcare.api.clinical_note_reconcile.run_clinical_note_reconcile",
 		queue="long",
 		timeout=7200,
 		resume=1,
 		token=token,
+		files=files,
 	)
 
 
@@ -1416,6 +1421,33 @@ def _run(
 	dry_run: int = 0,
 	skip_duplicate_text: int = 0,
 	remove_duplicates: int = 1,
+	files: Any = None,
+) -> dict[str, Any]:
+	"""Read the three Oracle note sources live, or from the uploaded Excel."""
+	progress = _load_progress() if cint(resume) else None
+	files = normalize_files(files) or (progress or {}).get("files") or None
+	with excel_source(files, tables=ORACLE_TABLES):
+		return _run_with_source(
+			token,
+			resume,
+			patient,
+			limit,
+			dry_run,
+			skip_duplicate_text,
+			remove_duplicates,
+			files,
+		)
+
+
+def _run_with_source(
+	token: str,
+	resume: int,
+	patient: str = "",
+	limit: int = 0,
+	dry_run: int = 0,
+	skip_duplicate_text: int = 0,
+	remove_duplicates: int = 1,
+	files: Any = None,
 ) -> dict[str, Any]:
 	started = time.monotonic()
 
@@ -1458,7 +1490,7 @@ def _run(
 				"Still running in the background ({0} of {1} patients processed)."
 			).format(progress.get("processed") or 0, progress.get("total") or 0)
 			_set_progress(progress)
-			_queue_next(token)
+			_queue_next(token, files)
 			return {"state": "queued", "handed_over": True, "progress": progress}
 
 	frappe.db.commit()
@@ -1593,7 +1625,7 @@ def _summary_message(progress: dict) -> str:
 
 @frappe.whitelist()
 def preview_clinical_note_reconcile(
-	patient: str = "", sample_limit: int = PREVIEW_SAMPLE_LIMIT
+	patient: str = "", sample_limit: int = PREVIEW_SAMPLE_LIMIT, files=None
 ) -> dict[str, Any]:
 	"""Read-only answer to \"do the doctor progress notes match Oracle?\".
 
@@ -1604,9 +1636,10 @@ def preview_clinical_note_reconcile(
 	"""
 	_require_admin()
 	patient = (patient or "").strip()
-	if patient:
-		return _patient_diff(patient, sample_limit=sample_limit)
-	return _site_diff()
+	with excel_source(files, tables=ORACLE_TABLES):
+		if patient:
+			return _patient_diff(patient, sample_limit=sample_limit)
+		return _site_diff()
 
 
 @frappe.whitelist()
@@ -1616,9 +1649,11 @@ def start_clinical_note_reconcile(
 	skip_duplicate_text: int = 0,
 	remove_duplicates: int = 1,
 	limit: int = 0,
+	files=None,
 ) -> dict[str, Any]:
 	"""Queue one reconciliation (the Healthcare Settings button entry point)."""
 	_require_admin()
+	files = normalize_files(files)
 	if _lock_held():
 		return {
 			"queued": False,
@@ -1635,7 +1670,12 @@ def start_clinical_note_reconcile(
 		remove_duplicates,
 	)
 	progress["state"] = "queued"
-	progress["message"] = _("Queued. Oracle is read in the background.")
+	progress["files"] = files
+	progress["message"] = (
+		_("Queued. The uploaded Excel export is read in the background.")
+		if files
+		else _("Queued. Oracle is read in the background.")
+	)
 	_set_progress(progress)
 
 	frappe.enqueue(
@@ -1647,6 +1687,7 @@ def start_clinical_note_reconcile(
 		dry_run=cint(dry_run),
 		skip_duplicate_text=cint(skip_duplicate_text),
 		remove_duplicates=cint(remove_duplicates),
+		files=files,
 	)
 	return {"queued": True, "job_key": JOB_KEY, "status": progress}
 

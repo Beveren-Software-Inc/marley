@@ -76,6 +76,7 @@ from healthcare.api.op_prescription_cleanup import (
 	_normalize_code,
 	_resolve_import_patients,
 )
+from healthcare.api.oracle_excel_source import excel_source, normalize_files
 from healthcare.api.oracle_sync import _fetch_rows, _in_clause, _oracle_schema, _query
 from healthcare.api.patient_info_import import _require_admin
 from healthcare.api.patient_medication_order_import import (
@@ -109,6 +110,8 @@ IP_TABLE = "IP_ADMISSION_MEDICINE"
 # ``patient_visit_prescription_his`` prescription. Rows whose PRESCRIP_ID also
 # exists on OP_TABLE are kept and flagged ``is_deduplicate`` on the child line.
 HS_TABLE = "PATIENT_VISIT_PRESCRIPTION_HIS"
+# The tables an Excel upload has to provide (direct reads ignore this list).
+ORACLE_TABLES = [OP_TABLE, HS_TABLE, IP_TABLE]
 
 # One Oracle query + a handful of ERPNext queries per chunk. Small enough to stay
 # fast (and to keep the commit small), large enough to amortise the round trips.
@@ -684,17 +687,30 @@ def _apply_ip_chunk(
 # ---------------------------------------------------------------------------
 
 
-def _queue_next(token: str) -> None:
+def _queue_next(token: str, files: Any = None) -> None:
 	frappe.enqueue(
 		"healthcare.api.prescription_sync.run_prescription_reconcile",
 		queue="long",
 		timeout=7200,
 		resume=1,
 		token=token,
+		files=files,
 	)
 
 
-def _run(token: str, resume: int, limit: int, dry_run: int = 0) -> dict[str, Any]:
+def _run(
+	token: str, resume: int, limit: int, dry_run: int = 0, files: Any = None
+) -> dict[str, Any]:
+	"""Read Oracle live, or from the uploaded Excel export, then reconcile."""
+	progress = _load_progress() if resume else None
+	files = normalize_files(files) or (progress or {}).get("files") or None
+	with excel_source(files, tables=ORACLE_TABLES):
+		return _run_with_source(token, resume, limit, dry_run, files)
+
+
+def _run_with_source(
+	token: str, resume: int, limit: int, dry_run: int = 0, files: Any = None
+) -> dict[str, Any]:
 	started = time.monotonic()
 	if resume:
 		progress = _load_progress() or _new_progress()
@@ -755,7 +771,7 @@ def _run(token: str, resume: int, limit: int, dry_run: int = 0) -> dict[str, Any
 				"Still running in the background ({0} of {1} records processed)."
 			).format(progress.get("processed") or 0, progress.get("total") or 0)
 			_set_progress(progress)
-			_queue_next(token)
+			_queue_next(token, files)
 			return {"state": "queued", "handed_over": True, "progress": progress}
 
 	frappe.db.commit()
@@ -840,9 +856,10 @@ def _summary_message(progress: dict) -> str:
 
 
 @frappe.whitelist()
-def start_prescription_reconcile(limit: int = 0, dry_run: int = 0) -> dict[str, Any]:
+def start_prescription_reconcile(limit: int = 0, dry_run: int = 0, files=None) -> dict[str, Any]:
 	"""Queue one reconciliation of every OP and IP prescription (button entry point)."""
 	_require_admin()
+	files = normalize_files(files)
 	if _lock_held():
 		return {
 			"queued": False,
@@ -855,7 +872,12 @@ def start_prescription_reconcile(limit: int = 0, dry_run: int = 0) -> dict[str, 
 	progress["state"] = "queued"
 	progress["dry_run"] = cint(dry_run)
 	progress["limit"] = cint(limit)
-	progress["message"] = _("Queued. Oracle is read in the background.")
+	progress["files"] = files
+	progress["message"] = (
+		_("Queued. The uploaded Excel export is read in the background.")
+		if files
+		else _("Queued. Oracle is read in the background.")
+	)
 	_set_progress(progress)
 
 	frappe.enqueue(
@@ -864,6 +886,7 @@ def start_prescription_reconcile(limit: int = 0, dry_run: int = 0) -> dict[str, 
 		timeout=7200,
 		limit=cint(limit),
 		dry_run=cint(dry_run),
+		files=files,
 	)
 	return {"queued": True, "job_key": JOB_KEY, "status": progress}
 
@@ -882,7 +905,11 @@ def get_prescription_reconcile_status() -> dict[str, Any]:
 
 
 def run_prescription_reconcile(
-	limit: int = 0, resume: int = 0, token: str | None = None, dry_run: int = 0
+	limit: int = 0,
+	resume: int = 0,
+	token: str | None = None,
+	dry_run: int = 0,
+	files: Any = None,
 ) -> dict[str, Any]:
 	"""Background entry point (also callable inline from the bench console)."""
 	if cint(resume):
@@ -901,7 +928,7 @@ def run_prescription_reconcile(
 
 	outcome: dict[str, Any] = {}
 	try:
-		outcome = _run(token, cint(resume), cint(limit), cint(dry_run))
+		outcome = _run(token, cint(resume), cint(limit), cint(dry_run), files)
 	except Exception:
 		progress = _load_progress() or _new_progress()
 		progress["state"] = "failed"

@@ -1,0 +1,312 @@
+{
+ "actions": [],
+ "allow_import": 1,
+ "autoname": "field:user_num",
+ "creation": "2026-11-05 00:20:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "section_break_user",
+  "user_num",
+  "login_name",
+  "user_name",
+  "column_break_user",
+  "display_name",
+  "display_name_ar",
+  "section_break_status",
+  "status_flag",
+  "is_active",
+  "group_num",
+  "user_group",
+  "column_break_status",
+  "user_permission",
+  "employee_code",
+  "designation_en",
+  "designation_ar",
+  "section_break_flags",
+  "is_special_user",
+  "allow_for_issue_letter",
+  "posting_rights",
+  "inventory_expiry_alert",
+  "column_break_flags",
+  "gl_code",
+  "doc_stamp_info",
+  "section_break_audit",
+  "created_by_user_num",
+  "created_on",
+  "column_break_audit",
+  "updated_by_user_num",
+  "updated_on",
+  "section_break_import",
+  "source_file_url",
+  "imported_on"
+ ],
+ "fields": [
+  {
+   "fieldname": "section_break_user",
+   "fieldtype": "Section Break",
+   "label": "Legacy User"
+  },
+  {
+   "description": "USR_00_01.USR_NUM. Every legacy table stores the person in CR_ID / UP_ID as this number, so this record is what turns a CR ID / UP ID into a name.",
+   "fieldname": "user_num",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "User Num",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "login_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Login Name"
+  },
+  {
+   "fieldname": "user_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "User Name",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_user",
+   "fieldtype": "Column Break"
+  },
+  {
+   "description": "Preferred name shown when a CR ID / UP ID is displayed. Falls back to User Name when empty.",
+   "fieldname": "display_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Display Name"
+  },
+  {
+   "fieldname": "display_name_ar",
+   "fieldtype": "Data",
+   "label": "Display Name (Arabic)"
+  },
+  {
+   "fieldname": "section_break_status",
+   "fieldtype": "Section Break",
+   "label": "Status & Role"
+  },
+  {
+   "default": "0",
+   "description": "Legacy STA_FLG: 1 = the user can log on, 0 = locked / retired.",
+   "fieldname": "status_flag",
+   "fieldtype": "Int",
+   "in_standard_filter": 1,
+   "label": "Status Flag"
+  },
+  {
+   "description": "Computed from Status Flag.",
+   "fieldname": "is_active",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Is Active",
+   "read_only": 1
+  },
+  {
+   "fieldname": "group_num",
+   "fieldtype": "Int",
+   "label": "Group Num"
+  },
+  {
+   "description": "Legacy USER_GROUP_01: 1 NORMAL USER, 2 CONSULTANT, 3 GP, 4 SPECIALIST, 5 PSYCHOLOGIST.",
+   "fieldname": "user_group",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "User Group",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_status",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "user_permission",
+   "fieldtype": "Int",
+   "label": "User Permission"
+  },
+  {
+   "fieldname": "employee_code",
+   "fieldtype": "Data",
+   "in_standard_filter": 1,
+   "label": "Employee Code"
+  },
+  {
+   "fieldname": "designation_en",
+   "fieldtype": "Data",
+   "label": "Designation (English)"
+  },
+  {
+   "fieldname": "designation_ar",
+   "fieldtype": "Data",
+   "label": "Designation (Arabic)"
+  },
+  {
+   "fieldname": "section_break_flags",
+   "fieldtype": "Section Break",
+   "label": "Legacy Flags"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_special_user",
+   "fieldtype": "Check",
+   "label": "Is Special User"
+  },
+  {
+   "default": "0",
+   "fieldname": "allow_for_issue_letter",
+   "fieldtype": "Check",
+   "label": "Allow For Issue Letter"
+  },
+  {
+   "default": "0",
+   "fieldname": "posting_rights",
+   "fieldtype": "Check",
+   "label": "Posting Rights"
+  },
+  {
+   "default": "0",
+   "fieldname": "inventory_expiry_alert",
+   "fieldtype": "Check",
+   "label": "Inventory Expiry Alert"
+  },
+  {
+   "fieldname": "column_break_flags",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "gl_code",
+   "fieldtype": "Data",
+   "label": "GL Code"
+  },
+  {
+   "fieldname": "doc_stamp_info",
+   "fieldtype": "Small Text",
+   "label": "Doc Stamp Info"
+  },
+  {
+   "fieldname": "section_break_audit",
+   "fieldtype": "Section Break",
+   "label": "Legacy Audit"
+  },
+  {
+   "description": "Legacy CR_ID value: the USR_NUM of the user who created the record.",
+   "fieldname": "created_by_user_num",
+   "fieldtype": "Data",
+   "label": "Created By User Num"
+  },
+  {
+   "fieldname": "created_on",
+   "fieldtype": "Datetime",
+   "label": "Created On"
+  },
+  {
+   "fieldname": "column_break_audit",
+   "fieldtype": "Column Break"
+  },
+  {
+   "description": "Legacy UP_ID value: the USR_NUM of the user who last changed the record.",
+   "fieldname": "updated_by_user_num",
+   "fieldtype": "Data",
+   "label": "Updated By User Num"
+  },
+  {
+   "fieldname": "updated_on",
+   "fieldtype": "Datetime",
+   "label": "Updated On"
+  },
+  {
+   "fieldname": "section_break_import",
+   "fieldtype": "Section Break",
+   "label": "Import"
+  },
+  {
+   "fieldname": "source_file_url",
+   "fieldtype": "Data",
+   "label": "Source File",
+   "read_only": 1
+  },
+  {
+   "fieldname": "imported_on",
+   "fieldtype": "Datetime",
+   "label": "Imported On",
+   "read_only": 1
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-11-05 00:20:00.000000",
+ "modified_by": "Administrator",
+ "module": "Healthcare",
+ "name": "Oracle User",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Healthcare Administrator",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Physician"
+  },
+  {
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Nurse"
+  },
+  {
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Reception"
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "search_fields": "user_name,login_name,display_name,employee_code",
+ "sort_field": "user_num",
+ "sort_order": "ASC",
+ "states": [],
+ "title_field": "user_name"
+}
