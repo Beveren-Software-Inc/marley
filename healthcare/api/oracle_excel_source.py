@@ -129,6 +129,17 @@ ORACLE_SOURCES: dict[str, dict[str, Any]] = {
 			},
 		],
 	},
+	"warning_messages": {
+		"label": "Warning Messages",
+		"doctype": "Warning Message",
+		"tables": [
+			{
+				"table": "PATIENT_WARNING_MESSAGES",
+				"label": "Patient warning messages",
+				"required": ["WARNING_MESSAGE_NUM", "PATIENT_NUM"],
+			},
+		],
+	},
 	"user": {
 		"label": "User",
 		"doctype": "Oracle User",

@@ -72,6 +72,17 @@ frappe.ui.form.on('Healthcare Settings', {
 			() => open_nursing_note_reconcile(frm),
 			__('Oracle -> ERPNext')
 		);
+		// Warning Messages: the legacy patient warnings / allergies
+		// (PATIENT_WARNING_MESSAGES), read live or from their Excel export.
+		// Creates the warnings ERPNext is missing - an app record that owns the
+		// number is kept and the legacy row is created as <num>-W - fills the
+		// blanks Oracle knows about and merges duplicate copies of a warning.
+		frm.add_custom_button(
+			__('Warning Messages'),
+			() => open_warning_message_reconcile(frm),
+			__('Oracle -> ERPNext')
+		);
+
 
 		// Legacy users (Oracle USR_00_01), read live or from its Excel export.
 		// Every legacy table stores the person in CR_ID / UP_ID as USR_NUM - the
@@ -9137,6 +9148,8 @@ const CLINICAL_NOTE_RECONCILE_POLL_LIMIT = 300;
 // The nursing note reconciliation compares two ~425k-row registers, so it gets
 // the same 10-minute polling window.
 const NURSING_NOTE_RECONCILE_POLL_LIMIT = 300;
+// Warning Messages (PATIENT_WARNING_MESSAGES) poll budget: 300 * 2s = 10 minutes.
+const WARNING_MESSAGE_RECONCILE_POLL_LIMIT = 300;
 
 function hide_legacy_setting_buttons(frm) {
 	if (frm.__legacy_setting_buttons_hidden) {
@@ -10158,6 +10171,356 @@ function track_nursing_note_reconcile(frm) {
 					frappe.msgprint(
 						__(
 							'The reconciliation is still running in the background. Open Nursing Notes again in a few minutes to see the result.'
+						)
+					);
+				}
+			},
+			error() {
+				clearInterval(timer);
+				frappe.hide_progress();
+			},
+		});
+	}, ORACLE_SYNC_POLL_INTERVAL);
+}
+
+
+function open_warning_message_reconcile(frm) {
+	ask_oracle_source({
+		title: __('Oracle -> ERPNext: Warning Messages'),
+		entity: 'warning_messages',
+		intro: `<p class="text-muted small">${__(
+			'Reads the legacy patient warnings (PATIENT_WARNING_MESSAGES) and repairs the Warning Message register: creates the warnings ERPNext is missing (a row whose number an app record already owns becomes <num>-W, so the live record is never renamed), completes the blanks Oracle knows about, and merges duplicate copies of the same warning. Values that are already there are never overwritten.'
+		)}</p>`,
+		on_direct: () => open_warning_message_reconcile_options(frm),
+		on_excel: (files) => open_warning_message_reconcile_options(frm, files),
+	});
+}
+
+function open_warning_message_reconcile_options(frm, files) {
+	const dialog = new frappe.ui.Dialog({
+		title: __('Oracle -> ERPNext: Warning Messages'),
+		fields: [
+			{
+				fieldtype: 'Data',
+				fieldname: 'patient',
+				label: __('Patient (optional)'),
+				description: __(
+					'Leave empty to reconcile every patient. A patient number limits the missing warnings to that patient.'
+				),
+			},
+			{
+				fieldtype: 'Check',
+				fieldname: 'suffix_conflicts',
+				label: __(
+					'Import rows whose trans number another patient already uses (as <num>-W)'
+				),
+				default: 1,
+			},
+			{
+				fieldtype: 'Check',
+				fieldname: 'fill_missing',
+				label: __('Fill the blanks of existing warnings from Oracle'),
+				default: 1,
+			},
+			{
+				fieldtype: 'Check',
+				fieldname: 'clean_duplicates',
+				label: __('Merge duplicate copies of the same warning'),
+				default: 1,
+			},
+			{
+				fieldtype: 'Check',
+				fieldname: 'dry_run',
+				label: __('Dry run (report only, write nothing)'),
+				default: 0,
+			},
+		],
+		primary_action_label: __('Preview'),
+		primary_action(values) {
+			dialog.hide();
+			preview_warning_message_reconcile(frm, { ...(values || {}), files: files });
+		},
+	});
+	dialog.show();
+}
+
+function preview_warning_message_reconcile(frm, values) {
+	const files = (values && values.files) || null;
+	frappe.dom.freeze(
+		files
+			? __('Comparing warning messages with the uploaded Excel export…')
+			: __('Comparing warning messages with Oracle…')
+	);
+	frappe.call({
+		method: 'healthcare.api.warning_message_reconcile.preview_warning_message_reconcile',
+		args: {
+			patient: (values && values.patient) || '',
+			files: files ? JSON.stringify(files) : '',
+		},
+		callback(r) {
+			frappe.dom.unfreeze();
+			if (!r.message) {
+				return;
+			}
+			show_warning_message_reconcile_dialog(frm, r.message, values || {});
+		},
+		error() {
+			frappe.dom.unfreeze();
+		},
+	});
+}
+
+function warning_message_reconcile_list_html(items, title, render) {
+	if (!items || !items.length) {
+		return '';
+	}
+	const list = items.map((item) => `<li>${render(item)}</li>`).join('');
+	return `<p class="text-muted small" style="margin-bottom:4px"><b>${oracle_sync_escape(
+		title
+	)}</b></p><ul class="text-muted small">${list}</ul>`;
+}
+
+function show_warning_message_reconcile_dialog(frm, data, values) {
+	const missing = cint(data.missing_total);
+	const blocked = cint(data.missing_blocked);
+	const fills = cint(data.fill_total);
+	const duplicates = cint(data.duplicate_total);
+	const skipped = cint(data.skipped_duplicates);
+
+	const rows = [
+		[
+			__('Oracle warnings'),
+			`<b>${format_number(cint(data.oracle_rows_with_text))}</b> ${__(
+				'with text'
+			)} <span class="text-muted">(${format_number(cint(data.oracle_rows))} ${__(
+				'rows'
+			)}, ${format_number(cint(data.oracle_patients))} ${__('patients')})</span>`,
+		],
+		[
+			__('Warning Messages in ERPNext'),
+			`<b>${format_number(cint(data.erpnext_rows))}</b> <span class="text-muted">(${format_number(
+				cint(data.matched)
+			)} ${__('match Oracle')}, ${format_number(cint(data.extra_rows))} ${__(
+				'only in ERPNext'
+			)})</span>`,
+		],
+		[
+			__('Missing warnings'),
+			`<b class="${missing ? 'text-danger' : 'text-success'}">${format_number(
+				missing
+			)}</b> <span class="text-muted">(${format_number(blocked)} ${__(
+				'whose number an app record owns'
+			)})</span>`,
+		],
+		[
+			__('Warnings with blanks'),
+			`<b>${format_number(fills)}</b> <span class="text-muted">${__(
+				'can be completed from Oracle'
+			)}</span>`,
+		],
+		[
+			__('Duplicate copies'),
+			`<b>${format_number(duplicates)}</b> <span class="text-muted">(${format_number(
+				skipped
+			)} ${__('kept: phone warning, attachment or extra data')})</span>`,
+		],
+	];
+
+	const body = `
+		<table class="table table-sm" style="margin-bottom:8px">${rows
+			.map(
+				([label, value]) =>
+					`<tr><td class="text-muted" style="width:45%">${oracle_sync_escape(
+						label
+					)}</td><td>${value}</td></tr>`
+			)
+			.join('')}</table>
+		${
+			cint(data.differs_total)
+				? `<p class="text-muted small">${__(
+						'{0} warnings hold values that differ from Oracle. They are reported and never overwritten.',
+						[format_number(cint(data.differs_total))]
+				  )}</p>`
+				: ''
+		}
+		${
+			blocked && cint(values && values.suffix_conflicts)
+				? `<p class="text-muted small">${__(
+						'{0} of these rows share a number with a record of another patient. They are created as <code>&lt;num&gt;-W</code>, so the existing record is never renamed or deleted.',
+						[format_number(blocked)]
+				  )}</p>`
+				: ''
+		}
+		${
+			cint(data.register_missing_total) > cint(data.missing_total)
+				? `<p class="text-muted small">${__(
+						'{0} more missing warnings belong to other patients (register total: {1}).',
+						[
+							format_number(
+								cint(data.register_missing_total) - cint(data.missing_total)
+							),
+							format_number(cint(data.register_missing_total)),
+						]
+				  )}</p>`
+				: ''
+		}
+		${warning_message_reconcile_list_html(
+			data.fill_sample,
+			__('Warnings to complete (first {0})', [(data.fill_sample || []).length]),
+			(row) =>
+				`${oracle_sync_escape(row.name)}${
+					row.patient ? ` · ${__('patient')} ${oracle_sync_escape(row.patient)}` : ''
+				} — <span class="text-muted">${oracle_sync_escape((row.fields || []).join(', '))}</span>`
+		)}
+		${warning_message_reconcile_list_html(
+			data.samples,
+			__('Missing warnings (first {0})', [(data.samples || []).length]),
+			(row) =>
+				`${oracle_sync_escape(row.number)}${
+					row.patient ? ` · ${__('patient')} ${oracle_sync_escape(row.patient)}` : ''
+				}<br><span class="text-muted">${oracle_sync_escape(row.text || __('(no text)'))}</span>`
+		)}
+		${warning_message_reconcile_list_html(
+			data.duplicate_sample,
+			__('Duplicate copies to merge (first {0})', [(data.duplicate_sample || []).length]),
+			(row) =>
+				`${oracle_sync_escape(row.remove)} — ${__('same warning as')} ${oracle_sync_escape(
+					row.keeper
+				)}`
+		)}
+		<p class="text-muted small">${__('Source: {0}', [
+			oracle_sync_escape(data.oracle_table || 'CLINIC2.PATIENT_WARNING_MESSAGES'),
+		])}</p>
+	`;
+
+	const dialog = new frappe.ui.Dialog({
+		title: __('Oracle -> ERPNext: Warning Messages'),
+		size: 'large',
+		fields: [
+			{ fieldtype: 'HTML', fieldname: 'summary' },
+			{
+				fieldtype: 'Check',
+				fieldname: 'suffix_conflicts',
+				label: __(
+					'Import rows whose trans number another patient already uses (as <num>-W)'
+				),
+				default: cint(
+					values && values.suffix_conflicts != null ? values.suffix_conflicts : 1
+				),
+			},
+			{
+				fieldtype: 'Check',
+				fieldname: 'fill_missing',
+				label: __('Fill the blanks of existing warnings from Oracle'),
+				default: cint(values && values.fill_missing != null ? values.fill_missing : 1),
+			},
+			{
+				fieldtype: 'Check',
+				fieldname: 'clean_duplicates',
+				label: __('Merge duplicate copies of the same warning'),
+				default: cint(
+					values && values.clean_duplicates != null ? values.clean_duplicates : 1
+				),
+			},
+			{
+				fieldtype: 'Check',
+				fieldname: 'dry_run',
+				label: __('Dry run (report only, write nothing)'),
+				default: cint(values && values.dry_run),
+			},
+		],
+		primary_action_label: __('Start'),
+		primary_action(dialog_values) {
+			dialog.hide();
+			start_warning_message_reconcile(frm, {
+				patient: (values && values.patient) || '',
+				suffix_conflicts: cint(dialog_values.suffix_conflicts),
+				fill_missing: cint(dialog_values.fill_missing),
+				clean_duplicates: cint(dialog_values.clean_duplicates),
+				dry_run: cint(dialog_values.dry_run),
+				files: (values && values.files) || null,
+			});
+		},
+	});
+	dialog.fields_dict.summary.$wrapper.html(body);
+	dialog.show();
+}
+
+
+
+function start_warning_message_reconcile(frm, values) {
+	frappe.call({
+		method: 'healthcare.api.warning_message_reconcile.start_warning_message_reconcile',
+		args: {
+			patient: (values && values.patient) || '',
+			suffix_conflicts: cint(
+				values && values.suffix_conflicts != null ? values.suffix_conflicts : 1
+			),
+			fill_missing: cint(values && values.fill_missing != null ? values.fill_missing : 1),
+			clean_duplicates: cint(
+				values && values.clean_duplicates != null ? values.clean_duplicates : 1
+			),
+			dry_run: cint(values && values.dry_run),
+			files: values && values.files ? JSON.stringify(values.files) : '',
+		},
+		callback(r) {
+			const result = r.message || {};
+			if (result.queued || result.running) {
+				track_warning_message_reconcile(frm);
+				return;
+			}
+			frappe.msgprint({
+				title: __('Oracle -> ERPNext: Warning Messages'),
+				indicator: 'orange',
+				message: result.message || __('The reconciliation could not be started.'),
+			});
+		},
+	});
+}
+
+function track_warning_message_reconcile(frm) {
+	let polls = 0;
+	const title = __('Reconciling warning messages from Oracle');
+	frappe.show_progress(title, 0, 100, __('Comparing the two registers…'));
+
+	const timer = setInterval(() => {
+		polls += 1;
+		frappe.call({
+			method: 'healthcare.api.warning_message_reconcile.get_warning_message_reconcile_status',
+			callback(r) {
+				const status = r.message || {};
+				const total = cint(status.total);
+				const processed = cint(status.processed);
+				const percent = total ? Math.min(100, Math.round((processed / total) * 100)) : 0;
+				frappe.show_progress(
+					title,
+					percent,
+					100,
+					status.message || __('{0} of {1}', [processed, total])
+				);
+
+				if (status.state === 'finished' || status.state === 'failed') {
+					clearInterval(timer);
+					frappe.hide_progress();
+					const summary =
+						status.state === 'failed'
+							? frappe.utils.escape_html(status.message || __('Failed'))
+							: frappe.utils.escape_html(status.message || __('Done'));
+					frappe.msgprint({
+						title: __('Oracle -> ERPNext: Warning Messages'),
+						indicator: status.state === 'failed' ? 'red' : 'green',
+						wide: true,
+						message: summary.replace(/\n/g, '<br>'),
+					});
+					if (frm && frm.refresh) {
+						frm.refresh();
+					}
+				} else if (polls >= WARNING_MESSAGE_RECONCILE_POLL_LIMIT) {
+					clearInterval(timer);
+					frappe.hide_progress();
+					frappe.msgprint(
+						__(
+							'The reconciliation is still running in the background. Open Warning Messages again in a few minutes to see the result.'
 						)
 					);
 				}

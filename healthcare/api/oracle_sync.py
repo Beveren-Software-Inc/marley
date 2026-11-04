@@ -37,6 +37,7 @@ from __future__ import annotations
 
 import csv
 import io
+import os
 import shlex
 import shutil
 import subprocess
@@ -58,6 +59,12 @@ from healthcare.healthcare.doctype.inpatient_admission.inpatient_admission impor
 )
 
 DEFAULT_CONTAINER = "oracle-free"
+
+# The client charset SQL*Plus speaks with the database. Without it Oracle converts
+# Arabic / accented text to the client's default (WE8ISO8859P1) and every character
+# it cannot represent comes back as "?" - the legacy Arabic warnings would be
+# imported as "?????" and a text comparison would report every row as changed.
+ORACLE_NLS_LANG = "AMERICAN_AMERICA.AL32UTF8"
 DEFAULT_DSN = "//localhost:1521/FREEPDB1"
 
 ORACLE_SYNC_TIMEOUT = 300
@@ -268,6 +275,8 @@ def _sqlplus_command() -> list[str]:
 			"docker",
 			"exec",
 			"-i",
+			"-e",
+			f"NLS_LANG={ORACLE_NLS_LANG}",
 			container,
 			"bash",
 			"-lc",
@@ -310,6 +319,9 @@ def _run_sql(statement: str, *, timeout: int = ORACLE_SYNC_TIMEOUT) -> str:
 			input=script + "\n",
 			capture_output=True,
 			text=True,
+			encoding="utf-8",
+			errors="replace",
+			env={**os.environ, "NLS_LANG": ORACLE_NLS_LANG},
 			timeout=timeout,
 		)
 	except subprocess.TimeoutExpired:

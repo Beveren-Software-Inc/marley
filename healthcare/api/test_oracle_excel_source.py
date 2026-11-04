@@ -40,6 +40,13 @@ class TestOracleExcelSourceRegistry(UnitTestCase):
 		self.assertEqual([table["table"] for table in tables], ["IP_NURSING"])
 		self.assertEqual(tables[0]["required"], ["TRANS_NUM", "ADMISSION_NUM"])
 
+	def test_warning_messages_button_points_at_patient_warning_messages(self):
+		tables = ORACLE_SOURCES["warning_messages"]["tables"]
+
+		self.assertEqual(ORACLE_SOURCES["warning_messages"]["doctype"], "Warning Message")
+		self.assertEqual([table["table"] for table in tables], ["PATIENT_WARNING_MESSAGES"])
+		self.assertEqual(tables[0]["required"], ["WARNING_MESSAGE_NUM", "PATIENT_NUM"])
+
 	def test_signatures_use_the_columns_the_queries_filter_on(self):
 		signatures = oracle_table_signatures()
 		self.assertIn("ADMISSION_NUM", signatures["IP_ADMISSION_01"])
