@@ -151,6 +151,22 @@ ORACLE_SOURCES: dict[str, dict[str, Any]] = {
 			}
 		],
 	},
+	"lab_tests": {
+		"label": "Lab Tests",
+		"doctype": "Lab Test",
+		"tables": [
+			{
+				"table": "LAB_00_03",
+				"label": "Lab test headers",
+				"required": ["TRANS_NUM", "SUB_DR_GL_CODE"],
+			},
+			{
+				"table": "LAB_00_04",
+				"label": "Lab test results",
+				"required": ["TRANS_NUM", "LAB_SUB_NUM"],
+			},
+		],
+	},
 }
 
 

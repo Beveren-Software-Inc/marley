@@ -47,6 +47,14 @@ class TestOracleExcelSourceRegistry(UnitTestCase):
 		self.assertEqual([table["table"] for table in tables], ["PATIENT_WARNING_MESSAGES"])
 		self.assertEqual(tables[0]["required"], ["WARNING_MESSAGE_NUM", "PATIENT_NUM"])
 
+	def test_lab_tests_button_points_at_the_lab_header_and_result_tables(self):
+		tables = ORACLE_SOURCES["lab_tests"]["tables"]
+
+		self.assertEqual(ORACLE_SOURCES["lab_tests"]["doctype"], "Lab Test")
+		self.assertEqual([table["table"] for table in tables], ["LAB_00_03", "LAB_00_04"])
+		self.assertEqual(tables[0]["required"], ["TRANS_NUM", "SUB_DR_GL_CODE"])
+		self.assertEqual(tables[1]["required"], ["TRANS_NUM", "LAB_SUB_NUM"])
+
 	def test_signatures_use_the_columns_the_queries_filter_on(self):
 		signatures = oracle_table_signatures()
 		self.assertIn("ADMISSION_NUM", signatures["IP_ADMISSION_01"])

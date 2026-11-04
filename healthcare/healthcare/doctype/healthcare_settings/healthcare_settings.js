@@ -83,6 +83,16 @@ frappe.ui.form.on('Healthcare Settings', {
 			__('Oracle -> ERPNext')
 		);
 
+		// Lab Tests: the legacy lab headers (LAB_00_03) and their result rows
+		// (LAB_00_04), read live or from their Excel exports. Creates the lab
+		// tests ERPNext is missing, fills the blanks Oracle knows about and
+		// merges copies of the same lab order the app created on its own.
+		frm.add_custom_button(
+			__('Lab Tests'),
+			() => open_lab_test_reconcile(frm),
+			__('Oracle -> ERPNext')
+		);
+
 
 		// Legacy users (Oracle USR_00_01), read live or from its Excel export.
 		// Every legacy table stores the person in CR_ID / UP_ID as USR_NUM - the
@@ -9150,6 +9160,9 @@ const CLINICAL_NOTE_RECONCILE_POLL_LIMIT = 300;
 const NURSING_NOTE_RECONCILE_POLL_LIMIT = 300;
 // Warning Messages (PATIENT_WARNING_MESSAGES) poll budget: 300 * 2s = 10 minutes.
 const WARNING_MESSAGE_RECONCILE_POLL_LIMIT = 300;
+// Lab Tests (LAB_00_03 headers + LAB_00_04 results) walk a 13k / 137k register,
+// so they get the same 10-minute polling window.
+const LAB_TEST_RECONCILE_POLL_LIMIT = 300;
 
 function hide_legacy_setting_buttons(frm) {
 	if (frm.__legacy_setting_buttons_hidden) {
@@ -10521,6 +10534,329 @@ function track_warning_message_reconcile(frm) {
 					frappe.msgprint(
 						__(
 							'The reconciliation is still running in the background. Open Warning Messages again in a few minutes to see the result.'
+						)
+					);
+				}
+			},
+			error() {
+				clearInterval(timer);
+				frappe.hide_progress();
+			},
+		});
+	}, ORACLE_SYNC_POLL_INTERVAL);
+}
+
+
+function open_lab_test_reconcile(frm) {
+	ask_oracle_source({
+		title: __('Oracle -> ERPNext: Lab Tests'),
+		entity: 'lab_tests',
+		intro: `<p class="text-muted small">${__(
+			'Reads the legacy lab orders (LAB_00_03) and their result rows (LAB_00_04) and repairs the Lab Test register: creates the lab tests ERPNext is missing, fills the blanks Oracle knows about (test name, result table, remarks, cost centre) and merges copies of the same lab order that the app created under its own name. Values that are already there are never overwritten.'
+		)}</p>`,
+		on_direct: () => open_lab_test_reconcile_options(frm),
+		on_excel: (files) => open_lab_test_reconcile_options(frm, files),
+	});
+}
+
+function open_lab_test_reconcile_options(frm, files) {
+	const dialog = new frappe.ui.Dialog({
+		title: __('Oracle -> ERPNext: Lab Tests'),
+		fields: [
+			{
+				fieldtype: 'Data',
+				fieldname: 'patient',
+				label: __('Patient (optional)'),
+				description: __(
+					'Leave empty to reconcile every patient. A patient number limits the missing lab tests and the blanks to that patient.'
+				),
+			},
+			{
+				fieldtype: 'Check',
+				fieldname: 'fill_missing',
+				label: __('Fill the blanks of existing lab tests from Oracle'),
+				default: 1,
+			},
+			{
+				fieldtype: 'Check',
+				fieldname: 'clean_duplicates',
+				label: __('Merge duplicate copies of the same lab order'),
+				default: 1,
+			},
+			{
+				fieldtype: 'Check',
+				fieldname: 'dry_run',
+				label: __('Dry run (report only, write nothing)'),
+				default: 0,
+			},
+		],
+		primary_action_label: __('Preview'),
+		primary_action(values) {
+			dialog.hide();
+			preview_lab_test_reconcile(frm, { ...(values || {}), files: files });
+		},
+	});
+	dialog.show();
+}
+
+function preview_lab_test_reconcile(frm, values) {
+	const files = (values && values.files) || null;
+	frappe.dom.freeze(
+		files
+			? __('Comparing lab tests with the uploaded Excel exports…')
+			: __('Comparing lab tests with Oracle…')
+	);
+	frappe.call({
+		method: 'healthcare.api.lab_test_reconcile.preview_lab_test_reconcile',
+		args: {
+			patient: (values && values.patient) || '',
+			files: files ? JSON.stringify(files) : '',
+		},
+		callback(r) {
+			frappe.dom.unfreeze();
+			if (!r.message) {
+				return;
+			}
+			show_lab_test_reconcile_dialog(frm, r.message, values || {});
+		},
+		error() {
+			frappe.dom.unfreeze();
+		},
+	});
+}
+
+function lab_test_reconcile_list_html(items, title, render) {
+	if (!items || !items.length) {
+		return '';
+	}
+	const list = items.map((item) => `<li>${render(item)}</li>`).join('');
+	return `<p class="text-muted small" style="margin-bottom:4px"><b>${oracle_sync_escape(
+		title
+	)}</b></p><ul class="text-muted small">${list}</ul>`;
+}
+
+
+function show_lab_test_reconcile_dialog(frm, data, values) {
+	const missing = cint(data.missing_total);
+	const fills = cint(data.fill_total);
+	const duplicates = cint(data.duplicate_total);
+	const skipped = cint(data.skipped_duplicates);
+
+	const rows = [
+		[
+			__('Oracle lab orders'),
+			`<b>${format_number(cint(data.oracle_rows))}</b> <span class="text-muted">(${format_number(
+				cint(data.oracle_patients)
+			)} ${__('patients')})</span>`,
+		],
+		[
+			__('Lab Tests in ERPNext'),
+			`<b>${format_number(cint(data.erpnext_rows))}</b> <span class="text-muted">(${format_number(
+				cint(data.matched)
+			)} ${__('match Oracle')}, ${format_number(cint(data.extra_rows))} ${__(
+				'legacy rows Oracle no longer has'
+			)})</span>`,
+		],
+		[
+			__('Missing lab tests'),
+			`<b class="${missing ? 'text-danger' : 'text-success'}">${format_number(missing)}</b>`,
+		],
+		[
+			__('Lab tests with blanks'),
+			`<b>${format_number(fills)}</b> <span class="text-muted">${__(
+				'can be completed from Oracle'
+			)}</span>`,
+		],
+		[
+			__('Duplicate copies'),
+			`<b>${format_number(duplicates)}</b> <span class="text-muted">(${format_number(
+				skipped
+			)} ${__('kept: invoiced, request, review, attachment or extra data')})</span>`,
+		],
+	];
+
+	const body = `
+		<table class="table table-sm" style="margin-bottom:8px">${rows
+			.map(
+				([label, value]) =>
+					`<tr><td class="text-muted" style="width:45%">${oracle_sync_escape(
+						label
+					)}</td><td>${value}</td></tr>`
+			)
+			.join('')}</table>
+		${
+			cint(data.differs_total)
+				? `<p class="text-muted small">${__(
+						'{0} lab tests hold values that differ from Oracle. They are reported and never overwritten.',
+						[format_number(cint(data.differs_total))]
+				  )}</p>`
+				: ''
+		}
+		${
+			cint(data.register_missing_total) > cint(data.missing_total)
+				? `<p class="text-muted small">${__(
+						'{0} more missing lab tests belong to other patients (register total: {1}).',
+						[
+							format_number(
+								cint(data.register_missing_total) - cint(data.missing_total)
+							),
+							format_number(cint(data.register_missing_total)),
+						]
+				  )}</p>`
+				: ''
+		}
+		${
+			cint(data.extra_rows)
+				? `<p class="text-muted small">${__(
+						'{0} legacy lab tests have no row in Oracle any more. They are not touched.',
+						[format_number(cint(data.extra_rows))]
+				  )}</p>`
+				: ''
+		}
+		${lab_test_reconcile_list_html(
+			data.fill_sample,
+			__('Lab tests to complete (first {0})', [(data.fill_sample || []).length]),
+			(row) =>
+				`${oracle_sync_escape(row.name)}${
+					row.patient ? ` · ${__('patient')} ${oracle_sync_escape(row.patient)}` : ''
+				} — <span class="text-muted">${oracle_sync_escape((row.fields || []).join(', '))}</span>`
+		)}
+		${lab_test_reconcile_list_html(
+			data.samples,
+			__('Missing lab tests (first {0})', [(data.samples || []).length]),
+			(row) =>
+				`${oracle_sync_escape(row.trans_num)}${
+					row.patient ? ` · ${__('patient')} ${oracle_sync_escape(row.patient)}` : ''
+				}<br><span class="text-muted">${oracle_sync_escape(
+					String(row.date || '').split(' ')[0] || __('(no date)')
+				)}</span>`
+		)}
+		${lab_test_reconcile_list_html(
+			data.duplicate_sample,
+			__('Duplicate copies to merge (first {0})', [(data.duplicate_sample || []).length]),
+			(row) =>
+				`${oracle_sync_escape(row.remove)} — ${__('same lab order as')} ${oracle_sync_escape(
+					row.keeper
+				)}`
+		)}
+		<p class="text-muted small">${__('Source: {0}', [
+			oracle_sync_escape(data.oracle_table || 'CLINIC2.LAB_00_03 + CLINIC2.LAB_00_04'),
+		])}</p>
+	`;
+
+	const dialog = new frappe.ui.Dialog({
+		title: __('Oracle -> ERPNext: Lab Tests'),
+		size: 'large',
+		fields: [
+			{ fieldtype: 'HTML', fieldname: 'summary' },
+			{
+				fieldtype: 'Check',
+				fieldname: 'fill_missing',
+				label: __('Fill the blanks of existing lab tests from Oracle'),
+				default: cint(values && values.fill_missing != null ? values.fill_missing : 1),
+			},
+			{
+				fieldtype: 'Check',
+				fieldname: 'clean_duplicates',
+				label: __('Merge duplicate copies of the same lab order'),
+				default: cint(
+					values && values.clean_duplicates != null ? values.clean_duplicates : 1
+				),
+			},
+			{
+				fieldtype: 'Check',
+				fieldname: 'dry_run',
+				label: __('Dry run (report only, write nothing)'),
+				default: cint(values && values.dry_run),
+			},
+		],
+		primary_action_label: __('Start'),
+		primary_action(dialog_values) {
+			dialog.hide();
+			start_lab_test_reconcile(frm, {
+				patient: (values && values.patient) || '',
+				fill_missing: cint(dialog_values.fill_missing),
+				clean_duplicates: cint(dialog_values.clean_duplicates),
+				dry_run: cint(dialog_values.dry_run),
+				files: (values && values.files) || null,
+			});
+		},
+	});
+	dialog.fields_dict.summary.$wrapper.html(body);
+	dialog.show();
+}
+
+
+function start_lab_test_reconcile(frm, values) {
+	frappe.call({
+		method: 'healthcare.api.lab_test_reconcile.start_lab_test_reconcile',
+		args: {
+			patient: (values && values.patient) || '',
+			fill_missing: cint(values && values.fill_missing != null ? values.fill_missing : 1),
+			clean_duplicates: cint(
+				values && values.clean_duplicates != null ? values.clean_duplicates : 1
+			),
+			dry_run: cint(values && values.dry_run),
+			files: values && values.files ? JSON.stringify(values.files) : '',
+		},
+		callback(r) {
+			const result = r.message || {};
+			if (result.queued || result.running) {
+				track_lab_test_reconcile(frm);
+				return;
+			}
+			frappe.msgprint({
+				title: __('Oracle -> ERPNext: Lab Tests'),
+				indicator: 'orange',
+				message: result.message || __('The reconciliation could not be started.'),
+			});
+		},
+	});
+}
+
+function track_lab_test_reconcile(frm) {
+	let polls = 0;
+	const title = __('Reconciling lab tests from Oracle');
+	frappe.show_progress(title, 0, 100, __('Comparing the two registers…'));
+
+	const timer = setInterval(() => {
+		polls += 1;
+		frappe.call({
+			method: 'healthcare.api.lab_test_reconcile.get_lab_test_reconcile_status',
+			callback(r) {
+				const status = r.message || {};
+				const total = cint(status.total);
+				const processed = cint(status.processed);
+				const percent = total ? Math.min(100, Math.round((processed / total) * 100)) : 0;
+				frappe.show_progress(
+					title,
+					percent,
+					100,
+					status.message || __('{0} of {1}', [processed, total])
+				);
+
+				if (status.state === 'finished' || status.state === 'failed') {
+					clearInterval(timer);
+					frappe.hide_progress();
+					const summary =
+						status.state === 'failed'
+							? frappe.utils.escape_html(status.message || __('Failed'))
+							: frappe.utils.escape_html(status.message || __('Done'));
+					frappe.msgprint({
+						title: __('Oracle -> ERPNext: Lab Tests'),
+						indicator: status.state === 'failed' ? 'red' : 'green',
+						wide: true,
+						message: summary.replace(/\n/g, '<br>'),
+					});
+					if (frm && frm.refresh) {
+						frm.refresh();
+					}
+				} else if (polls >= LAB_TEST_RECONCILE_POLL_LIMIT) {
+					clearInterval(timer);
+					frappe.hide_progress();
+					frappe.msgprint(
+						__(
+							'The reconciliation is still running in the background. Open Lab Tests again in a few minutes to see the result.'
 						)
 					);
 				}
