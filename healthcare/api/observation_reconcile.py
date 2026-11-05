@@ -552,6 +552,18 @@ def _protected(row: dict) -> bool:
 
 
 
+def _conflicts_with(copy_row: dict, keeper: dict) -> bool:
+	"""True when both hold different nonempty values - keep both, never delete."""
+	for field in FILL_FIELDS:
+		if field == "note":
+			continue  # ``_redundant`` already compares the note
+		if _blank_on_erp(copy_row, field) or _blank_on_erp(keeper, field):
+			continue
+		if not _same_value(field, keeper, copy_row.get(field)):
+			return True
+	return False
+
+
 def _richer_than(copy_row: dict, keeper: dict) -> bool:
 	"""True when the copy holds a value the kept record does not - keep both."""
 	for field in FILL_FIELDS:
@@ -568,6 +580,8 @@ def _redundant(copy_row: dict, keeper: dict) -> bool:
 	"""The copy says nothing the kept record does not already say."""
 	copy_note = _norm_text(copy_row.get("note"))
 	if copy_note and copy_note != _norm_text(keeper.get("note")):
+		return False
+	if _conflicts_with(copy_row, keeper):
 		return False
 	return not _richer_than(copy_row, keeper)
 
@@ -606,11 +620,12 @@ def _duplicate_groups(
 
 	duplicates: list[list[str]] = []
 	skipped = 0
-	for rows in groups.values():
+	for group_key, rows in groups.items():
 		if len(rows) < 2:
 			continue
 		if not any((row.get("trans_no") or row.get("name") or "") in oracle_numbers for row in rows):
 			continue
+		patient = group_key[0]
 		keeper = _pick_keeper(rows, oracle_numbers)
 		for row in rows:
 			key = row.get("trans_no") or row.get("name") or ""
@@ -619,7 +634,7 @@ def _duplicate_groups(
 			if _protected(row) or not _redundant(row, keeper):
 				skipped += 1
 				continue
-			duplicates.append([row.get("name"), keeper.get("name")])
+			duplicates.append([row.get("name"), keeper.get("name"), patient])
 	return duplicates, skipped
 
 
@@ -731,7 +746,11 @@ def _work_items(
 		items.append(["create", trans_num, row_patient or "", date])
 
 	if cint(clean_duplicates):
-		for remove, keeper in scan["duplicates"]:
+		for entry in scan["duplicates"]:
+			remove, keeper = entry[0], entry[1]
+			row_patient = entry[2] if len(entry) > 2 else ""
+			if patient and row_patient != patient:
+				continue
 			items.append(["dedupe", remove, keeper, ""])
 
 	if cint(limit):
@@ -1142,9 +1161,9 @@ def _preview_payload(scan: dict, items: list[list]) -> dict[str, Any]:
 		if name in fill_names
 	][:10]
 	duplicate_samples = [
-		{"remove": remove, "keeper": keeper}
-		for remove, keeper in scan["duplicates"]
-		if remove in remove_names
+		{"remove": entry[0], "keeper": entry[1]}
+		for entry in scan["duplicates"]
+		if entry[0] in remove_names
 	][:10]
 	result: dict[str, Any] = {
 		"oracle_rows": scan["oracle_rows"],

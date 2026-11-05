@@ -42,7 +42,6 @@
   "require_patient_on_pharmacy_sale",
   "require_prescription_for_controlled_items",
   "record_pharmacy_sale_as_visit",
-  "return_active_medicines_on_discharge",
   "therapy_note_uneditable_in_24_hour",
   "vital_sign_uneditable_in_24_hour",
   "unedit_within_24hour",
@@ -857,13 +856,6 @@
    "fieldname": "record_pharmacy_sale_as_visit",
    "fieldtype": "Check",
    "label": "record_pharmacy_sale_as_visit"
-  },
-  {
-   "default": "0",
-   "description": "When enabled, submitting a Discharge returns the unused quantity of the batches dispensed during the admission to the branch pharmacy warehouse with a Material Transfer, and marks those dispensing lots inactive.",
-   "fieldname": "return_active_medicines_on_discharge",
-   "fieldtype": "Check",
-   "label": "Return Active Medicines on Discharge"
   },
   {
    "fieldname": "sb_serene_automations",

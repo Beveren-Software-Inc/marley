@@ -242,7 +242,7 @@ class TestObservationReconcileDuplicates(IntegrationTestCase):
 			]
 		)
 
-		self.assertEqual(duplicates, [["HLC-OBS-2026-00012", "1164"]])
+		self.assertEqual(duplicates, [["HLC-OBS-2026-00012", "1164", "860848"]])
 		self.assertEqual(skipped, 0)
 
 	def test_two_legacy_rows_for_the_same_day_are_two_orders(self):
@@ -273,8 +273,24 @@ class TestObservationReconcileDuplicates(IntegrationTestCase):
 			]
 		)
 
-		self.assertEqual(duplicates, [["HLC-OBS-2026-00012", "1164"]])
+		self.assertEqual(duplicates, [["HLC-OBS-2026-00012", "1164", "860848"]])
 		self.assertEqual(skipped, 0)
+
+	def test_copy_with_conflicting_discharge_date_is_kept(self):
+		duplicates, skipped = self._groups(
+			[
+				_erp_row(dc_date="2026-08-19"),
+				_erp_row(
+					name="HLC-OBS-2026-00012",
+					trans_no="",
+					dc_date="2026-08-20",
+					docstatus=0,
+				),
+			]
+		)
+
+		self.assertEqual(duplicates, [])
+		self.assertEqual(skipped, 1)
 
 	def test_invoiced_copy_is_protected(self):
 		duplicates, skipped = self._groups(

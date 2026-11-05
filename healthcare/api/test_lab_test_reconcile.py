@@ -308,7 +308,7 @@ class TestLabTestReconcileDuplicates(IntegrationTestCase):
 			]
 		)
 
-		self.assertEqual(duplicates, [["LT-9001", "LAB/2026/00918"]])
+		self.assertEqual(duplicates, [["LT-9001", "LAB/2026/00918", "860562"]])
 		self.assertEqual(skipped, 0)
 
 	def test_two_legacy_rows_for_the_same_day_are_two_orders(self):
@@ -472,7 +472,7 @@ class TestLabTestReconcileWorkItems(IntegrationTestCase):
 				["LAB/2026/00918", "860562", "2026-07-03"],
 				["LAB/2026/00920", "855832", ""],
 			],
-			"duplicates": [["LT-9001", "LAB/2026/00886"]],
+			"duplicates": [["LT-9001", "LAB/2026/00886", "860562"]],
 		}
 
 	def test_one_run_fills_creates_and_dedupes_in_that_order(self):
@@ -486,10 +486,18 @@ class TestLabTestReconcileWorkItems(IntegrationTestCase):
 		self.assertEqual(items[1], ["create", "LAB/2026/00918", "860562", "2026-07-03"])
 		self.assertEqual(items[3], ["dedupe", "LT-9001", "LAB/2026/00886", ""])
 
-	def test_patient_filter_limits_fills_and_missing_labs(self):
-		items = _work_items(self._scan(), patient="860562")
+	def test_patient_filter_limits_fills_missing_and_duplicates(self):
+		scan = self._scan()
+		scan["duplicates"] = [
+			["LT-9001", "LAB/2026/00886", "860562"],
+			["LT-other", "LAB/2026/00920", "855832"],
+		]
+		items = _work_items(scan, patient="860562")
 
-		self.assertEqual([item[1] for item in items], ["LAB/2026/00886", "LAB/2026/00918", "LT-9001"])
+		self.assertEqual(
+			[item[1] for item in items],
+			["LAB/2026/00886", "LAB/2026/00918", "LT-9001"],
+		)
 
 	def test_the_two_switches_remove_their_work(self):
 		items = _work_items(self._scan(), fill_missing=0, clean_duplicates=0)

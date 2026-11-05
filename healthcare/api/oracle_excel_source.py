@@ -262,6 +262,7 @@ ORACLE_SOURCES: dict[str, dict[str, Any]] = {
 				"table": "IP_ADMISSION_04",
 				"label": "Discharge checklist (optional)",
 				"required": ["ADMISSION_NUM", "SR_NUM"],
+				"optional": True,
 			},
 		],
 	},
@@ -278,6 +279,7 @@ ORACLE_SOURCES: dict[str, dict[str, Any]] = {
 				"table": "INSURANCE_00_02",
 				"label": "Claim service lines (optional)",
 				"required": ["TRANS_NUM", "SR_NUM"],
+				"optional": True,
 			},
 		],
 	},
@@ -313,6 +315,7 @@ def get_oracle_sources() -> dict[str, dict[str, Any]]:
 					"table": table["table"],
 					"label": _(table["label"]),
 					"required": list(table["required"]),
+					"optional": bool(table.get("optional")),
 					"hint": _("SELECT * FROM {0}.{1}").format(
 						oracle_schema(), table["table"]
 					),
@@ -447,11 +450,17 @@ def _unique_columns(columns: list[str]) -> list[str]:
 	return unique
 
 
-def _match_table(declared: str, sheet_title: str, columns: list[str]) -> str:
-	"""Which Oracle table this sheet holds ("" when it cannot be told)."""
+def _match_table(
+	declared: str, sheet_title: str, columns: list[str], *, alone: bool = False
+) -> str:
+	"""Which Oracle table this sheet holds ("" when it cannot be told).
+
+	Sheet name and column signatures win over the chooser's declared table so a
+	multi-sheet workbook is not dumped into whichever table slot uploaded it.
+	``declared`` is only used for a single unidentified sheet (one-table export
+	with a non-Oracle sheet title).
+	"""
 	known = known_oracle_tables()
-	if declared:
-		return declared
 
 	candidate = _column_name(sheet_title)
 	if candidate in known:
@@ -460,15 +469,20 @@ def _match_table(declared: str, sheet_title: str, columns: list[str]) -> str:
 		if table in candidate:
 			return table
 
-	# Last resort: the sheet is not named after its table, so recognise the
-	# table by the columns it must have.
+	# The sheet is not named after its table — recognise it by required columns.
 	present = set(columns)
 	matches = [table for table, required in oracle_table_signatures().items() if required <= present]
 	if len(matches) == 1:
 		return matches[0]
 	longest = max((len(oracle_table_signatures()[table]) for table in matches), default=0)
 	best = [table for table in matches if len(oracle_table_signatures()[table]) == longest]
-	return best[0] if len(best) == 1 else ""
+	if len(best) == 1:
+		return best[0]
+
+	# Single-sheet export with an opaque title: trust the table the chooser named.
+	if declared and alone:
+		return declared
+	return ""
 
 
 # ---------------------------------------------------------------------------
@@ -604,9 +618,15 @@ class ExcelOracleSource:
 			)
 
 	def _load_file(self, file_url: str, table: str) -> None:
-		for title, sheet in read_excel_sheets(file_url).items():
-			target = _match_table(table, title, sheet["columns"])
+		sheets = read_excel_sheets(file_url)
+		alone = len(sheets) == 1
+		for title, sheet in sheets.items():
+			target = _match_table(table, title, sheet["columns"], alone=alone)
 			if not target:
+				continue
+			# Same multi-sheet workbook may be attached to several chooser slots;
+			# load each Oracle table at most once per source file.
+			if target in self._data and self._sources.get(target) == file_url:
 				continue
 			bucket = self._data.setdefault(target, {"columns": [], "rows": []})
 			for column in sheet["columns"]:

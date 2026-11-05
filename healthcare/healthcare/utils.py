@@ -542,6 +542,46 @@ def manage_invoice_validate(doc, method):
 				item.service_unit = doc.service_unit
 
 
+def _other_observation_sales_invoice(observation_name, exclude_invoice=None):
+	"""Another submitted Sales Invoice that still bills this observation, if any."""
+	exclude_invoice = (exclude_invoice or "").strip()
+	for item in frappe.get_all(
+		"Sales Invoice Item",
+		filters={
+			"reference_dt": "Observation",
+			"reference_dn": observation_name,
+			"docstatus": 1,
+		},
+		fields=["parent", "name"],
+		order_by="modified desc",
+	):
+		if exclude_invoice and item.parent == exclude_invoice:
+			continue
+		return item.parent, item.name
+
+	so_names = frappe.get_all(
+		"Sales Order",
+		filters={
+			"custom_base_reference": "Observation",
+			"custom_base_reference_name": observation_name,
+			"docstatus": 1,
+		},
+		pluck="name",
+	)
+	if not so_names:
+		return None, None
+	for item in frappe.get_all(
+		"Sales Invoice Item",
+		filters={"sales_order": ["in", so_names], "docstatus": 1},
+		fields=["parent", "name"],
+		order_by="modified desc",
+	):
+		if exclude_invoice and item.parent == exclude_invoice:
+			continue
+		return item.parent, item.name
+	return None, None
+
+
 def _set_observation_invoiced(
 	observation_name,
 	*,
@@ -564,6 +604,18 @@ def _set_observation_invoiced(
 		linked = frappe.db.get_value("Observation", observation_name, "sales_invoice")
 		if linked and sales_invoice and linked != sales_invoice:
 			# Another invoice owns the link — leave this observation alone.
+			return
+		other_si, other_item = _other_observation_sales_invoice(
+			observation_name, exclude_invoice=sales_invoice
+		)
+		if other_si:
+			# Older daily invoice cancelled; keep billed and point at a remaining SI.
+			values = {"invoiced": 1}
+			if meta.has_field("sales_invoice"):
+				values["sales_invoice"] = other_si
+			if meta.has_field("sales_invoice_item"):
+				values["sales_invoice_item"] = other_item
+			frappe.db.set_value("Observation", observation_name, values, update_modified=False)
 			return
 		if meta.has_field("sales_invoice"):
 			values["sales_invoice"] = None
@@ -736,9 +788,9 @@ def set_invoiced(item, method, ref_invoice=None):
 		_set_observation_invoiced(
 			item.reference_dn,
 			invoiced=invoiced,
-			sales_invoice=ref_invoice if invoiced else None,
+			sales_invoice=ref_invoice,
 			sales_invoice_item=item.name if invoiced else None,
-			clear_invoice=(not invoiced and ref_invoice),
+			clear_invoice=not invoiced,
 		)
 	else:
 		if item.reference_dt not in ["Service Request", "Medication Request", "Patient"]:
@@ -802,6 +854,23 @@ def validate_invoiced_on_submit(item):
 					"docstatus": 1,
 				},
 			)
+
+	elif item.reference_dt == "Observation":
+		# Daily observation bills share one Observation; Observation.invoiced means
+		# "has been billed at least once", not "every Sales Order line is closed".
+		# Reject only when this exact Sales Order line is already on a submitted SI.
+		so_detail = getattr(item, "so_detail", None) or getattr(item, "sales_order_item", None)
+		if so_detail:
+			is_invoiced = frappe.db.exists(
+				"Sales Invoice Item",
+				{
+					"name": ["!=", item.name],
+					"so_detail": so_detail,
+					"docstatus": 1,
+				},
+			)
+		else:
+			is_invoiced = False
 
 	else:
 		is_invoiced = frappe.db.get_value(item.reference_dt, item.reference_dn, "invoiced")

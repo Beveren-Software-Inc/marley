@@ -377,7 +377,8 @@ def _scan() -> dict:
 		if len(rows) < ERP_PAGE:
 			break
 
-	missing_free = [[num, oracle[num], "free"] for num in missing if num not in blocked]
+	# missing_free is [trans_num, owner]; _work_items adds the "free"/"blocked" tag.
+	missing_free = [[num, oracle[num]] for num in missing if num not in blocked]
 	missing_blocked = [[num, oracle[num], blocked[num]] for num in blocked if num in missing]
 
 	return {

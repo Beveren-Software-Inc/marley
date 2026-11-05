@@ -367,6 +367,16 @@ def _protected(row: dict) -> bool:
 	return _has_attachment(row.get("name") or "")
 
 
+def _conflicts_with(loser: dict, keeper: dict) -> bool:
+	"""True when both hold different nonempty values - keep both, never delete."""
+	for field in FILL_FIELDS:
+		if _is_blank(loser.get(field)) or _is_blank(keeper.get(field)):
+			continue
+		if not _same_value(field, keeper.get(field), loser.get(field)):
+			return True
+	return False
+
+
 def _richer_than(loser: dict, keeper: dict) -> bool:
 	"""True when the copy holds a value the kept record does not - keep both."""
 	for field in FILL_FIELDS:
@@ -404,17 +414,18 @@ def _duplicate_groups(erp_rows: list[dict], oracle_numbers: set[str]) -> tuple[l
 
 	duplicates: list[list[str]] = []
 	skipped = 0
-	for rows in groups.values():
+	for group_key, rows in groups.items():
 		if len(rows) < 2:
 			continue
+		patient = group_key[0]
 		keeper = _pick_keeper(rows, oracle_numbers)
 		for row in rows:
 			if row is keeper:
 				continue
-			if _protected(row) or _richer_than(row, keeper):
+			if _protected(row) or _conflicts_with(row, keeper) or _richer_than(row, keeper):
 				skipped += 1
 				continue
-			duplicates.append([row.get("name"), keeper.get("name")])
+			duplicates.append([row.get("name"), keeper.get("name"), patient])
 	return duplicates, skipped
 
 
@@ -555,7 +566,11 @@ def _work_items(
 		items.append(["create", number, kind, payload])
 
 	if cint(clean_duplicates):
-		for remove, keeper in scan["duplicates"]:
+		for entry in scan["duplicates"]:
+			remove, keeper = entry[0], entry[1]
+			row_patient = entry[2] if len(entry) > 2 else ""
+			if patient and row_patient != patient:
+				continue
 			items.append(["dedupe", remove, keeper, ""])
 
 	if cint(limit):
@@ -928,9 +943,9 @@ def _preview_payload(scan: dict, items: list[list]) -> dict[str, Any]:
 	][:10]
 	remove_names = {item[1] for item in dedupes}
 	duplicate_samples = [
-		{"remove": remove, "keeper": keeper}
-		for remove, keeper in scan["duplicates"]
-		if remove in remove_names
+		{"remove": entry[0], "keeper": entry[1]}
+		for entry in scan["duplicates"]
+		if entry[0] in remove_names
 	][:10]
 	result: dict[str, Any] = {
 		"oracle_rows": scan["oracle_rows"],

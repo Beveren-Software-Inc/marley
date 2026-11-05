@@ -179,7 +179,7 @@ class TestWarningMessageReconcileDuplicates(IntegrationTestCase):
 
 		scan = _classify_rows([_oracle_row(WARNING_MESSAGE_NUM="569")], [derived, legacy])
 
-		self.assertEqual(scan["duplicates"], [["1742", "569"]])
+		self.assertEqual(scan["duplicates"], [["1742", "569", "P1"]])
 
 	def test_phone_warning_copy_is_never_removed(self):
 		legacy = _erp_row(name="569", trans_id="569", warning="Allergic to Panadol")

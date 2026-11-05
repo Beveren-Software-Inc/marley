@@ -596,17 +596,13 @@ def _create_observation_sales_order(
 
 	item_code, billing_rate, display_name = _resolve_observation_billing_item(obs, lvl)
 
-	# Portal / UI may override the list amount for this bill.
+	# Portal / UI may override the list amount for this Sales Order only —
+	# do not write back to Observation.amount (that would change later daily bills).
 	if amount is not None and str(amount).strip() != "":
 		override_rate = flt(amount)
 		if override_rate < 0:
 			frappe.throw(_("Amount cannot be negative"))
 		billing_rate = override_rate
-		if flt(obs.amount) != billing_rate:
-			frappe.db.set_value(
-				"Observation", observation_name, "amount", billing_rate, update_modified=False
-			)
-			obs.amount = billing_rate
 
 	disc_pct = flt(discount_percentage)
 	disc_amt = flt(discount_amount)

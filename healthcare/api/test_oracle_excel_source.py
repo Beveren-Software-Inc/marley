@@ -7,6 +7,7 @@ from healthcare.api.oracle_excel_source import (
 	ORACLE_SOURCES,
 	_cell_text,
 	_column_name,
+	_match_table,
 	_order_columns,
 	_sort_rows,
 	normalize_files,
@@ -74,11 +75,16 @@ class TestOracleExcelSourceRegistry(UnitTestCase):
 		self.assertEqual(ORACLE_SOURCES["discharge"]["doctype"], "Discharge")
 		self.assertEqual(tables[0]["table"], "IP_ADMISSION_01")
 		self.assertIn("ADMISION_STATUS", tables[0]["required"])
+		self.assertFalse(tables[0].get("optional"))
+		self.assertEqual(tables[1]["table"], "IP_ADMISSION_04")
+		self.assertTrue(tables[1].get("optional"))
 
 	def test_insurance_claims_button_points_at_insurance_tables(self):
 		tables = ORACLE_SOURCES["insurance_claims"]["tables"]
 		self.assertEqual(ORACLE_SOURCES["insurance_claims"]["doctype"], "Insurance Claim")
 		self.assertEqual([table["table"] for table in tables], ["INSURANCE_00_01", "INSURANCE_00_02"])
+		self.assertFalse(tables[0].get("optional"))
+		self.assertTrue(tables[1].get("optional"))
 
 	def test_signatures_use_the_columns_the_queries_filter_on(self):
 		signatures = oracle_table_signatures()
@@ -109,6 +115,38 @@ class TestOracleExcelSourceFiles(UnitTestCase):
 
 	def test_entries_without_a_file_are_dropped(self):
 		self.assertEqual(normalize_files([{"table": "VISIT_00_01"}]), [])
+
+
+class TestOracleExcelSheetMatching(UnitTestCase):
+	"""Named sheets win over the chooser's declared table."""
+
+	def test_sheet_name_beats_declared_table(self):
+		self.assertEqual(
+			_match_table("IP_ADMISSION_01", "IP_ADMISSION_04", ["ADMISSION_NUM", "SR_NUM"]),
+			"IP_ADMISSION_04",
+		)
+
+	def test_declared_table_only_for_a_lone_unidentified_sheet(self):
+		# Opaque title + columns that identify no Oracle table.
+		self.assertEqual(
+			_match_table("IP_ADMISSION_01", "Sheet1", ["FOO", "BAR"], alone=True),
+			"IP_ADMISSION_01",
+		)
+		self.assertEqual(
+			_match_table("IP_ADMISSION_01", "Sheet1", ["FOO", "BAR"], alone=False),
+			"",
+		)
+
+	def test_column_signature_identifies_a_sheet_without_declared(self):
+		self.assertEqual(
+			_match_table(
+				"",
+				"Sheet1",
+				["ADMISSION_NUM", "PATIENT_NUM", "ADMISION_STATUS"],
+				alone=True,
+			),
+			"IP_ADMISSION_01",
+		)
 
 
 class TestOracleExcelCellValues(UnitTestCase):

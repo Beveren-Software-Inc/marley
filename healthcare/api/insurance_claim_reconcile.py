@@ -100,7 +100,7 @@ def _acquire_lock() -> str | None:
 def _owns_lock(token: str | None) -> bool:
 	if not token:
 		return False
-	return (frappe.cache().get_value(_lock_key()) or b"").decode() == token
+	return (frappe.cache().get(_lock_key()) or b"").decode() == token
 
 
 def _refresh_lock(token: str) -> None:
@@ -113,7 +113,7 @@ def _release_lock(token: str | None) -> None:
 
 
 def _lock_held() -> bool:
-	return bool(frappe.cache().get_value(_lock_key()))
+	return bool(frappe.cache().get(_lock_key()))
 
 
 def _new_progress(limit: int = 0) -> dict:

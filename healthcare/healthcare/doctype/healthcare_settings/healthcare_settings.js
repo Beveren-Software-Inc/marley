@@ -6779,7 +6779,7 @@ function ask_oracle_source({ title, entity, intro, on_direct, on_excel }) {
 				}
 
 				const missing = tables
-					.filter((table) => !files[table.table])
+					.filter((table) => !table.optional && !files[table.table])
 					.map((table) => table.table);
 				if (missing.length) {
 					frappe.msgprint({
@@ -6793,10 +6793,12 @@ function ask_oracle_source({ title, entity, intro, on_direct, on_excel }) {
 				dialog.hide();
 				if (on_excel) {
 					on_excel(
-						tables.map((table) => ({
-							table: table.table,
-							file_url: files[table.table],
-						}))
+						tables
+							.filter((table) => files[table.table])
+							.map((table) => ({
+								table: table.table,
+								file_url: files[table.table],
+							}))
 					);
 				}
 			},
