@@ -136,7 +136,7 @@ ORACLE_SOURCES: dict[str, dict[str, Any]] = {
 			{
 				"table": "IP_ADMISSION_PHY_EXAM",
 				"label": "IP physical examinations",
-				"required": ["TRANS_NUM", "ADMISSION_NUM"],
+				"required": ["TRANS_NO", "ADMISSION_NUM"],
 			},
 		],
 	},
@@ -170,6 +170,17 @@ ORACLE_SOURCES: dict[str, dict[str, Any]] = {
 				"table": "PATIENT_WARNING_MESSAGES",
 				"label": "Patient warning messages",
 				"required": ["WARNING_MESSAGE_NUM", "PATIENT_NUM"],
+			},
+		],
+	},
+	"allergies": {
+		"label": "Allergies",
+		"doctype": "Warning Message",
+		"tables": [
+			{
+				"table": "VISIT_00_01",
+				"label": "Visit allergies (VISIT_ALLERGIES_HISTORY)",
+				"required": ["VISIT_NUM", "VISIT_PATIENT_NUM", "VISIT_ALLERGIES_HISTORY"],
 			},
 		],
 	},

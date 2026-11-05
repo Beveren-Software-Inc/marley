@@ -10,6 +10,7 @@ from healthcare.api.sales_order_cost_center import (
 	apply_cost_center_to_sales_order,
 	cost_center_from_visit_or_admission,
 )
+from healthcare.controllers.insurance_pricing import sales_item_from_list_and_discount
 from healthcare.healthcare.doctype.observation.observation import (
 	fill_patient_from_admission,
 	vacate_active_observation_rooms_for_patient,
@@ -414,8 +415,18 @@ def update_observation(data):
 
 
 @frappe.whitelist()
-def create_sales_order_from_observation(observation_name, billing_date=None):
+def create_sales_order_from_observation(
+	observation_name,
+	billing_date=None,
+	amount=None,
+	discount_percentage=None,
+	discount_amount=None,
+):
 	"""Create and submit a Sales Order for an Observation for a given billing day.
+
+	``amount`` overrides the observation / level rate on the Sales Order line.
+	``discount_percentage`` or ``discount_amount`` (percentage wins when both are
+	sent and percentage > 0) are applied on that line.
 
 	Returns an existing order when one already exists for the same observation and date.
 	"""
@@ -426,7 +437,13 @@ def create_sales_order_from_observation(observation_name, billing_date=None):
 		frappe.throw(_("Observation {0} does not exist").format(observation_name))
 
 	obs = frappe.get_doc("Observation", observation_name)
-	return _create_observation_sales_order(obs, billing_date=billing_date or nowdate())
+	return _create_observation_sales_order(
+		obs,
+		billing_date=billing_date or nowdate(),
+		amount=amount,
+		discount_percentage=discount_percentage,
+		discount_amount=discount_amount,
+	)
 
 
 def _observation_end_date(obs) -> object:
@@ -535,7 +552,13 @@ def _resolve_observation_billing_item(obs, lvl):
 	return item_code, billing_rate, display_name
 
 
-def _create_observation_sales_order(obs, billing_date=None) -> dict:
+def _create_observation_sales_order(
+	obs,
+	billing_date=None,
+	amount=None,
+	discount_percentage=None,
+	discount_amount=None,
+) -> dict:
 	"""Create (or return) a submitted Sales Order for one observation billing day."""
 	billing_date = getdate(billing_date or nowdate())
 	observation_name = obs.name
@@ -572,6 +595,30 @@ def _create_observation_sales_order(obs, billing_date=None) -> dict:
 		frappe.throw(_("Observation Level {0} must be billable to create a Sales Order").format(lvl.name))
 
 	item_code, billing_rate, display_name = _resolve_observation_billing_item(obs, lvl)
+
+	# Portal / UI may override the list amount for this bill.
+	if amount is not None and str(amount).strip() != "":
+		override_rate = flt(amount)
+		if override_rate < 0:
+			frappe.throw(_("Amount cannot be negative"))
+		billing_rate = override_rate
+		if flt(obs.amount) != billing_rate:
+			frappe.db.set_value(
+				"Observation", observation_name, "amount", billing_rate, update_modified=False
+			)
+			obs.amount = billing_rate
+
+	disc_pct = flt(discount_percentage)
+	disc_amt = flt(discount_amount)
+	if disc_pct < 0 or disc_amt < 0:
+		frappe.throw(_("Discount cannot be negative"))
+	if disc_pct > 100:
+		frappe.throw(_("Discount percentage cannot exceed 100"))
+	if disc_pct > 0:
+		disc_amt = 0
+	elif disc_amt > billing_rate > 0:
+		frappe.throw(_("Discount amount cannot exceed the bill amount"))
+
 	customer = frappe.db.get_value("Patient", obs.patient, "customer") or obs.patient
 
 	so = frappe.new_doc("Sales Order")
@@ -595,14 +642,18 @@ def _create_observation_sales_order(obs, billing_date=None) -> dict:
 
 	so.append(
 		"items",
-		{
-			"item_code": item_code,
-			"item_name": display_name,
-			"qty": 1,
-			"rate": billing_rate,
-			"price_list_rate": billing_rate,
-			"description": display_name,
-		},
+		sales_item_from_list_and_discount(
+			item_code=item_code,
+			list_rate=billing_rate,
+			discount_pct=disc_pct,
+			discount_amount=disc_amt,
+			qty=1,
+			item_name=display_name,
+			description=display_name,
+			# So Sales Invoice submit can mark Observation.invoiced via set_invoiced.
+			reference_dt="Observation",
+			reference_dn=obs.name,
+		),
 	)
 
 	cc = cost_center_from_visit_or_admission(ref_dt, ref_name)
@@ -620,6 +671,9 @@ def _create_observation_sales_order(obs, billing_date=None) -> dict:
 		"status": so.status,
 		"existing": False,
 		"billing_date": str(billing_date),
+		"amount": billing_rate,
+		"discount_percentage": disc_pct,
+		"discount_amount": disc_amt if disc_pct <= 0 else 0,
 	}
 
 

@@ -1,7 +1,7 @@
 """One-button Oracle -> ERPNext reconciliation for IP physical examinations.
 
 Oracle keeps every inpatient physical exam in ``CLINIC2.IP_ADMISSION_PHY_EXAM`` -
-one row per exam, ``TRANS_NO`` / ``TRANS_NUM`` = the legacy transaction number.
+one row per exam, ``TRANS_NO`` = the legacy transaction number.
 ERPNext keeps the same exams in ``Physical Examination``, whose ``trans_no``
 holds that number (``autoname`` is ``field:trans_no``). The workbook import
 (``healthcare.api.ip_admission_phy_exam_import``) only runs when somebody
@@ -53,7 +53,7 @@ from healthcare.api.ip_admission_phy_exam_import import (
 	upsert_physical_examination_from_row,
 )
 from healthcare.api.oracle_excel_source import excel_source, normalize_files, oracle_schema
-from healthcare.api.oracle_sync import _fetch_rows, _query
+from healthcare.api.oracle_sync import _fetch_rows, _query, _table_columns
 from healthcare.api.patient_info_import import _cell_text, _clean_oracle_num, _require_admin
 from healthcare.api.visit_diagnoses_op_import import _legacy_data_datetime
 from healthcare.api.visit_diagnosis_sync import _resolve_inpatient_admission
@@ -273,14 +273,44 @@ def _oracle_trans_no(raw: dict) -> str:
 	return _clean_oracle_num(raw.get("TRANS_NO") or raw.get("TRANS_NUM"))
 
 
+def _oracle_column_names() -> set[str]:
+	return {(col.get("name") or "").strip().upper() for col in _table_columns(ORACLE_TABLE)}
+
+
+def _oracle_trans_column() -> str:
+	"""IP_ADMISSION_PHY_EXAM uses TRANS_NO (not TRANS_NUM). Prefer what exists."""
+	columns = _oracle_column_names()
+	if "TRANS_NO" in columns:
+		return "TRANS_NO"
+	if "TRANS_NUM" in columns:
+		return "TRANS_NUM"
+	frappe.throw(
+		_("Oracle table {0}.{1} has neither TRANS_NO nor TRANS_NUM.").format(
+			oracle_schema(), ORACLE_TABLE
+		)
+	)
+
+
+def _oracle_order_by(trans_col: str) -> str:
+	columns = _oracle_column_names()
+	parts = ["ADMISSION_NUM"]
+	if "CR_DATE_TIME" in columns:
+		parts.append("CR_DATE_TIME")
+	elif "CR_DATE" in columns:
+		parts.append("CR_DATE")
+	parts.append(trans_col)
+	return ", ".join(parts)
+
+
 # ---------------------------------------------------------------------------
 # Comparison
 # ---------------------------------------------------------------------------
 
 
 def _oracle_exam_index() -> dict[str, str]:
+	trans_col = _oracle_trans_column()
 	rows = _query(
-		f"select TRANS_NO, TRANS_NUM, ADMISSION_NUM from {oracle_schema()}.{ORACLE_TABLE}"
+		f"select {trans_col}, ADMISSION_NUM from {oracle_schema()}.{ORACLE_TABLE}"
 	)
 	index: dict[str, str] = {}
 	for row in rows or []:
@@ -398,9 +428,10 @@ def _prepare_row(raw: dict) -> dict | None:
 def _oracle_rows_by_numbers(numbers: list[str]) -> list[dict]:
 	if not numbers:
 		return []
+	trans_col = _oracle_trans_column()
 	literal = ", ".join(_sql_text(num) for num in numbers)
-	where = f"(TRANS_NO in ({literal}) or TRANS_NUM in ({literal}))"
-	return _fetch_rows(ORACLE_TABLE, where=where, order_by="ADMISSION_NUM, CR_DATE_TIME, TRANS_NO")
+	where = f"{trans_col} in ({literal})"
+	return _fetch_rows(ORACLE_TABLE, where=where, order_by=_oracle_order_by(trans_col))
 
 
 def _existing_examinations(admission: str) -> tuple[set[str], set[tuple[str, str]]]:

@@ -542,6 +542,61 @@ def manage_invoice_validate(doc, method):
 				item.service_unit = doc.service_unit
 
 
+def _set_observation_invoiced(
+	observation_name,
+	*,
+	invoiced: bool,
+	sales_invoice=None,
+	sales_invoice_item=None,
+	clear_invoice: bool = False,
+):
+	"""Flip Observation.invoiced (and optional Sales Invoice links) after SI submit/cancel."""
+	if not observation_name or not frappe.db.exists("Observation", observation_name):
+		return
+	values = {"invoiced": 1 if invoiced else 0}
+	meta = frappe.get_meta("Observation")
+	if invoiced:
+		if sales_invoice and meta.has_field("sales_invoice"):
+			values["sales_invoice"] = sales_invoice
+		if sales_invoice_item and meta.has_field("sales_invoice_item"):
+			values["sales_invoice_item"] = sales_invoice_item
+	elif clear_invoice:
+		linked = frappe.db.get_value("Observation", observation_name, "sales_invoice")
+		if linked and sales_invoice and linked != sales_invoice:
+			# Another invoice owns the link — leave this observation alone.
+			return
+		if meta.has_field("sales_invoice"):
+			values["sales_invoice"] = None
+		if meta.has_field("sales_invoice_item"):
+			values["sales_invoice_item"] = None
+	frappe.db.set_value("Observation", observation_name, values, update_modified=False)
+
+
+def _observations_linked_from_sales_invoice(doc) -> set[str]:
+	"""Observation names linked by item reference or by Sales Order base reference."""
+	names: set[str] = set()
+	so_names: set[str] = set()
+	for item in doc.items or []:
+		if (item.get("reference_dt") or "") == "Observation" and item.get("reference_dn"):
+			names.add(item.reference_dn)
+		so_name = (getattr(item, "sales_order", None) or "").strip()
+		if so_name:
+			so_names.add(so_name)
+	if so_names:
+		for row in frappe.get_all(
+			"Sales Order",
+			filters={
+				"name": ["in", list(so_names)],
+				"custom_base_reference": "Observation",
+			},
+			fields=["custom_base_reference_name"],
+		):
+			obs = (row.get("custom_base_reference_name") or "").strip()
+			if obs:
+				names.add(obs)
+	return names
+
+
 def manage_invoice_submit_cancel(doc, method):
 	if not doc.patient:
 		return
@@ -566,6 +621,16 @@ def manage_invoice_submit_cancel(doc, method):
 					if is_registration:
 						status = "Active" if method == "on_submit" else "Disabled"
 						frappe.db.set_value("Patient", item.reference_dn, "status", status)
+
+		# Observation service bills: SO is tagged custom_base_reference=Observation, but
+		# older lines / billing may omit item.reference_dt. Still flip invoiced from the SO link.
+		for observation_name in _observations_linked_from_sales_invoice(doc):
+			_set_observation_invoiced(
+				observation_name,
+				invoiced=(method == "on_submit"),
+				sales_invoice=doc.name if method == "on_submit" else doc.name,
+				clear_invoice=(method == "on_cancel"),
+			)
 
 		# If invoice is submitted and linked to Patient Medication Orders via
 		# the custom Table MultiSelect `custom_medication_order`, mark those
@@ -667,6 +732,14 @@ def set_invoiced(item, method, ref_invoice=None):
 			frappe.db.set_value(item.reference_dt, item.reference_dn, "consumption_invoiced", invoiced)
 		else:
 			frappe.db.set_value(item.reference_dt, item.reference_dn, "invoiced", invoiced)
+	elif item.reference_dt == "Observation":
+		_set_observation_invoiced(
+			item.reference_dn,
+			invoiced=invoiced,
+			sales_invoice=ref_invoice if invoiced else None,
+			sales_invoice_item=item.name if invoiced else None,
+			clear_invoice=(not invoiced and ref_invoice),
+		)
 	else:
 		if item.reference_dt not in ["Service Request", "Medication Request", "Patient"]:
 			frappe.db.set_value(item.reference_dt, item.reference_dn, "invoiced", invoiced)

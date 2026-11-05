@@ -243,6 +243,13 @@ def sales_invoice_item_from_sales_order_item(so, item):
 		line["warehouse"] = item.warehouse
 	if item_cc:
 		line["cost_center"] = item_cc
+	# Carry healthcare source links (Observation, Lab Test, …) so invoice submit
+	# can mark the source document invoiced.
+	ref_dt = (getattr(item, "reference_dt", None) or "").strip()
+	ref_dn = (getattr(item, "reference_dn", None) or "").strip()
+	if ref_dt and ref_dn and frappe.get_meta("Sales Invoice Item").has_field("reference_dt"):
+		line["reference_dt"] = ref_dt
+		line["reference_dn"] = ref_dn
 	_copy_accounting_dimensions(item, line, fallback_row=so)
 	return line
 

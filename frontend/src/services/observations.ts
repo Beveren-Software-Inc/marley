@@ -151,15 +151,29 @@ export async function createObservation(data: CreateObservationData): Promise<Ob
   }
 }
 
+export interface CreateObservationSalesOrderOptions {
+  billingDate?: string
+  amount?: number
+  discountPercentage?: number
+  discountAmount?: number
+}
+
 export async function createObservationSalesOrder(
-  observationName: string
+  observationName: string,
+  options?: CreateObservationSalesOrderOptions
 ): Promise<{ sales_order: string; status: string; existing?: boolean }> {
   const { apiRequest } = await import('./apiClient')
   return apiRequest<{ sales_order: string; status: string; existing?: boolean }>(
     '/api/method/healthcare.api.observation.create_sales_order_from_observation',
     {
       method: 'POST',
-      body: JSON.stringify({ observation_name: observationName }),
+      body: JSON.stringify({
+        observation_name: observationName,
+        billing_date: options?.billingDate || undefined,
+        amount: options?.amount != null ? options.amount : undefined,
+        discount_percentage: options?.discountPercentage || 0,
+        discount_amount: options?.discountAmount || 0,
+      }),
     }
   )
 }

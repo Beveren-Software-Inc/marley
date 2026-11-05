@@ -83,6 +83,15 @@ frappe.ui.form.on('Healthcare Settings', {
 			__('Oracle -> ERPNext')
 		);
 
+		// Allergies: free-text on Patient (ALLERGIES_HISTORY) and Patient Visit
+		// (VISIT_ALLERGIES_HISTORY) → Warning Message with is_allergy ticked.
+		// Separate from Warning Messages (which only reads PATIENT_WARNING_MESSAGES).
+		frm.add_custom_button(
+			__('Allergies'),
+			() => open_allergy_reconcile(frm),
+			__('Oracle -> ERPNext')
+		);
+
 		// Lab Tests: the legacy lab headers (LAB_00_03) and their result rows
 		// (LAB_00_04), read live or from their Excel exports. Creates the lab
 		// tests ERPNext is missing, fills the blanks Oracle knows about and
@@ -9216,6 +9225,7 @@ const CLINICAL_NOTE_RECONCILE_POLL_LIMIT = 300;
 const NURSING_NOTE_RECONCILE_POLL_LIMIT = 300;
 // Warning Messages (PATIENT_WARNING_MESSAGES) poll budget: 300 * 2s = 10 minutes.
 const WARNING_MESSAGE_RECONCILE_POLL_LIMIT = 300;
+const ALLERGY_RECONCILE_POLL_LIMIT = 300;
 // Lab Tests (LAB_00_03 headers + LAB_00_04 results) walk a 13k / 137k register,
 // so they get the same 10-minute polling window.
 const LAB_TEST_RECONCILE_POLL_LIMIT = 300;
@@ -11716,6 +11726,7 @@ function show_create_missing_reconcile_dialog(frm, spec, data, values) {
 		'erpnext_histories',
 		'erpnext_discharges',
 		'erpnext_claims',
+		'erpnext_allergy_warnings',
 	]);
 	const matched = create_missing_reconcile_count(data, [
 		'matched_notes',
@@ -11728,6 +11739,7 @@ function show_create_missing_reconcile_dialog(frm, spec, data, values) {
 	]);
 	const oracle_rows = create_missing_reconcile_count(data, [
 		'oracle_rows',
+		'allergy_texts',
 		'oracle_discharged',
 		'oracle_claims',
 		'oracle_admissions',
@@ -11862,6 +11874,20 @@ function track_create_missing_reconcile(frm, spec) {
 			},
 		});
 	}, ORACLE_SYNC_POLL_INTERVAL);
+}
+
+function open_allergy_reconcile(frm) {
+	open_create_missing_reconcile(frm, {
+		title: __('Oracle -> ERPNext: Allergies'),
+		entity: 'allergies',
+		intro: __(
+			'Reads allergy text from Patient Visit (visit_allergies_history), Patient (allergies / PATIENT_INFO_01), and optionally live Oracle / Excel for those tables. Creates only the Warning Messages ERPNext is missing, with is_allergy ticked. Same words already on a warning are skipped (the flag is turned on if it was off). Non-allergy warnings are never overwritten.'
+		),
+		api_prefix: 'healthcare.api.allergy_reconcile',
+		method_suffix: 'allergy_reconcile',
+		poll_limit: ALLERGY_RECONCILE_POLL_LIMIT,
+		progress_title: __('Reconciling allergies from visits and Oracle'),
+	});
 }
 
 function open_ect_details_reconcile(frm) {

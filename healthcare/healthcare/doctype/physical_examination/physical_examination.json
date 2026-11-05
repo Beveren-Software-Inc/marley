@@ -44,6 +44,8 @@
   {
    "fieldname": "inpatient_admission",
    "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
    "label": "Inpatient Admission",
    "options": "Inpatient Admission"
   },
@@ -54,6 +56,8 @@
   {
    "fieldname": "patient",
    "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
    "label": "Patient",
    "options": "Patient"
   },
@@ -62,6 +66,8 @@
    "fetch_if_empty": 1,
    "fieldname": "patient_name",
    "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
    "label": "Patient Name"
   },
   {
@@ -140,6 +146,8 @@
   {
    "fieldname": "cost_center",
    "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
    "label": "Cost Center",
    "options": "Cost Center"
   },
@@ -175,7 +183,7 @@
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-06-03 13:34:13.848803",
+ "modified": "2026-11-05 15:32:45.152475",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Physical Examination",
