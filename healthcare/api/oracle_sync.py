@@ -37,6 +37,7 @@ from __future__ import annotations
 
 import csv
 import io
+import os
 import shlex
 import shutil
 import subprocess
@@ -50,6 +51,7 @@ from healthcare.api.ip_admission_discharge_import import (
 	_upsert_discharge,
 	upsert_admission_discharge_from_row,
 )
+from healthcare.api.oracle_excel_source import current_source, excel_source
 from healthcare.api.patient_info_import import _clean_oracle_num, _require_admin
 from healthcare.api.patient_visit_import import upsert_patient_visit_from_row
 from healthcare.healthcare.doctype.inpatient_admission.inpatient_admission import (
@@ -57,6 +59,12 @@ from healthcare.healthcare.doctype.inpatient_admission.inpatient_admission impor
 )
 
 DEFAULT_CONTAINER = "oracle-free"
+
+# The client charset SQL*Plus speaks with the database. Without it Oracle converts
+# Arabic / accented text to the client's default (WE8ISO8859P1) and every character
+# it cannot represent comes back as "?" - the legacy Arabic warnings would be
+# imported as "?????" and a text comparison would report every row as changed.
+ORACLE_NLS_LANG = "AMERICAN_AMERICA.AL32UTF8"
 DEFAULT_DSN = "//localhost:1521/FREEPDB1"
 
 ORACLE_SYNC_TIMEOUT = 300
@@ -219,6 +227,14 @@ def _oracle_schema() -> str:
 	return (frappe.conf.get("oracle_schema") or "CLINIC2").strip().upper()
 
 
+def _source_table(table: str) -> str:
+	"""``CLINIC2.TABLE`` when reading Oracle live, ``TABLE (Excel: x.xlsx)`` otherwise."""
+	source = current_source()
+	if source is not None and source.has_table(table):
+		return source.describe(table)
+	return f"{_oracle_schema()}.{table}"
+
+
 def _login_spec(*, shell: bool) -> str:
 	"""Build a SQL*Plus login string such as sys/pwd@//host:port/service as sysdba."""
 	user = frappe.conf.get("oracle_user") or "sys"
@@ -259,6 +275,8 @@ def _sqlplus_command() -> list[str]:
 			"docker",
 			"exec",
 			"-i",
+			"-e",
+			f"NLS_LANG={ORACLE_NLS_LANG}",
 			container,
 			"bash",
 			"-lc",
@@ -301,6 +319,9 @@ def _run_sql(statement: str, *, timeout: int = ORACLE_SYNC_TIMEOUT) -> str:
 			input=script + "\n",
 			capture_output=True,
 			text=True,
+			encoding="utf-8",
+			errors="replace",
+			env={**os.environ, "NLS_LANG": ORACLE_NLS_LANG},
 			timeout=timeout,
 		)
 	except subprocess.TimeoutExpired:
@@ -316,6 +337,11 @@ def _run_sql(statement: str, *, timeout: int = ORACLE_SYNC_TIMEOUT) -> str:
 
 
 def _query(statement: str) -> list[dict[str, str]]:
+	"""Run one SELECT: live through SQL*Plus, or on the uploaded Excel export."""
+	source = current_source()
+	if source is not None:
+		return source.query(statement)
+
 	output = _run_sql(statement)
 	if not output:
 		return []
@@ -327,6 +353,18 @@ def _query(statement: str) -> list[dict[str, str]]:
 
 def _table_columns(table: str) -> list[dict[str, str]]:
 	"""Column names and data types of an Oracle table (cached for an hour)."""
+	source = current_source()
+	if source is not None:
+		if not source.has_table(table):
+			frappe.throw(
+				_(
+					"The Excel export has no {0} sheet. Upload the export of every table this "
+					"button needs."
+				).format(table),
+				title=_("Oracle Excel Upload"),
+			)
+		return [{"name": column, "type": "VARCHAR2"} for column in source.columns(table)]
+
 	cache = frappe.cache()
 	cache_key = f"healthcare:oracle_sync:columns:{_oracle_schema()}.{table}"
 	cached = cache.get_value(cache_key)
@@ -474,9 +512,14 @@ def _patient_names(patient_ids: list[str]) -> dict[str, str]:
 
 
 @frappe.whitelist()
-def compare_ip_admissions(sample_limit: int = SAMPLE_LIMIT) -> dict:
+def compare_ip_admissions(sample_limit: int = SAMPLE_LIMIT, files=None) -> dict:
 	"""Read-only diff between Oracle IP_ADMISSION_01 and tabInpatient Admission."""
 	_require_admin()
+	with excel_source(files, tables=[IP_ADMISSION_SYNC.oracle_table]):
+		return _compare_ip_admissions(sample_limit)
+
+
+def _compare_ip_admissions(sample_limit: int) -> dict:
 	sample_limit = max(cint(sample_limit) or SAMPLE_LIMIT, 0)
 
 	oracle_keys = _oracle_admission_keys()
@@ -510,7 +553,7 @@ def compare_ip_admissions(sample_limit: int = SAMPLE_LIMIT) -> dict:
 	return {
 		"label": IP_ADMISSION_SYNC.label,
 		"doctype": IP_ADMISSION_SYNC.doctype,
-		"oracle_table": f"{_oracle_schema()}.{IP_ADMISSION_SYNC.oracle_table}",
+		"oracle_table": _source_table(IP_ADMISSION_SYNC.oracle_table),
 		"oracle_key": IP_ADMISSION_SYNC.oracle_key,
 		"frappe_key": IP_ADMISSION_SYNC.frappe_key,
 		"source_count": len(oracle_keys),
@@ -678,9 +721,18 @@ def _import_ip_admission_rows(
 
 
 @frappe.whitelist()
-def import_ip_admissions(dry_run: int = 1, limit: int = 0, resolve_blockers: int = 0) -> dict:
+def import_ip_admissions(
+	dry_run: int = 1, limit: int = 0, resolve_blockers: int = 0, files=None
+) -> dict:
 	"""Create the Inpatient Admissions that Oracle has and ERPNext does not."""
 	_require_admin()
+	with excel_source(files, tables=[IP_ADMISSION_SYNC.oracle_table]):
+		return _import_ip_admissions(dry_run, limit, resolve_blockers, files)
+
+
+def _import_ip_admissions(
+	dry_run: int, limit: int, resolve_blockers: int, files=None
+) -> dict:
 	dry_run = cint(dry_run)
 	limit = cint(limit)
 	resolve_blockers = cint(resolve_blockers)
@@ -730,6 +782,7 @@ def import_ip_admissions(dry_run: int = 1, limit: int = 0, resolve_blockers: int
 			timeout=7200,
 			keys=missing_keys,
 			resolve_blockers=resolve_blockers,
+			files=files,
 		)
 		return {"queued": True, "total": len(missing_keys), "job_key": "ip_admission"}
 
@@ -739,10 +792,13 @@ def import_ip_admissions(dry_run: int = 1, limit: int = 0, resolve_blockers: int
 	}
 
 
-def run_ip_admission_import(keys: list[str] | None = None, resolve_blockers: int = 0) -> dict:
+def run_ip_admission_import(
+	keys: list[str] | None = None, resolve_blockers: int = 0, files=None
+) -> dict:
 	"""Background entry point (also callable from the bench console)."""
-	keys = keys or sorted(_oracle_admission_keys() - _erpnext_admission_keys(), key=_sort_key)
-	return _import_ip_admission_rows(keys, resolve_blockers=resolve_blockers)
+	with excel_source(files, tables=[IP_ADMISSION_SYNC.oracle_table]):
+		keys = keys or sorted(_oracle_admission_keys() - _erpnext_admission_keys(), key=_sort_key)
+		return _import_ip_admission_rows(keys, resolve_blockers=resolve_blockers)
 
 
 # ---------------------------------------------------------------------------
@@ -788,9 +844,14 @@ def _row_from_oracle_visit(raw: dict[str, str]) -> dict[str, Any]:
 
 
 @frappe.whitelist()
-def compare_op_visits(sample_limit: int = SAMPLE_LIMIT) -> dict:
+def compare_op_visits(sample_limit: int = SAMPLE_LIMIT, files=None) -> dict:
 	"""Read-only diff between Oracle VISIT_00_01 and tabPatient Visit."""
 	_require_admin()
+	with excel_source(files, tables=[OP_VISIT_SYNC.oracle_table]):
+		return _compare_op_visits(sample_limit)
+
+
+def _compare_op_visits(sample_limit: int) -> dict:
 	sample_limit = max(cint(sample_limit) or SAMPLE_LIMIT, 0)
 
 	oracle_keys = _oracle_visit_keys()
@@ -824,7 +885,7 @@ def compare_op_visits(sample_limit: int = SAMPLE_LIMIT) -> dict:
 	return {
 		"label": OP_VISIT_SYNC.label,
 		"doctype": OP_VISIT_SYNC.doctype,
-		"oracle_table": f"{_oracle_schema()}.{OP_VISIT_SYNC.oracle_table}",
+		"oracle_table": _source_table(OP_VISIT_SYNC.oracle_table),
 		"oracle_key": OP_VISIT_SYNC.oracle_key,
 		"frappe_key": OP_VISIT_SYNC.frappe_key,
 		"source_count": len(oracle_keys),
@@ -909,9 +970,14 @@ def _import_op_visit_rows(keys: list[str], *, job_key: str = "op_visit") -> dict
 
 
 @frappe.whitelist()
-def import_op_visits(dry_run: int = 1, limit: int = 0) -> dict:
+def import_op_visits(dry_run: int = 1, limit: int = 0, files=None) -> dict:
 	"""Create the Patient Visits that Oracle has and ERPNext does not."""
 	_require_admin()
+	with excel_source(files, tables=[OP_VISIT_SYNC.oracle_table]):
+		return _import_op_visits(dry_run, limit, files)
+
+
+def _import_op_visits(dry_run: int, limit: int, files=None) -> dict:
 	dry_run = cint(dry_run)
 	limit = cint(limit)
 
@@ -956,16 +1022,18 @@ def import_op_visits(dry_run: int = 1, limit: int = 0) -> dict:
 			queue="long",
 			timeout=7200,
 			keys=missing_keys,
+			files=files,
 		)
 		return {"queued": True, "total": len(missing_keys), "job_key": "op_visit"}
 
 	return {"queued": False, "result": _import_op_visit_rows(missing_keys)}
 
 
-def run_op_visit_import(keys: list[str] | None = None) -> dict:
+def run_op_visit_import(keys: list[str] | None = None, files=None) -> dict:
 	"""Background entry point (also callable from the bench console)."""
-	keys = keys or sorted(_oracle_visit_keys() - _erpnext_visit_keys(), key=_sort_key)
-	return _import_op_visit_rows(keys)
+	with excel_source(files, tables=[OP_VISIT_SYNC.oracle_table]):
+		keys = keys or sorted(_oracle_visit_keys() - _erpnext_visit_keys(), key=_sort_key)
+		return _import_op_visit_rows(keys)
 
 
 # ---------------------------------------------------------------------------

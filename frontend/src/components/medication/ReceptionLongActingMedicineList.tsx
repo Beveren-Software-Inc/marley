@@ -768,7 +768,11 @@ export const ReceptionLongActingMedicineList = ({
                       {mask(<>{h.dose || '-'}{h.dose_term ? ` ${h.dose_term}` : ''}</>)}
                     </td>
                     <td className="px-3 py-2 text-center text-xs text-slate-600">{mask(h.rt_flag ? 'R' : h.lt_flag ? 'L' : '-')}</td>
-                    <td className="px-3 py-2 text-slate-600">{resolveGiveOutGivenBy(h.user, h.notes) || '-'}</td>
+                    <td className="px-3 py-2 text-slate-600">
+                      {mask(
+                        resolveGiveOutGivenBy(h.user, h.notes, !maskMedDetails) || '-',
+                      )}
+                    </td>
                     <td className="px-3 py-2 text-slate-600">
                       {mask(
                         h.is_cancelled ? (

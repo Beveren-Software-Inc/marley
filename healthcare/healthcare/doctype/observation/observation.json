@@ -93,7 +93,6 @@
   "up_date",
   "section_break_gatu",
   "order_created",
-  "invoice_created",
   "medical_coding_section",
   "codification_table",
   "tab_more_information",
@@ -668,12 +667,6 @@
   {
    "fieldname": "section_break_gatu",
    "fieldtype": "Section Break"
-  },
-  {
-   "default": "0",
-   "fieldname": "invoice_created",
-   "fieldtype": "Check",
-   "label": "Invoice Created"
   },
   {
    "fieldname": "order_created",

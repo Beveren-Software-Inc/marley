@@ -85,6 +85,7 @@ from healthcare.api.op_injection_prescription_import import (
 	_give_out_fields,
 	import_op_injection_group,
 )
+from healthcare.api.oracle_excel_source import excel_source, normalize_files
 from healthcare.api.oracle_sync import _fetch_rows
 from healthcare.api.patient_medication_order import _long_acting_frequency_interval_days
 from healthcare.api.patient_info_import import _require_admin
@@ -797,13 +798,14 @@ def _preview_stats(rows: list[dict], limit: int = 0) -> dict:
 # ---------------------------------------------------------------------------
 
 
-def _queue_next(token: str) -> None:
+def _queue_next(token: str, files: Any = None) -> None:
 	frappe.enqueue(
 		"healthcare.api.long_acting_reconcile.run_long_acting_reconcile",
 		queue="long",
 		timeout=7200,
 		resume=1,
 		token=token,
+		files=files,
 	)
 
 
@@ -845,7 +847,19 @@ def _process_chunk(
 		progress["processed"] = cint(progress.get("processed")) + 1
 
 
-def _run(token: str, resume: int, limit: int, dry_run: int = 0) -> dict[str, Any]:
+def _run(
+	token: str, resume: int, limit: int, dry_run: int = 0, files: Any = None
+) -> dict[str, Any]:
+	"""Read VISIT_00_04 live, or from the uploaded Excel export, then reconcile."""
+	progress = _load_progress() if cint(resume) else None
+	files = normalize_files(files) or (progress or {}).get("files") or None
+	with excel_source(files, tables=[ORACLE_TABLE]):
+		return _run_with_source(token, resume, limit, dry_run, files)
+
+
+def _run_with_source(
+	token: str, resume: int, limit: int, dry_run: int = 0, files: Any = None
+) -> dict[str, Any]:
 	started = time.monotonic()
 	progress = (_load_progress() if cint(resume) else {}) or _new_progress(limit)
 	progress["dry_run"] = cint(progress.get("dry_run")) if cint(resume) else cint(dry_run)
@@ -904,7 +918,7 @@ def _run(token: str, resume: int, limit: int, dry_run: int = 0) -> dict[str, Any
 				"Still running in the background ({0} of {1} patient/medication groups processed)."
 			).format(progress.get("processed") or 0, progress.get("total") or 0)
 			_set_progress(progress)
-			_queue_next(token)
+			_queue_next(token, files)
 			return {"state": "queued", "handed_over": True, "progress": progress}
 
 	frappe.db.commit()
@@ -986,21 +1000,27 @@ def _summary_message(progress: dict) -> str:
 
 
 @frappe.whitelist()
-def preview_long_acting_reconcile(limit: int = 0) -> dict[str, Any]:
+def preview_long_acting_reconcile(limit: int = 0, files=None) -> dict[str, Any]:
 	"""Read-only answer to "does the Long Acting Medicine list match Oracle?"."""
 	_require_admin()
-	rows = _fetch_oracle_rows(limit)
-	stats = _preview_stats(rows, limit=limit)
-	stats["ok"] = True
-	stats["as_of"] = str(nowdate())
-	stats["in_sync"] = not stats["missing_groups"] and not stats["missing_give_outs"]
-	return stats
+	with excel_source(files, tables=[ORACLE_TABLE]) as source:
+		rows = _fetch_oracle_rows(limit)
+		stats = _preview_stats(rows, limit=limit)
+		if source is not None:
+			stats["oracle_table"] = source.describe(ORACLE_TABLE)
+		stats["ok"] = True
+		stats["as_of"] = str(nowdate())
+		stats["in_sync"] = not stats["missing_groups"] and not stats["missing_give_outs"]
+		return stats
 
 
 @frappe.whitelist()
-def start_long_acting_reconcile(limit: int = 0, dry_run: int = 0) -> dict[str, Any]:
+def start_long_acting_reconcile(
+	limit: int = 0, dry_run: int = 0, files=None
+) -> dict[str, Any]:
 	"""Queue one reconciliation of the whole Long Acting Medicine history (button entry point)."""
 	_require_admin()
+	files = normalize_files(files)
 	if _lock_held():
 		return {
 			"queued": False,
@@ -1012,7 +1032,12 @@ def start_long_acting_reconcile(limit: int = 0, dry_run: int = 0) -> dict[str, A
 	progress = _new_progress(limit)
 	progress["state"] = "queued"
 	progress["dry_run"] = cint(dry_run)
-	progress["message"] = _("Queued. Oracle is read in the background.")
+	progress["files"] = files
+	progress["message"] = (
+		_("Queued. The uploaded Excel export is read in the background.")
+		if files
+		else _("Queued. Oracle is read in the background.")
+	)
 	_set_progress(progress)
 
 	frappe.enqueue(
@@ -1021,6 +1046,7 @@ def start_long_acting_reconcile(limit: int = 0, dry_run: int = 0) -> dict[str, A
 		timeout=7200,
 		limit=cint(limit),
 		dry_run=cint(dry_run),
+		files=files,
 	)
 	return {"queued": True, "job_key": JOB_KEY, "status": progress}
 
@@ -1038,7 +1064,11 @@ def get_long_acting_reconcile_status() -> dict[str, Any]:
 
 
 def run_long_acting_reconcile(
-	limit: int = 0, resume: int = 0, token: str | None = None, dry_run: int = 0
+	limit: int = 0,
+	resume: int = 0,
+	token: str | None = None,
+	dry_run: int = 0,
+	files: Any = None,
 ) -> dict[str, Any]:
 	"""Background entry point (also callable inline from the bench console)."""
 	if cint(resume):
@@ -1057,7 +1087,7 @@ def run_long_acting_reconcile(
 
 	outcome: dict[str, Any] = {}
 	try:
-		outcome = _run(token, cint(resume), cint(limit), cint(dry_run))
+		outcome = _run(token, cint(resume), cint(limit), cint(dry_run), files)
 	except Exception:
 		progress = _load_progress() or _new_progress()
 		progress["state"] = "failed"

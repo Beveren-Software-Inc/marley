@@ -80,6 +80,7 @@ from healthcare.api.discharge_checklist_import import _resolve_cost_center
 from healthcare.api.ip_admission_clinical_note_import import (
 	upsert_clinical_note_from_row as _upsert_ip_note,
 )
+from healthcare.api.oracle_excel_source import excel_source, normalize_files
 from healthcare.api.oracle_sync import (
 	_fetch_rows,
 	_in_clause,
@@ -122,6 +123,9 @@ IP_ADMISSION_TABLE = "IP_ADMISSION_01"
 OP_DIAGNOSIS_FIELD = "VISIT_DIAGNOSIS_DETAIL"
 IP_DIAGNOSIS_FIELD = "DIAGNOSES_DESC"
 HISTORY_DOCTYPE = "VISIT_00_01_HISTORY"
+
+# The tables an Excel upload has to provide (direct reads ignore this list).
+ORACLE_TABLES = [OP_TABLE, OP_HISTORY_TABLE, IP_DIAGNOSES_TABLE, IP_ADMISSION_TABLE]
 
 # Clinical Note.trans_no namespaces. The prefix keeps the reconciliation notes
 # apart from the numbers ERPNext assigned itself, and makes a re-run cheap: the
@@ -229,6 +233,7 @@ def _new_progress(
 		"duplicate_extra_copies_before": 0,
 		"duplicate_groups_merged": 0,
 		"duplicate_notes_deleted": 0,
+		"duplicate_cleanup_errors": 0,
 		# Oracle side (rows per source, as the Oracle dev counts them)
 		"oracle_op": 0,
 		"oracle_history": 0,
@@ -1284,13 +1289,14 @@ def _site_diff(patient_limit: int = PREVIEW_PATIENT_LIMIT) -> dict:
 # ---------------------------------------------------------------------------
 
 
-def _queue_next(token: str) -> None:
+def _queue_next(token: str, files: Any = None) -> None:
 	frappe.enqueue(
 		"healthcare.api.clinical_note_reconcile.run_clinical_note_reconcile",
 		queue="long",
 		timeout=7200,
 		resume=1,
 		token=token,
+		files=files,
 	)
 
 
@@ -1345,8 +1351,12 @@ def _process_chunk(
 		progress["processed"] = cint(progress.get("processed")) + 1
 
 
-def _run_visit_duplicate_cleanup(progress: dict) -> None:
-	"""Merge re-imported OP visit clinical notes (same patient+visit+text, new trans_no)."""
+def _run_visit_duplicate_cleanup(progress: dict, patients: list[str]) -> None:
+	"""Merge re-imported OP visit clinical notes (same patient+visit+text, new trans_no).
+
+	Cleanup is always limited to the reconcile work list from ``_build_patient_list``.
+	A ``limit=1`` (or single-patient) run must never merge notes for other patients.
+	"""
 	from healthcare.api.clinical_note_duplicate_cleanup import (
 		SCOPE_VISITS,
 		cleanup_clinical_note_duplicates,
@@ -1354,25 +1364,53 @@ def _run_visit_duplicate_cleanup(progress: dict) -> None:
 		_group_count,
 	)
 
-	patient = (progress.get("patient") or "").strip()
 	dry_run = cint(progress.get("dry_run"))
-	progress["duplicate_groups_before"] = _group_count(SCOPE_VISITS, patient=patient)
-	progress["duplicate_extra_copies_before"] = _extra_copies(SCOPE_VISITS, patient=patient)
-	if not progress["duplicate_groups_before"]:
+	work_patients = [(p or "").strip() for p in (patients or []) if (p or "").strip()]
+	scoped = bool((progress.get("patient") or "").strip() or cint(progress.get("limit")))
+	# Full-site reconcile (no patient, no limit): one site-wide pass.
+	# Limited / single-patient runs: only the patients on this work list.
+	targets = work_patients if scoped else [""]
+
+	groups_before = 0
+	extras_before = 0
+	for target in targets:
+		groups_before += _group_count(SCOPE_VISITS, patient=target)
+		extras_before += _extra_copies(SCOPE_VISITS, patient=target)
+	progress["duplicate_groups_before"] = groups_before
+	progress["duplicate_extra_copies_before"] = extras_before
+	if not groups_before:
 		return
 
 	progress["message"] = _("Merging duplicate OP visit clinical notes...")
 	_set_progress(progress)
 
+	merged = 0
+	deleted = 0
+	cleanup_errors = 0
 	# Same calendar day is enough: OP re-imports usually share midnight posting_date.
-	outcome = cleanup_clinical_note_duplicates(
-		dry_run=dry_run,
-		scope=SCOPE_VISITS,
-		match_posting_time=0,
-		patient=patient,
-	)
-	progress["duplicate_groups_merged"] = cint(outcome.get("groups_merged"))
-	progress["duplicate_notes_deleted"] = cint(outcome.get("notes_deleted"))
+	for target in targets:
+		outcome = cleanup_clinical_note_duplicates(
+			dry_run=dry_run,
+			scope=SCOPE_VISITS,
+			match_posting_time=0,
+			patient=target,
+		)
+		merged += cint(outcome.get("groups_merged"))
+		deleted += cint(outcome.get("notes_deleted"))
+		cleanup_errors += cint(outcome.get("errors"))
+	progress["duplicate_groups_merged"] = merged
+	progress["duplicate_notes_deleted"] = deleted
+	progress["duplicate_cleanup_errors"] = cleanup_errors
+	if cleanup_errors:
+		# Do not bump ``failed`` — that counter is for patient reconcile failures only.
+		_append_errors(
+			progress,
+			[
+				_("OP visit clinical note duplicate cleanup reported {0} error(s).").format(
+					cleanup_errors
+				)
+			],
+		)
 
 
 def _run(
@@ -1383,6 +1421,33 @@ def _run(
 	dry_run: int = 0,
 	skip_duplicate_text: int = 0,
 	remove_duplicates: int = 1,
+	files: Any = None,
+) -> dict[str, Any]:
+	"""Read the three Oracle note sources live, or from the uploaded Excel."""
+	progress = _load_progress() if cint(resume) else None
+	files = normalize_files(files) or (progress or {}).get("files") or None
+	with excel_source(files, tables=ORACLE_TABLES):
+		return _run_with_source(
+			token,
+			resume,
+			patient,
+			limit,
+			dry_run,
+			skip_duplicate_text,
+			remove_duplicates,
+			files,
+		)
+
+
+def _run_with_source(
+	token: str,
+	resume: int,
+	patient: str = "",
+	limit: int = 0,
+	dry_run: int = 0,
+	skip_duplicate_text: int = 0,
+	remove_duplicates: int = 1,
+	files: Any = None,
 ) -> dict[str, Any]:
 	started = time.monotonic()
 
@@ -1425,17 +1490,18 @@ def _run(
 				"Still running in the background ({0} of {1} patients processed)."
 			).format(progress.get("processed") or 0, progress.get("total") or 0)
 			_set_progress(progress)
-			_queue_next(token)
+			_queue_next(token, files)
 			return {"state": "queued", "handed_over": True, "progress": progress}
 
 	frappe.db.commit()
 	if cint(progress.get("remove_duplicates")):
 		try:
-			_run_visit_duplicate_cleanup(progress)
+			_run_visit_duplicate_cleanup(progress, patients)
 			frappe.db.commit()
 		except Exception:
 			frappe.db.rollback()
-			_record_errors(progress, [f"duplicate cleanup: {frappe.get_traceback()}"])
+			progress["duplicate_cleanup_errors"] = cint(progress.get("duplicate_cleanup_errors")) + 1
+			_append_errors(progress, [f"duplicate cleanup: {frappe.get_traceback()}"])
 			frappe.log_error(title="Clinical note reconcile duplicate cleanup failed")
 
 	progress["processed"] = cint(progress.get("total")) or cint(progress.get("processed"))
@@ -1529,10 +1595,20 @@ def _summary_message(progress: dict) -> str:
 				),
 			]
 		)
+		if cint(progress.get("duplicate_cleanup_errors")):
+			lines.append(
+				_("Duplicate cleanup errors: {0}").format(
+					cint(progress.get("duplicate_cleanup_errors"))
+				)
+			)
 	if dry:
 		lines.insert(1, _("DRY RUN - nothing was changed."))
 	if progress.get("failed"):
 		lines.extend(["", _("Failed patients: {0}").format(cint(progress.get("failed")))])
+		for error in progress.get("errors") or []:
+			lines.append(f"• {error}")
+	elif progress.get("errors"):
+		lines.extend(["", _("Warnings")])
 		for error in progress.get("errors") or []:
 			lines.append(f"• {error}")
 	samples = progress.get("samples") or []
@@ -1549,7 +1625,7 @@ def _summary_message(progress: dict) -> str:
 
 @frappe.whitelist()
 def preview_clinical_note_reconcile(
-	patient: str = "", sample_limit: int = PREVIEW_SAMPLE_LIMIT
+	patient: str = "", sample_limit: int = PREVIEW_SAMPLE_LIMIT, files=None
 ) -> dict[str, Any]:
 	"""Read-only answer to \"do the doctor progress notes match Oracle?\".
 
@@ -1560,9 +1636,10 @@ def preview_clinical_note_reconcile(
 	"""
 	_require_admin()
 	patient = (patient or "").strip()
-	if patient:
-		return _patient_diff(patient, sample_limit=sample_limit)
-	return _site_diff()
+	with excel_source(files, tables=ORACLE_TABLES):
+		if patient:
+			return _patient_diff(patient, sample_limit=sample_limit)
+		return _site_diff()
 
 
 @frappe.whitelist()
@@ -1572,9 +1649,11 @@ def start_clinical_note_reconcile(
 	skip_duplicate_text: int = 0,
 	remove_duplicates: int = 1,
 	limit: int = 0,
+	files=None,
 ) -> dict[str, Any]:
 	"""Queue one reconciliation (the Healthcare Settings button entry point)."""
 	_require_admin()
+	files = normalize_files(files)
 	if _lock_held():
 		return {
 			"queued": False,
@@ -1591,7 +1670,12 @@ def start_clinical_note_reconcile(
 		remove_duplicates,
 	)
 	progress["state"] = "queued"
-	progress["message"] = _("Queued. Oracle is read in the background.")
+	progress["files"] = files
+	progress["message"] = (
+		_("Queued. The uploaded Excel export is read in the background.")
+		if files
+		else _("Queued. Oracle is read in the background.")
+	)
 	_set_progress(progress)
 
 	frappe.enqueue(
@@ -1603,6 +1687,7 @@ def start_clinical_note_reconcile(
 		dry_run=cint(dry_run),
 		skip_duplicate_text=cint(skip_duplicate_text),
 		remove_duplicates=cint(remove_duplicates),
+		files=files,
 	)
 	return {"queued": True, "job_key": JOB_KEY, "status": progress}
 

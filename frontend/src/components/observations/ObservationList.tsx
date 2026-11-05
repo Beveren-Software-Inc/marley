@@ -1,18 +1,17 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import {
   fetchObservations,
-  createObservationSalesOrder,
   type Observation,
 } from '../../services/observations'
 import { fetchObservationLevels, fetchHealthcarePractitioners, getCurrentUserPractitionerOption, type LinkFieldOption } from '../../services/common'
 import { useCareContext } from '../../providers/CareContextProvider'
 import { isDoctorRole } from '../../config/permissions'
-import { toast } from '../../hooks/useToast'
 import { useCardFilters, usePreferCardLoadMore } from '../../contexts/CardFilterContext'
 import { ClearFiltersButton } from '../ui/ClearFiltersButton'
 import { LoadMoreControls, DEFAULT_PAGE_SIZE } from '../ui/PaginationControls'
 import { ObservationDetailPanel } from './ObservationDetailPanel'
 import { ScheduleObservationDischargeModal } from './ScheduleObservationDischargeModal'
+import { CreateObservationServiceBillModal } from './CreateObservationServiceBillModal'
 import { isObservationActive } from './observationDisplayUtils'
 import { PortalActionsMenu } from '../ui/PortalActionsMenu'
 import { DateFilterInput } from '../ui/DateFilterInput'
@@ -62,8 +61,8 @@ export const ObservationList = ({ patient, refreshKey, onPatientClick }: Observa
   const [detailName, setDetailName] = useState<string | null>(null)
   const [detailPreview, setDetailPreview] = useState<Observation | undefined>(undefined)
   const [openActionRow, setOpenActionRow] = useState<string | null>(null)
-  const [actionLoading, setActionLoading] = useState<string | null>(null)
   const [dischargeTarget, setDischargeTarget] = useState<Observation | null>(null)
+  const [billTarget, setBillTarget] = useState<Observation | null>(null)
   const actionMenuRef = useRef<HTMLDivElement>(null)
   const levelFilterRef = useRef<HTMLDivElement>(null)
 
@@ -207,24 +206,6 @@ export const ObservationList = ({ patient, refreshKey, onPatientClick }: Observa
   const handleOpenSalesOrder = (soName: string) => {
     setOpenActionRow(null)
     window.open(`/app/sales-order/${encodeURIComponent(soName)}`, '_blank')
-  }
-
-  const handleCreateSalesOrder = async (row: Observation) => {
-    setActionLoading(row.name)
-    try {
-      const res = await createObservationSalesOrder(row.name)
-      toast.success(
-        res.existing
-          ? `Sales Order ${res.sales_order} already linked`
-          : `Sales Order ${res.sales_order} created (Draft)`,
-      )
-      setOpenActionRow(null)
-      reloadObservations()
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to create Service Bill')
-    } finally {
-      setActionLoading(null)
-    }
   }
 
   const canBillObservation = (obs: Observation): boolean =>
@@ -506,20 +487,12 @@ export const ObservationList = ({ patient, refreshKey, onPatientClick }: Observa
                           <button
                             type="button"
                             onClick={() => setOpenActionRow((prev) => (prev === obs.name ? null : obs.name))}
-                            disabled={actionLoading === obs.name}
-                            className="inline-flex items-center justify-center w-8 h-8 rounded border border-slate-300 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+                            className="inline-flex items-center justify-center w-8 h-8 rounded border border-slate-300 bg-white text-slate-600 hover:bg-slate-50"
                             aria-label="Actions"
                           >
-                            {actionLoading === obs.name ? (
-                              <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-                              </svg>
-                            ) : (
-                              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                                <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
-                              </svg>
-                            )}
+                            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                              <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
+                            </svg>
                           </button>
                           <PortalActionsMenu
                             open={openActionRow === obs.name}
@@ -558,7 +531,10 @@ export const ObservationList = ({ patient, refreshKey, onPatientClick }: Observa
                                       : 'Link an admission (IP) or visit (OP) before creating a Service Bill'
                                     : undefined
                                 }
-                                onClick={() => handleCreateSalesOrder(obs)}
+                                onClick={() => {
+                                  setOpenActionRow(null)
+                                  setBillTarget(obs)
+                                }}
                                 className="block w-full text-left px-3 py-2 text-sm text-primary hover:bg-primary/5 disabled:opacity-40 disabled:cursor-not-allowed"
                               >
                                 Create Service Bill
@@ -606,6 +582,14 @@ export const ObservationList = ({ patient, refreshKey, onPatientClick }: Observa
         <ScheduleObservationDischargeModal
           observation={dischargeTarget}
           onClose={() => setDischargeTarget(null)}
+          onSuccess={reloadObservations}
+        />
+      ) : null}
+
+      {billTarget ? (
+        <CreateObservationServiceBillModal
+          observation={billTarget}
+          onClose={() => setBillTarget(null)}
           onSuccess={reloadObservations}
         />
       ) : null}
