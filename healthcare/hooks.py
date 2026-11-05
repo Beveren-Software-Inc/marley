@@ -145,6 +145,10 @@ fixtures = [
                    #Room Category
                    "Room Category-custom_does_it_include_medical_supervision",
                    "Room Category-custom_medical_supervision_rate",
+
+				   #Healthcare Service Template
+				   "Healthcare Service Template-custom_therapy",
+				   "Healthcare Service Template-custom_consultation"
                 ),
             ]
         ],
