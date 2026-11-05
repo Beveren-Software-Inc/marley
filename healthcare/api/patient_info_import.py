@@ -100,9 +100,40 @@ LEGACY_SEX_NAMES = {
 LEGACY_ALLERGY_WARNING_CLASS = "PATIENT_INFO_01"
 LEGACY_ALLERGY_WARNING_TYPE = "Allergy"
 
+# PATIENT_INFO_01 identifies a patient with ``C`` (legacy), not ``FILE_NO``.
+# Some exports rename it; try these in order when building live Oracle SQL.
+PATIENT_INFO_FILE_NO_COLUMNS = ("C", "FILE_NO", "PATIENT_NUM", "PATIENT_FILE_NO")
+
 
 def _require_admin() -> None:
 	frappe.only_for(("System Manager", "Healthcare Administrator"))
+
+
+def patient_info_file_no_column(table: str = "PATIENT_INFO_01") -> str:
+	"""Oracle column that holds the patient file number on ``PATIENT_INFO_01``.
+
+	Live CLINIC2 uses ``C``. Workbook exports may label it ``FILE_NO`` /
+	``PATIENT_NUM``. Prefer a column that actually exists on the current source.
+	"""
+	from healthcare.api.oracle_sync import _table_columns
+
+	available = {(col.get("name") or "").strip().upper() for col in _table_columns(table)}
+	for candidate in PATIENT_INFO_FILE_NO_COLUMNS:
+		if candidate in available:
+			return candidate
+	return "C"
+
+
+def patient_info_file_no_from_row(raw: dict | None) -> str:
+	"""Read the file number from a PATIENT_INFO_01 row regardless of column name."""
+	raw = raw or {}
+	return _clean_oracle_num(
+		raw.get("C")
+		or raw.get("FILE_NO")
+		or raw.get("PATIENT_NUM")
+		or raw.get("PATIENT_FILE_NO")
+		or raw.get("file_no")
+	)
 
 
 def _clean_oracle_num(value: Any) -> str:

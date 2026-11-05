@@ -11,6 +11,23 @@ frappe.ui.form.on('Healthcare Settings', {
 		// no longer rendered: Direct Upload, Migration Analysis and ECT are hidden.
 		hide_legacy_setting_buttons(frm);
 
+		// Patients: PATIENT_INFO_01 → Patient. Creates missing file numbers;
+		// when a file number is already taken, matches on name + id number
+		// before updating, and reports identity conflicts.
+		frm.add_custom_button(
+			__('Patients'),
+			() => open_patient_reconcile(frm),
+			__('Oracle -> ERPNext')
+		);
+
+		// Insurance Patient Register from PATIENT_INFO_01 insurance flags /
+		// INSUR_* columns (TRICARE). Creates missing registers and marks patients insured.
+		frm.add_custom_button(
+			__('Insurance Register'),
+			() => open_insurance_register_reconcile(frm),
+			__('Oracle -> ERPNext')
+		);
+
 		// Compare Oracle IP_ADMISSION_01 with Inpatient Admission and create only
 		// the admissions Oracle has that ERPNext is still missing. The dialog
 		// asks whether to read Oracle live or from an Excel export of the table.
@@ -3438,9 +3455,10 @@ frappe.ui.form.on('Healthcare Settings', {
 							'Transfer all ECT Details into ECT Procedure?<br><br>'
 								+ 'ECT Details records: {0}<br>'
 								+ 'With a Patient: {1}<br>'
-								+ 'Already transferred: {2}<br>'
-								+ 'Pending: {3}<br><br>'
-								+ 'Each ECT Details row becomes one ECT Procedure and keeps every matching field. '
+								+ 'Already linked: {2}<br>'
+								+ 'Pending create: {3}<br><br>'
+								+ 'Each ECT Details row upserts one ECT Procedure (create or refresh matching fields). '
+								+ 'New ECT Details saves already sync automatically; this backfills older rows. '
 								+ 'Re-running never duplicates a record. This runs in the background.<br><br>Continue?',
 							[
 								counts.total_details || 0,
@@ -8231,8 +8249,8 @@ function poll_migration_status(jobKey) {
 						);
 					} else if (jobKey === 'ect_details_to_procedure_transfer') {
 						msg = __(
-							'{0} finished: {1} ECT Procedure(s) created, {2} skipped, {3} errors.',
-							[jobKey, s.created || 0, s.skipped || 0, errN]
+							'{0} finished: {1} ECT Procedure(s) created, {2} updated, {3} skipped, {4} errors.',
+							[jobKey, s.created || 0, s.updated || 0, s.skipped || 0, errN]
 						);
 					} else if (jobKey === 'ect_conversion') {
 						msg = __(
@@ -9239,6 +9257,8 @@ const SESSION_SCHEDULE_RECONCILE_POLL_LIMIT = 300;
 const PATIENT_HISTORY_RECONCILE_POLL_LIMIT = 300;
 const DISCHARGE_RECONCILE_POLL_LIMIT = 300;
 const INSURANCE_CLAIM_RECONCILE_POLL_LIMIT = 300;
+const PATIENT_RECONCILE_POLL_LIMIT = 300;
+const INSURANCE_REGISTER_RECONCILE_POLL_LIMIT = 300;
 
 function hide_legacy_setting_buttons(frm) {
 	if (frm.__legacy_setting_buttons_hidden) {
@@ -11719,6 +11739,8 @@ function show_create_missing_reconcile_dialog(frm, spec, data, values) {
 		'missing_discharges',
 		'missing_claims',
 		'missing_admissions',
+		'missing_patients',
+		'missing_registers',
 	]);
 	const erp = create_missing_reconcile_count(data, [
 		'erpnext_notes',
@@ -11729,6 +11751,8 @@ function show_create_missing_reconcile_dialog(frm, spec, data, values) {
 		'erpnext_discharges',
 		'erpnext_claims',
 		'erpnext_allergy_warnings',
+		'erpnext_patients',
+		'erpnext_registers',
 	]);
 	const matched = create_missing_reconcile_count(data, [
 		'matched_notes',
@@ -11738,6 +11762,8 @@ function show_create_missing_reconcile_dialog(frm, spec, data, values) {
 		'matched_histories',
 		'matched_discharges',
 		'matched_claims',
+		'matched_patients',
+		'matched_registers',
 	]);
 	const oracle_rows = create_missing_reconcile_count(data, [
 		'oracle_rows',
@@ -11745,6 +11771,8 @@ function show_create_missing_reconcile_dialog(frm, spec, data, values) {
 		'oracle_discharged',
 		'oracle_claims',
 		'oracle_admissions',
+		'oracle_patients',
+		'oracle_insured',
 	]);
 	const body = `
 		<table class="table table-sm" style="margin-bottom:8px">
@@ -11961,6 +11989,34 @@ function open_insurance_claim_reconcile(frm) {
 		method_suffix: 'insurance_claim_reconcile',
 		poll_limit: INSURANCE_CLAIM_RECONCILE_POLL_LIMIT,
 		progress_title: __('Reconciling insurance claims from Oracle'),
+	});
+}
+
+function open_patient_reconcile(frm) {
+	open_create_missing_reconcile(frm, {
+		title: __('Oracle -> ERPNext: Patients'),
+		entity: 'patients',
+		intro: __(
+			'Reads PATIENT_INFO_01 and creates missing Patients by file number. When a file number is already taken in ERPNext, name and id number are checked first — matching patients are updated; conflicting identity pairs are left alone and reported.'
+		),
+		api_prefix: 'healthcare.api.patient_reconcile',
+		method_suffix: 'patient_reconcile',
+		poll_limit: PATIENT_RECONCILE_POLL_LIMIT,
+		progress_title: __('Reconciling patients from Oracle'),
+	});
+}
+
+function open_insurance_register_reconcile(frm) {
+	open_create_missing_reconcile(frm, {
+		title: __('Oracle -> ERPNext: Insurance Register'),
+		entity: 'insurance_register',
+		intro: __(
+			'Reads PATIENT_INFO_01 insurance flags and INSUR_* columns. Marks those patients insured (TRICARE), fills insurance fields, and creates an Insurance Patient Register when the patient still has none.'
+		),
+		api_prefix: 'healthcare.api.insurance_register_reconcile',
+		method_suffix: 'insurance_register_reconcile',
+		poll_limit: INSURANCE_REGISTER_RECONCILE_POLL_LIMIT,
+		progress_title: __('Reconciling insurance registers from Oracle'),
 	});
 }
 

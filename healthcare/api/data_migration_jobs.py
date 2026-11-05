@@ -8793,6 +8793,7 @@ def process_ect_details_to_procedure_transfer_batch(offset: int = 0) -> None:
 		processed = result.get("processed", offset)
 		merged = {
 			"created": cint(prev.get("created", 0)) + cint(result.get("created", 0)),
+			"updated": cint(prev.get("updated", 0)) + cint(result.get("updated", 0)),
 			"skipped": cint(prev.get("skipped", 0)) + cint(result.get("skipped", 0)),
 			"errors": cint(prev.get("errors", 0)) + cint(result.get("errors", 0)),
 			"total_records": prev.get("total_records"),

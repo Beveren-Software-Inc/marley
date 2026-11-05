@@ -43,6 +43,14 @@ class ECTDetails(Document):
 		self._sync_cost_centers()
 		self._seed_attributes_from_template()
 
+	def on_update(self):
+		"""Mirror this row onto ECT Procedure (imports / reconcile / portal)."""
+		if self.flags.get("skip_ect_procedure_sync"):
+			return
+		from healthcare.api.ect_details_to_procedure import sync_procedure_from_details
+
+		sync_procedure_from_details(self)
+
 	def _sync_cost_centers(self):
 		"""Keep native ``cost_center`` and site Custom Field ``custom_cost_center`` in sync.
 

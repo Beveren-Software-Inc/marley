@@ -1,14 +1,17 @@
-"""Transfer existing ECT Details rows into ECT Procedure records.
+"""Keep ECT Procedure in sync with ECT Details.
 
-Run in batches from Healthcare Settings → Data Maintenance. Each ECT Details
-row becomes one ECT Procedure. The source ECT Details name is stored on
-``ECT Procedure.source_ect_details`` so re-running the job never duplicates a
-record.
+ECT Details is the legacy write target (Oracle import / reconcile / portal).
+ECT Procedure is the long-term doctype. Every save of ECT Details upserts the
+matching ECT Procedure so both stay aligned until ECT Details is retired.
+
+The Healthcare Settings “Transfer ECT Details → ECT Procedure” button still
+backfills older rows that never got a Procedure. ``source_ect_details`` (and
+``trans_num`` as a fallback) stop duplicates on re-run.
 
 Every ECT Details field that also exists on ECT Procedure is copied verbatim;
 the misspelled ``succinycholine_detail`` is mapped to the corrected target
 field ``succinylcholine_detail``. ``no_of_session`` and ``date_of_session`` are
-derived when the target does not already carry them.
+derived when creating a Procedure that does not already carry them.
 """
 
 from __future__ import annotations
@@ -63,7 +66,7 @@ def _coerce(value):
 	return value
 
 
-def _build_procedure_fields(src) -> dict:
+def _build_procedure_fields(src, *, include_empty: bool = False) -> dict:
 	"""Copy every compatible ECT Details field onto ECT Procedure fieldnames."""
 	src_meta = frappe.get_meta(SOURCE_DOCTYPE)
 	target_meta = frappe.get_meta(TARGET_DOCTYPE)
@@ -76,11 +79,12 @@ def _build_procedure_fields(src) -> dict:
 		if not target_meta.has_field(target):
 			continue
 		value = _coerce(src.get(df.fieldname))
-		if value in (None, ""):
+		if value in (None, "") and not include_empty:
 			continue
 		fields[target] = value
 
 	# Child tables (ECT Details Attributes) → matching target child table.
+	# Always include the key on sync so emptied children clear on the Procedure.
 	for child_field, keys in _CHILD_TABLE_FIELDS.items():
 		if not target_meta.has_field(child_field):
 			continue
@@ -88,7 +92,7 @@ def _build_procedure_fields(src) -> dict:
 			{key: _coerce(row.get(key)) for key in keys}
 			for row in (src.get(child_field) or [])
 		]
-		if rows:
+		if rows or include_empty:
 			fields[child_field] = rows
 
 	return fields
@@ -98,32 +102,72 @@ def _next_session_no(patient: str) -> int:
 	return frappe.db.count(TARGET_DOCTYPE, {"patient": patient}) + 1
 
 
-def transfer_one(ect_detail_name: str) -> dict:
-	"""Create one ECT Procedure from a single ECT Details row (idempotent)."""
+def _find_linked_procedure(src) -> str | None:
+	"""Existing ECT Procedure for this ECT Details row, if any."""
+	target_meta = frappe.get_meta(TARGET_DOCTYPE)
+	if target_meta.has_field("source_ect_details") and src.get("name"):
+		name = frappe.db.get_value(
+			TARGET_DOCTYPE, {"source_ect_details": src.name}, "name"
+		)
+		if name:
+			return name
+	trans_num = (src.get("trans_num") or "").strip()
+	if trans_num and target_meta.has_field("trans_num"):
+		return frappe.db.get_value(TARGET_DOCTYPE, {"trans_num": trans_num}, "name")
+	return None
+
+
+def _apply_procedure_fields(doc, fields: dict) -> None:
+	"""Set scalar + child-table values from a ``_build_procedure_fields`` payload."""
+	for key, value in fields.items():
+		if key in _CHILD_TABLE_FIELDS:
+			doc.set(key, [])
+			for row in value or []:
+				doc.append(key, row)
+			continue
+		doc.set(key, value)
+
+
+def sync_procedure_from_details(src) -> dict:
+	"""Create or update the ECT Procedure that mirrors one ECT Details row.
+
+	Called from ``ECT Details.on_update`` so imports, reconciles, attribute
+	loads and portal saves all keep ECT Procedure current.
+	"""
+	if not frappe.db.exists("DocType", TARGET_DOCTYPE):
+		return {"status": "skipped", "reason": "no_procedure_doctype"}
+
+	if isinstance(src, str):
+		src = frappe.get_doc(SOURCE_DOCTYPE, src)
+
+	if not src.get("patient"):
+		return {"status": "skipped", "reason": "no_patient", "source": src.get("name")}
+
 	target_meta = frappe.get_meta(TARGET_DOCTYPE)
 	has_source_field = target_meta.has_field("source_ect_details")
+	existing = _find_linked_procedure(src)
 
-	if has_source_field and frappe.db.exists(
-		TARGET_DOCTYPE, {"source_ect_details": ect_detail_name}
-	):
-		return {"status": "skipped", "reason": "already_transferred", "source": ect_detail_name}
-
-	src = frappe.get_doc(SOURCE_DOCTYPE, ect_detail_name)
-	if not src.get("patient"):
-		return {"status": "skipped", "reason": "no_patient", "source": ect_detail_name}
-
-	fields = _build_procedure_fields(src)
+	# On update, clear emptied fields too so Procedure mirrors Details.
+	fields = _build_procedure_fields(src, include_empty=bool(existing))
 	fields["patient"] = src.patient
-	fields.setdefault(
-		"patient_name", frappe.db.get_value("Patient", src.patient, "patient_name")
-	)
+	if target_meta.has_field("patient_name") and not fields.get("patient_name"):
+		fields["patient_name"] = frappe.db.get_value("Patient", src.patient, "patient_name")
+	if has_source_field:
+		fields["source_ect_details"] = src.name
+
+	if existing:
+		doc = frappe.get_doc(TARGET_DOCTYPE, existing)
+		_apply_procedure_fields(doc, fields)
+		doc.flags.ignore_mandatory = True
+		doc.flags.ignore_links = True
+		doc.flags.ignore_validate = True
+		doc.save(ignore_permissions=True)
+		return {"status": "updated", "name": doc.name, "source": src.name}
 
 	if target_meta.has_field("no_of_session") and not fields.get("no_of_session"):
 		fields["no_of_session"] = _next_session_no(src.patient)
 	if target_meta.has_field("date_of_session") and not fields.get("date_of_session"):
 		fields["date_of_session"] = _coerce(src.get("date"))
-	if has_source_field:
-		fields["source_ect_details"] = src.name
 
 	doc = frappe.get_doc({"doctype": TARGET_DOCTYPE, **fields})
 	doc.flags.ignore_mandatory = True
@@ -131,7 +175,15 @@ def transfer_one(ect_detail_name: str) -> dict:
 	doc.flags.ignore_validate = True
 	doc.insert(ignore_permissions=True)
 
-	return {"status": "created", "name": doc.name, "source": ect_detail_name}
+	return {"status": "created", "name": doc.name, "source": src.name}
+
+
+def transfer_one(ect_detail_name: str) -> dict:
+	"""Upsert one ECT Procedure from a single ECT Details row (idempotent)."""
+	result = sync_procedure_from_details(ect_detail_name)
+	if result.get("status") == "skipped":
+		return result
+	return result
 
 
 @frappe.whitelist()
@@ -168,16 +220,20 @@ def run_ect_details_to_procedure_transfer_batch(*, offset: int = 0) -> dict:
 			"done": True,
 			"batch_count": 0,
 			"created": 0,
+			"updated": 0,
 			"skipped": 0,
 			"errors": 0,
 		}
 
-	created = skipped = errors = 0
+	created = updated = skipped = errors = 0
 	for name in names:
 		try:
 			result = transfer_one(name)
-			if result.get("status") == "created":
+			status = result.get("status")
+			if status == "created":
 				created += 1
+			elif status == "updated":
+				updated += 1
 			else:
 				skipped += 1
 		except Exception:
@@ -194,6 +250,7 @@ def run_ect_details_to_procedure_transfer_batch(*, offset: int = 0) -> dict:
 		"done": len(names) < TRANSFER_BATCH_SIZE,
 		"batch_count": len(names),
 		"created": created,
+		"updated": updated,
 		"skipped": skipped,
 		"errors": errors,
 	}

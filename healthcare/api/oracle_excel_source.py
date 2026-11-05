@@ -184,6 +184,29 @@ ORACLE_SOURCES: dict[str, dict[str, Any]] = {
 			},
 		],
 	},
+	"patients": {
+		"label": "Patients",
+		"doctype": "Patient",
+		"tables": [
+			{
+				"table": "PATIENT_INFO_01",
+				"label": "Patient master",
+				# Live Oracle uses C for the file number (not FILE_NO).
+				"required": ["C", "FULL_NAME"],
+			},
+		],
+	},
+	"insurance_register": {
+		"label": "Insurance Register",
+		"doctype": "Insurance Patient Register",
+		"tables": [
+			{
+				"table": "PATIENT_INFO_01",
+				"label": "Patient master (insurance columns)",
+				"required": ["C", "IS_INSURANCE"],
+			},
+		],
+	},
 	"user": {
 		"label": "User",
 		"doctype": "Oracle User",
