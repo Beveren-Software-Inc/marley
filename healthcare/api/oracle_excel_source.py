@@ -129,6 +129,39 @@ ORACLE_SOURCES: dict[str, dict[str, Any]] = {
 			},
 		],
 	},
+	"physical_examination": {
+		"label": "Physical Examination",
+		"doctype": "Physical Examination",
+		"tables": [
+			{
+				"table": "IP_ADMISSION_PHY_EXAM",
+				"label": "IP physical examinations",
+				"required": ["TRANS_NUM", "ADMISSION_NUM"],
+			},
+		],
+	},
+	"vital_signs": {
+		"label": "Vital Signs",
+		"doctype": "Vital Signs",
+		"tables": [
+			{
+				"table": "IP_PATIENT_VITALS",
+				"label": "IP patient vitals",
+				"required": ["TRANS_NUM", "PATIENT_FILE_NO", "ADMISSION_NUM"],
+			},
+		],
+	},
+	"session_schedule": {
+		"label": "Session Schedule",
+		"doctype": "Session Schedule",
+		"tables": [
+			{
+				"table": "VISIT_00_05",
+				"label": "OP session schedule / clinical notes",
+				"required": ["VISIT_NUM", "SR_NUM", "PATIENT_NUM"],
+			},
+		],
+	},
 	"warning_messages": {
 		"label": "Warning Messages",
 		"doctype": "Warning Message",
@@ -164,6 +197,76 @@ ORACLE_SOURCES: dict[str, dict[str, Any]] = {
 				"table": "LAB_00_04",
 				"label": "Lab test results",
 				"required": ["TRANS_NUM", "LAB_SUB_NUM"],
+			},
+		],
+	},
+	"observations": {
+		"label": "Observations",
+		"doctype": "Observation",
+		"tables": [
+			{
+				"table": "IP_OBSERVATION_LEVEL",
+				"label": "IP observation levels",
+				"required": ["TRANS_NUM", "ADMISSION_NUM"],
+			},
+		],
+	},
+	"ect_details": {
+		"label": "ECT Details",
+		"doctype": "ECT Details",
+		"tables": [
+			{
+				"table": "ECT_00_01",
+				"label": "ECT session headers",
+				"required": ["TRANS_NUM"],
+			},
+			{
+				"table": "ECT_00_02",
+				"label": "ECT attribute notes",
+				"required": ["TRANS_NUM", "ATTRIB_NUM"],
+			},
+		],
+	},
+	"patient_history": {
+		"label": "Patient History",
+		"doctype": "Patient History",
+		"tables": [
+			{
+				"table": "IP_ADMISSION_02",
+				"label": "IP admission history form",
+				"required": ["ADMISSION_NUM", "ATTRIB_NUM"],
+			},
+		],
+	},
+	"discharge": {
+		"label": "Discharge",
+		"doctype": "Discharge",
+		"tables": [
+			{
+				"table": "IP_ADMISSION_01",
+				"label": "Admissions (discharge columns)",
+				"required": ["ADMISSION_NUM", "PATIENT_NUM", "ADMISION_STATUS"],
+			},
+			{
+				"table": "IP_ADMISSION_04",
+				"label": "Discharge checklist (optional)",
+				"required": ["ADMISSION_NUM", "SR_NUM"],
+			},
+		],
+	},
+	"insurance_claims": {
+		"label": "Insurance Claims",
+		"doctype": "Insurance Claim",
+		"tables": [
+			{
+				"table": "INSURANCE_00_01",
+				"label": "Insurance claim master",
+				"required": ["TRANS_NUM", "PATIENT_NUM"],
+			},
+			{
+				"table": "INSURANCE_00_02",
+				"label": "Claim service lines (optional)",
+				"required": ["TRANS_NUM", "SR_NUM"],
 			},
 		],
 	},

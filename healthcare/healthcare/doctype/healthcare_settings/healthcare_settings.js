@@ -93,6 +93,62 @@ frappe.ui.form.on('Healthcare Settings', {
 			__('Oracle -> ERPNext')
 		);
 
+		// Observations: IP_OBSERVATION_LEVEL → Observation. Creates missing rows,
+		// fills blanks Oracle knows about, merges duplicate copies of the same order.
+		frm.add_custom_button(
+			__('Observations'),
+			() => open_observation_reconcile(frm),
+			__('Oracle -> ERPNext')
+		);
+
+		// Vital Signs: IP_PATIENT_VITALS → Vital Signs. Creates only what ERPNext
+		// is missing; same date + same readings on the admission are skipped
+		// (double-entry from ~2 Jul onwards).
+		frm.add_custom_button(
+			__('Vital Signs'),
+			() => open_vital_signs_reconcile(frm),
+			__('Oracle -> ERPNext')
+		);
+
+		// Physical Examination: IP_ADMISSION_PHY_EXAM → Physical Examination.
+		// Same create-missing / skip same-content pattern as Nursing Notes.
+		frm.add_custom_button(
+			__('Physical Examination'),
+			() => open_physical_examination_reconcile(frm),
+			__('Oracle -> ERPNext')
+		);
+
+		// ECT Details: ECT_00_01 (+ ECT_00_02 attributes) → ECT Details.
+		frm.add_custom_button(
+			__('ECT Details'),
+			() => open_ect_details_reconcile(frm),
+			__('Oracle -> ERPNext')
+		);
+
+		// Session Schedule: VISIT_00_05 → Session Schedule (OP sessions).
+		frm.add_custom_button(
+			__('Session Schedule'),
+			() => open_session_schedule_reconcile(frm),
+			__('Oracle -> ERPNext')
+		);
+
+		frm.add_custom_button(
+			__('Patient History'),
+			() => open_patient_history_reconcile(frm),
+			__('Oracle -> ERPNext')
+		);
+
+		frm.add_custom_button(
+			__('Discharge'),
+			() => open_discharge_reconcile(frm),
+			__('Oracle -> ERPNext')
+		);
+
+		frm.add_custom_button(
+			__('Insurance Claims'),
+			() => open_insurance_claim_reconcile(frm),
+			__('Oracle -> ERPNext')
+		);
 
 		// Legacy users (Oracle USR_00_01), read live or from its Excel export.
 		// Every legacy table stores the person in CR_ID / UP_ID as USR_NUM - the
@@ -9163,6 +9219,14 @@ const WARNING_MESSAGE_RECONCILE_POLL_LIMIT = 300;
 // Lab Tests (LAB_00_03 headers + LAB_00_04 results) walk a 13k / 137k register,
 // so they get the same 10-minute polling window.
 const LAB_TEST_RECONCILE_POLL_LIMIT = 300;
+const OBSERVATION_RECONCILE_POLL_LIMIT = 300;
+const VITAL_SIGNS_RECONCILE_POLL_LIMIT = 300;
+const PHYSICAL_EXAMINATION_RECONCILE_POLL_LIMIT = 300;
+const ECT_DETAILS_RECONCILE_POLL_LIMIT = 300;
+const SESSION_SCHEDULE_RECONCILE_POLL_LIMIT = 300;
+const PATIENT_HISTORY_RECONCILE_POLL_LIMIT = 300;
+const DISCHARGE_RECONCILE_POLL_LIMIT = 300;
+const INSURANCE_CLAIM_RECONCILE_POLL_LIMIT = 300;
 
 function hide_legacy_setting_buttons(frm) {
 	if (frm.__legacy_setting_buttons_hidden) {
@@ -10867,6 +10931,1009 @@ function track_lab_test_reconcile(frm) {
 			},
 		});
 	}, ORACLE_SYNC_POLL_INTERVAL);
+}
+
+
+// ---------------------------------------------------------------------------
+// Observations (IP_OBSERVATION_LEVEL)
+// ---------------------------------------------------------------------------
+
+function open_observation_reconcile(frm) {
+	ask_oracle_source({
+		title: __('Oracle -> ERPNext: Observations'),
+		entity: 'observations',
+		intro: `<p class="text-muted small">${__(
+			'Reads IP_OBSERVATION_LEVEL and repairs the Observation register: creates missing orders, fills blanks Oracle knows about, and merges duplicate copies of the same order. Values already on an Observation are never overwritten.'
+		)}</p>`,
+		on_direct: () => open_observation_reconcile_options(frm),
+		on_excel: (files) => open_observation_reconcile_options(frm, files),
+	});
+}
+
+function open_observation_reconcile_options(frm, files) {
+	const dialog = new frappe.ui.Dialog({
+		title: __('Oracle -> ERPNext: Observations'),
+		fields: [
+			{
+				fieldtype: 'Data',
+				fieldname: 'patient',
+				label: __('Patient (optional)'),
+				description: __('Leave empty to reconcile every patient.'),
+			},
+			{
+				fieldtype: 'Check',
+				fieldname: 'fill_missing',
+				label: __('Fill the blanks of existing observations from Oracle'),
+				default: 1,
+			},
+			{
+				fieldtype: 'Check',
+				fieldname: 'clean_duplicates',
+				label: __('Merge duplicate copies of the same observation order'),
+				default: 1,
+			},
+			{
+				fieldtype: 'Check',
+				fieldname: 'dry_run',
+				label: __('Dry run (report only, write nothing)'),
+				default: 0,
+			},
+		],
+		primary_action_label: __('Preview'),
+		primary_action(values) {
+			dialog.hide();
+			preview_observation_reconcile(frm, { ...(values || {}), files: files });
+		},
+	});
+	dialog.show();
+}
+
+function preview_observation_reconcile(frm, values) {
+	const files = (values && values.files) || null;
+	frappe.dom.freeze(
+		files
+			? __('Comparing observations with the uploaded Excel export…')
+			: __('Comparing observations with Oracle…')
+	);
+	frappe.call({
+		method: 'healthcare.api.observation_reconcile.preview_observation_reconcile',
+		args: {
+			patient: (values && values.patient) || '',
+			files: files ? JSON.stringify(files) : '',
+		},
+		callback(r) {
+			frappe.dom.unfreeze();
+			if (!r.message) {
+				return;
+			}
+			show_observation_reconcile_dialog(frm, r.message, values || {});
+		},
+		error() {
+			frappe.dom.unfreeze();
+		},
+	});
+}
+
+function show_observation_reconcile_dialog(frm, data, values) {
+	const missing = cint(data.missing_total);
+	const fills = cint(data.fill_total);
+	const duplicates = cint(data.duplicate_total);
+	const body = `
+		<table class="table table-sm" style="margin-bottom:8px">
+			<tr><td class="text-muted" style="width:45%">${__('Oracle observation orders')}</td>
+				<td><b>${format_number(cint(data.oracle_rows))}</b></td></tr>
+			<tr><td class="text-muted">${__('Observations in ERPNext')}</td>
+				<td><b>${format_number(cint(data.erpnext_rows))}</b>
+					<span class="text-muted">(${format_number(cint(data.matched))} ${__('match Oracle')})</span></td></tr>
+			<tr><td class="text-muted">${__('Missing')}</td>
+				<td><b class="${missing ? 'text-danger' : 'text-success'}">${format_number(missing)}</b></td></tr>
+			<tr><td class="text-muted">${__('With blanks to fill')}</td>
+				<td><b>${format_number(fills)}</b></td></tr>
+			<tr><td class="text-muted">${__('Duplicate copies')}</td>
+				<td><b>${format_number(duplicates)}</b></td></tr>
+		</table>
+		${lab_test_reconcile_list_html(
+			data.samples,
+			__('Missing observations (first {0})', [(data.samples || []).length]),
+			(row) =>
+				`${oracle_sync_escape(row.trans_num)}${
+					row.patient ? ` · ${__('patient')} ${oracle_sync_escape(row.patient)}` : ''
+				}${row.date ? ` — ${oracle_sync_escape(String(row.date).split(' ')[0])}` : ''}`
+		)}
+		<p class="text-muted small">${__('Source: {0}', [
+			oracle_sync_escape(data.oracle_table || 'CLINIC2.IP_OBSERVATION_LEVEL'),
+		])}</p>
+	`;
+	const dialog = new frappe.ui.Dialog({
+		title: __('Oracle -> ERPNext: Observations'),
+		size: 'large',
+		fields: [
+			{ fieldtype: 'HTML', fieldname: 'summary' },
+			{
+				fieldtype: 'Check',
+				fieldname: 'fill_missing',
+				label: __('Fill the blanks of existing observations from Oracle'),
+				default: cint(values && values.fill_missing != null ? values.fill_missing : 1),
+			},
+			{
+				fieldtype: 'Check',
+				fieldname: 'clean_duplicates',
+				label: __('Merge duplicate copies of the same observation order'),
+				default: cint(values && values.clean_duplicates != null ? values.clean_duplicates : 1),
+			},
+			{
+				fieldtype: 'Check',
+				fieldname: 'dry_run',
+				label: __('Dry run (report only, write nothing)'),
+				default: cint(values && values.dry_run),
+			},
+		],
+		primary_action_label: __('Start'),
+		primary_action(dialog_values) {
+			dialog.hide();
+			start_observation_reconcile(frm, {
+				patient: (values && values.patient) || '',
+				fill_missing: cint(dialog_values.fill_missing),
+				clean_duplicates: cint(dialog_values.clean_duplicates),
+				dry_run: cint(dialog_values.dry_run),
+				files: (values && values.files) || null,
+			});
+		},
+	});
+	dialog.fields_dict.summary.$wrapper.html(body);
+	dialog.show();
+}
+
+function start_observation_reconcile(frm, values) {
+	frappe.call({
+		method: 'healthcare.api.observation_reconcile.start_observation_reconcile',
+		args: {
+			patient: (values && values.patient) || '',
+			fill_missing: cint(values && values.fill_missing != null ? values.fill_missing : 1),
+			clean_duplicates: cint(
+				values && values.clean_duplicates != null ? values.clean_duplicates : 1
+			),
+			dry_run: cint(values && values.dry_run),
+			files: values && values.files ? JSON.stringify(values.files) : '',
+		},
+		callback(r) {
+			const result = r.message || {};
+			if (result.queued || result.running) {
+				track_observation_reconcile(frm);
+				return;
+			}
+			frappe.msgprint({
+				title: __('Oracle -> ERPNext: Observations'),
+				indicator: 'orange',
+				message: result.message || __('The reconciliation could not be started.'),
+			});
+		},
+	});
+}
+
+function track_observation_reconcile(frm) {
+	let polls = 0;
+	const title = __('Reconciling observations from Oracle');
+	frappe.show_progress(title, 0, 100, __('Comparing the two registers…'));
+	const timer = setInterval(() => {
+		polls += 1;
+		frappe.call({
+			method: 'healthcare.api.observation_reconcile.get_observation_reconcile_status',
+			callback(r) {
+				const status = r.message || {};
+				const total = cint(status.total);
+				const processed = cint(status.processed);
+				const percent = total ? Math.min(100, Math.round((processed / total) * 100)) : 0;
+				frappe.show_progress(
+					title,
+					percent,
+					100,
+					status.message || __('{0} of {1}', [processed, total])
+				);
+				if (status.state === 'finished' || status.state === 'failed') {
+					clearInterval(timer);
+					frappe.hide_progress();
+					frappe.msgprint({
+						title: __('Oracle -> ERPNext: Observations'),
+						indicator: status.state === 'failed' ? 'red' : 'green',
+						wide: true,
+						message: frappe.utils
+							.escape_html(status.message || __('Done'))
+							.replace(/\n/g, '<br>'),
+					});
+					if (frm && frm.refresh) {
+						frm.refresh();
+					}
+				} else if (polls >= OBSERVATION_RECONCILE_POLL_LIMIT) {
+					clearInterval(timer);
+					frappe.hide_progress();
+					frappe.msgprint(
+						__(
+							'The reconciliation is still running in the background. Open Observations again in a few minutes to see the result.'
+						)
+					);
+				}
+			},
+			error() {
+				clearInterval(timer);
+				frappe.hide_progress();
+			},
+		});
+	}, ORACLE_SYNC_POLL_INTERVAL);
+}
+
+
+// ---------------------------------------------------------------------------
+// Vital Signs (IP_PATIENT_VITALS) — create missing only
+// ---------------------------------------------------------------------------
+
+function open_vital_signs_reconcile(frm) {
+	ask_oracle_source({
+		title: __('Oracle -> ERPNext: Vital Signs'),
+		entity: 'vital_signs',
+		intro: `<p class="text-muted small">${__(
+			'Reads IP_PATIENT_VITALS and creates only the Vital Signs ERPNext is missing. A row whose date and readings already exist on the admission is skipped (double-entry after ~2 Jul). Existing Vital Signs are never edited.'
+		)}</p>`,
+		on_direct: () => open_vital_signs_reconcile_options(frm),
+		on_excel: (files) => open_vital_signs_reconcile_options(frm, files),
+	});
+}
+
+function open_vital_signs_reconcile_options(frm, files) {
+	const dialog = new frappe.ui.Dialog({
+		title: __('Oracle -> ERPNext: Vital Signs'),
+		fields: [
+			{
+				fieldtype: 'Data',
+				fieldname: 'patient',
+				label: __('Patient (optional)'),
+			},
+			{
+				fieldtype: 'Check',
+				fieldname: 'suffix_conflicts',
+				label: __('Import rows whose trans number is already used (as <trans>-V)'),
+				default: 1,
+			},
+			{
+				fieldtype: 'Check',
+				fieldname: 'dry_run',
+				label: __('Dry run (report only, create nothing)'),
+				default: 0,
+			},
+		],
+		primary_action_label: __('Preview'),
+		primary_action(values) {
+			dialog.hide();
+			preview_vital_signs_reconcile(frm, { ...(values || {}), files: files });
+		},
+	});
+	dialog.show();
+}
+
+function preview_vital_signs_reconcile(frm, values) {
+	const files = (values && values.files) || null;
+	frappe.dom.freeze(
+		files
+			? __('Comparing vital signs with the uploaded Excel export…')
+			: __('Comparing vital signs with Oracle…')
+	);
+	frappe.call({
+		method: 'healthcare.api.vital_signs_reconcile.preview_vital_signs_reconcile',
+		args: {
+			patient: (values && values.patient) || '',
+			files: files ? JSON.stringify(files) : '',
+		},
+		callback(r) {
+			frappe.dom.unfreeze();
+			if (!r.message) {
+				return;
+			}
+			show_vital_signs_reconcile_dialog(frm, r.message, values || {});
+		},
+		error() {
+			frappe.dom.unfreeze();
+		},
+	});
+}
+
+function show_vital_signs_reconcile_dialog(frm, data, values) {
+	const missing = cint(data.missing_total);
+	const body = `
+		<table class="table table-sm" style="margin-bottom:8px">
+			<tr><td class="text-muted" style="width:45%">${__('Oracle vital rows')}</td>
+				<td><b>${format_number(cint(data.oracle_rows))}</b></td></tr>
+			<tr><td class="text-muted">${__('Vital Signs in ERPNext')}</td>
+				<td><b>${format_number(cint(data.erpnext_notes || data.erpnext_rows))}</b>
+					<span class="text-muted">(${format_number(
+						cint(data.matched_notes || data.matched)
+					)} ${__('matched')})</span></td></tr>
+			<tr><td class="text-muted">${__('Missing to create')}</td>
+				<td><b class="${missing ? 'text-danger' : 'text-success'}">${format_number(
+					missing
+				)}</b></td></tr>
+		</table>
+		${nursing_note_reconcile_samples_html(data.samples)}
+		<p class="text-muted small">${__('Source: {0}', [
+			oracle_sync_escape(data.oracle_table || 'CLINIC2.IP_PATIENT_VITALS'),
+		])}</p>
+	`;
+	const dialog = new frappe.ui.Dialog({
+		title: __('Oracle -> ERPNext: Vital Signs'),
+		size: 'large',
+		fields: [
+			{ fieldtype: 'HTML', fieldname: 'summary' },
+			{
+				fieldtype: 'Check',
+				fieldname: 'suffix_conflicts',
+				label: __('Import rows whose trans number is already used (as <trans>-V)'),
+				default: cint(values && values.suffix_conflicts != null ? values.suffix_conflicts : 1),
+			},
+			{
+				fieldtype: 'Check',
+				fieldname: 'dry_run',
+				label: __('Dry run (report only, create nothing)'),
+				default: cint(values && values.dry_run),
+			},
+		],
+		primary_action_label: __('Start'),
+		primary_action(dialog_values) {
+			dialog.hide();
+			start_vital_signs_reconcile(frm, {
+				patient: (values && values.patient) || '',
+				suffix_conflicts: cint(dialog_values.suffix_conflicts),
+				dry_run: cint(dialog_values.dry_run),
+				files: (values && values.files) || null,
+			});
+		},
+	});
+	dialog.fields_dict.summary.$wrapper.html(body);
+	dialog.show();
+}
+
+function start_vital_signs_reconcile(frm, values) {
+	frappe.call({
+		method: 'healthcare.api.vital_signs_reconcile.start_vital_signs_reconcile',
+		args: {
+			patient: (values && values.patient) || '',
+			suffix_conflicts: cint(
+				values && values.suffix_conflicts != null ? values.suffix_conflicts : 1
+			),
+			dry_run: cint(values && values.dry_run),
+			files: values && values.files ? JSON.stringify(values.files) : '',
+		},
+		callback(r) {
+			const result = r.message || {};
+			if (result.queued || result.running) {
+				track_vital_signs_reconcile(frm);
+				return;
+			}
+			frappe.msgprint({
+				title: __('Oracle -> ERPNext: Vital Signs'),
+				indicator: 'orange',
+				message: result.message || __('The reconciliation could not be started.'),
+			});
+		},
+	});
+}
+
+function track_vital_signs_reconcile(frm) {
+	let polls = 0;
+	const title = __('Reconciling vital signs from Oracle');
+	frappe.show_progress(title, 0, 100, __('Comparing…'));
+	const timer = setInterval(() => {
+		polls += 1;
+		frappe.call({
+			method: 'healthcare.api.vital_signs_reconcile.get_vital_signs_reconcile_status',
+			callback(r) {
+				const status = r.message || {};
+				const total = cint(status.total);
+				const processed = cint(status.processed);
+				frappe.show_progress(
+					title,
+					total ? Math.min(100, Math.round((processed / total) * 100)) : 0,
+					100,
+					status.message || __('{0} of {1}', [processed, total])
+				);
+				if (status.state === 'finished' || status.state === 'failed') {
+					clearInterval(timer);
+					frappe.hide_progress();
+					frappe.msgprint({
+						title: __('Oracle -> ERPNext: Vital Signs'),
+						indicator: status.state === 'failed' ? 'red' : 'green',
+						wide: true,
+						message: frappe.utils
+							.escape_html(status.message || __('Done'))
+							.replace(/\n/g, '<br>'),
+					});
+					if (frm && frm.refresh) {
+						frm.refresh();
+					}
+				} else if (polls >= VITAL_SIGNS_RECONCILE_POLL_LIMIT) {
+					clearInterval(timer);
+					frappe.hide_progress();
+					frappe.msgprint(
+						__(
+							'The reconciliation is still running in the background. Open Vital Signs again in a few minutes to see the result.'
+						)
+					);
+				}
+			},
+			error() {
+				clearInterval(timer);
+				frappe.hide_progress();
+			},
+		});
+	}, ORACLE_SYNC_POLL_INTERVAL);
+}
+
+
+// ---------------------------------------------------------------------------
+// Physical Examination (IP_ADMISSION_PHY_EXAM) — create missing only
+// ---------------------------------------------------------------------------
+
+function open_physical_examination_reconcile(frm) {
+	ask_oracle_source({
+		title: __('Oracle -> ERPNext: Physical Examination'),
+		entity: 'physical_examination',
+		intro: `<p class="text-muted small">${__(
+			'Reads IP_ADMISSION_PHY_EXAM and creates only the Physical Examinations ERPNext is missing. Same date + same exam content on the admission is skipped. Existing exams are never edited.'
+		)}</p>`,
+		on_direct: () => open_physical_examination_reconcile_options(frm),
+		on_excel: (files) => open_physical_examination_reconcile_options(frm, files),
+	});
+}
+
+function open_physical_examination_reconcile_options(frm, files) {
+	const dialog = new frappe.ui.Dialog({
+		title: __('Oracle -> ERPNext: Physical Examination'),
+		fields: [
+			{
+				fieldtype: 'Data',
+				fieldname: 'patient',
+				label: __('Patient (optional)'),
+			},
+			{
+				fieldtype: 'Check',
+				fieldname: 'suffix_conflicts',
+				label: __('Import rows whose trans number is already used (as <trans>-P)'),
+				default: 1,
+			},
+			{
+				fieldtype: 'Check',
+				fieldname: 'dry_run',
+				label: __('Dry run (report only, create nothing)'),
+				default: 0,
+			},
+		],
+		primary_action_label: __('Preview'),
+		primary_action(values) {
+			dialog.hide();
+			preview_physical_examination_reconcile(frm, { ...(values || {}), files: files });
+		},
+	});
+	dialog.show();
+}
+
+function preview_physical_examination_reconcile(frm, values) {
+	const files = (values && values.files) || null;
+	frappe.dom.freeze(
+		files
+			? __('Comparing physical examinations with the uploaded Excel export…')
+			: __('Comparing physical examinations with Oracle…')
+	);
+	frappe.call({
+		method: 'healthcare.api.physical_examination_reconcile.preview_physical_examination_reconcile',
+		args: {
+			patient: (values && values.patient) || '',
+			files: files ? JSON.stringify(files) : '',
+		},
+		callback(r) {
+			frappe.dom.unfreeze();
+			if (!r.message) {
+				return;
+			}
+			show_physical_examination_reconcile_dialog(frm, r.message, values || {});
+		},
+		error() {
+			frappe.dom.unfreeze();
+		},
+	});
+}
+
+function show_physical_examination_reconcile_dialog(frm, data, values) {
+	const missing = cint(data.missing_total);
+	const body = `
+		<table class="table table-sm" style="margin-bottom:8px">
+			<tr><td class="text-muted" style="width:45%">${__('Oracle exam rows')}</td>
+				<td><b>${format_number(cint(data.oracle_rows))}</b></td></tr>
+			<tr><td class="text-muted">${__('Physical Examinations in ERPNext')}</td>
+				<td><b>${format_number(cint(data.erpnext_notes || data.erpnext_rows))}</b>
+					<span class="text-muted">(${format_number(
+						cint(data.matched_notes || data.matched)
+					)} ${__('matched')})</span></td></tr>
+			<tr><td class="text-muted">${__('Missing to create')}</td>
+				<td><b class="${missing ? 'text-danger' : 'text-success'}">${format_number(
+					missing
+				)}</b></td></tr>
+		</table>
+		${nursing_note_reconcile_samples_html(data.samples)}
+		<p class="text-muted small">${__('Source: {0}', [
+			oracle_sync_escape(data.oracle_table || 'CLINIC2.IP_ADMISSION_PHY_EXAM'),
+		])}</p>
+	`;
+	const dialog = new frappe.ui.Dialog({
+		title: __('Oracle -> ERPNext: Physical Examination'),
+		size: 'large',
+		fields: [
+			{ fieldtype: 'HTML', fieldname: 'summary' },
+			{
+				fieldtype: 'Check',
+				fieldname: 'suffix_conflicts',
+				label: __('Import rows whose trans number is already used (as <trans>-P)'),
+				default: cint(values && values.suffix_conflicts != null ? values.suffix_conflicts : 1),
+			},
+			{
+				fieldtype: 'Check',
+				fieldname: 'dry_run',
+				label: __('Dry run (report only, create nothing)'),
+				default: cint(values && values.dry_run),
+			},
+		],
+		primary_action_label: __('Start'),
+		primary_action(dialog_values) {
+			dialog.hide();
+			start_physical_examination_reconcile(frm, {
+				patient: (values && values.patient) || '',
+				suffix_conflicts: cint(dialog_values.suffix_conflicts),
+				dry_run: cint(dialog_values.dry_run),
+				files: (values && values.files) || null,
+			});
+		},
+	});
+	dialog.fields_dict.summary.$wrapper.html(body);
+	dialog.show();
+}
+
+function start_physical_examination_reconcile(frm, values) {
+	frappe.call({
+		method: 'healthcare.api.physical_examination_reconcile.start_physical_examination_reconcile',
+		args: {
+			patient: (values && values.patient) || '',
+			suffix_conflicts: cint(
+				values && values.suffix_conflicts != null ? values.suffix_conflicts : 1
+			),
+			dry_run: cint(values && values.dry_run),
+			files: values && values.files ? JSON.stringify(values.files) : '',
+		},
+		callback(r) {
+			const result = r.message || {};
+			if (result.queued || result.running) {
+				track_physical_examination_reconcile(frm);
+				return;
+			}
+			frappe.msgprint({
+				title: __('Oracle -> ERPNext: Physical Examination'),
+				indicator: 'orange',
+				message: result.message || __('The reconciliation could not be started.'),
+			});
+		},
+	});
+}
+
+function track_physical_examination_reconcile(frm) {
+	let polls = 0;
+	const title = __('Reconciling physical examinations from Oracle');
+	frappe.show_progress(title, 0, 100, __('Comparing…'));
+	const timer = setInterval(() => {
+		polls += 1;
+		frappe.call({
+			method:
+				'healthcare.api.physical_examination_reconcile.get_physical_examination_reconcile_status',
+			callback(r) {
+				const status = r.message || {};
+				const total = cint(status.total);
+				const processed = cint(status.processed);
+				frappe.show_progress(
+					title,
+					total ? Math.min(100, Math.round((processed / total) * 100)) : 0,
+					100,
+					status.message || __('{0} of {1}', [processed, total])
+				);
+				if (status.state === 'finished' || status.state === 'failed') {
+					clearInterval(timer);
+					frappe.hide_progress();
+					frappe.msgprint({
+						title: __('Oracle -> ERPNext: Physical Examination'),
+						indicator: status.state === 'failed' ? 'red' : 'green',
+						wide: true,
+						message: frappe.utils
+							.escape_html(status.message || __('Done'))
+							.replace(/\n/g, '<br>'),
+					});
+					if (frm && frm.refresh) {
+						frm.refresh();
+					}
+				} else if (polls >= PHYSICAL_EXAMINATION_RECONCILE_POLL_LIMIT) {
+					clearInterval(timer);
+					frappe.hide_progress();
+					frappe.msgprint(
+						__(
+							'The reconciliation is still running in the background. Open Physical Examination again in a few minutes to see the result.'
+						)
+					);
+				}
+			},
+			error() {
+				clearInterval(timer);
+				frappe.hide_progress();
+			},
+		});
+	}, ORACLE_SYNC_POLL_INTERVAL);
+}
+
+
+/**
+ * Shared UI for create-missing reconciles (Vital Signs-style): ask source →
+ * options → preview → start → poll. Spec keys: title, entity, intro, api_prefix,
+ * poll_limit, suffix_label (optional), erp_count_key (optional).
+ */
+function open_create_missing_reconcile(frm, spec) {
+	ask_oracle_source({
+		title: spec.title,
+		entity: spec.entity,
+		intro: `<p class="text-muted small">${spec.intro}</p>`,
+		on_direct: () => open_create_missing_reconcile_options(frm, spec),
+		on_excel: (files) => open_create_missing_reconcile_options(frm, spec, files),
+	});
+}
+
+function open_create_missing_reconcile_options(frm, spec, files) {
+	const fields = [
+		{
+			fieldtype: 'Data',
+			fieldname: 'patient',
+			label: __('Patient (optional)'),
+		},
+	];
+	if (spec.suffix_label) {
+		fields.push({
+			fieldtype: 'Check',
+			fieldname: 'suffix_conflicts',
+			label: spec.suffix_label,
+			default: 1,
+		});
+	}
+	fields.push({
+		fieldtype: 'Check',
+		fieldname: 'dry_run',
+		label: __('Dry run (report only, create nothing)'),
+		default: 0,
+	});
+	const dialog = new frappe.ui.Dialog({
+		title: spec.title,
+		fields: fields,
+		primary_action_label: __('Preview'),
+		primary_action(values) {
+			dialog.hide();
+			preview_create_missing_reconcile(frm, spec, { ...(values || {}), files: files });
+		},
+	});
+	dialog.show();
+}
+
+function preview_create_missing_reconcile(frm, spec, values) {
+	const files = (values && values.files) || null;
+	frappe.dom.freeze(__('Comparing with Oracle…'));
+	frappe.call({
+		method: `${spec.api_prefix}.preview_${spec.method_suffix}`,
+		args: {
+			patient: (values && values.patient) || '',
+			files: files ? JSON.stringify(files) : '',
+		},
+		callback(r) {
+			frappe.dom.unfreeze();
+			if (!r.message) {
+				return;
+			}
+			show_create_missing_reconcile_dialog(frm, spec, r.message, values || {});
+		},
+		error() {
+			frappe.dom.unfreeze();
+		},
+	});
+}
+
+function create_missing_reconcile_count(data, keys) {
+	for (let i = 0; i < keys.length; i++) {
+		if (data[keys[i]] != null) {
+			return cint(data[keys[i]]);
+		}
+	}
+	return 0;
+}
+
+function create_missing_reconcile_samples_html(samples) {
+	if (!samples || !samples.length) {
+		return '';
+	}
+	const items = samples
+		.map((sample) => {
+			if (typeof sample === 'string') {
+				return `<li>${oracle_sync_escape(sample)}</li>`;
+			}
+			const label =
+				sample.number ||
+				sample.trans_no ||
+				sample.sr_num ||
+				sample.key ||
+				sample.admission ||
+				sample.visit ||
+				'';
+			const bits = [];
+			if (sample.admission && sample.admission !== label) {
+				bits.push(`${__('admission')} ${oracle_sync_escape(sample.admission)}`);
+			}
+			if (sample.patient) {
+				bits.push(`${__('patient')} ${oracle_sync_escape(sample.patient)}`);
+			}
+			if (sample.visit && sample.visit !== label) {
+				bits.push(`${__('visit')} ${oracle_sync_escape(sample.visit)}`);
+			}
+			if (sample.date) {
+				bits.push(oracle_sync_escape(sample.date));
+			}
+			if (sample.filled_lines != null) {
+				bits.push(__('{0} lines', [cint(sample.filled_lines)]));
+			}
+			const detail = sample.text || sample.serv_num || '';
+			return `<li>${oracle_sync_escape(label)}${
+				bits.length ? ` · ${bits.join(' · ')}` : ''
+			}${
+				detail
+					? `<br><span class="text-muted">${oracle_sync_escape(detail)}</span>`
+					: ''
+			}</li>`;
+		})
+		.join('');
+	return `<p class="text-muted small" style="margin-bottom:4px"><b>${__(
+		'Missing (first {0})',
+		[samples.length]
+	)}</b></p><ul class="text-muted small">${items}</ul>`;
+}
+
+function show_create_missing_reconcile_dialog(frm, spec, data, values) {
+	const missing = create_missing_reconcile_count(data, [
+		'missing_total',
+		'missing_discharges',
+		'missing_claims',
+		'missing_admissions',
+	]);
+	const erp = create_missing_reconcile_count(data, [
+		'erpnext_notes',
+		'erpnext_rows',
+		'erpnext_ect',
+		'erpnext_schedules',
+		'erpnext_histories',
+		'erpnext_discharges',
+		'erpnext_claims',
+	]);
+	const matched = create_missing_reconcile_count(data, [
+		'matched_notes',
+		'matched',
+		'matched_ect',
+		'matched_schedules',
+		'matched_histories',
+		'matched_discharges',
+		'matched_claims',
+	]);
+	const oracle_rows = create_missing_reconcile_count(data, [
+		'oracle_rows',
+		'oracle_discharged',
+		'oracle_claims',
+		'oracle_admissions',
+	]);
+	const body = `
+		<table class="table table-sm" style="margin-bottom:8px">
+			<tr><td class="text-muted" style="width:45%">${__('Oracle rows')}</td>
+				<td><b>${format_number(oracle_rows)}</b></td></tr>
+			<tr><td class="text-muted">${__('Already in ERPNext')}</td>
+				<td><b>${format_number(erp)}</b>
+					<span class="text-muted">(${format_number(matched)} ${__('matched')})</span></td></tr>
+			<tr><td class="text-muted">${__('Missing to create')}</td>
+				<td><b class="${missing ? 'text-danger' : 'text-success'}">${format_number(
+					missing
+				)}</b></td></tr>
+		</table>
+		${create_missing_reconcile_samples_html(data.samples)}
+		<p class="text-muted small">${__('Source: {0}', [
+			oracle_sync_escape(data.oracle_table || ''),
+		])}</p>
+	`;
+	const fields = [{ fieldtype: 'HTML', fieldname: 'summary' }];
+	if (spec.suffix_label) {
+		fields.push({
+			fieldtype: 'Check',
+			fieldname: 'suffix_conflicts',
+			label: spec.suffix_label,
+			default: cint(values && values.suffix_conflicts != null ? values.suffix_conflicts : 1),
+		});
+	}
+	fields.push({
+		fieldtype: 'Check',
+		fieldname: 'dry_run',
+		label: __('Dry run (report only, create nothing)'),
+		default: cint(values && values.dry_run),
+	});
+	const dialog = new frappe.ui.Dialog({
+		title: spec.title,
+		size: 'large',
+		fields: fields,
+		primary_action_label: __('Start'),
+		primary_action(dialog_values) {
+			dialog.hide();
+			start_create_missing_reconcile(frm, spec, {
+				patient: (values && values.patient) || '',
+				suffix_conflicts: cint(
+					dialog_values.suffix_conflicts != null ? dialog_values.suffix_conflicts : 1
+				),
+				dry_run: cint(dialog_values.dry_run),
+				files: (values && values.files) || null,
+			});
+		},
+	});
+	dialog.fields_dict.summary.$wrapper.html(body);
+	dialog.show();
+}
+
+function start_create_missing_reconcile(frm, spec, values) {
+	const args = {
+		patient: (values && values.patient) || '',
+		dry_run: cint(values && values.dry_run),
+		files: values && values.files ? JSON.stringify(values.files) : '',
+	};
+	if (spec.suffix_label) {
+		args.suffix_conflicts = cint(
+			values && values.suffix_conflicts != null ? values.suffix_conflicts : 1
+		);
+	}
+	frappe.call({
+		method: `${spec.api_prefix}.start_${spec.method_suffix}`,
+		args: args,
+		callback(r) {
+			const result = r.message || {};
+			if (result.queued || result.running) {
+				track_create_missing_reconcile(frm, spec);
+				return;
+			}
+			frappe.msgprint({
+				title: spec.title,
+				indicator: 'orange',
+				message: result.message || __('The reconciliation could not be started.'),
+			});
+		},
+	});
+}
+
+function track_create_missing_reconcile(frm, spec) {
+	let polls = 0;
+	const title = spec.progress_title || spec.title;
+	frappe.show_progress(title, 0, 100, __('Comparing…'));
+	const timer = setInterval(() => {
+		polls += 1;
+		frappe.call({
+			method: `${spec.api_prefix}.get_${spec.method_suffix}_status`,
+			callback(r) {
+				const status = r.message || {};
+				const total = cint(status.total);
+				const processed = cint(status.processed);
+				frappe.show_progress(
+					title,
+					total ? Math.min(100, Math.round((processed / total) * 100)) : 0,
+					100,
+					status.message || __('{0} of {1}', [processed, total])
+				);
+				if (status.state === 'finished' || status.state === 'failed') {
+					clearInterval(timer);
+					frappe.hide_progress();
+					frappe.msgprint({
+						title: spec.title,
+						indicator: status.state === 'failed' ? 'red' : 'green',
+						wide: true,
+						message: frappe.utils
+							.escape_html(status.message || __('Done'))
+							.replace(/\n/g, '<br>'),
+					});
+					if (frm && frm.refresh) {
+						frm.refresh();
+					}
+				} else if (polls >= (spec.poll_limit || 300)) {
+					clearInterval(timer);
+					frappe.hide_progress();
+					frappe.msgprint(
+						__(
+							'The reconciliation is still running in the background. Open the button again in a few minutes to see the result.'
+						)
+					);
+				}
+			},
+			error() {
+				clearInterval(timer);
+				frappe.hide_progress();
+			},
+		});
+	}, ORACLE_SYNC_POLL_INTERVAL);
+}
+
+function open_ect_details_reconcile(frm) {
+	open_create_missing_reconcile(frm, {
+		title: __('Oracle -> ERPNext: ECT Details'),
+		entity: 'ect_details',
+		intro: __(
+			'Reads ECT_00_01 (and ECT_00_02 attributes) and creates only the ECT Details ERPNext is missing. Same-date / same-measure rows already on the admission are skipped.'
+		),
+		api_prefix: 'healthcare.api.ect_details_reconcile',
+		method_suffix: 'ect_details_reconcile',
+		suffix_label: __('Import rows whose trans number is already used (as <trans>-E)'),
+		poll_limit: ECT_DETAILS_RECONCILE_POLL_LIMIT,
+		progress_title: __('Reconciling ECT Details from Oracle'),
+	});
+}
+
+function open_session_schedule_reconcile(frm) {
+	open_create_missing_reconcile(frm, {
+		title: __('Oracle -> ERPNext: Session Schedule'),
+		entity: 'session_schedule',
+		intro: __(
+			'Reads VISIT_00_05 and creates only the Session Schedule rows ERPNext is missing. Same date + same content on the visit is skipped.'
+		),
+		api_prefix: 'healthcare.api.session_schedule_reconcile',
+		method_suffix: 'session_schedule_reconcile',
+		suffix_label: __('Import rows whose sr number is already used (as <sr>-S)'),
+		poll_limit: SESSION_SCHEDULE_RECONCILE_POLL_LIMIT,
+		progress_title: __('Reconciling session schedules from Oracle'),
+	});
+}
+
+function open_patient_history_reconcile(frm) {
+	open_create_missing_reconcile(frm, {
+		title: __('Oracle -> ERPNext: Patient History'),
+		entity: 'patient_history',
+		intro: __(
+			'Reads IP_ADMISSION_02 and creates Patient History only for admissions that still lack an equivalent history. Existing histories are never edited.'
+		),
+		api_prefix: 'healthcare.api.patient_history_reconcile',
+		method_suffix: 'patient_history_reconcile',
+		poll_limit: PATIENT_HISTORY_RECONCILE_POLL_LIMIT,
+		progress_title: __('Reconciling patient history from Oracle'),
+	});
+}
+
+function open_discharge_reconcile(frm) {
+	open_create_missing_reconcile(frm, {
+		title: __('Oracle -> ERPNext: Discharge'),
+		entity: 'discharge',
+		intro: __(
+			'Reads discharged admissions from IP_ADMISSION_01 and creates Discharge documents ERPNext is still missing. Existing discharges are never overwritten.'
+		),
+		api_prefix: 'healthcare.api.discharge_reconcile',
+		method_suffix: 'discharge_reconcile',
+		poll_limit: DISCHARGE_RECONCILE_POLL_LIMIT,
+		progress_title: __('Reconciling discharges from Oracle'),
+	});
+}
+
+function open_insurance_claim_reconcile(frm) {
+	open_create_missing_reconcile(frm, {
+		title: __('Oracle -> ERPNext: Insurance Claims'),
+		entity: 'insurance_claims',
+		intro: __(
+			'Reads INSURANCE_00_01 (+ INSURANCE_00_02 lines) and creates only the Insurance Claims ERPNext is missing (by TRANS_NUM). Also ensures Insurance Patient Register where needed.'
+		),
+		api_prefix: 'healthcare.api.insurance_claim_reconcile',
+		method_suffix: 'insurance_claim_reconcile',
+		poll_limit: INSURANCE_CLAIM_RECONCILE_POLL_LIMIT,
+		progress_title: __('Reconciling insurance claims from Oracle'),
+	});
 }
 
 

@@ -55,6 +55,31 @@ class TestOracleExcelSourceRegistry(UnitTestCase):
 		self.assertEqual(tables[0]["required"], ["TRANS_NUM", "SUB_DR_GL_CODE"])
 		self.assertEqual(tables[1]["required"], ["TRANS_NUM", "LAB_SUB_NUM"])
 
+	def test_session_schedule_button_points_at_visit_00_05(self):
+		tables = ORACLE_SOURCES["session_schedule"]["tables"]
+
+		self.assertEqual(ORACLE_SOURCES["session_schedule"]["doctype"], "Session Schedule")
+		self.assertEqual([table["table"] for table in tables], ["VISIT_00_05"])
+		self.assertEqual(tables[0]["required"], ["VISIT_NUM", "SR_NUM", "PATIENT_NUM"])
+
+	def test_patient_history_button_points_at_ip_admission_02(self):
+		tables = ORACLE_SOURCES["patient_history"]["tables"]
+
+		self.assertEqual(ORACLE_SOURCES["patient_history"]["doctype"], "Patient History")
+		self.assertEqual([table["table"] for table in tables], ["IP_ADMISSION_02"])
+		self.assertEqual(tables[0]["required"], ["ADMISSION_NUM", "ATTRIB_NUM"])
+
+	def test_discharge_button_points_at_ip_admission_01(self):
+		tables = ORACLE_SOURCES["discharge"]["tables"]
+		self.assertEqual(ORACLE_SOURCES["discharge"]["doctype"], "Discharge")
+		self.assertEqual(tables[0]["table"], "IP_ADMISSION_01")
+		self.assertIn("ADMISION_STATUS", tables[0]["required"])
+
+	def test_insurance_claims_button_points_at_insurance_tables(self):
+		tables = ORACLE_SOURCES["insurance_claims"]["tables"]
+		self.assertEqual(ORACLE_SOURCES["insurance_claims"]["doctype"], "Insurance Claim")
+		self.assertEqual([table["table"] for table in tables], ["INSURANCE_00_01", "INSURANCE_00_02"])
+
 	def test_signatures_use_the_columns_the_queries_filter_on(self):
 		signatures = oracle_table_signatures()
 		self.assertIn("ADMISSION_NUM", signatures["IP_ADMISSION_01"])

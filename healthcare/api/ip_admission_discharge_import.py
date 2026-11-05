@@ -501,6 +501,60 @@ def upsert_admission_discharge_from_row(row: dict) -> dict:
 	return _upsert_admission(row)
 
 
+def create_discharge_if_missing(row: dict) -> str:
+	"""Insert a Discharge when Oracle shows discharged and ERPNext has none.
+
+	Never updates an existing Discharge (draft or submitted).
+	"""
+	case_no = _clean_oracle_num(row.get("case_no"))
+	patient = _clean_oracle_num(row.get("patient"))
+	if not case_no or not patient:
+		return "skip"
+	if not _is_discharged_status(row.get("status")):
+		discharge_dt = _parse_date_value(row.get("discharge_date"))
+		if not discharge_dt:
+			return "skip_not_discharged"
+	if not frappe.db.exists("Patient", patient):
+		return "skip_no_patient"
+	if not frappe.db.exists("Inpatient Admission", case_no):
+		return "skip_no_admission"
+
+	if frappe.db.exists("Discharge", case_no):
+		return "skip_existing"
+	if frappe.db.get_value("Discharge", {"admission": case_no}, "name"):
+		return "skip_existing"
+
+	fields = _build_discharge_fields(row, case_no, patient)
+	if not fields.get("admission") or not fields.get("file_no"):
+		return "skip"
+
+	doc = frappe.new_doc("Discharge")
+	doc.update(fields)
+	doc.flags.ignore_mandatory = True
+	doc.flags.ignore_links = True
+	doc.insert(ignore_permissions=True)
+
+	if doc.docstatus == 0:
+		doc.flags.ignore_mandatory = True
+		doc.flags.from_legacy_import = True
+		try:
+			doc.submit()
+			return "created_submitted"
+		except Exception:
+			frappe.log_error(
+				title=f"Legacy discharge submit failed: {case_no}", message=frappe.get_traceback()
+			)
+			frappe.db.set_value(
+				"Inpatient Admission",
+				case_no,
+				{"status": "Discharged", "discharge_datetime": fields.get("discharge_date")},
+				update_modified=True,
+			)
+			frappe.db.set_value("Patient", patient, "inpatient_status", "Discharged")
+			return "created_draft"
+	return "created"
+
+
 def _collect_missing_patient_details(rows: list[dict], *, sample_limit: int = 20) -> dict:
 	"""Rows whose PATIENT_NUM is not yet a Patient record (name = file_no)."""
 	missing_rows: list[dict] = []
