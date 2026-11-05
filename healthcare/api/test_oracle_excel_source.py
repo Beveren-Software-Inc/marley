@@ -48,6 +48,11 @@ class TestOracleExcelSourceRegistry(UnitTestCase):
 		self.assertEqual([table["table"] for table in tables], ["PATIENT_WARNING_MESSAGES"])
 		self.assertEqual(tables[0]["required"], ["WARNING_MESSAGE_NUM", "PATIENT_NUM"])
 
+	def test_visit_history_button_points_at_visit_00_01_history(self):
+		tables = ORACLE_SOURCES["visit_history"]["tables"]
+		self.assertEqual(ORACLE_SOURCES["visit_history"]["doctype"], "VISIT_00_01_HISTORY")
+		self.assertEqual([table["table"] for table in tables], ["VISIT_00_01_HISTORY"])
+
 	def test_patients_button_points_at_patient_info_01(self):
 		tables = ORACLE_SOURCES["patients"]["tables"]
 		self.assertEqual(ORACLE_SOURCES["patients"]["doctype"], "Patient")

@@ -92,6 +92,17 @@ ORACLE_SOURCES: dict[str, dict[str, Any]] = {
 			}
 		],
 	},
+	"visit_history": {
+		"label": "Visit History",
+		"doctype": "VISIT_00_01_HISTORY",
+		"tables": [
+			{
+				"table": "VISIT_00_01_HISTORY",
+				"label": "OP diagnosis history",
+				"required": ["VISIT_NUM", "VISIT_PATIENT_NUM"],
+			},
+		],
+	},
 	"clinical_notes": {
 		"label": "Clinical Notes",
 		"doctype": "Clinical Note",
