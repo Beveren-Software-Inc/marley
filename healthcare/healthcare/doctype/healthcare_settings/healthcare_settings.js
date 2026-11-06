@@ -202,6 +202,15 @@ frappe.ui.form.on('Healthcare Settings', {
 			__('Oracle -> ERPNext')
 		);
 
+		// One folder of patient images. The file name starts with the file number.
+		// SIGN is a signature, CPR FRONT / CPR BACK are the CPR photos. A photo
+		// already on the patient is left as it is.
+		frm.add_custom_button(
+			__('CPR and Signatures'),
+			() => open_patient_image_reconcile(),
+			__('Oracle -> ERPNext')
+		);
+
 		// ECT Details: ECT_00_01 (+ ECT_00_02 attributes) → ECT Details.
 		frm.add_custom_button(
 			__('ECT Details'),
@@ -5201,6 +5210,197 @@ function show_legacy_sales_detail_analysis(res) {
 		wide: true,
 		indicator: (res.lines_not_imported || res.parent_missing_lines || res.item_unresolved) ? 'orange' : 'green',
 	});
+}
+
+function open_patient_image_reconcile() {
+	const dialog = new frappe.ui.Dialog({
+		title: __('CPR and Signatures'),
+		size: 'large',
+		fields: [
+			{
+				fieldtype: 'HTML',
+				fieldname: 'help',
+				options:
+					'<p class="text-muted small">'
+					+ __('Select the folder that now holds every patient image. The file name starts with the patient file number. SIGN is the signature, CPR FRONT is the front photo, and CPR BACK is the back photo. jpg, png and tiff are treated the same. If that image is already on the patient, the file is skipped and nothing is replaced.')
+					+ '</p>',
+			},
+			{
+				fieldtype: 'HTML',
+				fieldname: 'preview_html',
+				options: '<p class="text-muted">' + __('No folder selected yet.') + '</p>',
+			},
+			{
+				fieldtype: 'HTML',
+				fieldname: 'progress_html',
+				options: '',
+			},
+		],
+		primary_action_label: __('Attach missing images'),
+		primary_action() {
+			const items = dialog._image_upload_items || [];
+			if (!items.length) {
+				frappe.msgprint({
+					title: __('Nothing to attach'),
+					message: __('Every CPR photo and signature in this folder is already on the patient, or the folder has not been read yet.'),
+					indicator: 'orange',
+				});
+				return;
+			}
+			frappe.call({
+				method: 'healthcare.api.patient_image_reconcile.start_patient_image_reconcile',
+				args: { items },
+				freeze: true,
+				freeze_message: __('Starting…'),
+				callback(r) {
+					if (r.message && r.message.queued) {
+						poll_patient_image_reconcile(dialog);
+					} else if (r.message && r.message.message) {
+						frappe.msgprint(r.message.message);
+					}
+				},
+			});
+		},
+	});
+
+	dialog.$wrapper.find('.modal-footer').prepend(
+		$('<button type="button" class="btn btn-default btn-sm mr-2">')
+			.text(__('Select Folder'))
+			.on('click', () => pick_patient_image_folder(dialog))
+	);
+	dialog.show();
+	dialog.get_primary_btn().prop('disabled', true);
+}
+
+function pick_patient_image_folder(dialog) {
+	const input = document.createElement('input');
+	input.type = 'file';
+	input.multiple = true;
+	input.accept = 'image/*,.tif,.tiff,.tff';
+	input.setAttribute('webkitdirectory', '');
+	input.setAttribute('directory', '');
+	input.onchange = () => {
+		const files = Array.from(input.files || []);
+		if (!files.length) {
+			return;
+		}
+		preview_patient_image_folder(dialog, files);
+	};
+	input.click();
+}
+
+function patient_image_basename(file) {
+	return (file.webkitRelativePath || file.name || '').replace(/\\/g, '/').split('/').pop();
+}
+
+function preview_patient_image_folder(dialog, files) {
+	const filenames = files.map(patient_image_basename);
+	dialog._image_upload_items = [];
+	dialog.get_primary_btn().prop('disabled', true);
+	dialog.fields_dict.preview_html.$wrapper.html(
+		'<p class="text-muted">' + __('Comparing the folder with patient images…') + '</p>'
+	);
+	dialog.fields_dict.progress_html.$wrapper.html('');
+	frappe.call({
+		method: 'healthcare.api.patient_image_reconcile.preview_patient_image_filenames',
+		args: { filenames },
+		freeze: true,
+		freeze_message: __('Comparing images…'),
+		callback(r) {
+			const counts = r.message || {};
+			const folder = counts.folder || {};
+			const already = counts.already || {};
+			const missing = counts.missing || {};
+			const row = (label, key) =>
+				'<tr><td>' + label + '</td><td>' + (folder[key] || 0)
+				+ '</td><td>' + (already[key] || 0)
+				+ '</td><td><b>' + (missing[key] || 0) + '</b></td></tr>';
+			dialog.fields_dict.preview_html.$wrapper.html(
+				'<table class="table table-bordered small"><thead><tr><th></th><th>'
+				+ __('In folder') + '</th><th>' + __('Already on patient') + '</th><th>'
+				+ __('Missing') + '</th></tr></thead><tbody>'
+				+ row(__('CPR front'), 'cpr_front')
+				+ row(__('CPR back'), 'cpr_back')
+				+ row(__('Signature'), 'signature')
+				+ '</tbody></table>'
+				+ '<p class="text-muted small">'
+				+ __('Other files ignored: {0}. Repeated files for the same image: {1}. Patients not found: {2}.', [
+					counts.ignored || 0,
+					counts.duplicate_files || 0,
+					counts.patients_missing || 0,
+				])
+				+ '</p>'
+			);
+			const wanted = new Set(counts.upload_filenames || []);
+			const pending = files.filter((file) => wanted.has(patient_image_basename(file)));
+			if (!pending.length) {
+				dialog.fields_dict.progress_html.$wrapper.html(
+					'<p class="text-muted small">' + __('Nothing new to attach.') + '</p>'
+				);
+				return;
+			}
+			upload_missing_patient_images(dialog, pending);
+		},
+	});
+}
+
+function upload_missing_patient_images(dialog, files) {
+	const items = [];
+	let index = 0;
+	const step = () => {
+		dialog.fields_dict.progress_html.$wrapper.html(
+			'<p class="small text-muted">'
+			+ __('Uploading {0} of {1} missing images…', [index, files.length])
+			+ '</p>'
+		);
+		if (index >= files.length) {
+			dialog._image_upload_items = items;
+			dialog.get_primary_btn().prop('disabled', !items.length);
+			dialog.fields_dict.progress_html.$wrapper.html(
+				'<p class="text-success small">'
+				+ __('{0} missing image(s) are ready. Attach them to the patients who do not have them yet.', [items.length])
+				+ '</p>'
+			);
+			return;
+		}
+		const file = files[index];
+		const filename = patient_image_basename(file);
+		upload_patient_cpr_file(file)
+			.then((file_url) => {
+				items.push({ file_url, filename });
+			})
+			.catch(() => {
+				frappe.show_alert({
+					message: __('Failed to upload {0}', [filename]),
+					indicator: 'red',
+				}, 5);
+			})
+			.finally(() => {
+				index += 1;
+				step();
+			});
+	};
+	step();
+}
+
+function poll_patient_image_reconcile(dialog) {
+	const poll = () => {
+		frappe.call({
+			method: 'healthcare.api.patient_image_reconcile.get_patient_image_reconcile_status',
+			callback(r) {
+				const status = r.message || {};
+				dialog.fields_dict.progress_html.$wrapper.html(
+					'<p class="small">' + frappe.utils.escape_html(status.message || status.state || '') + '</p>'
+				);
+				if (status.state === 'finished' || status.state === 'failed') {
+					dialog.get_primary_btn().prop('disabled', true);
+					return;
+				}
+				setTimeout(poll, 2000);
+			},
+		});
+	};
+	poll();
 }
 
 function open_patient_cpr_folder_upload() {
@@ -12058,7 +12258,7 @@ function open_appointment_reconcile(frm) {
 		title: __('Oracle -> ERPNext: Appointments'),
 		entity: 'appointments',
 		intro: __(
-			'Reads APPOINTMENTS_INFO_01 and creates only the Patient Appointments ERPNext is missing (by APP_NUM). Appointments already stored are left as they are.'
+			'Reads APPOINTMENTS_INFO_01. A Patient Appointment matches on the patient, the doctor, and the date. The time must also match when both sides have one. APP_NUM is not the match, because that number may already belong to a different appointment. Only missing appointments are created, and an existing appointment is left as it is.'
 		),
 		api_prefix: 'healthcare.api.care_record_reconcile',
 		method_suffix: 'appointment_reconcile',

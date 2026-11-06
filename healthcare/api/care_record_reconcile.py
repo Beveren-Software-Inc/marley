@@ -4,7 +4,9 @@
 * ``IP_PATIENT_ASSESSMENT`` -> one ``Patient Assessment`` per admission
 * ``IP_ADMISSION_MEDICINE_SHEET`` and ``IP_ADMISSION_MEDICINE_SHEET_23``,
   where ``GIVEN_YN`` is Y -> ``Medicine Given``
-* ``APPOINTMENTS_INFO_01.APP_NUM`` -> ``Patient Appointment`` (document name)
+* ``APPOINTMENTS_INFO_01`` -> ``Patient Appointment``, matched by patient,
+  doctor, and date (and time when both sides have one). ``APP_NUM`` is not
+  the match, because that number may already belong to another appointment.
 
 Existing documents are not rewritten. A repeated Patient Assessment for the
 same admission, or a repeated Medicine Given for the same sheet number, is
@@ -36,7 +38,10 @@ from healthcare.api.oracle_excel_source import (
 )
 from healthcare.api.oracle_sync import _fetch_rows, _in_clause, _query, _sort_key
 from healthcare.api.patient_appointment_info_import import EXCEL_HEADER_MAP as APPOINTMENT_HEADER_MAP
-from healthcare.api.patient_appointment_info_import import upsert_patient_appointment_from_row
+from healthcare.api.patient_appointment_info_import import (
+	_build_appointment_fields,
+	_resolve_appointment_time,
+)
 from healthcare.api.patient_info_import import _cell_text, _clean_oracle_num, _require_admin
 from healthcare.api.visit_diagnosis_sync import _resolve_inpatient_admission
 
@@ -218,8 +223,6 @@ def _keyed_scan(table: str, key_column: str, link_columns: list[str], doctype: s
 		key = _clean_oracle_num(row.get(key_column))
 		if not key or key in oracle:
 			continue
-		if key_column == "APP_NUM" and not _cell_text(row.get("APP_DATE")):
-			continue
 		links = []
 		for column in link_columns:
 			value = _clean_oracle_num(row.get(column))
@@ -244,14 +247,234 @@ def _scan_morse() -> dict:
 	)
 
 
-def _scan_appointments() -> dict:
-	return _keyed_scan(
-		"APPOINTMENTS_INFO_01",
-		"APP_NUM",
-		["PATIENT_NUM"],
-		"Patient Appointment",
-		"APP_NUM is not null",
+APPOINTMENT_COLUMNS = (
+	"APP_NUM",
+	"PATIENT_NUM",
+	"PATIENT_NAME",
+	"DOC_CODE",
+	"APP_DATE",
+	"APP_TIME",
+	"HH_TIME",
+	"MI_TIME",
+	"AMPM_TIME",
+)
+
+
+def appointment_day(value: Any) -> str:
+	"""Calendar day as ``YYYY-MM-DD``. A blank or unreadable date is ``""``."""
+	if hasattr(value, "strftime"):
+		return value.strftime("%Y-%m-%d")
+	text = _cell_text(value)
+	if len(text) >= 10 and text[4:5] == "-" and text[7:8] == "-":
+		return text[:10]
+	if not text:
+		return ""
+	try:
+		return getdate(text).strftime("%Y-%m-%d")
+	except Exception:
+		return ""
+
+
+def appointment_clock(value: Any) -> str:
+	"""Clock time as ``HH:MM:SS``. A blank time stays blank."""
+	from datetime import timedelta
+
+	if isinstance(value, timedelta):
+		total = int(value.total_seconds()) % 86400
+		hours, remainder = divmod(total, 3600)
+		minutes, seconds = divmod(remainder, 60)
+		return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+	return _resolve_appointment_time({"app_time": value}) or ""
+
+
+def _appointment_token(value: Any) -> str:
+	return _clean_oracle_num(value).casefold()
+
+
+def _appointment_parties(patient: Any, temporary_name: Any, patient_name: Any, *doctors: Any) -> tuple[list[str], list[str]]:
+	"""Patient tokens and doctor tokens used to recognise one appointment."""
+	patients: list[str] = []
+	if _appointment_token(patient):
+		patients.append(_appointment_token(patient))
+	else:
+		for value in (temporary_name, patient_name):
+			token = _appointment_token(value)
+			if token and token not in patients:
+				patients.append(token)
+	doctor_tokens: list[str] = []
+	for value in doctors:
+		token = _appointment_token(value)
+		if token and token not in doctor_tokens:
+			doctor_tokens.append(token)
+	return patients, doctor_tokens
+
+
+def match_appointments(oracle_rows: list[dict], erp_rows: list[dict]) -> list[list]:
+	"""Pair each dated Oracle appointment to one ERPNext appointment.
+
+	A pair is the same patient, the same doctor, and the same date. When both
+	sides have a time, the time must be the same too. ``APP_NUM`` and the
+	document name are not compared. Each ERPNext appointment is used once.
+	Rows with no date are left out.
+	"""
+	unused: dict[str, dict] = {}
+	by_exact: dict[tuple, list[str]] = {}
+	by_day: dict[tuple, list[str]] = {}
+	for erp in erp_rows:
+		name = str(erp.get("name") or "")
+		day = erp.get("day") or ""
+		if not name or not day or name in unused:
+			continue
+		patients = list(erp.get("patients") or [])
+		doctors = list(erp.get("doctors") or [])
+		if not patients or not doctors:
+			continue
+		unused[name] = erp
+		clock = erp.get("time") or ""
+		for patient in patients:
+			for doctor in doctors:
+				by_day.setdefault((patient, doctor, day), []).append(name)
+				if clock:
+					by_exact.setdefault((patient, doctor, day, clock), []).append(name)
+
+	def take(names: list[str]) -> bool:
+		for name in names:
+			if name in unused:
+				unused.pop(name)
+				return True
+		return False
+
+	matched: set[str] = set()
+	pending: list[dict] = []
+	ordered = sorted(oracle_rows, key=lambda row: _sort_key(str(row.get("app_num") or "")))
+	for row in ordered:
+		app_num = str(row.get("app_num") or "")
+		day = row.get("day") or ""
+		if not app_num or not day:
+			continue
+		patient = row.get("patient") or ""
+		doctor = row.get("doctor") or ""
+		clock = row.get("time") or ""
+		if patient and doctor and clock and take(by_exact.get((patient, doctor, day, clock), [])):
+			matched.add(app_num)
+		else:
+			pending.append(row)
+
+	for row in pending:
+		patient = row.get("patient") or ""
+		doctor = row.get("doctor") or ""
+		day = row.get("day") or ""
+		clock = row.get("time") or ""
+		if not patient or not doctor:
+			continue
+		for name in by_day.get((patient, doctor, day), []):
+			erp = unused.get(name)
+			if not erp:
+				continue
+			erp_clock = erp.get("time") or ""
+			if clock and erp_clock and clock != erp_clock:
+				continue
+			unused.pop(name)
+			matched.add(str(row.get("app_num") or ""))
+			break
+
+	entries = []
+	for row in ordered:
+		app_num = str(row.get("app_num") or "")
+		if not app_num or not row.get("day"):
+			continue
+		link = row.get("link") or row.get("patient") or ""
+		entries.append([app_num, [link] if link else [], app_num in matched])
+	return entries
+
+
+def _oracle_appointment_rows() -> list[dict]:
+	rows = _query(
+		"select "
+		+ ", ".join(APPOINTMENT_COLUMNS)
+		+ f" from {oracle_schema()}.APPOINTMENTS_INFO_01 where APP_NUM is not null"
 	)
+	prepared: list[dict] = []
+	seen: set[str] = set()
+	for raw in rows or []:
+		mapped = _map_row(raw, APPOINTMENT_HEADER_MAP)
+		app_num = _clean_oracle_num(mapped.get("app_num"))
+		day = appointment_day(mapped.get("app_date"))
+		if not app_num or not day or app_num in seen:
+			continue
+		seen.add(app_num)
+		patients, doctors = _appointment_parties(
+			mapped.get("patient_num"),
+			mapped.get("patient_name"),
+			"",
+			mapped.get("doc_code"),
+		)
+		prepared.append(
+			{
+				"app_num": app_num,
+				"patient": patients[0] if patients else "",
+				"doctor": doctors[0] if doctors else "",
+				"day": day,
+				"time": _resolve_appointment_time(mapped) or "",
+				"link": _clean_oracle_num(mapped.get("patient_num")) or _cell_text(mapped.get("patient_name")),
+			}
+		)
+	return prepared
+
+
+def _erp_appointment_rows() -> tuple[list[dict], int]:
+	prepared: list[dict] = []
+	total = 0
+	after = ""
+	while True:
+		stored = frappe.db.sql(
+			"""
+			select pa.name,
+				ifnull(pa.patient, ''),
+				ifnull(pa.temporary_patient_name, ''),
+				ifnull(pa.patient_name, ''),
+				ifnull(pa.doc_code, ''),
+				ifnull(pa.practitioner, ''),
+				ifnull(hp.doctors_id, ''),
+				pa.appointment_date,
+				pa.appointment_time
+			from `tabPatient Appointment` pa
+			left join `tabHealthcare Practitioner` hp on hp.name = pa.practitioner
+			where pa.name > %s
+			order by pa.name asc
+			limit %s
+			""",
+			(after, ERP_PAGE),
+		)
+		if not stored:
+			break
+		for name, patient, temporary_name, patient_name, doc_code, practitioner, doctors_id, day, clock in stored:
+			after = name
+			total += 1
+			patients, doctors = _appointment_parties(
+				patient, temporary_name, patient_name, doc_code, doctors_id, practitioner
+			)
+			prepared.append(
+				{
+					"name": name,
+					"patients": patients,
+					"doctors": doctors,
+					"day": appointment_day(day),
+					"time": appointment_clock(clock),
+				}
+			)
+		if len(stored) < ERP_PAGE:
+			break
+	return prepared, total
+
+
+def _scan_appointments() -> dict:
+	erp_rows, erp_count = _erp_appointment_rows()
+	return {
+		"entries": match_appointments(_oracle_appointment_rows(), erp_rows),
+		"erpnext_rows": erp_count,
+		"duplicate_rows": [],
+	}
 
 
 def _admission_lookup() -> dict[str, str]:
@@ -423,16 +646,97 @@ def _create_morse(raw: dict) -> str:
 	return "created" if result.get("status") == "created" else "skipped"
 
 
+def _free_appointment_name(app_num: str) -> str:
+	"""A document name for this APP_NUM. A taken number gets a suffix."""
+	if not frappe.db.exists("Patient Appointment", app_num):
+		return app_num
+	suffix = 2
+	while suffix < 100 and frappe.db.exists("Patient Appointment", f"{app_num}-{suffix}"):
+		suffix += 1
+	return f"{app_num}-{suffix}"
+
+
+def _appointment_already_stored(row: dict) -> bool:
+	"""True when this patient, doctor, and date (and time) are already stored."""
+	day = appointment_day(row.get("app_date"))
+	patients, doctors = _appointment_parties(
+		row.get("patient_num"),
+		row.get("patient_name"),
+		"",
+		row.get("doc_code"),
+	)
+	if not day or not patients or not doctors:
+		return False
+	patient_num = _clean_oracle_num(row.get("patient_num"))
+	patient_name = _cell_text(row.get("patient_name"))
+	params: list[Any] = [day]
+	if patient_num:
+		who = "pa.patient = %s"
+		params.append(patient_num)
+	else:
+		who = "(ifnull(pa.patient, '') = '' and (pa.temporary_patient_name = %s or pa.patient_name = %s))"
+		params.extend([patient_name, patient_name])
+	stored = frappe.db.sql(
+		f"""
+		select pa.name,
+			ifnull(pa.patient, ''),
+			ifnull(pa.temporary_patient_name, ''),
+			ifnull(pa.patient_name, ''),
+			ifnull(pa.doc_code, ''),
+			ifnull(pa.practitioner, ''),
+			ifnull(hp.doctors_id, ''),
+			pa.appointment_date,
+			pa.appointment_time
+		from `tabPatient Appointment` pa
+		left join `tabHealthcare Practitioner` hp on hp.name = pa.practitioner
+		where pa.appointment_date = %s and {who}
+		""",
+		tuple(params),
+	)
+	erp_rows = []
+	for name, patient, temporary_name, stored_name, doc_code, practitioner, doctors_id, stored_day, clock in stored:
+		parties = _appointment_parties(
+			patient, temporary_name, stored_name, doc_code, doctors_id, practitioner
+		)
+		erp_rows.append(
+			{
+				"name": name,
+				"patients": parties[0],
+				"doctors": parties[1],
+				"day": appointment_day(stored_day),
+				"time": appointment_clock(clock),
+			}
+		)
+	oracle = {
+		"app_num": _clean_oracle_num(row.get("app_num")) or "1",
+		"patient": patients[0],
+		"doctor": doctors[0],
+		"day": day,
+		"time": _resolve_appointment_time(row) or "",
+	}
+	return bool(match_appointments([oracle], erp_rows)[0][2]) if erp_rows else False
+
+
 def _create_appointment(raw: dict) -> str:
 	row = _map_row(raw, APPOINTMENT_HEADER_MAP)
 	app_num = _clean_oracle_num(row.get("app_num"))
-	if not app_num:
+	if not app_num or not appointment_day(row.get("app_date")):
 		return "skipped"
 	row["app_num"] = app_num
-	if frappe.db.exists("Patient Appointment", app_num):
+	if _appointment_already_stored(row):
 		return "exists"
-	result = upsert_patient_appointment_from_row(row) or {}
-	return "created" if result.get("status") == "created" else "skipped"
+	fields, _stats = _build_appointment_fields(row)
+	if not fields.get("appointment_date"):
+		return "skipped"
+	fields["trans_no"] = _free_appointment_name(app_num)
+	doc = frappe.new_doc("Patient Appointment")
+	doc.update(fields)
+	doc.flags.ignore_validate = True
+	doc.flags.ignore_mandatory = True
+	doc.flags.ignore_links = True
+	doc.flags.legacy_import = True
+	doc.insert(ignore_permissions=True)
+	return "created"
 
 
 def _create_assessment(raw: dict) -> str:
