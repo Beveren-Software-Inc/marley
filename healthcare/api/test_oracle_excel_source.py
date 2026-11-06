@@ -163,6 +163,19 @@ class TestOracleExcelSheetMatching(UnitTestCase):
 			"IP_ADMISSION_01",
 		)
 
+	def test_patient_export_named_patient_with_patient_num(self):
+		# SQL Developer export: sheet "Patient", file number in PATIENT_NUM,
+		# plus a second "SQL" sheet so the file is not a single unnamed sheet.
+		columns = ["PATIENT_NUM", "FULL_NAME", "ID_TYPE", "IS_INSURANCE"]
+		self.assertEqual(
+			_match_table("PATIENT_INFO_01", "Patient", columns, alone=False),
+			"PATIENT_INFO_01",
+		)
+		self.assertEqual(
+			_match_table("", "Sheet1", ["C", "FULL_NAME"], alone=False),
+			"PATIENT_INFO_01",
+		)
+
 
 class TestOracleExcelCellValues(UnitTestCase):
 	"""Excel cells have to read like the SQL*Plus CSV the modules expect."""

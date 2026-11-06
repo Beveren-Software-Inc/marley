@@ -202,8 +202,10 @@ ORACLE_SOURCES: dict[str, dict[str, Any]] = {
 			{
 				"table": "PATIENT_INFO_01",
 				"label": "Patient master",
-				# Live Oracle uses C for the file number (not FILE_NO).
-				"required": ["C", "FULL_NAME"],
+				# Live Oracle uses C for the file number. SQL Developer exports
+				# often name that column PATIENT_NUM instead. Either is accepted
+				# by _signature_matches; FULL_NAME is what the dialog shows.
+				"required": ["FULL_NAME"],
 			},
 		],
 	},
@@ -320,6 +322,13 @@ ORACLE_SOURCES: dict[str, dict[str, Any]] = {
 }
 
 
+# PATIENT_INFO_01 file number: live CLINIC2 calls it C. Workbook exports from
+# SQL Developer often call it PATIENT_NUM (or FILE_NO). FULL_NAME / IS_INSURANCE
+# tell that sheet apart from other tables that also have a patient number.
+PATIENT_INFO_FILE_NO_COLUMNS = {"C", "FILE_NO", "PATIENT_NUM", "PATIENT_FILE_NO"}
+PATIENT_INFO_MARKERS = {"FULL_NAME", "IS_INSURANCE"}
+
+
 def oracle_table_signatures() -> dict[str, set[str]]:
 	"""Table name -> the columns that identify its export."""
 	signatures: dict[str, set[str]] = {}
@@ -327,6 +336,13 @@ def oracle_table_signatures() -> dict[str, set[str]]:
 		for table in source["tables"]:
 			signatures[table["table"]] = set(table["required"])
 	return signatures
+
+
+def _signature_matches(table: str, required: set[str], present: set[str]) -> bool:
+	"""True when this sheet's headers are enough to recognise ``table``."""
+	if table == "PATIENT_INFO_01":
+		return bool(PATIENT_INFO_FILE_NO_COLUMNS & present) and bool(PATIENT_INFO_MARKERS & present)
+	return required <= present
 
 
 def known_oracle_tables() -> set[str]:
@@ -505,7 +521,11 @@ def _match_table(
 
 	# The sheet is not named after its table — recognise it by required columns.
 	present = set(columns)
-	matches = [table for table, required in oracle_table_signatures().items() if required <= present]
+	matches = [
+		table
+		for table, required in oracle_table_signatures().items()
+		if _signature_matches(table, required, present)
+	]
 	if len(matches) == 1:
 		return matches[0]
 	longest = max((len(oracle_table_signatures()[table]) for table in matches), default=0)
@@ -634,10 +654,19 @@ class ExcelOracleSource:
 		signatures = oracle_table_signatures()
 		problems: list[str] = []
 		for table, sheet in self._data.items():
+			columns = set(sheet["columns"])
+			if table == "PATIENT_INFO_01":
+				if not (PATIENT_INFO_FILE_NO_COLUMNS & columns):
+					problems.append(
+						f"{table}: one of {', '.join(sorted(PATIENT_INFO_FILE_NO_COLUMNS))}"
+					)
+				if not (PATIENT_INFO_MARKERS & columns):
+					problems.append(f"{table}: FULL_NAME or IS_INSURANCE")
+				continue
 			required = signatures.get(table)
 			if not required:
 				continue
-			missing = sorted(required - set(sheet["columns"]))
+			missing = sorted(required - columns)
 			if missing:
 				problems.append(f"{table}: {', '.join(missing)}")
 

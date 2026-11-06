@@ -12223,12 +12223,18 @@ function oracle_sync_summary_html(data) {
 	const rows = [
 		[__('Oracle table'), data.oracle_table],
 		[__('ERPNext doctype'), data.doctype],
-		[__('Match key'), `${data.oracle_key} ↔ ${data.frappe_key}`],
+		[__('Match key'), data.match_note || `${data.oracle_key} ↔ ${data.frappe_key}`],
 		[__('Rows in Oracle'), data.source_count],
 		[__('Rows in ERPNext'), data.target_count],
 		[__('Missing in ERPNext'), data.missing_count],
-		[__('Only in ERPNext (left untouched)'), data.extra_count],
 	];
+	if (data.matched_by_identity != null) {
+		rows.push([
+			__('Same visit, different case no (patient, date and visit type)'),
+			data.matched_by_identity,
+		]);
+	}
+	rows.push([__('Only in ERPNext (left untouched)'), data.extra_count]);
 
 	const body = rows
 		.map(
@@ -12463,16 +12469,17 @@ function track_oracle_ip_admission_import(frm, total) {
 /**
  * OP Visit: Oracle VISIT_00_01 -> Patient Visit.
  *
- * Compares VISIT_NUM with Patient Visit.case_no. Only visits that exist in
- * Oracle and are missing in ERPNext are created. Visits that exist only in
- * ERPNext are left alone (staff-created / newer data).
+ * Compares VISIT_NUM with Patient Visit.case_no. When the visit number differs,
+ * the same patient, encounter date and visit type still count as the same visit.
+ * Only visits that exist in Oracle and are missing in ERPNext are created.
+ * Visits that exist only in ERPNext are left alone (staff-created / newer data).
  */
 function open_oracle_op_visit(frm) {
 	ask_oracle_source({
 		title: __('Oracle -> ERPNext: OP Visit'),
 		entity: 'op_visit',
 		intro: `<p class="text-muted small">${__(
-			'Compares Oracle VISIT_00_01 with Patient Visit and creates only the visits that exist in Oracle and are missing in ERPNext. Visits that exist only in ERPNext are left untouched; patients that do not exist yet are created as minimal Patient records.'
+			'Compares Oracle VISIT_00_01 with Patient Visit and creates only the visits that exist in Oracle and are missing in ERPNext. A different visit number still counts as the same visit when the patient, date and visit type match — visits opened in ERPNext after the 2 July import often have a new case number. Visits that exist only in ERPNext are left untouched; patients that do not exist yet are created as minimal Patient records.'
 		)}</p>`,
 		on_direct: () => run_oracle_op_visit_comparison(frm),
 		on_excel: (files) => run_oracle_op_visit_comparison(frm, files),
@@ -12563,7 +12570,7 @@ function show_oracle_op_visit_report(frm, data, files) {
 				options:
 					'<p class="text-muted small">'
 					+ __(
-						'Compares Oracle VISIT_00_01 with Patient Visit. Only visits that exist in Oracle and are missing in ERPNext will be created. Visits that exist only in ERPNext are left untouched.'
+						'Compares Oracle VISIT_00_01 with Patient Visit. Only visits that exist in Oracle and are missing in ERPNext will be created. A visit already in ERPNext for the same patient, date and visit type is not imported again, even when the case number differs. Visits that exist only in ERPNext are left untouched.'
 					)
 					+ '</p>',
 			},
