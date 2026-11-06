@@ -11794,6 +11794,20 @@ function show_create_missing_reconcile_dialog(frm, spec, data, values) {
 				<td><b class="${missing ? 'text-danger' : 'text-success'}">${format_number(
 					missing
 				)}</b></td></tr>
+			${
+				data.matched_by_id != null
+					? `<tr><td class="text-muted">${__(
+							'Same or similar CPR / id, different file no'
+					  )}</td><td><b>${format_number(cint(data.matched_by_id))}</b></td></tr>`
+					: ''
+			}
+			${
+				data.matched_by_name_phone != null
+					? `<tr><td class="text-muted">${__(
+							'Same name and phone, different file no'
+					  )}</td><td><b>${format_number(cint(data.matched_by_name_phone))}</b></td></tr>`
+					: ''
+			}
 		</table>
 		${create_missing_reconcile_samples_html(data.samples)}
 		<p class="text-muted small">${__('Source: {0}', [
@@ -12020,7 +12034,7 @@ function open_patient_reconcile(frm) {
 		title: __('Oracle -> ERPNext: Patients'),
 		entity: 'patients',
 		intro: __(
-			'Reads PATIENT_INFO_01 and creates missing Patients by file number. When a file number is already taken in ERPNext, name and id number are checked first — matching patients are updated; conflicting identity pairs are left alone and reported.'
+			'Reads PATIENT_INFO_01 and creates missing Patients by file number. A patient already saved under another file number is not created again when the name and phone match, or when the CPR / id number is the same or one digit off. The stored CPR is not overwritten when the numbers are not exactly the same.'
 		),
 		api_prefix: 'healthcare.api.patient_reconcile',
 		method_suffix: 'patient_reconcile',
