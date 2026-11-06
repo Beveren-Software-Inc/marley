@@ -170,6 +170,15 @@ frappe.ui.form.on('Healthcare Settings', {
 			__('Oracle -> ERPNext')
 		);
 
+		// Medical Diagnosis Entry: VISIT_DIAGNOSES_01 (OP) and
+		// IP_ADMISSION_DIAGNOSES (IP). Removes repeated trans numbers and
+		// creates only the rows ERPNext is missing.
+		frm.add_custom_button(
+			__('Medical Diagnosis Entry'),
+			() => open_medical_diagnosis_reconcile(frm),
+			__('Oracle -> ERPNext')
+		);
+
 		// ECT Details: ECT_00_01 (+ ECT_00_02 attributes) → ECT Details.
 		frm.add_custom_button(
 			__('ECT Details'),
@@ -11825,6 +11834,12 @@ function show_create_missing_reconcile_dialog(frm, spec, data, values) {
 					missing
 				)}</b></td></tr>
 			${
+				data.duplicates != null
+					? `<tr><td class="text-muted">${__('Duplicates to remove')}</td>
+				<td><b>${format_number(cint(data.duplicates))}</b></td></tr>`
+					: ''
+			}
+			${
 				data.matched_by_id != null
 					? `<tr><td class="text-muted">${__(
 							'Same or similar CPR / id, different file no'
@@ -11970,6 +11985,20 @@ function open_allergy_reconcile(frm) {
 		method_suffix: 'allergy_reconcile',
 		poll_limit: ALLERGY_RECONCILE_POLL_LIMIT,
 		progress_title: __('Reconciling allergies from visits and Oracle'),
+	});
+}
+
+function open_medical_diagnosis_reconcile(frm) {
+	open_create_missing_reconcile(frm, {
+		title: __('Oracle -> ERPNext: Medical Diagnosis Entry'),
+		entity: 'medical_diagnosis',
+		intro: __(
+			'Reads VISIT_DIAGNOSES_01 (outpatient) and IP_ADMISSION_DIAGNOSES (inpatient). Repeated Medical Diagnosis Entry rows with the same legacy number are removed, and only Oracle rows ERPNext does not already have are created.'
+		),
+		api_prefix: 'healthcare.api.medical_diagnosis_reconcile',
+		method_suffix: 'medical_diagnosis_reconcile',
+		poll_limit: 300,
+		progress_title: __('Reconciling medical diagnosis entries from Oracle'),
 	});
 }
 

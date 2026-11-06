@@ -300,9 +300,14 @@ def _record_errors(progress: dict, errors: Iterable[str]) -> None:
 
 
 def _non_empty_filter(table: str, column: str) -> str:
-	"""``trim(col) is not null``, counted the way the Oracle dev counts it.
+	"""Keep a row only when the note text has a non-space character.
 
-	TRIM() only accepts VARCHAR2, so a CLOB column is measured by length.
+	This is the Oracle developer's rule, ``trim(col) is not null``: a null note
+	and a note that is only spaces are both skipped. The Excel upload is queried
+	through SQLite, where a blank cell is ``''`` and ``trim('') is not null`` is
+	true, so the check is written as ``length(trim(col)) > 0``. That rejects
+	null, blank, and whitespace-only text in both engines. TRIM() does not
+	accept a CLOB, so a CLOB column is measured by length.
 	"""
 	column = column.upper()
 	column_type = ""
@@ -312,7 +317,7 @@ def _non_empty_filter(table: str, column: str) -> str:
 			break
 	if column_type in ("CLOB", "NCLOB"):
 		return f"dbms_lob.getlength({column}) > 0"
-	return f"trim({column}) is not null"
+	return f"length(trim({column})) > 0"
 
 
 def _text_key(value: Any) -> str:

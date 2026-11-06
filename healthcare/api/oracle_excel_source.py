@@ -131,6 +131,24 @@ ORACLE_SOURCES: dict[str, dict[str, Any]] = {
 			},
 		],
 	},
+	"medical_diagnosis": {
+		"label": "Medical Diagnosis Entry",
+		"doctype": "Medical Diagnosis Entry",
+		"tables": [
+			{
+				"table": "VISIT_DIAGNOSES_01",
+				"label": "OP visit diagnoses (either this or the IP notes)",
+				"required": ["PATIENT_NUM", "SR_NUM", "CODE_NUM"],
+				"optional": True,
+			},
+			{
+				"table": "IP_ADMISSION_DIAGNOSES",
+				"label": "IP admission diagnoses (either this or the OP visits)",
+				"required": ["TRANS_NUM", "ADMISSION_NUM", "DIAGNOSES_DESC"],
+				"optional": True,
+			},
+		],
+	},
 	"nursing_notes": {
 		"label": "Nursing Notes",
 		"doctype": "Main Nursing Note",
