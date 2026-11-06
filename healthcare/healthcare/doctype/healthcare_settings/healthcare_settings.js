@@ -211,6 +211,14 @@ frappe.ui.form.on('Healthcare Settings', {
 			__('Oracle -> ERPNext')
 		);
 
+		// Patient documents from the nested Patient_Documents_PDF folder.
+		// manifest_final.csv is the index. Old OCR Legacy Visit Documents are removed first.
+		frm.add_custom_button(
+			__('Patient Documents'),
+			() => open_patient_document_manifest(),
+			__('Oracle -> ERPNext')
+		);
+
 		// ECT Details: ECT_00_01 (+ ECT_00_02 attributes) → ECT Details.
 		frm.add_custom_button(
 			__('ECT Details'),
@@ -5381,6 +5389,223 @@ function upload_missing_patient_images(dialog, files) {
 			});
 	};
 	step();
+}
+
+function open_patient_document_manifest() {
+	const dialog = new frappe.ui.Dialog({
+		title: __('Patient Documents'),
+		size: 'large',
+		fields: [
+			{
+				fieldtype: 'HTML',
+				fieldname: 'help',
+				options:
+					'<p class="text-muted small">'
+					+ __('Select the main folder. Every PDF in the nested folders is imported. manifest_final.csv supplies the patient file number when the file is listed. A PDF that is not in the manifest, or whose patient is not in ERPNext, is still uploaded. The old OCR Legacy Visit Documents are deleted first.')
+					+ '</p>',
+			},
+			{
+				fieldtype: 'HTML',
+				fieldname: 'preview_html',
+				options: '<p class="text-muted">' + __('No folder selected yet.') + '</p>',
+			},
+			{
+				fieldtype: 'HTML',
+				fieldname: 'progress_html',
+				options: '',
+			},
+		],
+		primary_action_label: __('Replace documents'),
+		primary_action() {
+			const items = dialog._document_upload_items || [];
+			if (!items.length) {
+				frappe.msgprint({
+					title: __('Nothing to attach'),
+					message: __('Select the folder and wait until the manifest files have uploaded.'),
+					indicator: 'orange',
+				});
+				return;
+			}
+			const existing = dialog._document_existing_count || 0;
+			frappe.confirm(
+				__('Delete {0} existing Legacy Visit Documents, then attach {1} documents from the manifest?', [
+					existing,
+					items.length,
+				]),
+				() => {
+					frappe.call({
+						method: 'healthcare.api.patient_document_manifest.start_patient_document_manifest',
+						args: { items },
+						freeze: true,
+						freeze_message: __('Starting…'),
+						callback(r) {
+							if (r.message && r.message.queued) {
+								poll_patient_document_manifest(dialog);
+							} else if (r.message && r.message.message) {
+								frappe.msgprint(r.message.message);
+							}
+						},
+					});
+				}
+			);
+		},
+	});
+	dialog.$wrapper.find('.modal-footer').prepend(
+		$('<button type="button" class="btn btn-default btn-sm mr-2">')
+			.text(__('Select Folder'))
+			.on('click', () => pick_patient_document_folder(dialog))
+	);
+	dialog.show();
+	dialog.get_primary_btn().prop('disabled', true);
+}
+
+function pick_patient_document_folder(dialog) {
+	const input = document.createElement('input');
+	input.type = 'file';
+	input.multiple = true;
+	input.setAttribute('webkitdirectory', '');
+	input.setAttribute('directory', '');
+	input.onchange = () => {
+		const files = Array.from(input.files || []);
+		if (files.length) {
+			preview_patient_document_folder(dialog, files);
+		}
+	};
+	input.click();
+}
+
+function patient_document_relative_path(file) {
+	return (file.webkitRelativePath || file.name || '').replace(/\\/g, '/');
+}
+
+function read_manifest_text(file) {
+	return new Promise((resolve, reject) => {
+		const reader = new FileReader();
+		reader.onload = () => resolve(String(reader.result || ''));
+		reader.onerror = () => reject(reader.error);
+		reader.readAsText(file);
+	});
+}
+
+function preview_patient_document_folder(dialog, files) {
+	const manifests = files.filter((file) => patient_image_basename(file).toLowerCase() === 'manifest_final.csv');
+	if (!manifests.length) {
+		frappe.msgprint({
+			title: __('Manifest not found'),
+			message: __('The selected folder has no manifest_final.csv.'),
+			indicator: 'orange',
+		});
+		return;
+	}
+	manifests.sort((a, b) => patient_document_relative_path(a).length - patient_document_relative_path(b).length);
+	dialog._document_upload_items = [];
+	dialog.get_primary_btn().prop('disabled', true);
+	dialog.fields_dict.preview_html.$wrapper.html(
+		'<p class="text-muted">' + __('Reading the manifest…') + '</p>'
+	);
+	read_manifest_text(manifests[0]).then((manifest) => {
+		const paths = files.map(patient_document_relative_path);
+		frappe.call({
+			method: 'healthcare.api.patient_document_manifest.preview_patient_document_manifest',
+			args: { manifest, paths },
+			freeze: true,
+			freeze_message: __('Comparing the manifest with the folder…'),
+			callback(r) {
+				const counts = r.message || {};
+				dialog._document_existing_count = counts.existing_documents || 0;
+				dialog._document_imports = {};
+				(counts.imports || []).forEach((row) => {
+					dialog._document_imports[row.path] = row;
+				});
+				const missing = (counts.sample_missing_file_nos || []).join(', ') || __('(none)');
+				dialog.fields_dict.preview_html.$wrapper.html(
+					'<table class="table table-bordered small"><tbody>'
+					+ '<tr><td>' + __('Rows in the manifest') + '</td><td><b>' + (counts.manifest_rows || 0) + '</b></td></tr>'
+					+ '<tr><td>' + __('FILE_EXISTS says yes') + '</td><td><b>' + (counts.file_exists || 0) + '</b></td></tr>'
+					+ '<tr><td>' + __('FILE_EXISTS says no') + '</td><td><b>' + (counts.file_missing || 0) + '</b></td></tr>'
+					+ '<tr><td>' + __('PDFs that will be imported') + '</td><td><b>' + (counts.matched_files || 0) + '</b></td></tr>'
+					+ '<tr><td>' + __('PDFs not listed in the manifest') + '</td><td><b>' + (counts.outside_manifest || 0) + '</b></td></tr>'
+					+ '<tr><td>' + __('In the manifest but not in the folder') + '</td><td><b>' + (counts.not_in_folder || 0) + '</b></td></tr>'
+					+ '<tr><td>' + __('Patients found') + '</td><td><b>' + (counts.patients_found || 0) + '</b></td></tr>'
+					+ '<tr><td>' + __('Patients not found') + '</td><td><b>' + (counts.patients_missing || 0) + '</b></td></tr>'
+					+ '<tr><td>' + __('Old Legacy Visit Documents to delete') + '</td><td><b>' + (counts.existing_documents || 0) + '</b></td></tr>'
+					+ '</tbody></table>'
+					+ '<p class="text-muted small">' + __('Sample missing file numbers: {0}', [frappe.utils.escape_html(missing)]) + '</p>'
+				);
+				const wanted = new Set(counts.upload_paths || []);
+				const pending = files.filter((file) => wanted.has(patient_document_relative_path(file)));
+				if (!pending.length) {
+					dialog.fields_dict.progress_html.$wrapper.html(
+						'<p class="text-muted small">' + __('None of the manifest files were found in this folder.') + '</p>'
+					);
+					return;
+				}
+				upload_patient_document_files(dialog, pending);
+			},
+		});
+	}).catch(() => {
+		frappe.msgprint(__('Could not read manifest_final.csv.'));
+	});
+}
+
+function upload_patient_document_files(dialog, files) {
+	const items = [];
+	let index = 0;
+	const step = () => {
+		dialog.fields_dict.progress_html.$wrapper.html(
+			'<p class="small text-muted">'
+			+ __('Uploading {0} of {1} documents…', [index, files.length])
+			+ '</p>'
+		);
+		if (index >= files.length) {
+			dialog._document_upload_items = items;
+			dialog.get_primary_btn().prop('disabled', !items.length);
+			dialog.fields_dict.progress_html.$wrapper.html(
+				'<p class="text-success small">'
+				+ __('{0} document(s) are ready. Replace will delete the old Legacy Visit Documents first.', [items.length])
+				+ '</p>'
+			);
+			return;
+		}
+		const file = files[index];
+		const path = patient_document_relative_path(file);
+		const meta = (dialog._document_imports || {})[path] || {};
+		upload_patient_cpr_file(file)
+			.then((file_url) => {
+				items.push(Object.assign({}, meta, { file_url, path }));
+			})
+			.catch(() => {
+				frappe.show_alert({
+					message: __('Failed to upload {0}', [patient_image_basename(file)]),
+					indicator: 'red',
+				}, 5);
+			})
+			.finally(() => {
+				index += 1;
+				step();
+			});
+	};
+	step();
+}
+
+function poll_patient_document_manifest(dialog) {
+	const poll = () => {
+		frappe.call({
+			method: 'healthcare.api.patient_document_manifest.get_patient_document_manifest_status',
+			callback(r) {
+				const status = r.message || {};
+				dialog.fields_dict.progress_html.$wrapper.html(
+					'<p class="small">' + frappe.utils.escape_html(status.message || status.state || '') + '</p>'
+				);
+				if (status.state === 'finished' || status.state === 'failed') {
+					dialog.get_primary_btn().prop('disabled', true);
+					return;
+				}
+				setTimeout(poll, 2000);
+			},
+		});
+	};
+	poll();
 }
 
 function poll_patient_image_reconcile(dialog) {
