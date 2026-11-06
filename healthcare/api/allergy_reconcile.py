@@ -334,7 +334,7 @@ def _collect_erpnext_visit_allergies(patient_filter: str = "") -> list[dict[str,
 		rows = frappe.get_all(
 			"Patient Visit",
 			filters=page_filters,
-			fields=["name", "patient", "visit_allergies_history", "visit_date", "creation"],
+			fields=["name", "patient", "visit_allergies_history", "encounter_date", "creation"],
 			order_by="name asc",
 			limit_page_length=ERP_PAGE,
 		)
@@ -345,7 +345,7 @@ def _collect_erpnext_visit_allergies(patient_filter: str = "") -> list[dict[str,
 			patient = (row.get("patient") or "").strip()
 			if not text or not patient:
 				continue
-			sort_key = str(row.get("visit_date") or row.get("creation") or "")
+			sort_key = str(row.get("encounter_date") or row.get("creation") or "")
 			out.append(
 				{
 					"patient": patient,
