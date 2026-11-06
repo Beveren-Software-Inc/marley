@@ -2,7 +2,8 @@
 
 * ``MORSE_FALL_SCALE_01.TRANS_NUM`` -> ``Morse Fall Scale`` (document name)
 * ``IP_PATIENT_ASSESSMENT`` -> one ``Patient Assessment`` per admission
-* ``IP_ADMISSION_MEDICINE_SHEET`` where ``GIVEN_YN`` is Y -> ``Medicine Given``
+* ``IP_ADMISSION_MEDICINE_SHEET`` and ``IP_ADMISSION_MEDICINE_SHEET_23``,
+  where ``GIVEN_YN`` is Y -> ``Medicine Given``
 * ``APPOINTMENTS_INFO_01.APP_NUM`` -> ``Patient Appointment`` (document name)
 
 Existing documents are not rewritten. A repeated Patient Assessment for the
@@ -27,7 +28,12 @@ from healthcare.api.ip_patient_assessment_import import EXCEL_HEADER_MAP as ASSE
 from healthcare.api.ip_patient_assessment_import import upsert_patient_assessment_from_row
 from healthcare.api.morse_fall_scale_import import EXCEL_HEADER_MAP as MORSE_HEADER_MAP
 from healthcare.api.morse_fall_scale_import import upsert_morse_fall_scale_from_row
-from healthcare.api.oracle_excel_source import excel_source, normalize_files, oracle_schema
+from healthcare.api.oracle_excel_source import (
+	current_source,
+	excel_source,
+	normalize_files,
+	oracle_schema,
+)
 from healthcare.api.oracle_sync import _fetch_rows, _in_clause, _query, _sort_key
 from healthcare.api.patient_appointment_info_import import EXCEL_HEADER_MAP as APPOINTMENT_HEADER_MAP
 from healthcare.api.patient_appointment_info_import import upsert_patient_appointment_from_row
@@ -90,6 +96,7 @@ class _Spec:
 		self.key_column = key_column
 		self.scan = scan
 		self.create = create
+		self.tables = [table]
 		self.progress_key = f"healthcare:care_record_reconcile:{slug}:progress"
 		self.work_key = f"healthcare:care_record_reconcile:{slug}:work"
 		self.lock_key = f"healthcare:care_record_reconcile:{slug}:lock"
@@ -321,24 +328,50 @@ def _scan_assessments() -> dict:
 	return {"entries": entries, "erpnext_rows": total, "duplicate_rows": duplicate_rows}
 
 
-def _scan_medicine() -> dict:
-	rows = _query(
-		f"select TRANS_NUM, ADMISSION_NUM, PATIENT_NUM, GIVEN_YN "
-		f"from {oracle_schema()}.IP_ADMISSION_MEDICINE_SHEET where TRANS_NUM is not null"
-	)
-	oracle: dict[str, list[str]] = {}
+MEDICINE_SHEET = "IP_ADMISSION_MEDICINE_SHEET"
+MEDICINE_SHEET_23 = "IP_ADMISSION_MEDICINE_SHEET_23"
+MEDICINE_TABLES = (MEDICINE_SHEET, MEDICINE_SHEET_23)
+
+
+def medicine_given_index(rows: list[dict]) -> dict[str, list[str]]:
+	"""Given doses keyed by sheet number. The first table wins a repeated number."""
+	index: dict[str, list[str]] = {}
 	for row in rows or []:
 		if not is_given(row.get("GIVEN_YN")):
 			continue
 		key = _clean_oracle_num(row.get("TRANS_NUM"))
-		if not key or key in oracle:
+		if not key or key in index:
 			continue
 		links = []
 		for column in ("PATIENT_NUM", "ADMISSION_NUM"):
 			value = _clean_oracle_num(row.get(column))
 			if value and value not in links:
 				links.append(value)
-		oracle[key] = links
+		index[key] = links
+	return index
+
+
+def _ready_tables(tables: list[str]) -> list[str]:
+	source = current_source()
+	if source is None:
+		return list(tables)
+	return [table for table in tables if source.has_table(table)]
+
+
+def _medicine_tables(include_sheet_23: int = 1) -> list[str]:
+	"""Both given-dose tables. The checkbox is on the Medicine Given row, not this choice."""
+	return list(MEDICINE_TABLES)
+
+
+def _scan_medicine(include_sheet_23: int = 0) -> dict:
+	oracle: dict[str, list[str]] = {}
+	for table in _ready_tables(_medicine_tables(include_sheet_23)):
+		rows = _query(
+			f"select TRANS_NUM, ADMISSION_NUM, PATIENT_NUM, GIVEN_YN "
+			f"from {oracle_schema()}.{table} where TRANS_NUM is not null"
+		)
+		for key, links in medicine_given_index(rows).items():
+			oracle.setdefault(key, links)
 
 	by_sheet: dict[str, list[tuple[str, str]]] = {}
 	total = 0
@@ -440,7 +473,10 @@ def _create_medicine(raw: dict) -> str:
 	trans_num = _clean_oracle_num(row.get("trans_num"))
 	if not trans_num.isdigit() or not is_given(row.get("given_yn")):
 		return "skipped"
+	from_sheet_23 = raw.get("_source_table") == MEDICINE_SHEET_23
 	if frappe.db.exists("Medicine Given", {"ip_admission_medicine_sheet": trans_num}):
+		if from_sheet_23:
+			_tick_sheet_23_given(trans_num)
 		return "exists"
 
 	sheet_name = frappe.db.exists("IP Admission Medicine Sheet", trans_num)
@@ -472,6 +508,8 @@ def _create_medicine(raw: dict) -> str:
 	if not ad_detail:
 		return "skipped"
 	if any((child.ip_admission_medicine_sheet or "") == sheet_name for child in (ad_detail.get("table_yrwe") or [])):
+		if from_sheet_23:
+			_tick_sheet_23_given(sheet_name)
 		return "exists"
 
 	old_code = _resolve_item_00_01_name(row.get("medi_trans_num"))
@@ -496,6 +534,7 @@ def _create_medicine(raw: dict) -> str:
 			"old_medicine_code": old_code,
 			"old_medicine_name": old_name or item_name,
 			"ip_admission_medicine_sheet": sheet_name,
+			"ip_admission_medicine_sheet_23": 1 if from_sheet_23 else 0,
 		},
 	)
 	ad_detail.flags.ignore_mandatory = True
@@ -504,16 +543,57 @@ def _create_medicine(raw: dict) -> str:
 	return "created"
 
 
-def _load_rows(spec: _Spec, keys: list[str]) -> dict[str, dict]:
+def _load_rows(spec: _Spec, keys: list[str], tables: list[str] | None = None) -> dict[str, dict]:
 	if not keys:
 		return {}
-	rows = _fetch_rows(spec.table, where=f"{spec.key_column} in ({_in_clause(keys)})")
 	found: dict[str, dict] = {}
-	for raw in rows or []:
-		key = _clean_oracle_num(raw.get(spec.key_column))
-		if key and key not in found:
-			found[key] = raw
+	where = f"{spec.key_column} in ({_in_clause(keys)})"
+	for table in _ready_tables(tables or spec.tables):
+		for raw in _fetch_rows(table, where=where) or []:
+			key = _clean_oracle_num(raw.get(spec.key_column))
+			if key and key not in found:
+				tagged = dict(raw)
+				tagged["_source_table"] = table
+				found[key] = tagged
 	return found
+
+
+def _tick_sheet_23_given(sheet_name: str) -> None:
+	"""Tick IP_ADMISSION_MEDICINE_SHEET_23 on doses that came from that table."""
+	if not sheet_name or not frappe.db.has_column("Medicine Given", "ip_admission_medicine_sheet_23"):
+		return
+	frappe.db.sql(
+		"""
+		update `tabMedicine Given`
+		set ip_admission_medicine_sheet_23 = 1
+		where ip_admission_medicine_sheet = %s
+		  and ifnull(ip_admission_medicine_sheet_23, 0) = 0
+		""",
+		sheet_name,
+	)
+
+
+def _source_tables(spec: _Spec, files, include_sheet_23: int = 0) -> list[str]:
+	"""Live reads the selected tables. An Excel run reads the workbooks that were uploaded."""
+	tables = list(spec.tables)
+	if spec.slug == "medicine_given":
+		tables = _medicine_tables(include_sheet_23)
+	if not files:
+		return tables
+	uploaded = {str(entry.get("table") or "").strip().upper() for entry in normalize_files(files)}
+	chosen = [table for table in tables if table in uploaded]
+	if not chosen:
+		frappe.throw(
+			_("Upload {0}.").format(" or ".join(tables)),
+			title=_("Oracle Excel Upload"),
+		)
+	return chosen
+
+
+def _scan_for(spec: _Spec, include_sheet_23: int = 0) -> dict:
+	if spec.slug == "medicine_given":
+		return spec.scan(include_sheet_23)
+	return spec.scan()
 
 
 def _apply_scope(scan: dict, patient: str) -> dict:
@@ -549,6 +629,7 @@ MEDICINE = _Spec(
 	_scan_medicine,
 	_create_medicine,
 )
+MEDICINE.tables = list(MEDICINE_TABLES)
 APPOINTMENT = _Spec(
 	"appointment",
 	"Appointments",
@@ -569,16 +650,18 @@ def _samples(items: list[list]) -> list[dict]:
 	return samples
 
 
-def _preview(spec: _Spec, patient: str = "", files=None) -> dict[str, Any]:
+def _preview(spec: _Spec, patient: str = "", files=None, include_sheet_23: int = 0) -> dict[str, Any]:
 	_require_admin()
 	files = normalize_files(files)
-	with excel_source(files, tables=[spec.table]) as source:
-		scan = _apply_scope(spec.scan(), patient)
+	tables = _source_tables(spec, files, include_sheet_23)
+	with excel_source(files, tables=tables) as source:
+		scan = _apply_scope(_scan_for(spec, include_sheet_23), patient)
 		result = {
 			"ok": True,
 			"as_of": str(nowdate()),
 			"mode": "patient" if (patient or "").strip() else "site",
-			"oracle_table": f"{oracle_schema()}.{spec.table}",
+			"include_sheet_23": cint(include_sheet_23),
+			"oracle_table": " and ".join(f"{oracle_schema()}.{table}" for table in tables),
 			"oracle_rows": scan["oracle_rows"],
 			"erpnext_rows": scan["erpnext_rows"],
 			"matched": scan["matched"],
@@ -587,7 +670,9 @@ def _preview(spec: _Spec, patient: str = "", files=None) -> dict[str, Any]:
 			"samples": _samples(scan["missing"]),
 		}
 		if source is not None:
-			result["oracle_table"] = source.describe(spec.table)
+			loaded = [source.describe(table) for table in _ready_tables(tables)]
+			if loaded:
+				result["oracle_table"] = " and ".join(loaded)
 	result["in_sync"] = not cint(result["missing_total"]) and not cint(result["duplicates"])
 	return result
 
@@ -596,7 +681,7 @@ def _summary(spec: _Spec, progress: dict) -> str:
 	lines = [
 		_("{0} reconcile finished.").format(spec.title),
 		"",
-		_("Oracle {0}").format(spec.table),
+		_("Oracle {0}").format(" and ".join(progress.get("tables") or spec.tables)),
 		_("Oracle rows: {0}").format(cint(progress.get("oracle_rows"))),
 		_("Already in ERPNext: {0} ({1} matched)").format(
 			cint(progress.get("erpnext_rows")), cint(progress.get("matched"))
@@ -621,6 +706,7 @@ def _queue_next(spec: _Spec, token: str, progress: dict, files) -> None:
 		token=token,
 		dry_run=cint(progress.get("dry_run")),
 		patient=progress.get("patient") or "",
+		include_sheet_23=cint(progress.get("include_sheet_23")),
 		files=files,
 	)
 
@@ -631,18 +717,24 @@ def _delete_duplicate(spec: _Spec, name: str) -> None:
 		frappe.delete_doc(doctype, name, ignore_permissions=True, force=1)
 
 
-def _run(spec: _Spec, token: str, resume: int, dry_run: int, patient: str, files) -> dict[str, Any]:
+def _run(
+	spec: _Spec, token: str, resume: int, dry_run: int, patient: str, files, include_sheet_23: int = 0
+) -> dict[str, Any]:
 	started = time.monotonic()
 	if cint(resume):
 		progress = _load_progress(spec) or {}
 		work = _load_work(spec) or {}
+		include_sheet_23 = cint(progress.get("include_sheet_23"))
 	else:
-		scan = _apply_scope(spec.scan(), patient)
+		include_sheet_23 = cint(include_sheet_23)
+		scan = _apply_scope(_scan_for(spec, include_sheet_23), patient)
 		progress = {
 			"job_key": spec.slug,
 			"state": "running",
 			"dry_run": cint(dry_run),
 			"patient": patient or "",
+			"include_sheet_23": include_sheet_23,
+			"tables": _source_tables(spec, files, include_sheet_23),
 			"processed": 0,
 			"total": len(scan["duplicates"]) + len(scan["missing"]),
 			"oracle_rows": scan["oracle_rows"],
@@ -705,7 +797,7 @@ def _run(spec: _Spec, token: str, resume: int, dry_run: int, patient: str, files
 			return {"state": "queued", "handed_over": True, "progress": progress}
 		chunk = missing[missing_offset : missing_offset + IMPORT_CHUNK]
 		keys = [key for key, _links in chunk]
-		rows = {} if cint(dry_run) else _load_rows(spec, keys)
+		rows = {} if cint(dry_run) else _load_rows(spec, keys, progress.get("tables"))
 		for key, _links in chunk:
 			if cint(dry_run):
 				progress["created"] = cint(progress.get("created")) + 1
@@ -742,7 +834,7 @@ def _run(spec: _Spec, token: str, resume: int, dry_run: int, patient: str, files
 	return {"state": "finished", "progress": progress}
 
 
-def _start(spec: _Spec, patient: str = "", dry_run: int = 0, files=None):
+def _start(spec: _Spec, patient: str = "", dry_run: int = 0, files=None, include_sheet_23: int = 0):
 	_require_admin()
 	files = normalize_files(files)
 	if _lock_held(spec):
@@ -757,6 +849,7 @@ def _start(spec: _Spec, patient: str = "", dry_run: int = 0, files=None):
 		"state": "queued",
 		"dry_run": cint(dry_run),
 		"patient": patient or "",
+		"include_sheet_23": cint(include_sheet_23),
 		"processed": 0,
 		"total": 0,
 		"message": (
@@ -772,6 +865,7 @@ def _start(spec: _Spec, patient: str = "", dry_run: int = 0, files=None):
 		timeout=7200,
 		dry_run=cint(dry_run),
 		patient=patient or "",
+		include_sheet_23=cint(include_sheet_23),
 		files=files,
 	)
 	return {"queued": True, "job_key": spec.slug, "status": progress}
@@ -782,8 +876,10 @@ def _status(spec: _Spec) -> dict[str, Any]:
 	return _load_progress(spec) or {"job_key": spec.slug, "state": "idle", "processed": 0, "total": 0}
 
 
-def _execute(spec: _Spec, resume=0, token=None, dry_run=0, patient="", files=None):
+def _execute(spec: _Spec, resume=0, token=None, dry_run=0, patient="", files=None, include_sheet_23=0):
 	files = normalize_files(files)
+	if cint(resume):
+		include_sheet_23 = cint((_load_progress(spec) or {}).get("include_sheet_23"))
 	if cint(resume):
 		if not _owns_lock(spec, token):
 			return {"state": "skipped", "message": _("This reconciliation run was replaced by a newer one.")}
@@ -794,8 +890,10 @@ def _execute(spec: _Spec, resume=0, token=None, dry_run=0, patient="", files=Non
 
 	outcome: dict[str, Any] = {}
 	try:
-		with excel_source(files, tables=[spec.table]):
-			outcome = _run(spec, token, cint(resume), cint(dry_run), patient or "", files)
+		with excel_source(files, tables=_source_tables(spec, files, include_sheet_23)):
+			outcome = _run(
+				spec, token, cint(resume), cint(dry_run), patient or "", files, cint(include_sheet_23)
+			)
 	except Exception:
 		progress = _load_progress(spec) or {"job_key": spec.slug}
 		progress["state"] = "failed"
@@ -812,19 +910,27 @@ def _execute(spec: _Spec, resume=0, token=None, dry_run=0, patient="", files=Non
 
 def _bind(spec: _Spec):
 	@frappe.whitelist()
-	def preview(patient: str = "", limit: int = 0, files=None):
-		return _preview(spec, patient=patient, files=files)
+	def preview(patient: str = "", limit: int = 0, files=None, include_sheet_23: int = 0):
+		return _preview(spec, patient=patient, files=files, include_sheet_23=include_sheet_23)
 
 	@frappe.whitelist()
-	def start(patient: str = "", limit: int = 0, dry_run: int = 0, files=None):
-		return _start(spec, patient=patient, dry_run=dry_run, files=files)
+	def start(patient: str = "", limit: int = 0, dry_run: int = 0, files=None, include_sheet_23: int = 0):
+		return _start(spec, patient=patient, dry_run=dry_run, files=files, include_sheet_23=include_sheet_23)
 
 	@frappe.whitelist()
 	def status():
 		return _status(spec)
 
-	def run(resume: int = 0, token: str | None = None, dry_run: int = 0, patient: str = "", files=None, limit: int = 0):
-		return _execute(spec, resume, token, dry_run, patient, files)
+	def run(
+		resume: int = 0,
+		token: str | None = None,
+		dry_run: int = 0,
+		patient: str = "",
+		files=None,
+		limit: int = 0,
+		include_sheet_23: int = 0,
+	):
+		return _execute(spec, resume, token, dry_run, patient, files, include_sheet_23)
 
 	return preview, start, status, run
 

@@ -12044,7 +12044,7 @@ function open_medicine_given_reconcile(frm) {
 		title: __('Oracle -> ERPNext: Medicine Given'),
 		entity: 'medicine_given',
 		intro: __(
-			'Reads IP_ADMISSION_MEDICINE_SHEET. Only rows marked Given (GIVEN_YN = Y) become Medicine Given. Doses already recorded are left as they are, and a repeated dose for the same sheet number is removed.'
+			'Reads IP_ADMISSION_MEDICINE_SHEET and IP_ADMISSION_MEDICINE_SHEET_23. Only rows marked Given (GIVEN_YN = Y) become Medicine Given. A dose from IP_ADMISSION_MEDICINE_SHEET_23 has that checkbox ticked on the Medicine Given row. Doses already recorded are left as they are, and a repeated dose for the same sheet number is removed.'
 		),
 		api_prefix: 'healthcare.api.care_record_reconcile',
 		method_suffix: 'medicine_given_reconcile',

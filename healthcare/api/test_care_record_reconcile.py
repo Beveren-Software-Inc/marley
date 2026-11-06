@@ -7,6 +7,7 @@ from healthcare.api.care_record_reconcile import (
 	is_given,
 	keep_earliest,
 	latest_assessment,
+	medicine_given_index,
 )
 
 
@@ -28,6 +29,24 @@ class TestCareRecordReconcile(UnitTestCase):
 			]
 		)
 		self.assertEqual(chosen, {"2290": "15", "3001": "4"})
+
+	def test_sheet_23_doses_are_included_and_a_repeated_number_stays_with_the_main_sheet(self):
+		main = medicine_given_index(
+			[{"TRANS_NUM": "10", "PATIENT_NUM": "1", "ADMISSION_NUM": "2", "GIVEN_YN": "Y"}]
+		)
+		extra = medicine_given_index(
+			[
+				{"TRANS_NUM": "10", "PATIENT_NUM": "9", "ADMISSION_NUM": "9", "GIVEN_YN": "Y"},
+				{"TRANS_NUM": "20", "PATIENT_NUM": "3", "ADMISSION_NUM": "4", "GIVEN_YN": "Y"},
+				{"TRANS_NUM": "21", "PATIENT_NUM": "3", "ADMISSION_NUM": "4", "GIVEN_YN": "N"},
+			]
+		)
+		merged = dict(main)
+		for key, links in extra.items():
+			merged.setdefault(key, links)
+		self.assertEqual(merged["10"], ["1", "2"])
+		self.assertEqual(merged["20"], ["3", "4"])
+		self.assertNotIn("21", merged)
 
 	def test_repeated_rows_keep_the_earliest(self):
 		self.assertEqual(

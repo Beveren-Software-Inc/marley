@@ -173,6 +173,12 @@ ORACLE_SOURCES: dict[str, dict[str, Any]] = {
 				"label": "IP medicine administrations (Given = Y)",
 				"required": ["TRANS_NUM", "ADMISSION_NUM", "GIVEN_YN"],
 			},
+			{
+				"table": "IP_ADMISSION_MEDICINE_SHEET_23",
+				"label": "Further given doses (same columns, not on the main sheet)",
+				"required": ["TRANS_NUM", "ADMISSION_NUM", "GIVEN_YN"],
+				"optional": True,
+			},
 		],
 	},
 	"appointments": {
