@@ -1469,6 +1469,7 @@ def _run_with_source(
 		_set_work({"patients": patients, "built_at": str(now_datetime())})
 
 	progress["state"] = "running"
+	progress["files"] = files
 	progress["total"] = len(patients)
 	progress["message"] = _("Reading Oracle and comparing with Clinical Notes...")
 	_set_progress(progress)
@@ -1717,6 +1718,7 @@ def run_clinical_note_reconcile(
 	dry_run: int = 0,
 	skip_duplicate_text: int = 0,
 	remove_duplicates: int = 1,
+	files=None,
 ) -> dict[str, Any]:
 	"""Background entry point (also callable inline from the bench console)."""
 	if cint(resume):
@@ -1743,6 +1745,7 @@ def run_clinical_note_reconcile(
 			dry_run=cint(dry_run),
 			skip_duplicate_text=cint(skip_duplicate_text),
 			remove_duplicates=cint(remove_duplicates),
+			files=files,
 		)
 	except Exception:
 		progress = _load_progress() or _new_progress()
