@@ -704,6 +704,7 @@ export const DoctorPage = () => {
               defaultPageSize={500}
               key={clinicalNotesRefreshKey}
               onPatientClick={handlePatientSelect}
+              allowEditWithin24h
             />
           </DashboardCard>
         </div>
