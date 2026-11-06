@@ -1,15 +1,13 @@
 """Oracle -> ERPNext reconcile for Medical Diagnosis Entry.
 
-Outpatient rows come from ``CLINIC2.VISIT_DIAGNOSES_01``. Inpatient rows come
-from ``CLINIC2.IP_ADMISSION_DIAGNOSES``. The old importers store a legacy
-number on ``Medical Diagnosis Entry.trans_num``:
+The source is ``CLINIC2.VISIT_DIAGNOSES_01`` only. ``IP_ADMISSION_DIAGNOSES``
+is the inpatient doctor note and is reconciled as a Clinical Note, not as a
+Medical Diagnosis Entry.
 
-* OP ``VD01/{patient}/{sr}/{visit}/{admission}/{code}``
-* IP ``IPDX/{TRANS_NUM}``
-
-One run removes extra ERPNext rows that share that number (the earliest row is
-kept) and creates only the Oracle rows that are still missing. Rows already
-stored are not rewritten.
+The visit-diagnosis importer stores ``VD01/{patient}/{sr}/{visit}/{admission}/{code}``
+on ``Medical Diagnosis Entry.trans_num``. One run removes extra ERPNext rows
+that share that number (the earliest row is kept) and creates only the Oracle
+rows that are still missing. Rows already stored are not rewritten.
 """
 
 from __future__ import annotations
@@ -21,12 +19,6 @@ import frappe
 from frappe import _
 from frappe.utils import cint, now_datetime, nowdate
 
-from healthcare.api.ip_admission_diagnoses_import import (
-	_build_entry_fields as _ip_build_fields,
-)
-from healthcare.api.ip_admission_diagnoses_import import (
-	_legacy_trans_num as _ip_legacy_trans_num,
-)
 from healthcare.api.oracle_excel_source import (
 	current_source,
 	excel_source,
@@ -38,7 +30,6 @@ from healthcare.api.patient_info_import import _cell_text, _clean_oracle_num, _r
 from healthcare.api.visit_diagnoses_op_import import _build_entry_fields as _op_build_fields
 
 OP_TABLE = "VISIT_DIAGNOSES_01"
-IP_TABLE = "IP_ADMISSION_DIAGNOSES"
 DOCTYPE = "Medical Diagnosis Entry"
 
 PROGRESS_KEY = "healthcare:medical_diagnosis_reconcile:progress"
@@ -84,15 +75,8 @@ def op_identity(patient: Any, sr: Any, visit: Any, admission: Any, diagnosis: An
 	)
 
 
-def ip_identity(trans_num: Any) -> str:
-	number = _norm_num(trans_num, default="")
-	return f"IPDX/{number}" if number else ""
-
-
 def normalize_stored_trans(trans_num: Any) -> str:
 	text = str(trans_num or "").strip()
-	if text.startswith("IPDX/"):
-		return ip_identity(text.split("/", 1)[1])
 	if text.startswith("VD01/"):
 		parts = text.split("/")
 		if len(parts) >= 6:
@@ -180,13 +164,13 @@ def _excel_tables(files) -> list[str]:
 	chosen = []
 	for entry in entries:
 		table = str(entry.get("table") or "").strip().upper()
-		if table in (OP_TABLE, IP_TABLE) and table not in chosen:
+		if table == OP_TABLE and table not in chosen:
 			chosen.append(table)
 	if not chosen:
 		frappe.throw(
 			_(
-				"Upload VISIT_DIAGNOSES_01 or IP_ADMISSION_DIAGNOSES. "
-				"Those are the Oracle tables behind Medical Diagnosis Entry."
+				"Upload VISIT_DIAGNOSES_01. That is the Oracle table behind "
+				"Medical Diagnosis Entry. IP_ADMISSION_DIAGNOSES is a Clinical Note."
 			),
 			title=_("Oracle Excel Upload"),
 		)
@@ -220,31 +204,8 @@ def _op_index() -> dict[str, list[str]]:
 	return index
 
 
-def _ip_index() -> dict[str, list[str]]:
-	if not _table_ready(IP_TABLE):
-		return {}
-	rows = _query(
-		f"select TRANS_NUM, ADMISSION_NUM from {oracle_schema()}.{IP_TABLE} "
-		f"where TRANS_NUM is not null and DIAGNOSES_DESC is not null"
-	)
-	index: dict[str, list[str]] = {}
-	for row in rows or []:
-		key = ip_identity(row.get("TRANS_NUM"))
-		if not key:
-			continue
-		links = []
-		admission = _clean_oracle_num(row.get("ADMISSION_NUM"))
-		if admission:
-			links.append(admission)
-		index.setdefault(key, links)
-	return index
-
-
 def _oracle_index() -> dict[str, list[str]]:
-	index = _op_index()
-	for key, links in _ip_index().items():
-		index.setdefault(key, links)
-	return index
+	return _op_index()
 
 
 def _erp_groups() -> tuple[dict[str, list[tuple[str, str, str]]], int]:
@@ -266,10 +227,12 @@ def _erp_groups() -> tuple[dict[str, list[tuple[str, str, str]]], int]:
 			break
 		for name, trans_num, patient, creation in rows:
 			after = name
-			total += 1
 			key = normalize_stored_trans(trans_num)
-			if not key:
+			# IP_ADMISSION_DIAGNOSES was stored here by an older import. Those
+			# rows are clinical notes, so this reconcile neither counts nor changes them.
+			if not key.startswith("VD01/"):
 				continue
+			total += 1
 			groups.setdefault(key, []).append((name, str(creation or ""), patient or ""))
 		if len(rows) < ERP_PAGE:
 			break
@@ -373,27 +336,6 @@ def _op_row(raw: dict) -> dict:
 	return row
 
 
-def _ip_row(raw: dict) -> dict:
-	trans_num = _clean_oracle_num(raw.get("TRANS_NUM"))
-	return {
-		"trans_num": trans_num,
-		"legacy_trans_num": _ip_legacy_trans_num(trans_num),
-		"admission_num": _clean_oracle_num(raw.get("ADMISSION_NUM")),
-		"admission_num_old": _clean_oracle_num(raw.get("ADMISSION_NUM_OLD")),
-		"diagnoses_desc": _cell_text(raw.get("DIAGNOSES_DESC")),
-		"diagnoses_date": raw.get("DIAGNOSES_DATE"),
-		"diagnoses_time_from": raw.get("DIAGNOSES_TIME"),
-		"diagnoses_time_to": raw.get("DIAGNOSES_TIME_TO"),
-		"user_name": _cell_text(raw.get("USER_NAME")),
-		"cost_center_raw": raw.get("BRANCH_NUM"),
-		"cr_id": _clean_oracle_num(raw.get("CR_ID")),
-		"up_id": _clean_oracle_num(raw.get("UP_ID")),
-		"cr_date": raw.get("CR_DATE"),
-		"up_date": raw.get("UP_DATE"),
-		"diagnoses_flag": raw.get("DIAGNOSES_FLAG"),
-	}
-
-
 def _load_op_rows(keys: list[str]) -> dict[str, dict]:
 	patients = sorted({key.split("/")[1] for key in keys if key.count("/") >= 1 and key.split("/")[1] not in ("", "0")})
 	if not patients or not _table_ready(OP_TABLE):
@@ -405,50 +347,28 @@ def _load_op_rows(keys: list[str]) -> dict[str, dict]:
 	return found
 
 
-def _load_ip_rows(keys: list[str]) -> dict[str, dict]:
-	numbers = [key.split("/", 1)[1] for key in keys if key.startswith("IPDX/") and "/" in key]
-	if not numbers or not _table_ready(IP_TABLE):
-		return {}
-	found: dict[str, dict] = {}
-	for raw in _fetch_rows(IP_TABLE, where=f"TRANS_NUM in ({_in_clause(numbers)})") or []:
-		found.setdefault(ip_identity(raw.get("TRANS_NUM")), _ip_row(raw))
-	return found
-
-
-def _create_prepared(key: str, op_rows: dict[str, dict], ip_rows: dict[str, dict]) -> str:
+def _create_prepared(key: str, op_rows: dict[str, dict]) -> str:
+	if not key.startswith("VD01/"):
+		return "skipped"
 	if frappe.db.exists(DOCTYPE, {"trans_num": key}):
 		return "exists"
-	if key.startswith("VD01/"):
-		row = op_rows.get(key)
-		if not row:
-			return "skipped"
-		fields, _stats = _op_build_fields(row)
-		if not fields.get("diagnosis"):
-			return "skipped"
-		fields["trans_num"] = key
-		_insert_entry(fields)
-		return "created"
-	if key.startswith("IPDX/"):
-		row = ip_rows.get(key)
-		if not row:
-			return "skipped"
-		fields = _ip_build_fields(row)
-		if not fields.get("details"):
-			return "skipped"
-		fields["trans_num"] = key
-		_insert_entry(fields)
-		return "created"
-	return "skipped"
+	row = op_rows.get(key)
+	if not row:
+		return "skipped"
+	fields, _stats = _op_build_fields(row)
+	if not fields.get("diagnosis"):
+		return "skipped"
+	fields["trans_num"] = key
+	_insert_entry(fields)
+	return "created"
 
 
 def _samples(items: list[list]) -> list[dict]:
 	samples = []
 	for key, links in items[:10]:
 		sample = {"key": key, "text": "create"}
-		if key.startswith("VD01/") and links:
+		if links:
 			sample["patient"] = links[0]
-		elif links:
-			sample["admission"] = links[0]
 		samples.append(sample)
 	return samples
 
@@ -457,7 +377,7 @@ def _summary(progress: dict) -> str:
 	lines = [
 		_("Medical Diagnosis Entry reconcile finished."),
 		"",
-		_("Oracle {0} and {1}").format(OP_TABLE, IP_TABLE),
+		_("Oracle {0}").format(OP_TABLE),
 		_("Oracle rows: {0}").format(cint(progress.get("oracle_rows"))),
 		_("Already in ERPNext: {0} ({1} matched)").format(
 			cint(progress.get("erpnext_rows")), cint(progress.get("matched"))
@@ -566,8 +486,7 @@ def _run(token: str, resume: int, dry_run: int, patient: str, files) -> dict[str
 			return {"state": "queued", "handed_over": True, "progress": progress}
 		chunk = missing[missing_offset : missing_offset + IMPORT_CHUNK]
 		keys = [key for key, _links in chunk]
-		op_rows = {} if cint(dry_run) else _load_op_rows([key for key in keys if key.startswith("VD01/")])
-		ip_rows = {} if cint(dry_run) else _load_ip_rows([key for key in keys if key.startswith("IPDX/")])
+		op_rows = {} if cint(dry_run) else _load_op_rows(keys)
 		for key in keys:
 			if cint(dry_run):
 				progress["created"] = cint(progress.get("created")) + 1
@@ -575,7 +494,7 @@ def _run(token: str, resume: int, dry_run: int, patient: str, files) -> dict[str
 				continue
 			try:
 				frappe.db.savepoint("mde_one")
-				status = _create_prepared(key, op_rows, ip_rows)
+				status = _create_prepared(key, op_rows)
 				if status == "created":
 					progress["created"] = cint(progress.get("created")) + 1
 					_record_sample(progress, f"{key} · created")
@@ -610,7 +529,7 @@ def preview_medical_diagnosis_reconcile(patient: str = "", limit: int = 0, files
 			"ok": True,
 			"as_of": str(nowdate()),
 			"mode": "patient" if (patient or "").strip() else "site",
-			"oracle_table": f"{oracle_schema()}.{OP_TABLE} and {oracle_schema()}.{IP_TABLE}",
+			"oracle_table": f"{oracle_schema()}.{OP_TABLE}",
 			"oracle_rows": scan["oracle_rows"],
 			"erpnext_rows": scan["erpnext_rows"],
 			"matched": scan["matched"],
@@ -619,7 +538,7 @@ def preview_medical_diagnosis_reconcile(patient: str = "", limit: int = 0, files
 			"samples": _samples(scan["missing"]),
 		}
 		if source is not None:
-			loaded = [source.describe(table) for table in (OP_TABLE, IP_TABLE) if source.has_table(table)]
+			loaded = [source.describe(OP_TABLE)] if source.has_table(OP_TABLE) else []
 			if loaded:
 				result["oracle_table"] = " and ".join(loaded)
 	result["in_sync"] = not cint(result["missing_total"]) and not cint(result["duplicates"])

@@ -4,7 +4,6 @@
 from frappe.tests import UnitTestCase
 
 from healthcare.api.medical_diagnosis_reconcile import (
-	ip_identity,
 	names_to_remove,
 	normalize_stored_trans,
 	op_identity,
@@ -22,9 +21,9 @@ class TestMedicalDiagnosisIdentity(UnitTestCase):
 		stored = "VD01/00860094/01/136827/0/0509494"
 		self.assertEqual(normalize_stored_trans(stored), op_identity("860094", "1", "136827", "", "509494"))
 
-	def test_ip_key_uses_the_legacy_prefix(self):
-		self.assertEqual(ip_identity("00120"), "IPDX/120")
-		self.assertEqual(normalize_stored_trans("IPDX/00120"), "IPDX/120")
+	def test_an_inpatient_note_number_is_not_a_visit_diagnosis(self):
+		self.assertEqual(normalize_stored_trans("IPDX/120"), "IPDX/120")
+		self.assertFalse(normalize_stored_trans("IPDX/120").startswith("VD01/"))
 
 	def test_duplicate_rows_keep_the_earliest(self):
 		self.assertEqual(

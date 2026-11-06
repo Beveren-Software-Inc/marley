@@ -170,9 +170,8 @@ frappe.ui.form.on('Healthcare Settings', {
 			__('Oracle -> ERPNext')
 		);
 
-		// Medical Diagnosis Entry: VISIT_DIAGNOSES_01 (OP) and
-		// IP_ADMISSION_DIAGNOSES (IP). Removes repeated trans numbers and
-		// creates only the rows ERPNext is missing.
+		// Medical Diagnosis Entry: VISIT_DIAGNOSES_01 only.
+		// IP_ADMISSION_DIAGNOSES is a Clinical Note, not a diagnosis entry.
 		frm.add_custom_button(
 			__('Medical Diagnosis Entry'),
 			() => open_medical_diagnosis_reconcile(frm),
@@ -11993,7 +11992,7 @@ function open_medical_diagnosis_reconcile(frm) {
 		title: __('Oracle -> ERPNext: Medical Diagnosis Entry'),
 		entity: 'medical_diagnosis',
 		intro: __(
-			'Reads VISIT_DIAGNOSES_01 (outpatient) and IP_ADMISSION_DIAGNOSES (inpatient). Repeated Medical Diagnosis Entry rows with the same legacy number are removed, and only Oracle rows ERPNext does not already have are created.'
+			'Reads VISIT_DIAGNOSES_01 only. IP_ADMISSION_DIAGNOSES stays on Clinical Notes. Repeated Medical Diagnosis Entry rows with the same visit-diagnosis number are removed, and only visit diagnoses ERPNext does not already have are created.'
 		),
 		api_prefix: 'healthcare.api.medical_diagnosis_reconcile',
 		method_suffix: 'medical_diagnosis_reconcile',
