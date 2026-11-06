@@ -178,6 +178,30 @@ frappe.ui.form.on('Healthcare Settings', {
 			__('Oracle -> ERPNext')
 		);
 
+		frm.add_custom_button(
+			__('Morse Fall Scale'),
+			() => open_morse_fall_scale_reconcile(frm),
+			__('Oracle -> ERPNext')
+		);
+
+		frm.add_custom_button(
+			__('Patient Assessment'),
+			() => open_patient_assessment_reconcile(frm),
+			__('Oracle -> ERPNext')
+		);
+
+		frm.add_custom_button(
+			__('Medicine Given'),
+			() => open_medicine_given_reconcile(frm),
+			__('Oracle -> ERPNext')
+		);
+
+		frm.add_custom_button(
+			__('Appointments'),
+			() => open_appointment_reconcile(frm),
+			__('Oracle -> ERPNext')
+		);
+
 		// ECT Details: ECT_00_01 (+ ECT_00_02 attributes) → ECT Details.
 		frm.add_custom_button(
 			__('ECT Details'),
@@ -11984,6 +12008,62 @@ function open_allergy_reconcile(frm) {
 		method_suffix: 'allergy_reconcile',
 		poll_limit: ALLERGY_RECONCILE_POLL_LIMIT,
 		progress_title: __('Reconciling allergies from visits and Oracle'),
+	});
+}
+
+function open_morse_fall_scale_reconcile(frm) {
+	open_create_missing_reconcile(frm, {
+		title: __('Oracle -> ERPNext: Morse Fall Scale'),
+		entity: 'morse_fall_scale',
+		intro: __(
+			'Reads MORSE_FALL_SCALE_01 and creates only the Morse Fall Scale rows ERPNext is missing (by TRANS_NUM). Scales already stored are left as they are.'
+		),
+		api_prefix: 'healthcare.api.care_record_reconcile',
+		method_suffix: 'morse_fall_scale_reconcile',
+		poll_limit: 300,
+		progress_title: __('Reconciling Morse Fall Scale from Oracle'),
+	});
+}
+
+function open_patient_assessment_reconcile(frm) {
+	open_create_missing_reconcile(frm, {
+		title: __('Oracle -> ERPNext: Patient Assessment'),
+		entity: 'patient_assessment',
+		intro: __(
+			'Reads IP_PATIENT_ASSESSMENT. One Patient Assessment is kept per admission (the latest Oracle TRANS_NUM). Extra assessments for that admission are removed, and an assessment is created only when the admission does not have one.'
+		),
+		api_prefix: 'healthcare.api.care_record_reconcile',
+		method_suffix: 'patient_assessment_reconcile',
+		poll_limit: 300,
+		progress_title: __('Reconciling patient assessments from Oracle'),
+	});
+}
+
+function open_medicine_given_reconcile(frm) {
+	open_create_missing_reconcile(frm, {
+		title: __('Oracle -> ERPNext: Medicine Given'),
+		entity: 'medicine_given',
+		intro: __(
+			'Reads IP_ADMISSION_MEDICINE_SHEET. Only rows marked Given (GIVEN_YN = Y) become Medicine Given. Doses already recorded are left as they are, and a repeated dose for the same sheet number is removed.'
+		),
+		api_prefix: 'healthcare.api.care_record_reconcile',
+		method_suffix: 'medicine_given_reconcile',
+		poll_limit: 300,
+		progress_title: __('Reconciling medicine given from Oracle'),
+	});
+}
+
+function open_appointment_reconcile(frm) {
+	open_create_missing_reconcile(frm, {
+		title: __('Oracle -> ERPNext: Appointments'),
+		entity: 'appointments',
+		intro: __(
+			'Reads APPOINTMENTS_INFO_01 and creates only the Patient Appointments ERPNext is missing (by APP_NUM). Appointments already stored are left as they are.'
+		),
+		api_prefix: 'healthcare.api.care_record_reconcile',
+		method_suffix: 'appointment_reconcile',
+		poll_limit: 300,
+		progress_title: __('Reconciling appointments from Oracle'),
 	});
 }
 

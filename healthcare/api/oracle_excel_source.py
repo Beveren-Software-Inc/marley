@@ -142,6 +142,50 @@ ORACLE_SOURCES: dict[str, dict[str, Any]] = {
 			},
 		],
 	},
+	"morse_fall_scale": {
+		"label": "Morse Fall Scale",
+		"doctype": "Morse Fall Scale",
+		"tables": [
+			{
+				"table": "MORSE_FALL_SCALE_01",
+				"label": "Morse fall scales",
+				"required": ["TRANS_NUM", "ADMISSION_NUM", "PATIENT_NUM"],
+			},
+		],
+	},
+	"patient_assessment": {
+		"label": "Patient Assessment",
+		"doctype": "Patient Assessment",
+		"tables": [
+			{
+				"table": "IP_PATIENT_ASSESSMENT",
+				"label": "IP patient assessments",
+				"required": ["TRANS_NUM", "ADMISSION_NUM"],
+			},
+		],
+	},
+	"medicine_given": {
+		"label": "Medicine Given",
+		"doctype": "Medicine Given",
+		"tables": [
+			{
+				"table": "IP_ADMISSION_MEDICINE_SHEET",
+				"label": "IP medicine administrations (Given = Y)",
+				"required": ["TRANS_NUM", "ADMISSION_NUM", "GIVEN_YN"],
+			},
+		],
+	},
+	"appointments": {
+		"label": "Patient Appointment",
+		"doctype": "Patient Appointment",
+		"tables": [
+			{
+				"table": "APPOINTMENTS_INFO_01",
+				"label": "Appointments",
+				"required": ["APP_NUM", "APP_DATE"],
+			},
+		],
+	},
 	"nursing_notes": {
 		"label": "Nursing Notes",
 		"doctype": "Main Nursing Note",
