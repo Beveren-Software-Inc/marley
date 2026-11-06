@@ -151,6 +151,39 @@ ORACLE_SOURCES: dict[str, dict[str, Any]] = {
 			},
 		],
 	},
+	"grooming_chart": {
+		"label": "IP Grooming Chart",
+		"doctype": "IP Grooming Chart",
+		"tables": [
+			{
+				"table": "IP_GROOMING_CHART",
+				"label": "IP grooming charts",
+				"required": ["TRANS_NUM", "ADMISSION_NUM", "BRUSH_TEETH_M"],
+			},
+		],
+	},
+	"mental_state": {
+		"label": "IP Mental State",
+		"doctype": "Mental State",
+		"tables": [
+			{
+				"table": "IP_MENTAL_STATE",
+				"label": "IP mental state",
+				"required": ["TRANS_NO", "ADMISSION_NUM", "NORMAL_AT"],
+			},
+		],
+	},
+	"admission_transfer": {
+		"label": "IP Admission Transfer",
+		"doctype": "Transfer Admission Event",
+		"tables": [
+			{
+				"table": "IP_ADMISSION_TRANSFER",
+				"label": "IP admission transfers",
+				"required": ["TRANS_NUM", "OLD_ADMISSION_NUM", "NEW_ADMISSION_NUM"],
+			},
+		],
+	},
 	"vital_signs": {
 		"label": "Vital Signs",
 		"doctype": "Vital Signs",
@@ -214,9 +247,16 @@ ORACLE_SOURCES: dict[str, dict[str, Any]] = {
 		"doctype": "Insurance Patient Register",
 		"tables": [
 			{
-				"table": "PATIENT_INFO_01",
-				"label": "Patient master (insurance columns)",
-				"required": ["C", "IS_INSURANCE"],
+				"table": "INSURANCE_00_01",
+				"label": "Insurance claims (either this or the service lines)",
+				"required": ["TRANS_NUM", "PATIENT_NUM"],
+				"optional": True,
+			},
+			{
+				"table": "INSURANCE_00_02",
+				"label": "Insurance claim lines (either this or the claims)",
+				"required": ["TRANS_NUM", "SR_NUM"],
+				"optional": True,
 			},
 		],
 	},

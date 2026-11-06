@@ -20,8 +20,8 @@ frappe.ui.form.on('Healthcare Settings', {
 			__('Oracle -> ERPNext')
 		);
 
-		// Insurance Patient Register from PATIENT_INFO_01 insurance flags /
-		// INSUR_* columns (TRICARE). Creates missing registers and marks patients insured.
+		// Insurance Patient Register from INSURANCE_00_01 or INSURANCE_00_02
+		// (TRICARE). Creates missing registers and marks patients insured.
 		frm.add_custom_button(
 			__('Insurance Register'),
 			() => open_insurance_register_reconcile(frm),
@@ -149,6 +149,24 @@ frappe.ui.form.on('Healthcare Settings', {
 		frm.add_custom_button(
 			__('Physical Examination'),
 			() => open_physical_examination_reconcile(frm),
+			__('Oracle -> ERPNext')
+		);
+
+		frm.add_custom_button(
+			__('IP Grooming Chart'),
+			() => open_grooming_chart_reconcile(frm),
+			__('Oracle -> ERPNext')
+		);
+
+		frm.add_custom_button(
+			__('IP Mental State'),
+			() => open_mental_state_reconcile(frm),
+			__('Oracle -> ERPNext')
+		);
+
+		frm.add_custom_button(
+			__('IP Admission Transfer'),
+			() => open_admission_transfer_reconcile(frm),
 			__('Oracle -> ERPNext')
 		);
 
@@ -6816,6 +6834,18 @@ function ask_oracle_source({ title, entity, intro, on_direct, on_excel }) {
 					return;
 				}
 
+				const uploaded = tables.filter((table) => files[table.table]);
+				if (tables.length && !uploaded.length) {
+					frappe.msgprint({
+						title: __('Excel export missing'),
+						indicator: 'orange',
+						message: __('Upload the Excel export of: {0}', [
+							tables.map((table) => table.table).join(' or '),
+						]),
+					});
+					return;
+				}
+
 				dialog.hide();
 				if (on_excel) {
 					on_excel(
@@ -11943,6 +11973,48 @@ function open_allergy_reconcile(frm) {
 	});
 }
 
+function open_grooming_chart_reconcile(frm) {
+	open_create_missing_reconcile(frm, {
+		title: __('Oracle -> ERPNext: IP Grooming Chart'),
+		entity: 'grooming_chart',
+		intro: __(
+			'Reads IP_GROOMING_CHART and creates only the grooming charts ERPNext is missing (by TRANS_NUM). Charts already stored are left as they are.'
+		),
+		api_prefix: 'healthcare.api.ip_chart_reconcile',
+		method_suffix: 'grooming_chart_reconcile',
+		poll_limit: 300,
+		progress_title: __('Reconciling IP grooming charts from Oracle'),
+	});
+}
+
+function open_mental_state_reconcile(frm) {
+	open_create_missing_reconcile(frm, {
+		title: __('Oracle -> ERPNext: IP Mental State'),
+		entity: 'mental_state',
+		intro: __(
+			'Reads IP_MENTAL_STATE and creates only the mental state rows ERPNext is missing (by TRANS_NO). Rows already imported under that number are left as they are.'
+		),
+		api_prefix: 'healthcare.api.ip_chart_reconcile',
+		method_suffix: 'mental_state_reconcile',
+		poll_limit: 300,
+		progress_title: __('Reconciling IP mental state from Oracle'),
+	});
+}
+
+function open_admission_transfer_reconcile(frm) {
+	open_create_missing_reconcile(frm, {
+		title: __('Oracle -> ERPNext: IP Admission Transfer'),
+		entity: 'admission_transfer',
+		intro: __(
+			'Reads IP_ADMISSION_TRANSFER and creates only the Transfer Admission Events ERPNext is missing (by TRANS_NUM). Transfers already stored are left as they are.'
+		),
+		api_prefix: 'healthcare.api.ip_chart_reconcile',
+		method_suffix: 'admission_transfer_reconcile',
+		poll_limit: 300,
+		progress_title: __('Reconciling IP admission transfers from Oracle'),
+	});
+}
+
 function open_ect_details_reconcile(frm) {
 	open_create_missing_reconcile(frm, {
 		title: __('Oracle -> ERPNext: ECT Details'),
@@ -12048,7 +12120,7 @@ function open_insurance_register_reconcile(frm) {
 		title: __('Oracle -> ERPNext: Insurance Register'),
 		entity: 'insurance_register',
 		intro: __(
-			'Reads PATIENT_INFO_01 insurance flags and INSUR_* columns. Marks those patients insured (TRICARE), fills insurance fields, and creates an Insurance Patient Register when the patient still has none.'
+			'Reads INSURANCE_00_01 or INSURANCE_00_02 (either table is enough). A patient on a claim header, or on a claim line whose claim already names them, is marked insured (TRICARE) and gets an Insurance Patient Register when they still have none. PATIENT_INFO_01 is not used.'
 		),
 		api_prefix: 'healthcare.api.insurance_register_reconcile',
 		method_suffix: 'insurance_register_reconcile',
