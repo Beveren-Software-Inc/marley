@@ -77,7 +77,9 @@ ORACLE_SOURCES: dict[str, dict[str, Any]] = {
 			{
 				"table": "IP_ADMISSION_MEDICINE",
 				"label": "IP prescriptions",
-				"required": ["ADMISSION_NUM", "MEDICINE_CD"],
+				# Live CLINIC2 names the medicine MEDICINE_NUM. MEDICINE_CD is the
+				# OP prescription column and is not on this table.
+				"required": ["ADMISSION_NUM", "MEDICINE_NUM"],
 			},
 		],
 	},

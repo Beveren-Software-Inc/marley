@@ -25,11 +25,12 @@ class TestOracleExcelSourceRegistry(UnitTestCase):
 				self.assertTrue(source["tables"], f"{key} has no Oracle table")
 
 	def test_prescriptions_need_the_three_legacy_tables(self):
-		tables = [table["table"] for table in ORACLE_SOURCES["prescriptions"]["tables"]]
+		tables = ORACLE_SOURCES["prescriptions"]["tables"]
 		self.assertEqual(
-			tables,
+			[table["table"] for table in tables],
 			["PATIENT_VISIT_PRESCRIPTION", "PATIENT_VISIT_PRESCRIPTION_HIS", "IP_ADMISSION_MEDICINE"],
 		)
+		self.assertEqual(tables[2]["required"], ["ADMISSION_NUM", "MEDICINE_NUM"])
 
 	def test_user_button_points_at_the_legacy_user_table(self):
 		self.assertEqual(ORACLE_SOURCES["user"]["tables"][0]["table"], "USR_00_01")
