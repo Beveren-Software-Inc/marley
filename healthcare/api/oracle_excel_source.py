@@ -248,15 +248,8 @@ ORACLE_SOURCES: dict[str, dict[str, Any]] = {
 		"tables": [
 			{
 				"table": "INSURANCE_00_01",
-				"label": "Insurance claims (either this or the service lines)",
+				"label": "Insurance claim headers (one patient per PATIENT_NUM)",
 				"required": ["TRANS_NUM", "PATIENT_NUM"],
-				"optional": True,
-			},
-			{
-				"table": "INSURANCE_00_02",
-				"label": "Insurance claim lines (either this or the claims)",
-				"required": ["TRANS_NUM", "SR_NUM"],
-				"optional": True,
 			},
 		],
 	},

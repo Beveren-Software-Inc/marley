@@ -1,14 +1,13 @@
 """One-button Oracle -> ERPNext reconciliation for Insurance Patient Register.
 
-A patient needs a register when they appear on ``CLINIC2.INSURANCE_00_01``
-(``PATIENT_NUM``) or on ``CLINIC2.INSURANCE_00_02`` (the claim line's
-``TRANS_NUM`` resolved to a patient through the claim header or an existing
-Insurance Claim). ``PATIENT_INFO_01`` is not read. Either uploaded table is
-enough; a live run reads both.
+The register is one row per patient. On this site those patients are the
+distinct ``PATIENT_NUM`` values on ``CLINIC2.INSURANCE_00_01`` (the claim
+header). ``INSURANCE_00_02`` is the claim service lines and has no patient
+number, so it is not a register source. ``PATIENT_INFO_01`` is not read.
 
 What one run does
 -----------------
-1. Collects distinct patients from ``INSURANCE_00_01`` and ``INSURANCE_00_02``.
+1. Collects distinct patients from ``INSURANCE_00_01``.
 2. Resolves the Patient by file number (creates a minimal one when missing).
 3. Marks the Patient insured (TRICARE).
 4. Creates an ``Insurance Patient Register`` when the patient still has none,
@@ -59,7 +58,6 @@ PROGRESS_TTL = 60 * 60 * 12
 LOCK_TTL = 60 * 60 * 6
 
 ORACLE_MASTER = "INSURANCE_00_01"
-ORACLE_CHILD = "INSURANCE_00_02"
 REGISTER_DOCTYPE = "Insurance Patient Register"
 PATIENT_DOCTYPE = "Patient"
 
@@ -193,84 +191,37 @@ def _table_ready(table: str) -> bool:
 
 
 def _uploaded_register_tables(files: Any) -> list[str]:
-	"""Excel path accepts INSURANCE_00_01, INSURANCE_00_02, or both."""
-	chosen: list[str] = []
-	for entry in normalize_files(files):
-		table = str(entry.get("table") or "").strip().upper()
-		if table in (ORACLE_MASTER, ORACLE_CHILD) and table not in chosen:
-			chosen.append(table)
-	if normalize_files(files) and not chosen:
+	"""Excel path reads the claim header. Service lines have no patient."""
+	if not normalize_files(files):
+		return []
+	chosen = {
+		str(entry.get("table") or "").strip().upper() for entry in normalize_files(files)
+	}
+	if ORACLE_MASTER not in chosen:
 		frappe.throw(
 			_(
-				"Upload INSURANCE_00_01 or INSURANCE_00_02. This check does not read PATIENT_INFO_01."
+				"Upload INSURANCE_00_01. Insurance Patient Register patients come from that "
+				"claim header. INSURANCE_00_02 has no patient number, and PATIENT_INFO_01 is not used."
 			),
 			title=_("Oracle Excel Upload"),
 		)
-	return chosen
+	return [ORACLE_MASTER]
 
 
 def _oracle_table_label(source=None) -> str:
 	schema = oracle_schema()
-	if source is None:
-		return f"{schema}.{ORACLE_MASTER} or {schema}.{ORACLE_CHILD}"
-	parts = [
-		source.describe(table)
-		for table in (ORACLE_MASTER, ORACLE_CHILD)
-		if source.has_table(table)
-	]
-	return " or ".join(parts) or f"{schema}.{ORACLE_MASTER} or {schema}.{ORACLE_CHILD}"
-
-
-def _patients_by_claim_trans(trans_nums: list[str]) -> dict[str, str]:
-	"""Map a claim number to the patient already stored on Insurance Claim."""
-	found: dict[str, str] = {}
-	pending = [num for num in dict.fromkeys(trans_nums) if num]
-	for start in range(0, len(pending), 500):
-		chunk = pending[start : start + 500]
-		rows = frappe.db.sql(
-			f"""
-			select name, ifnull(patient, '') as patient,
-				ifnull(patient_num, '') as patient_num
-			from `tabInsurance Claim`
-			where name in ({", ".join(["%s"] * len(chunk))})
-			""",
-			tuple(chunk),
-			as_dict=True,
-		)
-		for row in rows or []:
-			patient = _clean_oracle_num(row.get("patient")) or _clean_oracle_num(
-				row.get("patient_num")
-			)
-			if patient:
-				found[str(row.get("name"))] = patient
-	return found
+	if source is not None and source.has_table(ORACLE_MASTER):
+		return source.describe(ORACLE_MASTER)
+	return f"{schema}.{ORACLE_MASTER}"
 
 
 def _oracle_insured_index() -> dict[str, dict]:
-	"""Patients on INSURANCE_00_01, plus patients reached only through INSURANCE_00_02."""
+	"""Distinct patients on INSURANCE_00_01."""
 	index: dict[str, dict] = {}
-	trans_patient: dict[str, str] = {}
-
-	if _table_ready(ORACLE_MASTER):
-		for raw in _fetch_rows(ORACLE_MASTER, order_by="PATIENT_NUM") or []:
-			file_no = _file_no_from_raw(raw)
-			trans = _clean_oracle_num(raw.get("TRANS_NUM"))
-			if file_no and trans:
-				trans_patient[trans] = file_no
-			if file_no and file_no not in index:
-				index[file_no] = raw
-
-	if _table_ready(ORACLE_CHILD):
-		unknown: list[str] = []
-		for raw in _fetch_rows(ORACLE_CHILD, order_by="TRANS_NUM") or []:
-			trans = _clean_oracle_num(raw.get("TRANS_NUM"))
-			if not trans or trans in trans_patient:
-				continue
-			unknown.append(trans)
-		for trans, file_no in _patients_by_claim_trans(unknown).items():
-			if file_no not in index:
-				index[file_no] = {"PATIENT_NUM": file_no, "TRANS_NUM": trans}
-
+	for raw in _fetch_rows(ORACLE_MASTER, order_by="PATIENT_NUM") or []:
+		file_no = _file_no_from_raw(raw)
+		if file_no and file_no not in index:
+			index[file_no] = raw
 	return index
 
 
@@ -471,7 +422,7 @@ def _summary_message(progress: dict) -> str:
 	lines = [
 		_("Reconcile Insurance Register finished."),
 		"",
-		_("Oracle {0} or {1}").format(ORACLE_MASTER, ORACLE_CHILD),
+		_("Oracle {0}").format(ORACLE_MASTER),
 		_("Insured patients in Oracle: {0}").format(cint(progress.get("oracle_insured"))),
 		_("Insurance Patient Registers in ERPNext: {0}").format(
 			cint(progress.get("erpnext_registers"))

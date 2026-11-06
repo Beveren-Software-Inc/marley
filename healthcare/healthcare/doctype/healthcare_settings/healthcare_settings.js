@@ -20,8 +20,8 @@ frappe.ui.form.on('Healthcare Settings', {
 			__('Oracle -> ERPNext')
 		);
 
-		// Insurance Patient Register from INSURANCE_00_01 or INSURANCE_00_02
-		// (TRICARE). Creates missing registers and marks patients insured.
+		// Insurance Patient Register from INSURANCE_00_01 patients (TRICARE).
+		// Creates missing registers and marks patients insured.
 		frm.add_custom_button(
 			__('Insurance Register'),
 			() => open_insurance_register_reconcile(frm),
@@ -12120,7 +12120,7 @@ function open_insurance_register_reconcile(frm) {
 		title: __('Oracle -> ERPNext: Insurance Register'),
 		entity: 'insurance_register',
 		intro: __(
-			'Reads INSURANCE_00_01 or INSURANCE_00_02 (either table is enough). A patient on a claim header, or on a claim line whose claim already names them, is marked insured (TRICARE) and gets an Insurance Patient Register when they still have none. PATIENT_INFO_01 is not used.'
+			'Reads INSURANCE_00_01. Each patient on a claim header is marked insured (TRICARE) and gets an Insurance Patient Register when they still have none. INSURANCE_00_02 is claim lines and has no patient. PATIENT_INFO_01 is not used.'
 		),
 		api_prefix: 'healthcare.api.insurance_register_reconcile',
 		method_suffix: 'insurance_register_reconcile',
