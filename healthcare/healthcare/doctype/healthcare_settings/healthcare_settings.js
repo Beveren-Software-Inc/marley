@@ -79,6 +79,14 @@ frappe.ui.form.on('Healthcare Settings', {
 			__('Oracle -> ERPNext')
 		);
 
+		// VISIT_00_01_HISTORY staging doctype: create only the history rows
+		// Oracle has that ERPNext is still missing (same record key as the import).
+		frm.add_custom_button(
+			__('Visit History'),
+			() => open_visit_history_reconcile(frm),
+			__('Oracle -> ERPNext')
+		);
+
 		// Nursing Notes: the IP shift notes (IP_NURSING), read live or from
 		// their Excel export. Creates the Main Nursing Notes ERPNext is missing
 		// - the tail the last workbook import never reached and the rows whose
@@ -9259,6 +9267,7 @@ const DISCHARGE_RECONCILE_POLL_LIMIT = 300;
 const INSURANCE_CLAIM_RECONCILE_POLL_LIMIT = 300;
 const PATIENT_RECONCILE_POLL_LIMIT = 300;
 const INSURANCE_REGISTER_RECONCILE_POLL_LIMIT = 300;
+const VISIT_HISTORY_RECONCILE_POLL_LIMIT = 300;
 
 function hide_legacy_setting_buttons(frm) {
 	if (frm.__legacy_setting_buttons_hidden) {
@@ -11989,6 +11998,20 @@ function open_insurance_claim_reconcile(frm) {
 		method_suffix: 'insurance_claim_reconcile',
 		poll_limit: INSURANCE_CLAIM_RECONCILE_POLL_LIMIT,
 		progress_title: __('Reconciling insurance claims from Oracle'),
+	});
+}
+
+function open_visit_history_reconcile(frm) {
+	open_create_missing_reconcile(frm, {
+		title: __('Oracle -> ERPNext: Visit History'),
+		entity: 'visit_history',
+		intro: __(
+			'Reads VISIT_00_01_HISTORY and creates only the Visit History rows ERPNext is missing. The record key is the visit number plus CR date (same as the Excel import). Existing rows are left alone.'
+		),
+		api_prefix: 'healthcare.api.visit_history_reconcile',
+		method_suffix: 'visit_history_reconcile',
+		poll_limit: VISIT_HISTORY_RECONCILE_POLL_LIMIT,
+		progress_title: __('Reconciling visit history from Oracle'),
 	});
 }
 
