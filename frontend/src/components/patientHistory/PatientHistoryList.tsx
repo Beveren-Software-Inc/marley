@@ -35,20 +35,34 @@ interface HistoryRecord {
 async function attachPatientNames(rows: HistoryRecord[]): Promise<HistoryRecord[]> {
   const ids = Array.from(new Set(rows.map((row) => row.patient).filter(Boolean)))
   if (!ids.length) return rows
-  const params = new URLSearchParams({
-    doctype: 'Patient',
-    fields: JSON.stringify(['name', 'patient_name']),
-    filters: JSON.stringify([['name', 'in', ids]]),
-    limit_page_length: String(ids.length),
-  })
+  // Live fails at large page sizes (e.g. 2500) when names are fetched via GET
+  // frappe.client.get_list: URL length / proxy limits + Patient list perms.
+  // Use batched POST to a whitelist that returns display names only.
   try {
-    const res = await fetch(`/api/method/frappe.client.get_list?${params}`)
-    const data = await res.json()
+    const { ensureCSRF } = await import('../../services/apiClient')
+    const csrf = await ensureCSRF()
     const map = new Map<string, string>()
-    for (const row of Array.isArray(data?.message) ? data.message : []) {
-      const id = String(row?.name || '').trim()
-      const label = String(row?.patient_name || '').trim()
-      if (id && label) map.set(id, label)
+    const chunkSize = 500
+    for (let i = 0; i < ids.length; i += chunkSize) {
+      const chunk = ids.slice(i, i + chunkSize)
+      const res = await fetch('/api/method/healthcare.api.patient.get_patient_display_names', {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+          ...(csrf ? { 'X-Frappe-CSRF-Token': csrf } : {}),
+        },
+        body: JSON.stringify({ patients: chunk }),
+      })
+      if (!res.ok) continue
+      const data = await res.json()
+      const message = data?.message
+      if (!message || typeof message !== 'object') continue
+      for (const [id, label] of Object.entries(message as Record<string, string>)) {
+        const name = String(label || '').trim()
+        if (id && name) map.set(id, name)
+      }
     }
     if (!map.size) return rows
     return rows.map((row) => ({
