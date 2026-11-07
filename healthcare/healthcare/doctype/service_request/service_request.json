@@ -425,7 +425,6 @@
    "fieldname": "patient_email",
    "fieldtype": "Data",
    "label": "Email",
-   "options": "Email",
    "read_only": 1
   },
   {
