@@ -25,10 +25,39 @@ import {
 interface HistoryRecord {
   name: string
   patient: string
+  patient_name?: string
   inpatient_admission?: string
   patient_visit?: string
   date?: string
   creation: string
+}
+
+async function attachPatientNames(rows: HistoryRecord[]): Promise<HistoryRecord[]> {
+  const ids = Array.from(new Set(rows.map((row) => row.patient).filter(Boolean)))
+  if (!ids.length) return rows
+  const params = new URLSearchParams({
+    doctype: 'Patient',
+    fields: JSON.stringify(['name', 'patient_name']),
+    filters: JSON.stringify([['name', 'in', ids]]),
+    limit_page_length: String(ids.length),
+  })
+  try {
+    const res = await fetch(`/api/method/frappe.client.get_list?${params}`)
+    const data = await res.json()
+    const map = new Map<string, string>()
+    for (const row of Array.isArray(data?.message) ? data.message : []) {
+      const id = String(row?.name || '').trim()
+      const label = String(row?.patient_name || '').trim()
+      if (id && label) map.set(id, label)
+    }
+    if (!map.size) return rows
+    return rows.map((row) => ({
+      ...row,
+      patient_name: row.patient_name || map.get(row.patient) || '',
+    }))
+  } catch {
+    return rows
+  }
 }
 
 interface PatientHistoryListProps {
@@ -154,7 +183,10 @@ export const PatientHistoryList = ({
         ])
         const listData = await listRes.json()
         const countData = await countRes.json()
-        const rows: HistoryRecord[] = Array.isArray(listData?.message) ? listData.message : []
+        let rows: HistoryRecord[] = Array.isArray(listData?.message) ? listData.message : []
+        if (!patient) {
+          rows = await attachPatientNames(rows)
+        }
         const count = typeof countData?.message === 'number' ? countData.message : rows.length
         setItems((prev) => (preferLoadMore && page > 1 ? [...prev, ...rows] : rows))
         setTotalCount(count)
@@ -356,7 +388,10 @@ export const PatientHistoryList = ({
                   <tr>
                     <th className="px-3 py-2 text-left text-[11px] font-semibold text-slate-600 uppercase">Date</th>
                     {!patient && (
-                      <th className="px-3 py-2 text-left text-[11px] font-semibold text-slate-600 uppercase">Patient</th>
+                      <>
+                        <th className="px-3 py-2 text-left text-[11px] font-semibold text-slate-600 uppercase">Patient</th>
+                        <th className="px-3 py-2 text-left text-[11px] font-semibold text-slate-600 uppercase">Patient Name</th>
+                      </>
                     )}
                     <th className="px-3 py-2 text-left text-[11px] font-semibold text-slate-600 uppercase">Admission</th>
                     <th className="px-3 py-2 text-left text-[11px] font-semibold text-slate-600 uppercase">Visit</th>
@@ -376,12 +411,20 @@ export const PatientHistoryList = ({
                         </button>
                       </td>
                       {!patient && (
-                        <td
-                          className="px-3 py-2 cursor-pointer"
-                          onClick={() => row.patient && onPatientClick?.(row.patient)}
-                        >
-                          <span className="font-medium text-primary hover:underline">{row.patient || '—'}</span>
-                        </td>
+                        <>
+                          <td
+                            className="px-3 py-2 cursor-pointer"
+                            onClick={() => row.patient && onPatientClick?.(row.patient)}
+                          >
+                            <span className="font-medium text-primary hover:underline">{row.patient || '—'}</span>
+                          </td>
+                          <td
+                            className="px-3 py-2 cursor-pointer"
+                            onClick={() => row.patient && onPatientClick?.(row.patient)}
+                          >
+                            <span className="text-slate-700">{row.patient_name || '—'}</span>
+                          </td>
+                        </>
                       )}
                       <td className="px-3 py-2 text-slate-500 text-xs">{row.inpatient_admission || '—'}</td>
                       <td className="px-3 py-2 text-slate-500 text-xs">{row.patient_visit || '—'}</td>
