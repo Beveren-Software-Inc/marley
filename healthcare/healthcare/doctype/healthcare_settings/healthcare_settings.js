@@ -5401,7 +5401,7 @@ function open_patient_document_manifest() {
 				fieldname: 'help',
 				options:
 					'<p class="text-muted small">'
-					+ __('Select the main folder. Every PDF in the nested folders is imported. manifest_final.csv supplies the patient file number when the file is listed. A PDF that is not in the manifest, or whose patient is not in ERPNext, is still uploaded. The old OCR Legacy Visit Documents are deleted first.')
+					+ __('Select the main folder. Every PDF in the nested folders is imported. manifest_final.csv supplies the patient file number when the file is listed. A PDF that is not in the manifest is still uploaded and marked Not Patient Document. A PDF whose patient is not in ERPNext is still uploaded. The old OCR Legacy Visit Documents are deleted first.')
 					+ '</p>',
 			},
 			{
@@ -5487,6 +5487,129 @@ function read_manifest_text(file) {
 	});
 }
 
+function patient_document_outside_manifest_html(outside) {
+	if (!outside.length) {
+		return (
+			'<p class="text-muted small mt-2">'
+			+ __('Every PDF in the folder is listed in the manifest.')
+			+ '</p>'
+		);
+	}
+	const options = outside
+		.map((row, index) => {
+			const label = row.file_name || row.relative_path || row.path || '';
+			const title = row.relative_path || row.path || label;
+			return (
+				'<option value="'
+				+ index
+				+ '" title="'
+				+ frappe.utils.escape_html(title)
+				+ '">'
+				+ frappe.utils.escape_html(label)
+				+ '</option>'
+			);
+		})
+		.join('');
+	return (
+		'<div class="mt-3 patient-document-outside-manifest">'
+		+ '<label class="control-label">'
+		+ __('PDFs not listed in the manifest')
+		+ ' ('
+		+ outside.length
+		+ ')</label>'
+		+ '<div class="flex align-items-center" style="gap:8px;">'
+		+ '<select class="form-control patient-document-outside-select" style="flex:1;">'
+		+ options
+		+ '</select>'
+		+ '<button type="button" class="btn btn-default btn-sm patient-document-outside-download">'
+		+ __('Download')
+		+ '</button>'
+		+ '<button type="button" class="btn btn-default btn-sm patient-document-outside-download-all">'
+		+ __('Download all names')
+		+ '</button>'
+		+ '</div>'
+		+ '<p class="text-muted small mt-1 patient-document-outside-path"></p>'
+		+ '</div>'
+	);
+}
+
+function bind_patient_document_outside_manifest(dialog) {
+	const $wrap = dialog.fields_dict.preview_html.$wrapper;
+	const $select = $wrap.find('.patient-document-outside-select');
+	const $path = $wrap.find('.patient-document-outside-path');
+	const outside = dialog._document_outside_manifest || [];
+	if (!$select.length) {
+		return;
+	}
+	const show_path = () => {
+		const row = outside[cint($select.val())];
+		$path.text(row ? row.relative_path || row.path || '' : '');
+	};
+	show_path();
+	$select.off('change.patient_document_outside').on('change.patient_document_outside', show_path);
+	$wrap
+		.find('.patient-document-outside-download')
+		.off('click.patient_document_outside')
+		.on('click.patient_document_outside', () => {
+			download_patient_document_outside_file(dialog, cint($select.val()));
+		});
+	$wrap
+		.find('.patient-document-outside-download-all')
+		.off('click.patient_document_outside')
+		.on('click.patient_document_outside', () => {
+			download_patient_document_outside_names(dialog);
+		});
+}
+
+function download_patient_document_outside_file(dialog, index) {
+	const outside = dialog._document_outside_manifest || [];
+	const row = outside[index];
+	if (!row) {
+		frappe.msgprint(__('Select a PDF that is not in the manifest.'));
+		return;
+	}
+	const path = row.path || '';
+	const file = (dialog._document_folder_files || []).find(
+		(item) => patient_document_relative_path(item) === path
+	);
+	if (!file) {
+		frappe.msgprint(__('That PDF is no longer available from the selected folder. Select the folder again.'));
+		return;
+	}
+	const url = URL.createObjectURL(file);
+	const link = document.createElement('a');
+	link.href = url;
+	link.download = row.file_name || patient_image_basename(file) || 'document.pdf';
+	document.body.appendChild(link);
+	link.click();
+	link.remove();
+	setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function download_patient_document_outside_names(dialog) {
+	const outside = dialog._document_outside_manifest || [];
+	if (!outside.length) {
+		frappe.msgprint(__('There are no PDFs outside the manifest.'));
+		return;
+	}
+	const lines = outside.map((row) => {
+		const name = (row.file_name || '').trim();
+		if (name) {
+			return name;
+		}
+		return String(row.path || row.relative_path || '').replace(/\\/g, '/').split('/').pop();
+	});
+	const blob = new Blob([lines.filter(Boolean).join('\n') + '\n'], { type: 'text/plain;charset=utf-8' });
+	const url = URL.createObjectURL(blob);
+	const link = document.createElement('a');
+	link.href = url;
+	link.download = 'pdfs_not_in_manifest.txt';
+	document.body.appendChild(link);
+	link.click();
+	link.remove();
+	setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
 function preview_patient_document_folder(dialog, files) {
 	const manifests = files.filter((file) => patient_image_basename(file).toLowerCase() === 'manifest_final.csv');
 	if (!manifests.length) {
@@ -5518,6 +5641,9 @@ function preview_patient_document_folder(dialog, files) {
 					dialog._document_imports[row.path] = row;
 				});
 				const missing = (counts.sample_missing_file_nos || []).join(', ') || __('(none)');
+				const outside = counts.outside_manifest_files || [];
+				dialog._document_folder_files = files;
+				dialog._document_outside_manifest = outside;
 				dialog.fields_dict.preview_html.$wrapper.html(
 					'<table class="table table-bordered small"><tbody>'
 					+ '<tr><td>' + __('Rows in the manifest') + '</td><td><b>' + (counts.manifest_rows || 0) + '</b></td></tr>'
@@ -5531,7 +5657,9 @@ function preview_patient_document_folder(dialog, files) {
 					+ '<tr><td>' + __('Old Legacy Visit Documents to delete') + '</td><td><b>' + (counts.existing_documents || 0) + '</b></td></tr>'
 					+ '</tbody></table>'
 					+ '<p class="text-muted small">' + __('Sample missing file numbers: {0}', [frappe.utils.escape_html(missing)]) + '</p>'
+					+ patient_document_outside_manifest_html(outside)
 				);
+				bind_patient_document_outside_manifest(dialog);
 				const wanted = new Set(counts.upload_paths || []);
 				const pending = files.filter((file) => wanted.has(patient_document_relative_path(file)));
 				if (!pending.length) {

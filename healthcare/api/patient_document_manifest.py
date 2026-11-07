@@ -2,8 +2,8 @@
 
 The manifest is the list. ``RELATIVE_PATH`` finds the PDF inside the uploaded
 folder, however many wrapper folders sit above it. ``PATIENT_FILE_NO`` links
-the patient. ``FILE_EXISTS`` is read first: a row that is not marked present
-is not imported.
+the patient. Every PDF in the folder is imported. A PDF that is not listed in
+the manifest is still uploaded and marked ``Not Patient Document``.
 
 Existing Legacy Visit Document rows, the previous OCR import, are removed
 before the new files are attached.
@@ -181,9 +181,9 @@ def plan_manifest_import(rows: list[dict[str, str]], uploaded_paths: list[str]) 
 			not_in_folder += 1
 			continue
 		taken.add(normalize_relative_path(uploaded).lower())
-		chosen.append({**row, "path": uploaded})
+		chosen.append({**row, "path": uploaded, "not_patient_document": 0})
 
-	outside_manifest = 0
+	outside_manifest_files: list[dict[str, str]] = []
 	for raw in uploaded_paths or []:
 		norm = normalize_relative_path(raw)
 		if not norm.lower().endswith(".pdf"):
@@ -192,8 +192,8 @@ def plan_manifest_import(rows: list[dict[str, str]], uploaded_paths: list[str]) 
 		if key in taken:
 			continue
 		taken.add(key)
-		outside_manifest += 1
 		name = _pdf_name(norm)
+		outside_manifest_files.append({"path": raw, "file_name": name, "relative_path": norm})
 		chosen.append(
 			{
 				"path": raw,
@@ -205,6 +205,7 @@ def plan_manifest_import(rows: list[dict[str, str]], uploaded_paths: list[str]) 
 				"date_created": "",
 				"document_type": "",
 				"remarks": norm,
+				"not_patient_document": 1,
 			}
 		)
 	return {
@@ -213,7 +214,8 @@ def plan_manifest_import(rows: list[dict[str, str]], uploaded_paths: list[str]) 
 		"file_exists_no": file_exists_no,
 		"not_in_folder": not_in_folder,
 		"duplicates": duplicates,
-		"outside_manifest": outside_manifest,
+		"outside_manifest": len(outside_manifest_files),
+		"outside_manifest_files": outside_manifest_files,
 	}
 
 
@@ -279,6 +281,7 @@ def _preview_from(manifest: str, paths: list[str]) -> dict[str, Any]:
 		"matched_files": len(plan["chosen"]),
 		"not_in_folder": plan["not_in_folder"],
 		"outside_manifest": plan["outside_manifest"],
+		"outside_manifest_files": plan["outside_manifest_files"],
 		"duplicates": plan["duplicates"],
 		"patients_found": len(found_ids),
 		"patients_missing": len(missing_patients),
@@ -296,6 +299,7 @@ def _preview_from(manifest: str, paths: list[str]) -> dict[str, Any]:
 				"date_created": row.get("date_created") or "",
 				"legacy_visit": row.get("legacy_visit") or "",
 				"remarks": row.get("remarks") or "",
+				"not_patient_document": cint(row.get("not_patient_document")),
 			}
 			for row in plan["chosen"]
 		],
@@ -354,6 +358,7 @@ def _create_one(item: dict) -> str:
 	patient = resolve_patient(file_no) if file_no else None
 	patient_name = frappe.db.get_value("Patient", patient, "patient_name") if patient else None
 	basename = normalize_relative_path(relative_path).split("/")[-1] or file_url.split("/")[-1]
+	not_patient_document = cint(item.get("not_patient_document"))
 	document_type = ensure_document_type(item.get("document_type") or DEFAULT_DOCUMENT_TYPE)
 	doc = frappe.get_doc(
 		{
@@ -362,6 +367,7 @@ def _create_one(item: dict) -> str:
 			"document_name": (item.get("document_name") or "").strip() or basename,
 			"file_name": (item.get("file_name") or "").strip() or basename,
 			"document_type": document_type,
+			"not_patient_document": not_patient_document,
 			"document": file_url,
 			"upload_remarks": (item.get("remarks") or "").strip() or relative_path or basename,
 			"date_created": _parse_date(item.get("date_created")),

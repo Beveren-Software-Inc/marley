@@ -10,6 +10,7 @@
   "document_name",
   "file_name",
   "document_type",
+  "not_patient_document",
   "column_break_zntp",
   "document",
   "upload_remarks",
@@ -47,6 +48,15 @@
    "in_standard_filter": 1,
    "label": "Document Type",
    "options": "Document Type"
+  },
+  {
+   "default": "0",
+   "description": "Checked when the PDF was in the folder but not listed in manifest_final.csv",
+   "fieldname": "not_patient_document",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Not Patient Document"
   },
   {
    "fieldname": "column_break_zntp",

@@ -46,7 +46,19 @@ class TestPatientDocumentManifest(UnitTestCase):
 		)
 		self.assertEqual(plan["chosen"][2]["patient_file_no"], "")
 		self.assertEqual(plan["chosen"][2]["legacy_visit"], "4362")
+		self.assertEqual(plan["chosen"][0]["not_patient_document"], 0)
+		self.assertEqual(plan["chosen"][2]["not_patient_document"], 1)
 		self.assertEqual(plan["outside_manifest"], 1)
+		self.assertEqual(
+			plan["outside_manifest_files"],
+			[
+				{
+					"path": "Patient_Documents_PDF/major/other/DOC_4362_VGZRSM8Z2HTS.pdf",
+					"file_name": "DOC_4362_VGZRSM8Z2HTS.pdf",
+					"relative_path": "Patient_Documents_PDF/major/other/DOC_4362_VGZRSM8Z2HTS.pdf",
+				}
+			],
+		)
 		self.assertEqual(plan["file_exists_no"], 1)
 		self.assertEqual(plan["duplicates"], 1)
 		self.assertEqual(plan["not_in_folder"], 1)
