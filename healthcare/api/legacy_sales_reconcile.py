@@ -41,8 +41,11 @@ JOB_KEY = "legacy_sales_reconcile"
 PROGRESS_KEY = "healthcare:legacy_sales_reconcile:progress"
 WORK_KEY = "healthcare:legacy_sales_reconcile:work"
 LOCK_KEY = "healthcare:legacy_sales_reconcile:lock"
+PREVIEW_KEY = "healthcare:legacy_sales_reconcile:preview"
+PREVIEW_LOCK_KEY = "healthcare:legacy_sales_reconcile:preview_lock"
 PROGRESS_TTL = 60 * 60 * 12
 LOCK_TTL = 60 * 60 * 6
+PREVIEW_TTL = 60 * 60 * 2
 
 DOCTYPE = "Legacy Sales Transactions"
 ORACLE_HEADER = "INV_00_01"
@@ -104,6 +107,58 @@ def _release_lock() -> None:
 
 def _lock_held() -> bool:
 	return bool(frappe.cache().get_value(LOCK_KEY))
+
+
+def _set_preview(progress: dict) -> None:
+	progress["updated_at"] = str(now_datetime())
+	frappe.cache().set_value(PREVIEW_KEY, progress, expires_in_sec=PREVIEW_TTL)
+
+
+def _load_preview() -> dict:
+	return frappe.cache().get_value(PREVIEW_KEY) or {}
+
+
+def _preview_lock_held() -> bool:
+	return bool(frappe.cache().get_value(PREVIEW_LOCK_KEY))
+
+
+def _acquire_preview_lock() -> str | None:
+	import uuid
+
+	token = str(uuid.uuid4())
+	cache = frappe.cache()
+	if cache.get_value(PREVIEW_LOCK_KEY):
+		return None
+	cache.set_value(PREVIEW_LOCK_KEY, token, expires_in_sec=PREVIEW_TTL)
+	if cache.get_value(PREVIEW_LOCK_KEY) != token:
+		return None
+	return token
+
+
+def _release_preview_lock() -> None:
+	frappe.cache().delete_value(PREVIEW_LOCK_KEY)
+
+
+def _preview_payload(data: dict) -> dict:
+	"""Light compare result for the dialog (no full Oracle payload)."""
+	return {
+		"oracle_table": data["oracle_table"],
+		"oracle_rows": data["oracle_rows"],
+		"oracle_by_source": data["oracle_by_source"],
+		"reference_counts": data["reference_counts"],
+		"erpnext_rows": data["erpnext_rows"],
+		"erp_by_source": data["erp_by_source"],
+		"matched": data["matched"],
+		"missing_total": data["missing_total"],
+		"headers_missing_lines": data["headers_missing_lines"],
+		"work_total": data["work_total"],
+		"samples": data["samples"],
+		"note": _(
+			"Uses NET_BILL_AMOUNT as the charged amount and ITEM_SMALL_QTY as quantity. "
+			"EMP staff purchases and Rose retail invoices are excluded. "
+			"Reference snapshot: IP {0} · OP {1}."
+		).format(REFERENCE_COUNTS["IP"], REFERENCE_COUNTS["OP"]),
+	}
 
 
 def _record_sample(progress: dict, text: str) -> None:
@@ -362,30 +417,140 @@ def _compare(patient: str = "") -> dict[str, Any]:
 
 @frappe.whitelist()
 def preview_legacy_sales_reconcile(patient: str = "", files=None, limit: int = 0):
-	"""Compare INV_00_01 SAL IP/OP to Legacy Sales Transactions."""
+	"""Queue a background compare of INV_00_01 SAL IP/OP vs Legacy Sales.
+
+	The live request only enqueues — reading ~100k+ headers (and large Excel
+	uploads) times out in the browser if done synchronously.
+	"""
 	_require_admin()
 	files = normalize_files(files)
-	with excel_source(files, tables=ORACLE_TABLES):
-		data = _compare(patient=patient or "")
-	# Drop heavy payloads from the dialog response.
-	return {
-		"oracle_table": data["oracle_table"],
-		"oracle_rows": data["oracle_rows"],
-		"oracle_by_source": data["oracle_by_source"],
-		"reference_counts": data["reference_counts"],
-		"erpnext_rows": data["erpnext_rows"],
-		"erp_by_source": data["erp_by_source"],
-		"matched": data["matched"],
-		"missing_total": data["missing_total"],
-		"headers_missing_lines": data["headers_missing_lines"],
-		"work_total": data["work_total"],
-		"samples": data["samples"],
-		"note": _(
-			"Uses NET_BILL_AMOUNT as the charged amount and ITEM_SMALL_QTY as quantity. "
-			"EMP staff purchases and Rose retail invoices are excluded. "
-			"Reference snapshot: IP {0} · OP {1}."
-		).format(REFERENCE_COUNTS["IP"], REFERENCE_COUNTS["OP"]),
+	if _preview_lock_held():
+		preview = _load_preview()
+		return {
+			"queued": False,
+			"running": True,
+			"async": True,
+			"message": preview.get("message")
+			or _("Legacy Sales comparison is already running in the background."),
+			"status": preview,
+		}
+
+	token = _acquire_preview_lock()
+	if not token:
+		preview = _load_preview()
+		return {
+			"queued": False,
+			"running": True,
+			"async": True,
+			"message": _("Legacy Sales comparison is already running in the background."),
+			"status": preview,
+		}
+
+	progress = {
+		"job_key": f"{JOB_KEY}_preview",
+		"state": "queued",
+		"patient": patient or "",
+		"processed": 0,
+		"total": 0,
+		"message": (
+			_("Queued. Comparing uploaded INV_00_01 / INV_00_02 with Legacy Sales…")
+			if files
+			else _("Queued. Comparing Oracle INV_00_01 / INV_00_02 with Legacy Sales…")
+		),
+		"result": None,
 	}
+	_set_preview(progress)
+	frappe.enqueue(
+		"healthcare.api.legacy_sales_reconcile.run_legacy_sales_preview",
+		queue="long",
+		timeout=7200,
+		patient=patient or "",
+		files=files,
+		token=token,
+	)
+	return {
+		"queued": True,
+		"async": True,
+		"job_key": f"{JOB_KEY}_preview",
+		"message": progress["message"],
+		"status": progress,
+	}
+
+
+@frappe.whitelist()
+def get_legacy_sales_reconcile_preview_status():
+	"""Poll background preview/compare for Legacy Sales."""
+	_require_admin()
+	preview = _load_preview() or {
+		"job_key": f"{JOB_KEY}_preview",
+		"state": "idle",
+		"processed": 0,
+		"total": 0,
+	}
+	# When finished, flatten result onto the status so the dialog can use it.
+	if preview.get("state") == "finished" and isinstance(preview.get("result"), dict):
+		out = dict(preview["result"])
+		out["state"] = "finished"
+		out["message"] = preview.get("message") or _("Comparison ready.")
+		out["async"] = True
+		return out
+	return preview
+
+
+def run_legacy_sales_preview(patient: str = "", files=None, token: str | None = None):
+	"""Background worker: compare Oracle/Excel SAL IP/OP to Legacy Sales."""
+	files = normalize_files(files)
+	progress = _load_preview() or {
+		"job_key": f"{JOB_KEY}_preview",
+		"state": "running",
+		"patient": patient or "",
+	}
+	try:
+		progress.update(
+			{
+				"state": "scanning",
+				"message": _("Reading pharmacy sales headers and comparing with ERPNext…"),
+			}
+		)
+		_set_preview(progress)
+		with excel_source(files, tables=ORACLE_TABLES):
+			data = _compare(patient=patient or "")
+		result = _preview_payload(data)
+		progress.update(
+			{
+				"state": "finished",
+				"processed": 1,
+				"total": 1,
+				"result": result,
+				"oracle_rows": result["oracle_rows"],
+				"missing_total": result["missing_total"],
+				"matched": result["matched"],
+				"work_total": result["work_total"],
+				"finished_at": str(now_datetime()),
+				"message": _(
+					"Comparison ready. Oracle SAL IP/OP: {0}. Missing headers: {1}. Headers missing lines: {2}."
+				).format(
+					result["oracle_rows"],
+					result["missing_total"],
+					result["headers_missing_lines"],
+				),
+			}
+		)
+		_set_preview(progress)
+		return {"state": "finished", "result": result}
+	except Exception:
+		progress.update(
+			{
+				"state": "failed",
+				"message": frappe.get_traceback(),
+				"finished_at": str(now_datetime()),
+			}
+		)
+		_set_preview(progress)
+		frappe.log_error(title="Legacy Sales / pharmacy dispensed preview failed")
+		raise
+	finally:
+		_release_preview_lock()
 
 
 @frappe.whitelist()
@@ -478,6 +643,21 @@ def _run(token: str, resume: int, dry_run: int, patient: str) -> dict:
 		progress = _load_progress() or {}
 		work = _load_work() or {}
 	else:
+		progress = {
+			"job_key": JOB_KEY,
+			"state": "scanning",
+			"dry_run": dry_run,
+			"patient": patient,
+			"processed": 0,
+			"total": 0,
+			"created": 0,
+			"lines_added": 0,
+			"skipped": 0,
+			"message": _("Comparing pharmacy sales with Legacy Sales Transactions…"),
+			"samples": [],
+			"errors": [],
+		}
+		_set_progress(progress)
 		data = _compare(patient=patient)
 		progress = {
 			"job_key": JOB_KEY,

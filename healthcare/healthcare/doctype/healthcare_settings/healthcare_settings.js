@@ -12297,15 +12297,73 @@ function preview_create_missing_reconcile(frm, spec, values) {
 		},
 		callback(r) {
 			frappe.dom.unfreeze();
+			const msg = r.message || {};
+			// Heavy compares (e.g. Legacy Sales) enqueue and must be polled.
+			if (msg.queued || msg.async || msg.running) {
+				poll_create_missing_reconcile_preview(frm, spec, values || {});
+				return;
+			}
 			if (!r.message) {
 				return;
 			}
-			show_create_missing_reconcile_dialog(frm, spec, r.message, values || {});
+			show_create_missing_reconcile_dialog(frm, spec, msg, values || {});
 		},
 		error() {
 			frappe.dom.unfreeze();
 		},
 	});
+}
+
+function poll_create_missing_reconcile_preview(frm, spec, values) {
+	let polls = 0;
+	const title = spec.progress_title || spec.title;
+	const status_method =
+		spec.preview_status_method ||
+		`${spec.api_prefix}.get_${spec.method_suffix}_preview_status`;
+	frappe.show_progress(title, 0, 100, __('Comparing with Oracle…'));
+	const timer = setInterval(() => {
+		polls += 1;
+		frappe.call({
+			method: status_method,
+			callback(r) {
+				const status = r.message || {};
+				frappe.show_progress(
+					title,
+					status.state === 'finished' ? 100 : Math.min(90, polls * 2),
+					100,
+					status.message || __('Comparing with Oracle…')
+				);
+				if (status.state === 'finished') {
+					clearInterval(timer);
+					frappe.hide_progress();
+					show_create_missing_reconcile_dialog(frm, spec, status, values || {});
+				} else if (status.state === 'failed') {
+					clearInterval(timer);
+					frappe.hide_progress();
+					frappe.msgprint({
+						title: spec.title,
+						indicator: 'red',
+						wide: true,
+						message: frappe.utils
+							.escape_html(status.message || __('Comparison failed'))
+							.replace(/\n/g, '<br>'),
+					});
+				} else if (polls >= (spec.poll_limit || 300)) {
+					clearInterval(timer);
+					frappe.hide_progress();
+					frappe.msgprint(
+						__(
+							'The comparison is still running in the background. Open the button again in a few minutes to see the result.'
+						)
+					);
+				}
+			},
+			error() {
+				clearInterval(timer);
+				frappe.hide_progress();
+			},
+		});
+	}, ORACLE_SYNC_POLL_INTERVAL);
 }
 
 function create_missing_reconcile_count(data, keys) {
@@ -12620,7 +12678,7 @@ function open_legacy_sales_reconcile(frm) {
 		title: __('Oracle -> ERPNext: Legacy Sales / Pharmacy Dispensed'),
 		entity: 'legacy_sales',
 		intro: __(
-			'Reads INV_00_01 (headers) and INV_00_02 (lines) for hospital pharmacy SAL documents with TRANS_SOURCE IP or OP. EMP staff purchases and Rose retail sales are excluded. Uses NET_BILL_AMOUNT as the charged amount and ITEM_SMALL_QTY as quantity; pink prescription columns are kept. Missing Legacy Sales Transactions headers are created and empty headers get their item lines. Export SQL: healthcare/api/sql/pharmacy_dispensed_extraction.sql (expect about 43,709 OP + 73,321 IP headers).'
+			'Reads INV_00_01 (headers) and INV_00_02 (lines) for hospital pharmacy SAL documents with TRANS_SOURCE IP or OP. EMP staff purchases and Rose retail sales are excluded. Uses NET_BILL_AMOUNT as the charged amount and ITEM_SMALL_QTY as quantity; pink prescription columns are kept. Missing Legacy Sales Transactions headers are created and empty headers get their item lines. Export SQL: healthcare/api/sql/pharmacy_dispensed_extraction.sql (expect about 43,709 OP + 73,321 IP headers). Comparison runs in the background so large INV uploads do not time out.'
 		),
 		api_prefix: 'healthcare.api.legacy_sales_reconcile',
 		method_suffix: 'legacy_sales_reconcile',
