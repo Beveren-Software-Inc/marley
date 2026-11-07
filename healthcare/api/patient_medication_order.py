@@ -3802,20 +3802,23 @@ def _create_completed_service_requests_for_giveout(
 	company=None,
 	sales_order=None,
 ):
-	"""Create Other Service SRs for give-out services already billed on the Sales Order, then complete them."""
+	"""Create Other Service SRs for give-out services that have a Healthcare Service Template.
+
+	Services are always billed as Items on the Sales Order. A linked template is optional:
+	when present we also create/complete a Service Request; when absent we skip the SR
+	and leave the Item on the Sales Order only (pharmacy / injection charges, etc.).
+	"""
 	created = []
 	for svc in services or []:
 		item_code = (svc.get("item_code") or svc.get("id") or "").strip()
+		if not item_code:
+			continue
 		template_dn = _resolve_hst_for_pharmacy_service(
 			item_code=item_code, template_dn=svc.get("template_dn")
 		)
+		# Plain Item (e.g. custom_is_pharmacy_service) — billed on SO already; no SR required.
 		if not template_dn:
-			frappe.throw(
-				_(
-					"No Healthcare Service Template found for service {0}. "
-					"Link an Other Service template to this item before giving out."
-				).format(svc.get("item_name") or item_code or _("Unknown"))
-			)
+			continue
 
 		qty = flt(svc.get("quantity") or svc.get("qty") or 1) or 1
 		rate = flt(svc.get("rate") or svc.get("price") or 0)
@@ -4157,8 +4160,9 @@ def create_nursing_pharmacy_giveout(
 	"""Nursing pharmacy give-out: create PMO from edited prescription lines, bill via submitted Sales Order.
 
 	IP give-outs pass inpatient_record; OP give-outs pass patient_visit instead.
-	``services`` are billed on the Sales Order only (not written onto the PMO) and
-	create completed Other Service Requests.
+	``services`` are billed as Items on the Sales Order (not written onto the PMO).
+	When a Healthcare Service Template is linked to the item, a completed Other
+	Service Request is also created; plain pharmacy Items need no template.
 
 	Medicine billing:
 	- ``no_charges`` / ``charge_percent=0``: stock still goes out; drug lines billed at 0
