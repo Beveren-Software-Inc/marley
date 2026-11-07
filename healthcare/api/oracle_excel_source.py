@@ -415,6 +415,26 @@ ORACLE_SOURCES: dict[str, dict[str, Any]] = {
 			},
 		],
 	},
+	# Pharmacy dispensed medicine (hospital SAL only). Headers + lines.
+	# Upload select * from INV_00_01 and INV_00_02 (Oracle column names).
+	# The reconcile keeps TRANS_TYPE_NUM = SAL and TRANS_SOURCE in (IP, OP);
+	# EMP staff purchases and Rose retail SI* documents are excluded.
+	"legacy_sales": {
+		"label": "Legacy Sales / Pharmacy Dispensed",
+		"doctype": "Legacy Sales Transactions",
+		"tables": [
+			{
+				"table": "INV_00_01",
+				"label": "Pharmacy sales headers (INV document master)",
+				"required": ["TRANS_NUM", "TRANS_TYPE_NUM", "TRANS_SOURCE"],
+			},
+			{
+				"table": "INV_00_02",
+				"label": "Pharmacy sales lines (INV document detail)",
+				"required": ["TRANS_NUM", "TRANS_TYPE_NUM", "SR_NUM", "ITEM_NUM"],
+			},
+		],
+	},
 }
 
 

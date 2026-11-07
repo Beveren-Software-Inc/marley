@@ -196,6 +196,13 @@ frappe.ui.form.on('Healthcare Settings', {
 			__('Oracle -> ERPNext')
 		);
 
+		// Pharmacy dispensed medicine (INV_00_01 + INV_00_02, SAL IP/OP only).
+		frm.add_custom_button(
+			__('Legacy Sales / Pharmacy Dispensed'),
+			() => open_legacy_sales_reconcile(frm),
+			__('Oracle -> ERPNext')
+		);
+
 		frm.add_custom_button(
 			__('Appointments'),
 			() => open_appointment_reconcile(frm),
@@ -12603,6 +12610,20 @@ function open_medicine_given_reconcile(frm) {
 		method_suffix: 'medicine_given_reconcile',
 		poll_limit: 300,
 		progress_title: __('Reconciling medicine given from Oracle'),
+	});
+}
+
+function open_legacy_sales_reconcile(frm) {
+	open_create_missing_reconcile(frm, {
+		title: __('Oracle -> ERPNext: Legacy Sales / Pharmacy Dispensed'),
+		entity: 'legacy_sales',
+		intro: __(
+			'Reads INV_00_01 (headers) and INV_00_02 (lines) for hospital pharmacy SAL documents with TRANS_SOURCE IP or OP. EMP staff purchases and Rose retail sales are excluded. Uses NET_BILL_AMOUNT as the charged amount and ITEM_SMALL_QTY as quantity; pink prescription columns are kept. Missing Legacy Sales Transactions headers are created and empty headers get their item lines. Export SQL: healthcare/api/sql/pharmacy_dispensed_extraction.sql (expect about 43,709 OP + 73,321 IP headers).'
+		),
+		api_prefix: 'healthcare.api.legacy_sales_reconcile',
+		method_suffix: 'legacy_sales_reconcile',
+		poll_limit: 600,
+		progress_title: __('Reconciling pharmacy dispensed sales from Oracle'),
 	});
 }
 
