@@ -959,24 +959,28 @@ def _parse_normal_range_bounds(normal_range):
 
 
 def _range_value_or_none(value):
-	"""Normalize template range fields; blank / unset → None (keep ``0`` when intentional)."""
+	"""Normalize template range fields; blank / unset → None.
+
+	Min/Max Range accept free text (words) as well as numbers. A bare numeric
+	``0`` / ``0.0`` is treated as unset (legacy Float default). Non-numeric text
+	such as ``Negative`` is kept as-is.
+	"""
 	if value is None:
 		return None
-	if isinstance(value, str):
-		text = value.strip()
-		return text or None
-	# Numeric 0 on Lab Test Template is often an unset default when sex-specific
-	# ranges are used instead — still allow explicit non-zero generics.
+	text = cstr(value).strip()
+	if not text:
+		return None
 	try:
-		num = flt(value)
-	except Exception:
-		return str(value).strip() or None
+		num = float(text)
+	except (TypeError, ValueError):
+		return text
+	# Legacy Float default / empty range
 	if num == 0:
 		return None
 	# Keep integer-looking values clean (2 not 2.0) when possible.
 	if float(num).is_integer():
 		return str(int(num))
-	return str(num)
+	return text
 
 
 def _pick_template_min_max(row, patient_sex=None):
