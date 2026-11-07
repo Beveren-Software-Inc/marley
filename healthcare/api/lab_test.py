@@ -17,6 +17,8 @@ from healthcare.healthcare.lab_test_result_rules import apply_rules_to_doc
 LAB_RESULT_EDIT_ROLES = frozenset(
 	(
 		"Laboratory User",
+		"Lab Technician",
+		"Lab Technologist",
 		"LabTest Approver",
 		"System Manager",
 		"Healthcare Administrator",
@@ -27,8 +29,8 @@ LAB_RESULT_EDIT_ROLES = frozenset(
 CEO_ROLE = "CEO"
 GROUP_FINISHED_SR_STATUS = "completed-Request Status"
 
-# F013/F014: lab result editors may correct results until a final status; after these
-# (or a finished group) only administrators/CEO may amend.
+# Lab result editors (Laboratory User / Lab Technician / …) may correct results at any
+# post-sample status, including after Approved/Completed or a finished group.
 FINAL_LAB_STATUSES = frozenset(("Approved", "Completed"))
 LAB_RESULT_ADMIN_ROLES = frozenset(("System Manager", "Healthcare Administrator", "Administrator"))
 
@@ -234,8 +236,8 @@ def _lab_test_sample_collection_done(doc) -> bool:
 
 
 def _ensure_lab_result_save_allowed(doc):
-	"""F013/F014: lab result editors may correct results until a final status; after a
-	final status (Approved/Completed) or a finished group, only administrators/CEO may amend."""
+	"""Lab result editors may correct results after sample collection, including when
+	the test is Approved/Completed or the group is finished. Rejected/Cancelled stay locked."""
 	if doc.docstatus == 2:
 		frappe.throw(_("Cannot update a cancelled Lab Test"))
 	if doc.status in ("Rejected", "Cancelled"):
@@ -247,17 +249,8 @@ def _ensure_lab_result_save_allowed(doc):
 			title=_("Sample collection required"),
 		)
 
-	is_final = doc.status in FINAL_LAB_STATUSES or _is_group_lab_finished(doc)
-	if is_final:
-		roles = set(frappe.get_roles(frappe.session.user))
-		if not (roles & LAB_RESULT_ADMIN_ROLES) and not _is_ceo_user():
-			frappe.throw(
-				_("This lab result is finalised — only an administrator may amend it."),
-				frappe.PermissionError,
-			)
-		return
-	# Sample Collected / Testing / Pending Review / Reviewed / …: editable by
-	# any lab result editor (role checked separately in _ensure_lab_result_edit_permission).
+	# Role check lives in _ensure_lab_result_edit_permission (Laboratory User /
+	# Lab Technician / Lab Technologist / LabTest Approver / admins / nurse by_nurse).
 	return
 
 
