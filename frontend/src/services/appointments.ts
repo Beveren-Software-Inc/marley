@@ -247,6 +247,26 @@ export async function createAppointment(data: CreateAppointmentData): Promise<Ap
 
 export interface UpdateAppointmentStatusResult {
   patient_visit?: string
+  sales_order?: string
+  visit_charge_rate?: number
+  visit_charge_error?: string
+}
+
+export interface ArrivalVisitChargeLine {
+  template: string
+  rate?: number
+  qty?: number
+  discount_type?: 'Percentage' | 'Amount'
+  discount_rate?: number
+  discount?: number
+}
+
+export interface UpdateAppointmentStatusOptions {
+  notes?: string
+  checkoutTime?: string
+  visitType?: string
+  chargeVisit?: boolean
+  chargeLines?: ArrivalVisitChargeLine[]
 }
 
 /** Resolve Patient Visit linked to an appointment (stored link or reverse lookup). */
@@ -275,19 +295,34 @@ export async function getPatientVisitForAppointment(appointmentId: string): Prom
 export async function updateAppointmentStatus(
   appointmentId: string,
   status: string,
-  notes?: string,
-  checkoutTime?: string
+  notesOrOptions?: string | UpdateAppointmentStatusOptions,
+  checkoutTime?: string,
 ): Promise<UpdateAppointmentStatusResult> {
+  const opts: UpdateAppointmentStatusOptions =
+    typeof notesOrOptions === 'object' && notesOrOptions !== null
+      ? notesOrOptions
+      : { notes: notesOrOptions, checkoutTime }
+
   const csrf = (window as any).csrf_token
-  const body: Record<string, string> = {
+  const body: Record<string, unknown> = {
     appointment_id: appointmentId,
     status,
   }
-  if (notes !== undefined && notes !== '') {
-    body.notes = notes
+  if (opts.notes !== undefined && opts.notes !== '') {
+    body.notes = opts.notes
   }
-  if (checkoutTime !== undefined && checkoutTime !== '') {
-    body.checkout_time = checkoutTime
+  const checkout = opts.checkoutTime ?? checkoutTime
+  if (checkout !== undefined && checkout !== '') {
+    body.checkout_time = checkout
+  }
+  if (opts.visitType) {
+    body.visit_type = opts.visitType
+  }
+  if (opts.chargeVisit !== undefined) {
+    body.charge_visit = opts.chargeVisit ? 1 : 0
+  }
+  if (opts.chargeLines !== undefined) {
+    body.charge_lines = opts.chargeLines
   }
   const response = await fetch(
     '/api/method/healthcare.healthcare.doctype.patient_appointment.patient_appointment.update_status',
