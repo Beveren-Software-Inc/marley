@@ -2266,6 +2266,46 @@ def get_price_report(report_type="lab"):
 
         return {"packages": packages}
 
+    elif report_type == "insurance":
+        insurance_plans = frappe.get_all(
+            "Health Insurance",
+            fields=["name", "insurance_company"],
+            limit_page_length=0,
+        )
+
+        company_by_plan = {
+            plan.name: plan.insurance_company
+            for plan in insurance_plans
+        }
+
+        insurance_prices = frappe.get_all(
+            "Insurance Item Detail",
+            filters={
+                "parenttype": "Health Insurance",
+                "parentfield": "inclusive_item",
+            },
+            fields=[
+                "name",
+                "parent",
+                "item_code",
+                "item_name",
+                "price",
+                "outpatient_discount",
+                "inpatient_discount",
+                "discount_apply",
+                "from_date",
+                "to_date",
+                "service_type",
+            ],
+            order_by="item_name asc",
+            limit_page_length=0,
+        )
+
+        for row in insurance_prices:
+            row["insurance_company"] = company_by_plan.get(row.parent)
+
+        return {"insurance_prices": insurance_prices}
+
     else:
         frappe.throw("Invalid report type.")
 
@@ -2290,6 +2330,9 @@ def update_price_report_rate(doctype, name, fieldname, value):
         "Inpatient Package Duration": [
             "amount",
         ],
+		"Insurance Item Detail": [
+			"price",
+		],
     }
 
     if doctype not in allowed_fields:

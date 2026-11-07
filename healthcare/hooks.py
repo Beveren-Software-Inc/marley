@@ -141,8 +141,14 @@ fixtures = [
                    "Item-custom_dosing_period_long_acting",
                    "Item-custom_maximum_single_dose_long_acting",
                    "Item-custom_long_acting",
-                   
 
+                   #Room Category
+                   "Room Category-custom_does_it_include_medical_supervision",
+                   "Room Category-custom_medical_supervision_rate",
+
+				   #Healthcare Service Template
+				   "Healthcare Service Template-custom_therapy",
+				   "Healthcare Service Template-custom_consultation"
                 ),
             ]
         ],
