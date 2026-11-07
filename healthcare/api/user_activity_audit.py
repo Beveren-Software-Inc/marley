@@ -407,7 +407,7 @@ def get_user_activity_report(
 		{doctype_filter}
 		{department_filter}
 		{type_filter}
-		ORDER BY src.{sort_col} {sort_dir}, src.timestamp DESC
+		ORDER BY src.{sort_col} {sort_dir}, src.timestamp DESC, src.user ASC, src.source ASC, src.reference ASC
 		LIMIT %(limit)s OFFSET %(offset)s
 		""",
 		{**params, "limit": limit, "offset": offset},

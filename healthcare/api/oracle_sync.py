@@ -12,6 +12,11 @@ Covered tables
 	Oracle  CLINIC2.VISIT_00_01.VISIT_NUM
 	ERPNext tabPatient Visit.case_no
 
+	A visit is also already present when the visit number differs but the same
+	patient has a visit on the same date with the same visit type. Visits opened
+	in ERPNext after the 2 July import received a new case number, so the visit
+	number alone is not enough.
+
 Rules of the road
 -----------------
 * Comparison is strictly read-only against Oracle (SELECT only).
@@ -806,13 +811,38 @@ def run_ip_admission_import(
 # ---------------------------------------------------------------------------
 
 
-def _oracle_visit_keys() -> set[str]:
-	rows = _query(
-		f"select {OP_VISIT_SYNC.oracle_key} from "
-		f"{_oracle_schema()}.{OP_VISIT_SYNC.oracle_table} "
-		f"where {OP_VISIT_SYNC.oracle_key} is not null"
+def _date_key(value: Any) -> str:
+	"""Calendar day only. Visit time is not part of the identity."""
+	if value is None or value == "":
+		return ""
+	if hasattr(value, "strftime"):
+		return value.strftime("%Y-%m-%d")
+	return str(value).strip()[:10]
+
+
+def _visit_identity(patient: Any, encounter_date: Any, visit_type_code: Any) -> tuple[str, str, str] | None:
+	"""Patient + date + visit type. Case number is a separate, stronger key."""
+	patient_key = _norm_key(patient)
+	date_key = _date_key(encounter_date)
+	type_key = _norm_key(visit_type_code)
+	if not patient_key or not date_key or not type_key:
+		return None
+	return (patient_key, date_key, type_key)
+
+
+def _oracle_visit_match_rows() -> list[dict[str, str]]:
+	"""Visit number plus the fields that still identify a visit when the number differs."""
+	return _query(
+		"select VISIT_NUM, VISIT_PATIENT_NUM, "
+		"to_char(VISIT_DATE, 'YYYY-MM-DD') as VISIT_DAY, "
+		"VISIT_TYPE_NUM "
+		f"from {_oracle_schema()}.{OP_VISIT_SYNC.oracle_table} "
+		"where VISIT_NUM is not null"
 	)
-	return {key for key in (_norm_key(row.get(OP_VISIT_SYNC.oracle_key)) for row in rows) if key}
+
+
+def _oracle_visit_keys() -> set[str]:
+	return {key for key in (_norm_key(row.get("VISIT_NUM")) for row in _oracle_visit_match_rows()) if key}
 
 
 def _erpnext_visit_keys() -> set[str]:
@@ -820,6 +850,99 @@ def _erpnext_visit_keys() -> set[str]:
 		"select case_no from `tabPatient Visit` where ifnull(case_no, '') != ''"
 	)
 	return {key for key in (_norm_key(value) for value in values) if key}
+
+
+def _erpnext_visit_identity_slots(oracle_keys: set[str]) -> dict[tuple[str, str, str], list[str]]:
+	"""ERPNext visits not already matched by case number, grouped by patient, date and type.
+
+	``visit_type`` on a desk-created visit is the Patient Visit Type link (for example
+	Followup). Imported visits usually keep the Oracle number in ``old_visit_type_``.
+	Both resolve to the same legacy code, so type 2 and Followup are one visit type.
+	Each case number is offered once.
+	"""
+	rows = frappe.db.sql(
+		"""
+		select
+			pv.name,
+			pv.case_no,
+			pv.patient,
+			pv.encounter_date,
+			pv.old_visit_type_,
+			pvt.legacy_code
+		from `tabPatient Visit` pv
+		left join `tabPatient Visit Type` pvt on pvt.name = pv.visit_type
+		where pv.docstatus < 2
+			and ifnull(pv.patient, '') != ''
+			and pv.encounter_date is not null
+		""",
+		as_dict=True,
+	)
+	slots: dict[tuple[str, str, str], list[str]] = {}
+	for row in rows:
+		case_no = _norm_key(row.case_no) or _norm_key(row.name)
+		if case_no and case_no in oracle_keys:
+			continue
+		identity = _visit_identity(
+			row.patient,
+			row.encounter_date,
+			_norm_key(row.old_visit_type_) or _norm_key(row.legacy_code),
+		)
+		if not identity:
+			continue
+		slots.setdefault(identity, []).append(case_no)
+	for bucket in slots.values():
+		bucket.sort(key=_sort_key)
+	return slots
+
+
+def _claim_op_visits_by_identity(
+	oracle_rows: list[dict[str, str]],
+	slots: dict[tuple[str, str, str], list[str]],
+) -> tuple[set[str], set[str]]:
+	"""Pair Oracle visits to leftover ERPNext visits by patient, date and visit type.
+
+	One ERPNext visit satisfies one Oracle visit. A second Oracle visit on the same
+	day and type stays missing. Returns ``(oracle visit numbers, erpnext case numbers)``.
+	"""
+	claimed_oracle: set[str] = set()
+	claimed_erp: set[str] = set()
+	ordered = sorted(oracle_rows, key=lambda row: _sort_key(_norm_key(row.get("VISIT_NUM"))))
+	for row in ordered:
+		visit_num = _norm_key(row.get("VISIT_NUM"))
+		identity = _visit_identity(
+			row.get("VISIT_PATIENT_NUM"),
+			row.get("VISIT_DAY") or row.get("VISIT_DATE"),
+			row.get("VISIT_TYPE_NUM"),
+		)
+		if not visit_num or not identity:
+			continue
+		bucket = slots.get(identity)
+		if not bucket:
+			continue
+		erp_case = bucket.pop(0)
+		claimed_oracle.add(visit_num)
+		if erp_case:
+			claimed_erp.add(erp_case)
+		if not bucket:
+			slots.pop(identity, None)
+	return claimed_oracle, claimed_erp
+
+
+def _op_visit_diff() -> dict[str, Any]:
+	"""Oracle visits that ERPNext does not already have, by number or by identity."""
+	oracle_rows = _oracle_visit_match_rows()
+	oracle_keys = {key for key in (_norm_key(row.get("VISIT_NUM")) for row in oracle_rows) if key}
+	erpnext_keys = _erpnext_visit_keys()
+	unmatched = [row for row in oracle_rows if _norm_key(row.get("VISIT_NUM")) not in erpnext_keys]
+	slots = _erpnext_visit_identity_slots(oracle_keys)
+	matched_oracle, matched_erp = _claim_op_visits_by_identity(unmatched, slots)
+	return {
+		"oracle_keys": oracle_keys,
+		"erpnext_keys": erpnext_keys,
+		"missing_keys": oracle_keys - erpnext_keys - matched_oracle,
+		"matched_oracle": matched_oracle,
+		"matched_erp": matched_erp,
+	}
 
 
 def _visit_rows_for_keys(keys: list[str]) -> list[dict[str, str]]:
@@ -854,11 +977,12 @@ def compare_op_visits(sample_limit: int = SAMPLE_LIMIT, files=None) -> dict:
 def _compare_op_visits(sample_limit: int) -> dict:
 	sample_limit = max(cint(sample_limit) or SAMPLE_LIMIT, 0)
 
-	oracle_keys = _oracle_visit_keys()
-	erpnext_keys = _erpnext_visit_keys()
+	diff = _op_visit_diff()
+	oracle_keys = diff["oracle_keys"]
+	erpnext_keys = diff["erpnext_keys"]
 
-	missing_keys = sorted(oracle_keys - erpnext_keys, key=_sort_key)
-	extra_keys = sorted(erpnext_keys - oracle_keys, key=_sort_key)
+	missing_keys = sorted(diff["missing_keys"], key=_sort_key)
+	extra_keys = sorted(erpnext_keys - oracle_keys - diff["matched_erp"], key=_sort_key)
 
 	sample_keys = missing_keys[:sample_limit] if sample_limit else missing_keys
 	rows = _visit_rows_for_keys(sample_keys)
@@ -892,6 +1016,10 @@ def _compare_op_visits(sample_limit: int) -> dict:
 		"target_count": len(erpnext_keys),
 		"missing_count": len(missing_keys),
 		"extra_count": len(extra_keys),
+		"matched_by_identity": len(diff["matched_oracle"]),
+		"match_note": _(
+			"VISIT_NUM ↔ case_no, or the same patient, date and visit type"
+		),
 		"missing_keys": sample_keys,
 		"extra_keys": extra_keys[:sample_limit] if sample_limit else extra_keys,
 		"missing": missing,
@@ -981,7 +1109,7 @@ def _import_op_visits(dry_run: int, limit: int, files=None) -> dict:
 	dry_run = cint(dry_run)
 	limit = cint(limit)
 
-	missing_keys = sorted(_oracle_visit_keys() - _erpnext_visit_keys(), key=_sort_key)
+	missing_keys = sorted(_op_visit_diff()["missing_keys"], key=_sort_key)
 	if limit:
 		missing_keys = missing_keys[:limit]
 
@@ -1032,7 +1160,7 @@ def _import_op_visits(dry_run: int, limit: int, files=None) -> dict:
 def run_op_visit_import(keys: list[str] | None = None, files=None) -> dict:
 	"""Background entry point (also callable from the bench console)."""
 	with excel_source(files, tables=[OP_VISIT_SYNC.oracle_table]):
-		keys = keys or sorted(_oracle_visit_keys() - _erpnext_visit_keys(), key=_sort_key)
+		keys = keys or sorted(_op_visit_diff()["missing_keys"], key=_sort_key)
 		return _import_op_visit_rows(keys)
 
 

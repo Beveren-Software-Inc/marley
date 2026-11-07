@@ -9,6 +9,11 @@ export interface ClinicalNote {
   practitioner_name?: string
   user?: string
   username?: string
+  user_full_name?: string
+  user_username?: string
+  /** Legacy Oracle create-user id; name resolved from Oracle User. */
+  cr_id?: string
+  cr_id_name?: string
   clinical_note_type?: string
   clinical_note_type_name?: string
   note_type?: string

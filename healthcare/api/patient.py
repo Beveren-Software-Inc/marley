@@ -56,6 +56,54 @@ def _blacklist_list_fields(row) -> dict:
 
 
 @frappe.whitelist()
+def get_patient_display_names(patients=None):
+	"""Return {patient_id: patient_name} for Patient History / list enrichment.
+
+	Uses POST (not GET) so large page sizes (e.g. 2500) do not hit URL-length
+	limits. Only returns display names for ids the caller already has from a
+	list they can read; Guest is rejected.
+	"""
+	import json
+
+	if frappe.session.user == "Guest":
+		frappe.throw(_("Not permitted"), frappe.PermissionError)
+
+	if isinstance(patients, str):
+		patients = json.loads(patients) if patients.strip() else []
+	if not patients:
+		return {}
+	if not isinstance(patients, (list, tuple, set)):
+		patients = [patients]
+
+	ids = []
+	seen = set()
+	for raw in patients:
+		pid = (raw or "").strip() if isinstance(raw, str) else str(raw or "").strip()
+		if not pid or pid in seen:
+			continue
+		seen.add(pid)
+		ids.append(pid)
+		if len(ids) >= 5000:
+			break
+
+	out = {}
+	chunk_size = 500
+	for start in range(0, len(ids), chunk_size):
+		chunk = ids[start : start + chunk_size]
+		for row in frappe.get_all(
+			"Patient",
+			filters={"name": ["in", chunk]},
+			fields=["name", "patient_name"],
+			limit_page_length=len(chunk),
+			ignore_permissions=True,
+		):
+			label = (row.get("patient_name") or "").strip()
+			if label:
+				out[row["name"]] = label
+	return out
+
+
+@frappe.whitelist()
 def search_patients(search=None, limit=20):
 	"""Search patients by name, patient ID, file number, CPR/ID number, or mobile."""
 	search = (search or "").strip()

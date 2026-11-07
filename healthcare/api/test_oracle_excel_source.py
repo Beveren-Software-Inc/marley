@@ -25,11 +25,12 @@ class TestOracleExcelSourceRegistry(UnitTestCase):
 				self.assertTrue(source["tables"], f"{key} has no Oracle table")
 
 	def test_prescriptions_need_the_three_legacy_tables(self):
-		tables = [table["table"] for table in ORACLE_SOURCES["prescriptions"]["tables"]]
+		tables = ORACLE_SOURCES["prescriptions"]["tables"]
 		self.assertEqual(
-			tables,
+			[table["table"] for table in tables],
 			["PATIENT_VISIT_PRESCRIPTION", "PATIENT_VISIT_PRESCRIPTION_HIS", "IP_ADMISSION_MEDICINE"],
 		)
+		self.assertEqual(tables[2]["required"], ["ADMISSION_NUM", "MEDICINE_NUM"])
 
 	def test_user_button_points_at_the_legacy_user_table(self):
 		self.assertEqual(ORACLE_SOURCES["user"]["tables"][0]["table"], "USR_00_01")
@@ -58,10 +59,12 @@ class TestOracleExcelSourceRegistry(UnitTestCase):
 		self.assertEqual(ORACLE_SOURCES["patients"]["doctype"], "Patient")
 		self.assertEqual([table["table"] for table in tables], ["PATIENT_INFO_01"])
 
-	def test_insurance_register_button_points_at_patient_info_01(self):
+	def test_insurance_register_button_points_at_insurance_tables(self):
 		tables = ORACLE_SOURCES["insurance_register"]["tables"]
 		self.assertEqual(ORACLE_SOURCES["insurance_register"]["doctype"], "Insurance Patient Register")
-		self.assertEqual([table["table"] for table in tables], ["PATIENT_INFO_01"])
+		self.assertEqual([table["table"] for table in tables], ["INSURANCE_00_01"])
+		self.assertEqual(tables[0]["required"], ["TRANS_NUM", "PATIENT_NUM"])
+		self.assertFalse(tables[0].get("optional"))
 
 	def test_lab_tests_button_points_at_the_lab_header_and_result_tables(self):
 		tables = ORACLE_SOURCES["lab_tests"]["tables"]
@@ -161,6 +164,19 @@ class TestOracleExcelSheetMatching(UnitTestCase):
 				alone=True,
 			),
 			"IP_ADMISSION_01",
+		)
+
+	def test_patient_export_named_patient_with_patient_num(self):
+		# SQL Developer export: sheet "Patient", file number in PATIENT_NUM,
+		# plus a second "SQL" sheet so the file is not a single unnamed sheet.
+		columns = ["PATIENT_NUM", "FULL_NAME", "ID_TYPE", "IS_INSURANCE"]
+		self.assertEqual(
+			_match_table("PATIENT_INFO_01", "Patient", columns, alone=False),
+			"PATIENT_INFO_01",
+		)
+		self.assertEqual(
+			_match_table("", "Sheet1", ["C", "FULL_NAME"], alone=False),
+			"PATIENT_INFO_01",
 		)
 
 

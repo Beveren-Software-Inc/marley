@@ -62,6 +62,8 @@ def _medicine_given_list_fields() -> list[str]:
 			"modified",
 		]
 	)
+	if _medicine_given_has_column("ip_admission_medicine_sheet_23"):
+		fields.append("ip_admission_medicine_sheet_23")
 	return fields
 
 

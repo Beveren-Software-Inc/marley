@@ -77,7 +77,9 @@ ORACLE_SOURCES: dict[str, dict[str, Any]] = {
 			{
 				"table": "IP_ADMISSION_MEDICINE",
 				"label": "IP prescriptions",
-				"required": ["ADMISSION_NUM", "MEDICINE_CD"],
+				# Live CLINIC2 names the medicine MEDICINE_NUM. MEDICINE_CD is the
+				# OP prescription column and is not on this table.
+				"required": ["ADMISSION_NUM", "MEDICINE_NUM"],
 			},
 		],
 	},
@@ -129,6 +131,67 @@ ORACLE_SOURCES: dict[str, dict[str, Any]] = {
 			},
 		],
 	},
+	"medical_diagnosis": {
+		"label": "Medical Diagnosis Entry",
+		"doctype": "Medical Diagnosis Entry",
+		"tables": [
+			{
+				"table": "VISIT_DIAGNOSES_01",
+				"label": "Visit diagnoses",
+				"required": ["PATIENT_NUM", "SR_NUM", "CODE_NUM"],
+			},
+		],
+	},
+	"morse_fall_scale": {
+		"label": "Morse Fall Scale",
+		"doctype": "Morse Fall Scale",
+		"tables": [
+			{
+				"table": "MORSE_FALL_SCALE_01",
+				"label": "Morse fall scales",
+				"required": ["TRANS_NUM", "ADMISSION_NUM", "PATIENT_NUM"],
+			},
+		],
+	},
+	"patient_assessment": {
+		"label": "Patient Assessment",
+		"doctype": "Patient Assessment",
+		"tables": [
+			{
+				"table": "IP_PATIENT_ASSESSMENT",
+				"label": "IP patient assessments",
+				"required": ["TRANS_NUM", "ADMISSION_NUM"],
+			},
+		],
+	},
+	"medicine_given": {
+		"label": "Medicine Given",
+		"doctype": "Medicine Given",
+		"tables": [
+			{
+				"table": "IP_ADMISSION_MEDICINE_SHEET",
+				"label": "IP medicine administrations (Given = Y)",
+				"required": ["TRANS_NUM", "ADMISSION_NUM", "GIVEN_YN"],
+			},
+			{
+				"table": "IP_ADMISSION_MEDICINE_SHEET_23",
+				"label": "Further given doses (same columns, not on the main sheet)",
+				"required": ["TRANS_NUM", "ADMISSION_NUM", "GIVEN_YN"],
+				"optional": True,
+			},
+		],
+	},
+	"appointments": {
+		"label": "Patient Appointment",
+		"doctype": "Patient Appointment",
+		"tables": [
+			{
+				"table": "APPOINTMENTS_INFO_01",
+				"label": "Appointments",
+				"required": ["APP_NUM", "APP_DATE"],
+			},
+		],
+	},
 	"nursing_notes": {
 		"label": "Nursing Notes",
 		"doctype": "Main Nursing Note",
@@ -148,6 +211,39 @@ ORACLE_SOURCES: dict[str, dict[str, Any]] = {
 				"table": "IP_ADMISSION_PHY_EXAM",
 				"label": "IP physical examinations",
 				"required": ["TRANS_NO", "ADMISSION_NUM"],
+			},
+		],
+	},
+	"grooming_chart": {
+		"label": "IP Grooming Chart",
+		"doctype": "IP Grooming Chart",
+		"tables": [
+			{
+				"table": "IP_GROOMING_CHART",
+				"label": "IP grooming charts",
+				"required": ["TRANS_NUM", "ADMISSION_NUM", "BRUSH_TEETH_M"],
+			},
+		],
+	},
+	"mental_state": {
+		"label": "IP Mental State",
+		"doctype": "Mental State",
+		"tables": [
+			{
+				"table": "IP_MENTAL_STATE",
+				"label": "IP mental state",
+				"required": ["TRANS_NO", "ADMISSION_NUM", "NORMAL_AT"],
+			},
+		],
+	},
+	"admission_transfer": {
+		"label": "IP Admission Transfer",
+		"doctype": "Transfer Admission Event",
+		"tables": [
+			{
+				"table": "IP_ADMISSION_TRANSFER",
+				"label": "IP admission transfers",
+				"required": ["TRANS_NUM", "OLD_ADMISSION_NUM", "NEW_ADMISSION_NUM"],
 			},
 		],
 	},
@@ -202,8 +298,10 @@ ORACLE_SOURCES: dict[str, dict[str, Any]] = {
 			{
 				"table": "PATIENT_INFO_01",
 				"label": "Patient master",
-				# Live Oracle uses C for the file number (not FILE_NO).
-				"required": ["C", "FULL_NAME"],
+				# Live Oracle uses C for the file number. SQL Developer exports
+				# often name that column PATIENT_NUM instead. Either is accepted
+				# by _signature_matches; FULL_NAME is what the dialog shows.
+				"required": ["FULL_NAME"],
 			},
 		],
 	},
@@ -212,9 +310,9 @@ ORACLE_SOURCES: dict[str, dict[str, Any]] = {
 		"doctype": "Insurance Patient Register",
 		"tables": [
 			{
-				"table": "PATIENT_INFO_01",
-				"label": "Patient master (insurance columns)",
-				"required": ["C", "IS_INSURANCE"],
+				"table": "INSURANCE_00_01",
+				"label": "Insurance claim headers (one patient per PATIENT_NUM)",
+				"required": ["TRANS_NUM", "PATIENT_NUM"],
 			},
 		],
 	},
@@ -317,7 +415,34 @@ ORACLE_SOURCES: dict[str, dict[str, Any]] = {
 			},
 		],
 	},
+	# Pharmacy dispensed medicine (hospital SAL only). Headers + lines.
+	# Upload select * from INV_00_01 and INV_00_02 (Oracle column names).
+	# The reconcile keeps TRANS_TYPE_NUM = SAL and TRANS_SOURCE in (IP, OP);
+	# EMP staff purchases and Rose retail SI* documents are excluded.
+	"legacy_sales": {
+		"label": "Legacy Sales / Pharmacy Dispensed",
+		"doctype": "Legacy Sales Transactions",
+		"tables": [
+			{
+				"table": "INV_00_01",
+				"label": "Pharmacy sales headers (INV document master)",
+				"required": ["TRANS_NUM", "TRANS_TYPE_NUM", "TRANS_SOURCE"],
+			},
+			{
+				"table": "INV_00_02",
+				"label": "Pharmacy sales lines (INV document detail)",
+				"required": ["TRANS_NUM", "TRANS_TYPE_NUM", "SR_NUM", "ITEM_NUM"],
+			},
+		],
+	},
 }
+
+
+# PATIENT_INFO_01 file number: live CLINIC2 calls it C. Workbook exports from
+# SQL Developer often call it PATIENT_NUM (or FILE_NO). FULL_NAME / IS_INSURANCE
+# tell that sheet apart from other tables that also have a patient number.
+PATIENT_INFO_FILE_NO_COLUMNS = {"C", "FILE_NO", "PATIENT_NUM", "PATIENT_FILE_NO"}
+PATIENT_INFO_MARKERS = {"FULL_NAME", "IS_INSURANCE"}
 
 
 def oracle_table_signatures() -> dict[str, set[str]]:
@@ -327,6 +452,13 @@ def oracle_table_signatures() -> dict[str, set[str]]:
 		for table in source["tables"]:
 			signatures[table["table"]] = set(table["required"])
 	return signatures
+
+
+def _signature_matches(table: str, required: set[str], present: set[str]) -> bool:
+	"""True when this sheet's headers are enough to recognise ``table``."""
+	if table == "PATIENT_INFO_01":
+		return bool(PATIENT_INFO_FILE_NO_COLUMNS & present) and bool(PATIENT_INFO_MARKERS & present)
+	return required <= present
 
 
 def known_oracle_tables() -> set[str]:
@@ -505,7 +637,11 @@ def _match_table(
 
 	# The sheet is not named after its table — recognise it by required columns.
 	present = set(columns)
-	matches = [table for table, required in oracle_table_signatures().items() if required <= present]
+	matches = [
+		table
+		for table, required in oracle_table_signatures().items()
+		if _signature_matches(table, required, present)
+	]
 	if len(matches) == 1:
 		return matches[0]
 	longest = max((len(oracle_table_signatures()[table]) for table in matches), default=0)
@@ -634,10 +770,19 @@ class ExcelOracleSource:
 		signatures = oracle_table_signatures()
 		problems: list[str] = []
 		for table, sheet in self._data.items():
+			columns = set(sheet["columns"])
+			if table == "PATIENT_INFO_01":
+				if not (PATIENT_INFO_FILE_NO_COLUMNS & columns):
+					problems.append(
+						f"{table}: one of {', '.join(sorted(PATIENT_INFO_FILE_NO_COLUMNS))}"
+					)
+				if not (PATIENT_INFO_MARKERS & columns):
+					problems.append(f"{table}: FULL_NAME or IS_INSURANCE")
+				continue
 			required = signatures.get(table)
 			if not required:
 				continue
-			missing = sorted(required - set(sheet["columns"]))
+			missing = sorted(required - columns)
 			if missing:
 				problems.append(f"{table}: {', '.join(missing)}")
 

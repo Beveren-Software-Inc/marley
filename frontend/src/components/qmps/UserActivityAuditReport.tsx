@@ -40,6 +40,12 @@ const SUMMARY_SORT_OPTIONS: { value: SummarySortKey; label: string }[] = [
   { value: 'user', label: 'User name' },
 ]
 
+// The backend caps a single get_user_activity_report request at 500 rows, so the
+// export pages through the data in chunks of this size to build a complete file.
+const EXPORT_PAGE_SIZE = 500
+// Safety guard: never try to render a runaway export bigger than this in the browser.
+const EXPORT_MAX_ROWS = 100000
+
 const EXPORT_CSS = `
   body { font-family: Arial, sans-serif; font-size: 11px; color: #111; margin: 16px; }
   h1 { font-size: 16px; margin: 0 0 4px; }
@@ -402,6 +408,8 @@ export function UserActivityAuditReport() {
   const [page, setPage] = useState(0)
   const pageSize = 100
   const [exporting, setExporting] = useState(false)
+  const [exportLoaded, setExportLoaded] = useState(0)
+  const [exportTotal, setExportTotal] = useState(0)
 
   const dateFilters = useMemo(
     () => ({
@@ -528,19 +536,65 @@ export function UserActivityAuditReport() {
 
   const exportTimeline = async (mode: ExportMode) => {
     setExporting(true)
+    setExportLoaded(0)
+    setExportTotal(0)
     try {
-      const report = await fetchUserActivityReport({
-        ...buildFilters(0),
-        limit: 5000,
-        offset: 0,
-      })
-      const exportRows = report.rows || []
-      if (!exportRows.length) {
+      const baseFilters = buildFilters(0) // ignore the page you're currently on
+      const allRows: ActivityAuditRow[] = []
+      let offset = 0
+      let total = 0
+
+      // The backend caps each request at EXPORT_PAGE_SIZE rows, so keep paging
+      // until every event for the selected period has been collected.
+      for (;;) {
+        const report = await fetchUserActivityReport({
+          ...baseFilters,
+          limit: EXPORT_PAGE_SIZE,
+          offset,
+        })
+        total = report.total_count ?? 0
+        setExportTotal(total)
+
+        const chunk = report.rows || []
+        allRows.push(...chunk)
+        offset += chunk.length
+        setExportLoaded(allRows.length)
+
+        if (
+          chunk.length === 0 ||
+          chunk.length < EXPORT_PAGE_SIZE ||
+          allRows.length >= total ||
+          allRows.length >= EXPORT_MAX_ROWS
+        ) {
+          break
+        }
+      }
+
+      if (!allRows.length) {
         toast.error('No activity to export')
         return
       }
+
+      // The backend sorts department per page (it is derived in Python), so the
+      // combined multi-page result must be re-sorted to stay grouped by department.
+      if (sortBy === 'department') {
+        allRows.sort((a, b) => {
+          const cmp = (a.department || '').localeCompare(b.department || '')
+          return sortOrder === 'asc' ? cmp : -cmp
+        })
+      }
+
+      if (allRows.length < total) {
+        toast.warning(
+          `Exported ${allRows.length.toLocaleString()} of ${total.toLocaleString()} events. ` +
+            'Narrow the date range to export the remainder.'
+        )
+      } else {
+        toast.success(`Exported ${allRows.length.toLocaleString()} events`)
+      }
+
       openExportDocument(
-        buildTimelineExportHtml(exportRows, periodMetaLabel),
+        buildTimelineExportHtml(allRows, periodMetaLabel),
         mode,
         `staff-activity-log-${new Date().toISOString().slice(0, 10)}`
       )
@@ -548,6 +602,8 @@ export function UserActivityAuditReport() {
       toast.error(e instanceof Error ? e.message : 'Failed to export activity log')
     } finally {
       setExporting(false)
+      setExportLoaded(0)
+      setExportTotal(0)
     }
   }
 
@@ -564,6 +620,12 @@ export function UserActivityAuditReport() {
   }
 
   const totalPages = Math.max(1, Math.ceil(totalCount / pageSize))
+
+  const exportLabel = exporting
+    ? exportTotal
+      ? `Exporting… ${exportLoaded.toLocaleString()}/${exportTotal.toLocaleString()}`
+      : 'Exporting…'
+    : null
 
   return (
     <div className="flex flex-col h-full">
@@ -592,7 +654,7 @@ export function UserActivityAuditReport() {
                   disabled={exporting || loading}
                   className="px-3 py-1.5 text-xs rounded-md border border-primary text-primary bg-white hover:bg-primary/5 disabled:opacity-40"
                 >
-                  {exporting ? 'Exporting…' : 'Export PDF'}
+                  {exportLabel ?? 'Export PDF'}
                 </button>
                 <button
                   type="button"
@@ -600,7 +662,7 @@ export function UserActivityAuditReport() {
                   disabled={exporting || loading}
                   className="px-3 py-1.5 text-xs rounded-md border border-primary text-primary bg-white hover:bg-primary/5 disabled:opacity-40"
                 >
-                  Export Excel
+                  {exportLabel ?? 'Export Excel'}
                 </button>
               </>
             ) : (

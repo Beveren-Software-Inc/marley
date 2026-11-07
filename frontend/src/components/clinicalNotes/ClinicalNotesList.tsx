@@ -71,16 +71,30 @@ function resolveListTitle(clinicalNoteType?: string, title?: string): string {
 }
 
 function clinicalNotePractitionerLabel(note: ClinicalNote): string {
-  return note.practitioner_name || note.practitioner || note.user || '—'
+  return (
+    note.practitioner_name ||
+    note.username ||
+    note.user_full_name ||
+    note.practitioner ||
+    note.user ||
+    note.cr_id_name ||
+    note.cr_id ||
+    '—'
+  )
 }
 
-/** Doctor Progress Note listing: practitioner name, else username when no practitioner. */
+/** Patient Progress Notes Username column: explicit username first, then derived labels. */
 function doctorProgressNoteAuthorLabel(note: ClinicalNote): string {
-  if (note.practitioner) {
-    return note.practitioner_name || note.practitioner
-  }
   if (note.username?.trim()) return note.username.trim()
-  return note.user || '—'
+  if (note.user_full_name?.trim()) return note.user_full_name.trim()
+  if (note.user_username?.trim()) return note.user_username.trim()
+  if (note.practitioner_name?.trim()) return note.practitioner_name.trim()
+  if (note.user?.trim()) return note.user.trim()
+  if (note.practitioner) return note.practitioner
+  // Legacy Oracle notes: resolve creator via CR_ID → Oracle User name.
+  if (note.cr_id_name?.trim()) return note.cr_id_name.trim()
+  if (note.cr_id?.trim()) return note.cr_id.trim()
+  return '—'
 }
 
 function clinicalNoteDateLabel(note: ClinicalNote): string {

@@ -30,6 +30,7 @@
   "mendatory_admission_assessment_fee",
   "create_pending_given_medicine_on_discharge",
   "create_pending_room_charges_on_discharge",
+  "return_active_medicines_on_discharge",
   "inpatient_settings_section",
   "allow_discharge_despite_unbilled_services",
   "block_clinical_records_on_discharged_ip",
@@ -1054,6 +1055,13 @@
    "fieldname": "create_pending_room_charges_on_discharge",
    "fieldtype": "Check",
    "label": "Create Pending Room Charges on Discharge"
+  },
+  {
+   "default": "0",
+   "description": "When enabled, submitting a discharge returns unused ward medicine (open dispensing lots) to the pharmacy warehouse.",
+   "fieldname": "return_active_medicines_on_discharge",
+   "fieldtype": "Check",
+   "label": "Return Active Medicines on Discharge"
   },
   {
    "default": "0",

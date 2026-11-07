@@ -15,8 +15,13 @@ What one run does
    patient **name** and **id number** (CPR). Matching (or blank on either
    side) patients are updated; conflicting name/number pairs are left alone
    and reported.
-4. When the file number is free but the same id number already exists on
-   another Patient, that record is updated instead of creating a duplicate.
+4. When the file number is free but the CPR / id number already exists,
+   that patient is the same person. Leading zeros and spaces do not make a
+   new id. A number that is one digit off a long existing CPR is the same
+   person too, and the stored CPR is not overwritten.
+5. When the file number and id number are both new, the same **name and
+   phone** on an existing Patient still counts as that person. A different
+   id number is not overwritten.
 
 Usage::
 
@@ -184,6 +189,148 @@ def _norm_id(value: Any) -> str:
 	return _clean_oracle_num(value) or _cell_text(value)
 
 
+def _canonical_id(value: Any) -> str:
+	"""Digits only, without leading zeros. ``070304572`` and ``70304572`` agree."""
+	return _digits(value).lstrip("0")
+
+
+def _ids_similar(left: Any, right: Any) -> bool:
+	"""Same CPR, or one inserted, removed, or replaced digit on a long number."""
+	left_id = _canonical_id(left)
+	right_id = _canonical_id(right)
+	if not left_id or not right_id:
+		return False
+	if left_id == right_id:
+		return True
+	if len(left_id) < 8 or len(right_id) < 8 or abs(len(left_id) - len(right_id)) > 1:
+		return False
+	if len(left_id) == len(right_id):
+		return sum(char_a != char_b for char_a, char_b in zip(left_id, right_id)) == 1
+	if len(left_id) > len(right_id):
+		left_id, right_id = right_id, left_id
+	index_left = index_right = skipped = 0
+	while index_left < len(left_id) and index_right < len(right_id):
+		if left_id[index_left] == right_id[index_right]:
+			index_left += 1
+		else:
+			skipped += 1
+			if skipped > 1:
+				return False
+		index_right += 1
+	return True
+
+
+def _near_id_keys(canonical: str) -> set[str]:
+	if len(canonical) < 8:
+		return set()
+	return {canonical[:index] + canonical[index + 1 :] for index in range(len(canonical))}
+
+
+def _index_patient_id(exact: dict[str, dict], near: dict[str, list], row: dict) -> None:
+	canonical = _canonical_id(row.get("id_number"))
+	if not canonical:
+		return
+	exact.setdefault(canonical, row)
+	for key in _near_id_keys(canonical):
+		bucket = near.setdefault(key, [])
+		if row not in bucket:
+			bucket.append(row)
+
+
+def _find_id_match(oracle_id: Any, exact: dict[str, dict], near: dict[str, list]) -> tuple[dict | None, bool]:
+	"""Return ``(patient, exact)``. ``exact`` is False when the CPR is one digit off."""
+	canonical = _canonical_id(oracle_id)
+	if not canonical:
+		return None, False
+	if canonical in exact:
+		return exact[canonical], True
+	if len(canonical) < 8:
+		return None, False
+	seen: set[str] = set()
+	candidates = list(near.get(canonical, []))
+	for key in _near_id_keys(canonical):
+		found = exact.get(key)
+		if found:
+			candidates.append(found)
+		candidates.extend(near.get(key, []))
+	for row in candidates:
+		identity = row.get("name") or ""
+		if identity in seen:
+			continue
+		seen.add(identity)
+		if _ids_similar(canonical, row.get("id_number")):
+			return row, False
+	return None, False
+
+
+def _digits(value: Any) -> str:
+	return "".join(ch for ch in _cell_text(value) if ch.isdigit())
+
+
+def _phone_keys(value: Any) -> set[str]:
+	"""Digit forms of one phone, so 00973 33334848 and 33334848 still meet."""
+	digits = _digits(value)
+	if len(digits) < 7:
+		return set()
+	keys = {digits}
+	if len(digits) > 8:
+		keys.add(digits[-8:])
+	return keys
+
+
+def _oracle_phones(raw: dict, import_row: dict) -> list[str]:
+	phones: list[str] = []
+	pairs = (
+		("mobile_no_1", "mobile_1_code", "MOB_1_NUM", "MOB_1_CODE"),
+		("mobile_no_2", "mobile_2_code", "MOB_2_NUM", "MOB_2_CODE"),
+		("mobile_no_3", "mobile_3_code", "MOB_3_NUM", "MOB_3_CODE"),
+	)
+	for num_key, code_key, raw_num, raw_code in pairs:
+		number = _cell_text(import_row.get(num_key) or raw.get(raw_num))
+		code = _cell_text(import_row.get(code_key) or raw.get(raw_code))
+		if number:
+			phones.append(number)
+		if code and number:
+			phones.append(f"{code}{number}")
+	return phones
+
+
+def _index_name_phone(index: dict[tuple[str, str], list], row: dict) -> None:
+	name = _norm_name(row.get("patient_name"))
+	if not name:
+		return
+	for field in (
+		"mobile",
+		"mobile_no",
+		"mobile_no_1",
+		"mobile_no_2",
+		"mobile_no_3",
+		"alter_mobile_no",
+		"alter_2_mobile_no",
+	):
+		for key in _phone_keys(row.get(field)):
+			bucket = index.setdefault((name, key), [])
+			if row not in bucket:
+				bucket.append(row)
+
+
+def _find_name_phone_match(name: str, phones: list[str], index: dict[tuple[str, str], list]) -> dict | None:
+	"""First ERPNext patient with this name and any of these phones."""
+	norm = _norm_name(name)
+	if not norm:
+		return None
+	seen: set[str] = set()
+	for phone in phones:
+		for key in _phone_keys(phone):
+			for row in index.get((norm, key), []):
+				identity = row.get("name") or ""
+				if identity in seen:
+					continue
+				seen.add(identity)
+				return row
+	return None
+
+
 def _file_no_from_raw(raw: dict) -> str:
 	return patient_info_file_no_from_row(raw)
 
@@ -202,9 +349,11 @@ def _oracle_to_import_row(raw: dict) -> dict:
 def _identity_conflict(erp_name: str, erp_id: str, oracle_name: str, oracle_id: str) -> bool:
 	"""True when both sides hold a nonempty value and they disagree."""
 	en, on = _norm_name(erp_name), _norm_name(oracle_name)
-	ei, oi = _norm_id(erp_id), _norm_id(oracle_id)
 	name_conflict = bool(en and on and en != on)
-	id_conflict = bool(ei and oi and ei != oi)
+	# Leading zeros and spaces are the same CPR. A genuinely different number conflicts.
+	left_id = _canonical_id(erp_id)
+	right_id = _canonical_id(oracle_id)
+	id_conflict = bool(left_id and right_id and left_id != right_id)
 	return name_conflict or id_conflict
 
 
@@ -225,7 +374,14 @@ def _erpnext_patient_page(after: str = "", limit: int = ERP_PAGE) -> list[dict]:
 		"""
 		select name, ifnull(file_no, '') as file_no,
 			ifnull(patient_name, '') as patient_name,
-			ifnull(id_number, '') as id_number
+			ifnull(id_number, '') as id_number,
+			ifnull(mobile, '') as mobile,
+			ifnull(mobile_no, '') as mobile_no,
+			ifnull(mobile_no_1, '') as mobile_no_1,
+			ifnull(mobile_no_2, '') as mobile_no_2,
+			ifnull(mobile_no_3, '') as mobile_no_3,
+			ifnull(alter_mobile_no, '') as alter_mobile_no,
+			ifnull(alter_2_mobile_no, '') as alter_2_mobile_no
 		from `tabPatient`
 		where name > %s
 		order by name asc
@@ -243,9 +399,13 @@ def _scan() -> dict:
 	conflicts: list[list[str]] = []
 	matched = 0
 	matched_by_id = 0
+	matched_by_name_phone = 0
 	erp_total = 0
 	erp_by_name: dict[str, dict] = {}
 	erp_by_id: dict[str, dict] = {}
+	erp_by_id_near: dict[str, list] = {}
+	erp_by_name_phone: dict[tuple[str, str], list] = {}
+	missing_samples: list[dict[str, str]] = []
 	after = ""
 	while True:
 		rows = _erpnext_patient_page(after)
@@ -258,9 +418,8 @@ def _scan() -> dict:
 			file_key = _clean_oracle_num(row.get("file_no") or row.get("name"))
 			if file_key:
 				erp_by_name[file_key] = row
-			id_key = _norm_id(row.get("id_number"))
-			if id_key and id_key not in erp_by_id:
-				erp_by_id[id_key] = row
+			_index_patient_id(erp_by_id, erp_by_id_near, row)
+			_index_name_phone(erp_by_name_phone, row)
 		if len(rows) < ERP_PAGE:
 			break
 
@@ -282,8 +441,13 @@ def _scan() -> dict:
 			updates.append([file_no, "update", erp.get("name") or file_no])
 			continue
 
-		by_id = erp_by_id.get(_norm_id(oracle_id)) if oracle_id else None
+		by_id, id_exact = _find_id_match(oracle_id, erp_by_id, erp_by_id_near)
 		if by_id:
+			if not id_exact:
+				# One digit off an existing CPR. Keep the stored number; do not create another patient.
+				matched += 1
+				matched_by_id += 1
+				continue
 			if _identity_conflict(
 				by_id.get("patient_name") or "",
 				by_id.get("id_number") or "",
@@ -297,13 +461,38 @@ def _scan() -> dict:
 			updates.append([file_no, "update_by_id", by_id.get("name") or ""])
 			continue
 
+		by_phone = _find_name_phone_match(
+			oracle_name, _oracle_phones(raw, import_row), erp_by_name_phone
+		)
+		if by_phone:
+			# Same person under another file number. Do not create a second
+			# Patient, and do not copy a different id number onto the one we found.
+			matched += 1
+			matched_by_name_phone += 1
+			if _identity_conflict(
+				by_phone.get("patient_name") or "",
+				by_phone.get("id_number") or "",
+				oracle_name,
+				oracle_id,
+			):
+				conflicts.append([file_no, "same_name_phone", by_phone.get("name") or ""])
+				continue
+			updates.append([file_no, "update_by_name_phone", by_phone.get("name") or ""])
+			continue
+
 		missing.append([file_no, "create", ""])
+		if len(missing_samples) < SAMPLE_LIMIT:
+			missing_samples.append(
+				{"key": file_no, "patient": oracle_name or file_no, "text": "create"}
+			)
 
 	return {
 		"oracle_patients": len(oracle),
 		"erpnext_patients": erp_total,
 		"matched_patients": matched,
 		"matched_by_id": matched_by_id,
+		"matched_by_name_phone": matched_by_name_phone,
+		"missing_samples": missing_samples,
 		"missing_patients": missing,
 		"updates": updates,
 		"conflicts": conflicts,
@@ -354,7 +543,7 @@ def _process_chunk(items: list[list[str]], progress: dict, *, dry_run: int = 0) 
 			_record_errors(progress, [f"{file_no}: not found in Oracle"])
 			continue
 		row = _oracle_to_import_row(raw)
-		if action == "update_by_id" and target_name:
+		if action in ("update_by_id", "update_by_name_phone") and target_name:
 			# Update the Patient that already owns this id_number (do not rename).
 			row["file_no"] = target_name
 			if frappe.db.exists(DOCTYPE, target_name):
@@ -400,6 +589,7 @@ def _summary_message(progress: dict) -> str:
 		_("Patients in ERPNext: {0}").format(cint(progress.get("erpnext_patients"))),
 		_("Matched: {0}").format(cint(progress.get("matched_patients"))),
 		_("Matched by id number: {0}").format(cint(progress.get("matched_by_id"))),
+		_("Matched by name and phone: {0}").format(cint(progress.get("matched_by_name_phone"))),
 		_("Missing (to create): {0}").format(cint(progress.get("missing_patients"))),
 		_("Conflicts (file no taken, name/number differ): {0}").format(
 			cint(progress.get("conflicts"))
@@ -493,6 +683,7 @@ def _run(
 				"erpnext_patients": scan["erpnext_patients"],
 				"matched_patients": scan["matched_patients"],
 				"matched_by_id": scan["matched_by_id"],
+				"matched_by_name_phone": scan["matched_by_name_phone"],
 				"missing_patients": len(scan["missing_patients"]),
 				"conflicts": len(scan["conflicts"]),
 				"total": len(items),
@@ -568,13 +759,12 @@ def preview_patient_reconcile(patient: str = "", limit: int = 0, files=None) -> 
 			"erpnext_patients": scan["erpnext_patients"],
 			"matched_patients": scan["matched_patients"],
 			"matched_by_id": scan["matched_by_id"],
+			"matched_by_name_phone": scan["matched_by_name_phone"],
 			"missing_patients": len(creates),
 			"missing_total": len(creates),
 			"updates": len(items) - len(creates),
 			"conflicts": len(scan["conflicts"]),
-			"samples": [
-				{"key": item[0], "patient": item[0], "text": item[1]} for item in items[:10]
-			],
+			"samples": scan.get("missing_samples") or [],
 			"conflict_samples": [
 				{"key": item[0], "patient": item[0], "text": f"{item[1]} → {item[2]}"}
 				for item in (scan["conflicts"] or [])[:10]

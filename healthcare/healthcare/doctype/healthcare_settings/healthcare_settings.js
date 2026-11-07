@@ -20,8 +20,8 @@ frappe.ui.form.on('Healthcare Settings', {
 			__('Oracle -> ERPNext')
 		);
 
-		// Insurance Patient Register from PATIENT_INFO_01 insurance flags /
-		// INSUR_* columns (TRICARE). Creates missing registers and marks patients insured.
+		// Insurance Patient Register from INSURANCE_00_01 patients (TRICARE).
+		// Creates missing registers and marks patients insured.
 		frm.add_custom_button(
 			__('Insurance Register'),
 			() => open_insurance_register_reconcile(frm),
@@ -149,6 +149,80 @@ frappe.ui.form.on('Healthcare Settings', {
 		frm.add_custom_button(
 			__('Physical Examination'),
 			() => open_physical_examination_reconcile(frm),
+			__('Oracle -> ERPNext')
+		);
+
+		frm.add_custom_button(
+			__('IP Grooming Chart'),
+			() => open_grooming_chart_reconcile(frm),
+			__('Oracle -> ERPNext')
+		);
+
+		frm.add_custom_button(
+			__('IP Mental State'),
+			() => open_mental_state_reconcile(frm),
+			__('Oracle -> ERPNext')
+		);
+
+		frm.add_custom_button(
+			__('IP Admission Transfer'),
+			() => open_admission_transfer_reconcile(frm),
+			__('Oracle -> ERPNext')
+		);
+
+		// Medical Diagnosis Entry: VISIT_DIAGNOSES_01 only.
+		// IP_ADMISSION_DIAGNOSES is a Clinical Note, not a diagnosis entry.
+		frm.add_custom_button(
+			__('Medical Diagnosis Entry'),
+			() => open_medical_diagnosis_reconcile(frm),
+			__('Oracle -> ERPNext')
+		);
+
+		frm.add_custom_button(
+			__('Morse Fall Scale'),
+			() => open_morse_fall_scale_reconcile(frm),
+			__('Oracle -> ERPNext')
+		);
+
+		frm.add_custom_button(
+			__('Patient Assessment'),
+			() => open_patient_assessment_reconcile(frm),
+			__('Oracle -> ERPNext')
+		);
+
+		frm.add_custom_button(
+			__('Medicine Given'),
+			() => open_medicine_given_reconcile(frm),
+			__('Oracle -> ERPNext')
+		);
+
+		// Pharmacy dispensed medicine (INV_00_01 + INV_00_02, SAL IP/OP only).
+		frm.add_custom_button(
+			__('Legacy Sales / Pharmacy Dispensed'),
+			() => open_legacy_sales_reconcile(frm),
+			__('Oracle -> ERPNext')
+		);
+
+		frm.add_custom_button(
+			__('Appointments'),
+			() => open_appointment_reconcile(frm),
+			__('Oracle -> ERPNext')
+		);
+
+		// One folder of patient images. The file name starts with the file number.
+		// SIGN is a signature, CPR FRONT / CPR BACK are the CPR photos. A photo
+		// already on the patient is left as it is.
+		frm.add_custom_button(
+			__('CPR and Signatures'),
+			() => open_patient_image_reconcile(),
+			__('Oracle -> ERPNext')
+		);
+
+		// Patient documents from the nested Patient_Documents_PDF folder.
+		// manifest_final.csv is the index. Old OCR Legacy Visit Documents are removed first.
+		frm.add_custom_button(
+			__('Patient Documents'),
+			() => open_patient_document_manifest(),
 			__('Oracle -> ERPNext')
 		);
 
@@ -5153,6 +5227,542 @@ function show_legacy_sales_detail_analysis(res) {
 	});
 }
 
+function open_patient_image_reconcile() {
+	const dialog = new frappe.ui.Dialog({
+		title: __('CPR and Signatures'),
+		size: 'large',
+		fields: [
+			{
+				fieldtype: 'HTML',
+				fieldname: 'help',
+				options:
+					'<p class="text-muted small">'
+					+ __('Select the folder that now holds every patient image. The file name starts with the patient file number. SIGN is the signature, CPR FRONT is the front photo, and CPR BACK is the back photo. jpg, png and tiff are treated the same. If that image is already on the patient, the file is skipped and nothing is replaced.')
+					+ '</p>',
+			},
+			{
+				fieldtype: 'HTML',
+				fieldname: 'preview_html',
+				options: '<p class="text-muted">' + __('No folder selected yet.') + '</p>',
+			},
+			{
+				fieldtype: 'HTML',
+				fieldname: 'progress_html',
+				options: '',
+			},
+		],
+		primary_action_label: __('Attach missing images'),
+		primary_action() {
+			const items = dialog._image_upload_items || [];
+			if (!items.length) {
+				frappe.msgprint({
+					title: __('Nothing to attach'),
+					message: __('Every CPR photo and signature in this folder is already on the patient, or the folder has not been read yet.'),
+					indicator: 'orange',
+				});
+				return;
+			}
+			frappe.call({
+				method: 'healthcare.api.patient_image_reconcile.start_patient_image_reconcile',
+				args: { items },
+				freeze: true,
+				freeze_message: __('Starting…'),
+				callback(r) {
+					if (r.message && r.message.queued) {
+						poll_patient_image_reconcile(dialog);
+					} else if (r.message && r.message.message) {
+						frappe.msgprint(r.message.message);
+					}
+				},
+			});
+		},
+	});
+
+	dialog.$wrapper.find('.modal-footer').prepend(
+		$('<button type="button" class="btn btn-default btn-sm mr-2">')
+			.text(__('Select Folder'))
+			.on('click', () => pick_patient_image_folder(dialog))
+	);
+	dialog.show();
+	dialog.get_primary_btn().prop('disabled', true);
+}
+
+function pick_patient_image_folder(dialog) {
+	const input = document.createElement('input');
+	input.type = 'file';
+	input.multiple = true;
+	input.accept = 'image/*,.tif,.tiff,.tff';
+	input.setAttribute('webkitdirectory', '');
+	input.setAttribute('directory', '');
+	input.onchange = () => {
+		const files = Array.from(input.files || []);
+		if (!files.length) {
+			return;
+		}
+		preview_patient_image_folder(dialog, files);
+	};
+	input.click();
+}
+
+function patient_image_basename(file) {
+	return (file.webkitRelativePath || file.name || '').replace(/\\/g, '/').split('/').pop();
+}
+
+function preview_patient_image_folder(dialog, files) {
+	const filenames = files.map(patient_image_basename);
+	dialog._image_upload_items = [];
+	dialog.get_primary_btn().prop('disabled', true);
+	dialog.fields_dict.preview_html.$wrapper.html(
+		'<p class="text-muted">' + __('Comparing the folder with patient images…') + '</p>'
+	);
+	dialog.fields_dict.progress_html.$wrapper.html('');
+	frappe.call({
+		method: 'healthcare.api.patient_image_reconcile.preview_patient_image_filenames',
+		args: { filenames },
+		freeze: true,
+		freeze_message: __('Comparing images…'),
+		callback(r) {
+			const counts = r.message || {};
+			const folder = counts.folder || {};
+			const already = counts.already || {};
+			const missing = counts.missing || {};
+			const row = (label, key) =>
+				'<tr><td>' + label + '</td><td>' + (folder[key] || 0)
+				+ '</td><td>' + (already[key] || 0)
+				+ '</td><td><b>' + (missing[key] || 0) + '</b></td></tr>';
+			dialog.fields_dict.preview_html.$wrapper.html(
+				'<table class="table table-bordered small"><thead><tr><th></th><th>'
+				+ __('In folder') + '</th><th>' + __('Already on patient') + '</th><th>'
+				+ __('Missing') + '</th></tr></thead><tbody>'
+				+ row(__('CPR front'), 'cpr_front')
+				+ row(__('CPR back'), 'cpr_back')
+				+ row(__('Signature'), 'signature')
+				+ '</tbody></table>'
+				+ '<p class="text-muted small">'
+				+ __('Other files ignored: {0}. Repeated files for the same image: {1}. Patients not found: {2}.', [
+					counts.ignored || 0,
+					counts.duplicate_files || 0,
+					counts.patients_missing || 0,
+				])
+				+ '</p>'
+			);
+			const wanted = new Set(counts.upload_filenames || []);
+			const pending = files.filter((file) => wanted.has(patient_image_basename(file)));
+			if (!pending.length) {
+				dialog.fields_dict.progress_html.$wrapper.html(
+					'<p class="text-muted small">' + __('Nothing new to attach.') + '</p>'
+				);
+				return;
+			}
+			upload_missing_patient_images(dialog, pending);
+		},
+	});
+}
+
+function upload_missing_patient_images(dialog, files) {
+	const items = [];
+	let index = 0;
+	const step = () => {
+		dialog.fields_dict.progress_html.$wrapper.html(
+			'<p class="small text-muted">'
+			+ __('Uploading {0} of {1} missing images…', [index, files.length])
+			+ '</p>'
+		);
+		if (index >= files.length) {
+			dialog._image_upload_items = items;
+			dialog.get_primary_btn().prop('disabled', !items.length);
+			dialog.fields_dict.progress_html.$wrapper.html(
+				'<p class="text-success small">'
+				+ __('{0} missing image(s) are ready. Attach them to the patients who do not have them yet.', [items.length])
+				+ '</p>'
+			);
+			return;
+		}
+		const file = files[index];
+		const filename = patient_image_basename(file);
+		upload_patient_cpr_file(file)
+			.then((file_url) => {
+				items.push({ file_url, filename });
+			})
+			.catch(() => {
+				frappe.show_alert({
+					message: __('Failed to upload {0}', [filename]),
+					indicator: 'red',
+				}, 5);
+			})
+			.finally(() => {
+				index += 1;
+				step();
+			});
+	};
+	step();
+}
+
+function open_patient_document_manifest() {
+	const dialog = new frappe.ui.Dialog({
+		title: __('Patient Documents'),
+		size: 'large',
+		fields: [
+			{
+				fieldtype: 'HTML',
+				fieldname: 'help',
+				options:
+					'<p class="text-muted small">'
+					+ __('Select the main folder. Every PDF in the nested folders is imported. manifest_final.csv supplies the patient file number when the file is listed. A PDF that is not in the manifest is still uploaded and marked Not Patient Document. A PDF whose patient is not in ERPNext is still uploaded. The old OCR Legacy Visit Documents are deleted first.')
+					+ '</p>',
+			},
+			{
+				fieldtype: 'HTML',
+				fieldname: 'preview_html',
+				options: '<p class="text-muted">' + __('No folder selected yet.') + '</p>',
+			},
+			{
+				fieldtype: 'HTML',
+				fieldname: 'progress_html',
+				options: '',
+			},
+		],
+		primary_action_label: __('Replace documents'),
+		primary_action() {
+			const items = dialog._document_upload_items || [];
+			if (!items.length) {
+				frappe.msgprint({
+					title: __('Nothing to attach'),
+					message: __('Select the folder and wait until the manifest files have uploaded.'),
+					indicator: 'orange',
+				});
+				return;
+			}
+			const existing = dialog._document_existing_count || 0;
+			frappe.confirm(
+				__('Delete {0} existing Legacy Visit Documents, then attach {1} documents from the manifest?', [
+					existing,
+					items.length,
+				]),
+				() => {
+					frappe.call({
+						method: 'healthcare.api.patient_document_manifest.start_patient_document_manifest',
+						args: { items },
+						freeze: true,
+						freeze_message: __('Starting…'),
+						callback(r) {
+							if (r.message && r.message.queued) {
+								poll_patient_document_manifest(dialog);
+							} else if (r.message && r.message.message) {
+								frappe.msgprint(r.message.message);
+							}
+						},
+					});
+				}
+			);
+		},
+	});
+	dialog.$wrapper.find('.modal-footer').prepend(
+		$('<button type="button" class="btn btn-default btn-sm mr-2">')
+			.text(__('Select Folder'))
+			.on('click', () => pick_patient_document_folder(dialog))
+	);
+	dialog.show();
+	dialog.get_primary_btn().prop('disabled', true);
+}
+
+function pick_patient_document_folder(dialog) {
+	const input = document.createElement('input');
+	input.type = 'file';
+	input.multiple = true;
+	input.setAttribute('webkitdirectory', '');
+	input.setAttribute('directory', '');
+	input.onchange = () => {
+		const files = Array.from(input.files || []);
+		if (files.length) {
+			preview_patient_document_folder(dialog, files);
+		}
+	};
+	input.click();
+}
+
+function patient_document_relative_path(file) {
+	return (file.webkitRelativePath || file.name || '').replace(/\\/g, '/');
+}
+
+function read_manifest_text(file) {
+	return new Promise((resolve, reject) => {
+		const reader = new FileReader();
+		reader.onload = () => resolve(String(reader.result || ''));
+		reader.onerror = () => reject(reader.error);
+		reader.readAsText(file);
+	});
+}
+
+function patient_document_outside_manifest_html(outside) {
+	if (!outside.length) {
+		return (
+			'<p class="text-muted small mt-2">'
+			+ __('Every PDF in the folder is listed in the manifest.')
+			+ '</p>'
+		);
+	}
+	const options = outside
+		.map((row, index) => {
+			const label = row.file_name || row.relative_path || row.path || '';
+			const title = row.relative_path || row.path || label;
+			return (
+				'<option value="'
+				+ index
+				+ '" title="'
+				+ frappe.utils.escape_html(title)
+				+ '">'
+				+ frappe.utils.escape_html(label)
+				+ '</option>'
+			);
+		})
+		.join('');
+	return (
+		'<div class="mt-3 patient-document-outside-manifest">'
+		+ '<label class="control-label">'
+		+ __('PDFs not listed in the manifest')
+		+ ' ('
+		+ outside.length
+		+ ')</label>'
+		+ '<div class="flex align-items-center" style="gap:8px;">'
+		+ '<select class="form-control patient-document-outside-select" style="flex:1;">'
+		+ options
+		+ '</select>'
+		+ '<button type="button" class="btn btn-default btn-sm patient-document-outside-download">'
+		+ __('Download')
+		+ '</button>'
+		+ '<button type="button" class="btn btn-default btn-sm patient-document-outside-download-all">'
+		+ __('Download all names')
+		+ '</button>'
+		+ '</div>'
+		+ '<p class="text-muted small mt-1 patient-document-outside-path"></p>'
+		+ '</div>'
+	);
+}
+
+function bind_patient_document_outside_manifest(dialog) {
+	const $wrap = dialog.fields_dict.preview_html.$wrapper;
+	const $select = $wrap.find('.patient-document-outside-select');
+	const $path = $wrap.find('.patient-document-outside-path');
+	const outside = dialog._document_outside_manifest || [];
+	if (!$select.length) {
+		return;
+	}
+	const show_path = () => {
+		const row = outside[cint($select.val())];
+		$path.text(row ? row.relative_path || row.path || '' : '');
+	};
+	show_path();
+	$select.off('change.patient_document_outside').on('change.patient_document_outside', show_path);
+	$wrap
+		.find('.patient-document-outside-download')
+		.off('click.patient_document_outside')
+		.on('click.patient_document_outside', () => {
+			download_patient_document_outside_file(dialog, cint($select.val()));
+		});
+	$wrap
+		.find('.patient-document-outside-download-all')
+		.off('click.patient_document_outside')
+		.on('click.patient_document_outside', () => {
+			download_patient_document_outside_names(dialog);
+		});
+}
+
+function download_patient_document_outside_file(dialog, index) {
+	const outside = dialog._document_outside_manifest || [];
+	const row = outside[index];
+	if (!row) {
+		frappe.msgprint(__('Select a PDF that is not in the manifest.'));
+		return;
+	}
+	const path = row.path || '';
+	const file = (dialog._document_folder_files || []).find(
+		(item) => patient_document_relative_path(item) === path
+	);
+	if (!file) {
+		frappe.msgprint(__('That PDF is no longer available from the selected folder. Select the folder again.'));
+		return;
+	}
+	const url = URL.createObjectURL(file);
+	const link = document.createElement('a');
+	link.href = url;
+	link.download = row.file_name || patient_image_basename(file) || 'document.pdf';
+	document.body.appendChild(link);
+	link.click();
+	link.remove();
+	setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function download_patient_document_outside_names(dialog) {
+	const outside = dialog._document_outside_manifest || [];
+	if (!outside.length) {
+		frappe.msgprint(__('There are no PDFs outside the manifest.'));
+		return;
+	}
+	const lines = outside.map((row) => {
+		const name = (row.file_name || '').trim();
+		if (name) {
+			return name;
+		}
+		return String(row.path || row.relative_path || '').replace(/\\/g, '/').split('/').pop();
+	});
+	const blob = new Blob([lines.filter(Boolean).join('\n') + '\n'], { type: 'text/plain;charset=utf-8' });
+	const url = URL.createObjectURL(blob);
+	const link = document.createElement('a');
+	link.href = url;
+	link.download = 'pdfs_not_in_manifest.txt';
+	document.body.appendChild(link);
+	link.click();
+	link.remove();
+	setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function preview_patient_document_folder(dialog, files) {
+	const manifests = files.filter((file) => patient_image_basename(file).toLowerCase() === 'manifest_final.csv');
+	if (!manifests.length) {
+		frappe.msgprint({
+			title: __('Manifest not found'),
+			message: __('The selected folder has no manifest_final.csv.'),
+			indicator: 'orange',
+		});
+		return;
+	}
+	manifests.sort((a, b) => patient_document_relative_path(a).length - patient_document_relative_path(b).length);
+	dialog._document_upload_items = [];
+	dialog.get_primary_btn().prop('disabled', true);
+	dialog.fields_dict.preview_html.$wrapper.html(
+		'<p class="text-muted">' + __('Reading the manifest…') + '</p>'
+	);
+	read_manifest_text(manifests[0]).then((manifest) => {
+		const paths = files.map(patient_document_relative_path);
+		frappe.call({
+			method: 'healthcare.api.patient_document_manifest.preview_patient_document_manifest',
+			args: { manifest, paths },
+			freeze: true,
+			freeze_message: __('Comparing the manifest with the folder…'),
+			callback(r) {
+				const counts = r.message || {};
+				dialog._document_existing_count = counts.existing_documents || 0;
+				dialog._document_imports = {};
+				(counts.imports || []).forEach((row) => {
+					dialog._document_imports[row.path] = row;
+				});
+				const missing = (counts.sample_missing_file_nos || []).join(', ') || __('(none)');
+				const outside = counts.outside_manifest_files || [];
+				dialog._document_folder_files = files;
+				dialog._document_outside_manifest = outside;
+				dialog.fields_dict.preview_html.$wrapper.html(
+					'<table class="table table-bordered small"><tbody>'
+					+ '<tr><td>' + __('Rows in the manifest') + '</td><td><b>' + (counts.manifest_rows || 0) + '</b></td></tr>'
+					+ '<tr><td>' + __('FILE_EXISTS says yes') + '</td><td><b>' + (counts.file_exists || 0) + '</b></td></tr>'
+					+ '<tr><td>' + __('FILE_EXISTS says no') + '</td><td><b>' + (counts.file_missing || 0) + '</b></td></tr>'
+					+ '<tr><td>' + __('PDFs that will be imported') + '</td><td><b>' + (counts.matched_files || 0) + '</b></td></tr>'
+					+ '<tr><td>' + __('PDFs not listed in the manifest') + '</td><td><b>' + (counts.outside_manifest || 0) + '</b></td></tr>'
+					+ '<tr><td>' + __('In the manifest but not in the folder') + '</td><td><b>' + (counts.not_in_folder || 0) + '</b></td></tr>'
+					+ '<tr><td>' + __('Patients found') + '</td><td><b>' + (counts.patients_found || 0) + '</b></td></tr>'
+					+ '<tr><td>' + __('Patients not found') + '</td><td><b>' + (counts.patients_missing || 0) + '</b></td></tr>'
+					+ '<tr><td>' + __('Old Legacy Visit Documents to delete') + '</td><td><b>' + (counts.existing_documents || 0) + '</b></td></tr>'
+					+ '</tbody></table>'
+					+ '<p class="text-muted small">' + __('Sample missing file numbers: {0}', [frappe.utils.escape_html(missing)]) + '</p>'
+					+ patient_document_outside_manifest_html(outside)
+				);
+				bind_patient_document_outside_manifest(dialog);
+				const wanted = new Set(counts.upload_paths || []);
+				const pending = files.filter((file) => wanted.has(patient_document_relative_path(file)));
+				if (!pending.length) {
+					dialog.fields_dict.progress_html.$wrapper.html(
+						'<p class="text-muted small">' + __('None of the manifest files were found in this folder.') + '</p>'
+					);
+					return;
+				}
+				upload_patient_document_files(dialog, pending);
+			},
+		});
+	}).catch(() => {
+		frappe.msgprint(__('Could not read manifest_final.csv.'));
+	});
+}
+
+function upload_patient_document_files(dialog, files) {
+	const items = [];
+	let index = 0;
+	const step = () => {
+		dialog.fields_dict.progress_html.$wrapper.html(
+			'<p class="small text-muted">'
+			+ __('Uploading {0} of {1} documents…', [index, files.length])
+			+ '</p>'
+		);
+		if (index >= files.length) {
+			dialog._document_upload_items = items;
+			dialog.get_primary_btn().prop('disabled', !items.length);
+			dialog.fields_dict.progress_html.$wrapper.html(
+				'<p class="text-success small">'
+				+ __('{0} document(s) are ready. Replace will delete the old Legacy Visit Documents first.', [items.length])
+				+ '</p>'
+			);
+			return;
+		}
+		const file = files[index];
+		const path = patient_document_relative_path(file);
+		const meta = (dialog._document_imports || {})[path] || {};
+		upload_patient_cpr_file(file)
+			.then((file_url) => {
+				items.push(Object.assign({}, meta, { file_url, path }));
+			})
+			.catch(() => {
+				frappe.show_alert({
+					message: __('Failed to upload {0}', [patient_image_basename(file)]),
+					indicator: 'red',
+				}, 5);
+			})
+			.finally(() => {
+				index += 1;
+				step();
+			});
+	};
+	step();
+}
+
+function poll_patient_document_manifest(dialog) {
+	const poll = () => {
+		frappe.call({
+			method: 'healthcare.api.patient_document_manifest.get_patient_document_manifest_status',
+			callback(r) {
+				const status = r.message || {};
+				dialog.fields_dict.progress_html.$wrapper.html(
+					'<p class="small">' + frappe.utils.escape_html(status.message || status.state || '') + '</p>'
+				);
+				if (status.state === 'finished' || status.state === 'failed') {
+					dialog.get_primary_btn().prop('disabled', true);
+					return;
+				}
+				setTimeout(poll, 2000);
+			},
+		});
+	};
+	poll();
+}
+
+function poll_patient_image_reconcile(dialog) {
+	const poll = () => {
+		frappe.call({
+			method: 'healthcare.api.patient_image_reconcile.get_patient_image_reconcile_status',
+			callback(r) {
+				const status = r.message || {};
+				dialog.fields_dict.progress_html.$wrapper.html(
+					'<p class="small">' + frappe.utils.escape_html(status.message || status.state || '') + '</p>'
+				);
+				if (status.state === 'finished' || status.state === 'failed') {
+					dialog.get_primary_btn().prop('disabled', true);
+					return;
+				}
+				setTimeout(poll, 2000);
+			},
+		});
+	};
+	poll();
+}
+
 function open_patient_cpr_folder_upload() {
 	const dialog = new frappe.ui.Dialog({
 		title: __('Import Patient CPR Photos'),
@@ -6812,6 +7422,18 @@ function ask_oracle_source({ title, entity, intro, on_direct, on_excel }) {
 						title: __('Excel export missing'),
 						indicator: 'orange',
 						message: __('Upload the Excel export of: {0}', [missing.join(', ')]),
+					});
+					return;
+				}
+
+				const uploaded = tables.filter((table) => files[table.table]);
+				if (tables.length && !uploaded.length) {
+					frappe.msgprint({
+						title: __('Excel export missing'),
+						indicator: 'orange',
+						message: __('Upload the Excel export of: {0}', [
+							tables.map((table) => table.table).join(' or '),
+						]),
 					});
 					return;
 				}
@@ -11794,6 +12416,26 @@ function show_create_missing_reconcile_dialog(frm, spec, data, values) {
 				<td><b class="${missing ? 'text-danger' : 'text-success'}">${format_number(
 					missing
 				)}</b></td></tr>
+			${
+				data.duplicates != null
+					? `<tr><td class="text-muted">${__('Duplicates to remove')}</td>
+				<td><b>${format_number(cint(data.duplicates))}</b></td></tr>`
+					: ''
+			}
+			${
+				data.matched_by_id != null
+					? `<tr><td class="text-muted">${__(
+							'Same or similar CPR / id, different file no'
+					  )}</td><td><b>${format_number(cint(data.matched_by_id))}</b></td></tr>`
+					: ''
+			}
+			${
+				data.matched_by_name_phone != null
+					? `<tr><td class="text-muted">${__(
+							'Same name and phone, different file no'
+					  )}</td><td><b>${format_number(cint(data.matched_by_name_phone))}</b></td></tr>`
+					: ''
+			}
 		</table>
 		${create_missing_reconcile_samples_html(data.samples)}
 		<p class="text-muted small">${__('Source: {0}', [
@@ -11929,6 +12571,132 @@ function open_allergy_reconcile(frm) {
 	});
 }
 
+function open_morse_fall_scale_reconcile(frm) {
+	open_create_missing_reconcile(frm, {
+		title: __('Oracle -> ERPNext: Morse Fall Scale'),
+		entity: 'morse_fall_scale',
+		intro: __(
+			'Reads MORSE_FALL_SCALE_01 and creates only the Morse Fall Scale rows ERPNext is missing (by TRANS_NUM). Scales already stored are left as they are.'
+		),
+		api_prefix: 'healthcare.api.care_record_reconcile',
+		method_suffix: 'morse_fall_scale_reconcile',
+		poll_limit: 300,
+		progress_title: __('Reconciling Morse Fall Scale from Oracle'),
+	});
+}
+
+function open_patient_assessment_reconcile(frm) {
+	open_create_missing_reconcile(frm, {
+		title: __('Oracle -> ERPNext: Patient Assessment'),
+		entity: 'patient_assessment',
+		intro: __(
+			'Reads IP_PATIENT_ASSESSMENT. One Patient Assessment is kept per admission (the latest Oracle TRANS_NUM). Extra assessments for that admission are removed, and an assessment is created only when the admission does not have one.'
+		),
+		api_prefix: 'healthcare.api.care_record_reconcile',
+		method_suffix: 'patient_assessment_reconcile',
+		poll_limit: 300,
+		progress_title: __('Reconciling patient assessments from Oracle'),
+	});
+}
+
+function open_medicine_given_reconcile(frm) {
+	open_create_missing_reconcile(frm, {
+		title: __('Oracle -> ERPNext: Medicine Given'),
+		entity: 'medicine_given',
+		intro: __(
+			'Reads IP_ADMISSION_MEDICINE_SHEET and IP_ADMISSION_MEDICINE_SHEET_23. Only rows marked Given (GIVEN_YN = Y) become Medicine Given. A dose from IP_ADMISSION_MEDICINE_SHEET_23 has that checkbox ticked on the Medicine Given row. Doses already recorded are left as they are, and a repeated dose for the same sheet number is removed.'
+		),
+		api_prefix: 'healthcare.api.care_record_reconcile',
+		method_suffix: 'medicine_given_reconcile',
+		poll_limit: 300,
+		progress_title: __('Reconciling medicine given from Oracle'),
+	});
+}
+
+function open_legacy_sales_reconcile(frm) {
+	open_create_missing_reconcile(frm, {
+		title: __('Oracle -> ERPNext: Legacy Sales / Pharmacy Dispensed'),
+		entity: 'legacy_sales',
+		intro: __(
+			'Reads INV_00_01 (headers) and INV_00_02 (lines) for hospital pharmacy SAL documents with TRANS_SOURCE IP or OP. EMP staff purchases and Rose retail sales are excluded. Uses NET_BILL_AMOUNT as the charged amount and ITEM_SMALL_QTY as quantity; pink prescription columns are kept. Missing Legacy Sales Transactions headers are created and empty headers get their item lines. Export SQL: healthcare/api/sql/pharmacy_dispensed_extraction.sql (expect about 43,709 OP + 73,321 IP headers).'
+		),
+		api_prefix: 'healthcare.api.legacy_sales_reconcile',
+		method_suffix: 'legacy_sales_reconcile',
+		poll_limit: 600,
+		progress_title: __('Reconciling pharmacy dispensed sales from Oracle'),
+	});
+}
+
+function open_appointment_reconcile(frm) {
+	open_create_missing_reconcile(frm, {
+		title: __('Oracle -> ERPNext: Appointments'),
+		entity: 'appointments',
+		intro: __(
+			'Reads APPOINTMENTS_INFO_01. A Patient Appointment matches on the patient, the doctor, and the date. The time must also match when both sides have one. APP_NUM is not the match, because that number may already belong to a different appointment. Only missing appointments are created, and an existing appointment is left as it is.'
+		),
+		api_prefix: 'healthcare.api.care_record_reconcile',
+		method_suffix: 'appointment_reconcile',
+		poll_limit: 300,
+		progress_title: __('Reconciling appointments from Oracle'),
+	});
+}
+
+function open_medical_diagnosis_reconcile(frm) {
+	open_create_missing_reconcile(frm, {
+		title: __('Oracle -> ERPNext: Medical Diagnosis Entry'),
+		entity: 'medical_diagnosis',
+		intro: __(
+			'Reads VISIT_DIAGNOSES_01 only. IP_ADMISSION_DIAGNOSES stays on Clinical Notes. Repeated Medical Diagnosis Entry rows with the same visit-diagnosis number are removed, and only visit diagnoses ERPNext does not already have are created.'
+		),
+		api_prefix: 'healthcare.api.medical_diagnosis_reconcile',
+		method_suffix: 'medical_diagnosis_reconcile',
+		poll_limit: 300,
+		progress_title: __('Reconciling medical diagnosis entries from Oracle'),
+	});
+}
+
+function open_grooming_chart_reconcile(frm) {
+	open_create_missing_reconcile(frm, {
+		title: __('Oracle -> ERPNext: IP Grooming Chart'),
+		entity: 'grooming_chart',
+		intro: __(
+			'Reads IP_GROOMING_CHART and creates only the grooming charts ERPNext is missing (by TRANS_NUM). Charts already stored are left as they are.'
+		),
+		api_prefix: 'healthcare.api.ip_chart_reconcile',
+		method_suffix: 'grooming_chart_reconcile',
+		poll_limit: 300,
+		progress_title: __('Reconciling IP grooming charts from Oracle'),
+	});
+}
+
+function open_mental_state_reconcile(frm) {
+	open_create_missing_reconcile(frm, {
+		title: __('Oracle -> ERPNext: IP Mental State'),
+		entity: 'mental_state',
+		intro: __(
+			'Reads IP_MENTAL_STATE and creates only the mental state rows ERPNext is missing (by TRANS_NO). Rows already imported under that number are left as they are.'
+		),
+		api_prefix: 'healthcare.api.ip_chart_reconcile',
+		method_suffix: 'mental_state_reconcile',
+		poll_limit: 300,
+		progress_title: __('Reconciling IP mental state from Oracle'),
+	});
+}
+
+function open_admission_transfer_reconcile(frm) {
+	open_create_missing_reconcile(frm, {
+		title: __('Oracle -> ERPNext: IP Admission Transfer'),
+		entity: 'admission_transfer',
+		intro: __(
+			'Reads IP_ADMISSION_TRANSFER and creates only the Transfer Admission Events ERPNext is missing (by TRANS_NUM). Transfers already stored are left as they are.'
+		),
+		api_prefix: 'healthcare.api.ip_chart_reconcile',
+		method_suffix: 'admission_transfer_reconcile',
+		poll_limit: 300,
+		progress_title: __('Reconciling IP admission transfers from Oracle'),
+	});
+}
+
 function open_ect_details_reconcile(frm) {
 	open_create_missing_reconcile(frm, {
 		title: __('Oracle -> ERPNext: ECT Details'),
@@ -12020,7 +12788,7 @@ function open_patient_reconcile(frm) {
 		title: __('Oracle -> ERPNext: Patients'),
 		entity: 'patients',
 		intro: __(
-			'Reads PATIENT_INFO_01 and creates missing Patients by file number. When a file number is already taken in ERPNext, name and id number are checked first — matching patients are updated; conflicting identity pairs are left alone and reported.'
+			'Reads PATIENT_INFO_01 and creates missing Patients by file number. A patient already saved under another file number is not created again when the name and phone match, or when the CPR / id number is the same or one digit off. The stored CPR is not overwritten when the numbers are not exactly the same.'
 		),
 		api_prefix: 'healthcare.api.patient_reconcile',
 		method_suffix: 'patient_reconcile',
@@ -12034,7 +12802,7 @@ function open_insurance_register_reconcile(frm) {
 		title: __('Oracle -> ERPNext: Insurance Register'),
 		entity: 'insurance_register',
 		intro: __(
-			'Reads PATIENT_INFO_01 insurance flags and INSUR_* columns. Marks those patients insured (TRICARE), fills insurance fields, and creates an Insurance Patient Register when the patient still has none.'
+			'Reads INSURANCE_00_01. Each patient on a claim header is marked insured (TRICARE) and gets an Insurance Patient Register when they still have none. INSURANCE_00_02 is claim lines and has no patient. PATIENT_INFO_01 is not used.'
 		),
 		api_prefix: 'healthcare.api.insurance_register_reconcile',
 		method_suffix: 'insurance_register_reconcile',
@@ -12223,12 +12991,18 @@ function oracle_sync_summary_html(data) {
 	const rows = [
 		[__('Oracle table'), data.oracle_table],
 		[__('ERPNext doctype'), data.doctype],
-		[__('Match key'), `${data.oracle_key} ↔ ${data.frappe_key}`],
+		[__('Match key'), data.match_note || `${data.oracle_key} ↔ ${data.frappe_key}`],
 		[__('Rows in Oracle'), data.source_count],
 		[__('Rows in ERPNext'), data.target_count],
 		[__('Missing in ERPNext'), data.missing_count],
-		[__('Only in ERPNext (left untouched)'), data.extra_count],
 	];
+	if (data.matched_by_identity != null) {
+		rows.push([
+			__('Same visit, different case no (patient, date and visit type)'),
+			data.matched_by_identity,
+		]);
+	}
+	rows.push([__('Only in ERPNext (left untouched)'), data.extra_count]);
 
 	const body = rows
 		.map(
@@ -12463,16 +13237,17 @@ function track_oracle_ip_admission_import(frm, total) {
 /**
  * OP Visit: Oracle VISIT_00_01 -> Patient Visit.
  *
- * Compares VISIT_NUM with Patient Visit.case_no. Only visits that exist in
- * Oracle and are missing in ERPNext are created. Visits that exist only in
- * ERPNext are left alone (staff-created / newer data).
+ * Compares VISIT_NUM with Patient Visit.case_no. When the visit number differs,
+ * the same patient, encounter date and visit type still count as the same visit.
+ * Only visits that exist in Oracle and are missing in ERPNext are created.
+ * Visits that exist only in ERPNext are left alone (staff-created / newer data).
  */
 function open_oracle_op_visit(frm) {
 	ask_oracle_source({
 		title: __('Oracle -> ERPNext: OP Visit'),
 		entity: 'op_visit',
 		intro: `<p class="text-muted small">${__(
-			'Compares Oracle VISIT_00_01 with Patient Visit and creates only the visits that exist in Oracle and are missing in ERPNext. Visits that exist only in ERPNext are left untouched; patients that do not exist yet are created as minimal Patient records.'
+			'Compares Oracle VISIT_00_01 with Patient Visit and creates only the visits that exist in Oracle and are missing in ERPNext. A different visit number still counts as the same visit when the patient, date and visit type match — visits opened in ERPNext after the 2 July import often have a new case number. Visits that exist only in ERPNext are left untouched; patients that do not exist yet are created as minimal Patient records.'
 		)}</p>`,
 		on_direct: () => run_oracle_op_visit_comparison(frm),
 		on_excel: (files) => run_oracle_op_visit_comparison(frm, files),
@@ -12563,7 +13338,7 @@ function show_oracle_op_visit_report(frm, data, files) {
 				options:
 					'<p class="text-muted small">'
 					+ __(
-						'Compares Oracle VISIT_00_01 with Patient Visit. Only visits that exist in Oracle and are missing in ERPNext will be created. Visits that exist only in ERPNext are left untouched.'
+						'Compares Oracle VISIT_00_01 with Patient Visit. Only visits that exist in Oracle and are missing in ERPNext will be created. A visit already in ERPNext for the same patient, date and visit type is not imported again, even when the case number differs. Visits that exist only in ERPNext are left untouched.'
 					)
 					+ '</p>',
 			},

@@ -707,7 +707,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { Navigate, useSearchParams } from 'react-router-dom'
 import { useCareContext } from '../providers/CareContextProvider'
-import { FlaskConical, Droplet, History, Clock, TestTube2, Tags, Layers } from 'lucide-react'
+import { ArrowUpRight, FlaskConical, Droplet, History, Clock, TestTube2, Tags, Layers } from 'lucide-react'
 import { PatientCareHeader } from '../components/patients/PatientCareHeader'
 import { LabTestList, type LabTestListBatchSaveRef } from '../components/labTests/LabTestList'
 import { LabBookedRequestList } from '../components/labTests/LabBookedRequestList'
@@ -1174,24 +1174,22 @@ export const LabPage = () => {
       <div className="flex flex-col flex-1 min-h-0 min-w-0 overflow-y-auto">
         <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
-          <DashboardCard
-            title="Inventory Dashboard"
-            filterable={false}
-            noHeightLimit
-            headerExtra={
-              <button
-                type="button"
-                onClick={() => {
-                  window.location.href = '/desk/stock/item'
-                }}
-                className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
+          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
+            <div className="mb-4 flex items-center justify-between gap-2">
+              <div className="font-semibold">Inventory Dashboard</div>
+              <a
+                href={`${window.location.origin}/app/item`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                title="Open Item list in ERPNext"
               >
-                Items
-              </button>
-            }
-          >
+                Item
+                <ArrowUpRight className="h-3.5 w-3.5 text-primary" aria-hidden />
+              </a>
+            </div>
             <NursingInventoryDashboard warehouseContext="laboratory" />
-          </DashboardCard>
+          </section>
         </div>
       </div>
     )

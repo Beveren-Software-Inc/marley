@@ -462,13 +462,15 @@
    "fieldtype": "Section Break"
   },
   {
+   "description": "Numeric bound or free text (e.g. Negative, Not Detected)",
    "fieldname": "min_range",
-   "fieldtype": "Float",
+   "fieldtype": "Data",
    "label": "Min Range"
   },
   {
+   "description": "Numeric bound or free text (e.g. Negative, Not Detected)",
    "fieldname": "max_range",
-   "fieldtype": "Float",
+   "fieldtype": "Data",
    "label": "Max Range"
   },
   {

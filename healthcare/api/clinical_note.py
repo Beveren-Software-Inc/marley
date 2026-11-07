@@ -36,6 +36,49 @@ def _user_can_read_clinical_note_portal() -> bool:
 	return bool(CLINICAL_NOTE_PORTAL_READ_ROLES & set(frappe.get_roles(frappe.session.user)))
 
 
+def _user_display_label(full_name: str | None, username: str | None, user_id: str | None = None) -> str:
+	"""Prefer a human label over an email login id."""
+	full_name = (full_name or "").strip()
+	if full_name:
+		return full_name
+	username = (username or "").strip()
+	if username and "@" not in username:
+		return username
+	user_id = (user_id or "").strip()
+	return user_id
+
+
+def _fill_clinical_note_author_label(note: dict) -> None:
+	"""Ensure Username column has a value when username field is empty.
+
+	Order: stored username → practitioner name → Frappe User → practitioner id
+	→ Oracle User name for ``cr_id`` (legacy imports) → raw ``cr_id``.
+	"""
+	if (note.get("username") or "").strip():
+		return
+	label = (note.get("practitioner_name") or "").strip()
+	if not label:
+		label = _user_display_label(
+			note.get("user_full_name"),
+			note.get("user_username"),
+			note.get("user"),
+		)
+	if not label:
+		label = (note.get("practitioner") or "").strip()
+	if not label:
+		label = (note.get("cr_id_name") or "").strip()
+	if not label and note.get("cr_id"):
+		from healthcare.api.usr_00_01_import import get_user_name
+
+		label = (get_user_name(note.get("cr_id")) or "").strip()
+		if label:
+			note["cr_id_name"] = label
+	if not label:
+		label = str(note.get("cr_id") or "").strip()
+	if label:
+		note["username"] = label
+
+
 def _enrich_clinical_note_row(note: dict) -> dict:
 	if note.get("patient"):
 		patient_name = frappe.db.get_value("Patient", note["patient"], "patient_name")
@@ -47,6 +90,21 @@ def _enrich_clinical_note_row(note: dict) -> dict:
 		)
 		if practitioner_name:
 			note["practitioner_name"] = practitioner_name
+	if note.get("user"):
+		user_row = frappe.db.get_value(
+			"User", note["user"], ["full_name", "username"], as_dict=True
+		)
+		if user_row:
+			if user_row.full_name:
+				note["user_full_name"] = user_row.full_name
+			if user_row.username:
+				note["user_username"] = user_row.username
+	if note.get("cr_id") and not (note.get("cr_id_name") or "").strip():
+		from healthcare.api.usr_00_01_import import get_user_name
+
+		oracle_name = (get_user_name(note.get("cr_id")) or "").strip()
+		if oracle_name:
+			note["cr_id_name"] = oracle_name
 	if note.get("medical_role"):
 		medical_role_name = frappe.db.get_value("Medical Role", note["medical_role"], "medical_role")
 		if medical_role_name:
@@ -57,7 +115,111 @@ def _enrich_clinical_note_row(note: dict) -> dict:
 		)
 		if clinical_note_type_name:
 			note["clinical_note_type_name"] = clinical_note_type_name
+	_fill_clinical_note_author_label(note)
 	return note
+
+
+def _enrich_clinical_note_rows(notes: list[dict]) -> None:
+	"""Batch-enrich list rows (avoids N+1 at large page sizes on live)."""
+	if not notes:
+		return
+
+	patient_ids = list({n["patient"] for n in notes if n.get("patient")})
+	practitioner_ids = list({n["practitioner"] for n in notes if n.get("practitioner")})
+	user_ids = list({n["user"] for n in notes if n.get("user")})
+	role_ids = list({n["medical_role"] for n in notes if n.get("medical_role")})
+	type_ids = list({n["clinical_note_type"] for n in notes if n.get("clinical_note_type")})
+
+	patients = {}
+	if patient_ids:
+		patients = {
+			r.name: r.patient_name
+			for r in frappe.get_all(
+				"Patient",
+				filters={"name": ["in", patient_ids]},
+				fields=["name", "patient_name"],
+				limit_page_length=len(patient_ids),
+			)
+			if r.patient_name
+		}
+
+	practitioners = {}
+	if practitioner_ids:
+		practitioners = {
+			r.name: r.practitioner_name
+			for r in frappe.get_all(
+				"Healthcare Practitioner",
+				filters={"name": ["in", practitioner_ids]},
+				fields=["name", "practitioner_name"],
+				limit_page_length=len(practitioner_ids),
+			)
+			if r.practitioner_name
+		}
+
+	users = {}
+	if user_ids:
+		users = {
+			r.name: r
+			for r in frappe.get_all(
+				"User",
+				filters={"name": ["in", user_ids]},
+				fields=["name", "full_name", "username"],
+				limit_page_length=len(user_ids),
+				ignore_permissions=True,
+			)
+		}
+
+	roles = {}
+	if role_ids:
+		roles = {
+			r.name: r.medical_role
+			for r in frappe.get_all(
+				"Medical Role",
+				filters={"name": ["in", role_ids]},
+				fields=["name", "medical_role"],
+				limit_page_length=len(role_ids),
+			)
+			if r.medical_role
+		}
+
+	types = {}
+	if type_ids:
+		types = {
+			r.name: r.clinical_note_type
+			for r in frappe.get_all(
+				"Clinical Note Type",
+				filters={"name": ["in", type_ids]},
+				fields=["name", "clinical_note_type"],
+				limit_page_length=len(type_ids),
+			)
+			if r.clinical_note_type
+		}
+
+	from healthcare.api.usr_00_01_import import add_user_names
+
+	add_user_names(notes, ("cr_id",))
+
+	for note in notes:
+		pid = note.get("patient")
+		if pid and patients.get(pid):
+			note["patient_name"] = patients[pid]
+		pr = note.get("practitioner")
+		if pr and practitioners.get(pr):
+			note["practitioner_name"] = practitioners[pr]
+		uid = note.get("user")
+		if uid and users.get(uid):
+			urow = users[uid]
+			if urow.full_name:
+				note["user_full_name"] = urow.full_name
+			if urow.username:
+				note["user_username"] = urow.username
+		mr = note.get("medical_role")
+		if mr and roles.get(mr):
+			note["medical_role_name"] = roles[mr]
+		ct = note.get("clinical_note_type")
+		if ct and types.get(ct):
+			note["clinical_note_type_name"] = types[ct]
+		_fill_clinical_note_author_label(note)
 
 
 def _attach_visit_encounter_date(note: dict) -> None:
@@ -278,6 +440,7 @@ def get_clinical_notes(**kwargs):
 			'practitioner',
 			'user',
 			'username',
+			'cr_id',
 			'clinical_note_type',
 			'medical_role',
 			'note',
@@ -294,8 +457,7 @@ def get_clinical_notes(**kwargs):
 		order_by='posting_date desc',
 		ignore_permissions=ignore_permissions,
 	)
-	for note in clinical_notes:
-		_enrich_clinical_note_row(note)
+	_enrich_clinical_note_rows(clinical_notes)
 	_attach_visit_encounter_dates(clinical_notes)
 
 	return {
@@ -469,12 +631,25 @@ def create_clinical_note(data):
 	except Exception:
 		pass
 
+	practitioner = (data.get('practitioner') or '').strip() or None
+	username = (data.get('username') or '').strip() or None
+	if not username and frappe.session.user not in ("Guest", ""):
+		user_row = frappe.db.get_value(
+			"User", frappe.session.user, ["full_name", "username"], as_dict=True
+		)
+		username = _user_display_label(
+			user_row.full_name if user_row else None,
+			user_row.username if user_row else None,
+			frappe.session.user,
+		) or None
+
 	doc = frappe.get_doc({
 		'doctype': 'Clinical Note',
 		'patient': patient,
 		'clinical_note_type': clinical_note_type,
 		'medical_role': _resolve_clinical_note_medical_role(data),
-		'practitioner': data.get('practitioner'),
+		'practitioner': practitioner,
+		'username': username,
 		'posting_date': data.get('posting_date') or nowdate(),
 		'note': note,
 		'reference_doctype': reference_doctype,

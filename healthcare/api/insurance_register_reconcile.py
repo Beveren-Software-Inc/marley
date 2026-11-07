@@ -1,17 +1,15 @@
 """One-button Oracle -> ERPNext reconciliation for Insurance Patient Register.
 
-Oracle marks insured patients on ``CLINIC2.PATIENT_INFO_01`` (``IS_INSURANCE``,
-``INSUR_*`` columns). ERPNext stores the cover on ``Patient`` and links an
-``Insurance Patient Register``. Claim reconcile creates a register as a
-side-effect of claims; this button builds the register from the patient master
-so insured patients are covered even before any claim lands.
+The register is one row per patient. On this site those patients are the
+distinct ``PATIENT_NUM`` values on ``CLINIC2.INSURANCE_00_01`` (the claim
+header). ``INSURANCE_00_02`` is the claim service lines and has no patient
+number, so it is not a register source. ``PATIENT_INFO_01`` is not read.
 
 What one run does
 -----------------
-1. Reads ``PATIENT_INFO_01`` rows where insurance is flagged (or insurance
-   policy / company fields are filled).
+1. Collects distinct patients from ``INSURANCE_00_01``.
 2. Resolves the Patient by file number (creates a minimal one when missing).
-3. Marks the Patient insured (TRICARE) and fills Oracle insurance fields.
+3. Marks the Patient insured (TRICARE).
 4. Creates an ``Insurance Patient Register`` when the patient still has none,
    and links ``Patient.insurance_register``.
 
@@ -31,16 +29,18 @@ import frappe
 from frappe import _
 from frappe.utils import cint, flt, now_datetime, nowdate
 
-from healthcare.api.oracle_excel_source import excel_source, normalize_files, oracle_schema
+from healthcare.api.oracle_excel_source import (
+	current_source,
+	excel_source,
+	normalize_files,
+	oracle_schema,
+)
 from healthcare.api.oracle_sync import _fetch_rows, _in_clause
 from healthcare.api.patient_info_import import (
 	_cell_text,
 	_clean_oracle_num,
 	_parse_date_value,
 	_require_admin,
-	_yn_to_check,
-	patient_info_file_no_column,
-	patient_info_file_no_from_row,
 )
 from healthcare.healthcare.api.insurance_claim import (
 	TRICARE,
@@ -57,7 +57,7 @@ LOCK_KEY = "healthcare:insurance_register_reconcile:lock"
 PROGRESS_TTL = 60 * 60 * 12
 LOCK_TTL = 60 * 60 * 6
 
-ORACLE_TABLE = "PATIENT_INFO_01"
+ORACLE_MASTER = "INSURANCE_00_01"
 REGISTER_DOCTYPE = "Insurance Patient Register"
 PATIENT_DOCTYPE = "Patient"
 
@@ -180,35 +180,48 @@ def _record_errors(progress: dict, errors: Iterable[str]) -> None:
 
 
 def _file_no_from_raw(raw: dict) -> str:
-	return patient_info_file_no_from_row(raw)
+	return _clean_oracle_num(raw.get("PATIENT_NUM"))
 
 
-def _oracle_is_insured(raw: dict) -> bool:
-	if _yn_to_check(raw.get("IS_INSURANCE")):
+def _table_ready(table: str) -> bool:
+	source = current_source()
+	if source is None:
 		return True
-	for key in (
-		"INSUR_COMPANY_NUM",
-		"INSUR_POLICY_NUM",
-		"INSUR_ISDN_NUM",
-		"INSUR_EMP_NUM",
-		"INSUR_WORK_PLACE",
-	):
-		if _cell_text(raw.get(key)):
-			return True
-	return False
+	return source.has_table(table)
+
+
+def _uploaded_register_tables(files: Any) -> list[str]:
+	"""Excel path reads the claim header. Service lines have no patient."""
+	if not normalize_files(files):
+		return []
+	chosen = {
+		str(entry.get("table") or "").strip().upper() for entry in normalize_files(files)
+	}
+	if ORACLE_MASTER not in chosen:
+		frappe.throw(
+			_(
+				"Upload INSURANCE_00_01. Insurance Patient Register patients come from that "
+				"claim header. INSURANCE_00_02 has no patient number, and PATIENT_INFO_01 is not used."
+			),
+			title=_("Oracle Excel Upload"),
+		)
+	return [ORACLE_MASTER]
+
+
+def _oracle_table_label(source=None) -> str:
+	schema = oracle_schema()
+	if source is not None and source.has_table(ORACLE_MASTER):
+		return source.describe(ORACLE_MASTER)
+	return f"{schema}.{ORACLE_MASTER}"
 
 
 def _oracle_insured_index() -> dict[str, dict]:
-	file_col = patient_info_file_no_column(ORACLE_TABLE)
-	rows = _fetch_rows(ORACLE_TABLE, order_by=file_col)
+	"""Distinct patients on INSURANCE_00_01."""
 	index: dict[str, dict] = {}
-	for raw in rows or []:
-		if not _oracle_is_insured(raw):
-			continue
+	for raw in _fetch_rows(ORACLE_MASTER, order_by="PATIENT_NUM") or []:
 		file_no = _file_no_from_raw(raw)
-		if not file_no:
-			continue
-		index[file_no] = raw
+		if file_no and file_no not in index:
+			index[file_no] = raw
 	return index
 
 
@@ -287,13 +300,18 @@ def _scan() -> dict:
 def _oracle_rows_by_file_nos(file_nos: list[str]) -> list[dict[str, str]]:
 	if not file_nos:
 		return []
-	file_col = patient_info_file_no_column(ORACLE_TABLE)
-	where = f"{file_col} in ({_in_clause(file_nos)})"
-	return _fetch_rows(ORACLE_TABLE, where=where, order_by=file_col)
+	found: dict[str, dict] = {}
+	if _table_ready(ORACLE_MASTER):
+		where = f"PATIENT_NUM in ({_in_clause(file_nos)})"
+		for raw in _fetch_rows(ORACLE_MASTER, where=where, order_by="PATIENT_NUM") or []:
+			file_no = _file_no_from_raw(raw)
+			if file_no and file_no not in found:
+				found[file_no] = raw
+	return [found.get(file_no) or {"PATIENT_NUM": file_no} for file_no in file_nos]
 
 
 def _apply_oracle_insurance_fields(patient: str, raw: dict) -> None:
-	"""Copy PATIENT_INFO_01 insurance columns onto the Patient record."""
+	"""Copy insurance columns when the claim row still carries them."""
 	if not patient or not frappe.db.exists(PATIENT_DOCTYPE, patient):
 		return
 	meta = frappe.get_meta(PATIENT_DOCTYPE)
@@ -404,7 +422,7 @@ def _summary_message(progress: dict) -> str:
 	lines = [
 		_("Reconcile Insurance Register finished."),
 		"",
-		_("Oracle {0}").format(ORACLE_TABLE),
+		_("Oracle {0}").format(ORACLE_MASTER),
 		_("Insured patients in Oracle: {0}").format(cint(progress.get("oracle_insured"))),
 		_("Insurance Patient Registers in ERPNext: {0}").format(
 			cint(progress.get("erpnext_registers"))
@@ -561,14 +579,14 @@ def preview_insurance_register_reconcile(
 	"""Read-only: which Oracle-insured patients still lack a register?"""
 	_require_admin()
 	files = normalize_files(files)
-	with excel_source(files, tables=[ORACLE_TABLE]) as source:
+	with excel_source(files, tables=_uploaded_register_tables(files)) as source:
 		scan = _scan()
 		items = _work_items(scan, patient=patient, limit=limit)
 		result: dict[str, Any] = {
 			"ok": True,
 			"as_of": str(nowdate()),
 			"mode": "patient" if patient else "site",
-			"oracle_table": f"{oracle_schema()}.{ORACLE_TABLE}",
+			"oracle_table": _oracle_table_label(source),
 			"oracle_insured": scan["oracle_insured"],
 			"oracle_rows": scan["oracle_insured"],
 			"erpnext_registers": scan["erpnext_registers"],
@@ -577,8 +595,6 @@ def preview_insurance_register_reconcile(
 			"missing_total": len(items),
 			"samples": [{"key": item[0], "patient": item[0]} for item in items[:10]],
 		}
-		if source is not None:
-			result["oracle_table"] = source.describe(ORACLE_TABLE)
 	result["in_sync"] = not cint(result["missing_registers"])
 	return result
 
@@ -662,7 +678,7 @@ def run_insurance_register_reconcile(
 
 	outcome: dict[str, Any] = {}
 	try:
-		with excel_source(files, tables=[ORACLE_TABLE]):
+		with excel_source(files, tables=_uploaded_register_tables(files)):
 			outcome = _run(
 				token,
 				cint(resume),

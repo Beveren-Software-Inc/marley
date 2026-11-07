@@ -411,10 +411,10 @@ export function DischargeDetailPanel({
                 icon={<User className="h-4 w-4" strokeWidth={2} />}
                 label="Discharged by"
                 value={displayValue(
-                  doc?.user_name ||
-                    doc?.discharged_by_user_name ||
-                    doc?.discharged_by_user ||
+                  doc?.discharged_by_user_name ||
+                    doc?.user_name ||
                     preview?.discharged_by_user_name ||
+                    doc?.discharged_by_user ||
                     preview?.discharged_by_user
                 )}
               />

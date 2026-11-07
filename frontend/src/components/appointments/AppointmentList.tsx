@@ -1398,19 +1398,16 @@ export const AppointmentList = ({
     try {
       await linkWalkInAppointmentToPatient(apt.name, patientId)
       setRefreshTrigger((t) => t + 1)
-      if (shouldMarkArrived) {
-        const result = await updateAppointmentStatus(apt.name, 'Patient Arrived')
-        if (result.patient_visit) {
-          toast.success(
-            `Patient registered · marked arrived · visit ${result.patient_visit} created`,
-          )
-        } else {
-          toast.success('Patient registered and marked as arrived')
-        }
-      } else {
-        toast.success(`Patient file created and linked to ${apt.name}`)
-      }
+      toast.success(`Patient file created and linked to ${apt.name}`)
       onPatientClick?.(patientId)
+      if (shouldMarkArrived) {
+        // Open arrive modal so reception can pick visit type + charges (same as manual visit).
+        setArrivedTarget({
+          ...apt,
+          patient: patientId,
+          patient_name: apt.patient_name || apt.temporary_patient_name,
+        })
+      }
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Failed to complete walk-in registration')
     }

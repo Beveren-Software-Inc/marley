@@ -11,7 +11,17 @@ from frappe import _
 from frappe.core.doctype.sms_settings.sms_settings import send_sms
 from frappe.model.document import Document
 from frappe.model.mapper import get_mapped_doc
-from frappe.utils import cstr, flt, format_date, get_datetime, get_link_to_form, get_time, getdate, now_datetime
+from frappe.utils import (
+	cint,
+	cstr,
+	flt,
+	format_date,
+	get_datetime,
+	get_link_to_form,
+	get_time,
+	getdate,
+	now_datetime,
+)
 
 from erpnext.setup.doctype.employee.employee import is_holiday
 
@@ -907,7 +917,18 @@ def validate_practitioner_schedules(schedule_entry, practitioner):
 
 
 @frappe.whitelist()
-def update_status(appointment_id, status, notes=None, checkout_time=None):
+def update_status(
+	appointment_id,
+	status,
+	notes=None,
+	checkout_time=None,
+	visit_type=None,
+	charge_visit=None,
+	charge_lines=None,
+):
+	"""Update appointment status. On Patient Arrived, create the visit with optional
+	visit_type and (optionally) bill visit-type charge lines — same as manual visit.
+	"""
 	updates = {"status": status}
 	if status == "Checked Out":
 		updates["checkout"] = get_datetime(checkout_time) if checkout_time else now_datetime()
@@ -939,7 +960,36 @@ def update_status(appointment_id, status, notes=None, checkout_time=None):
 				title=_("Registration required"),
 				exc=frappe.ValidationError,
 			)
-		result["patient_visit"] = get_or_create_encounter_from_appointment(appointment_id)
+		visit_type = cstr(visit_type).strip() or None
+		result["patient_visit"] = get_or_create_encounter_from_appointment(
+			appointment_id, visit_type=visit_type
+		)
+
+		if isinstance(charge_lines, str):
+			charge_lines = json.loads(charge_lines) if charge_lines.strip() else None
+		if charge_visit is None:
+			# Bill when reception sent charge lines (or omitted charge_visit but chose a type).
+			charge_visit = 1 if charge_lines is not None else 0
+		if cint(charge_visit) and result.get("patient_visit"):
+			from healthcare.api.patient_visit_charge import maybe_create_patient_visit_charge_sales_order
+
+			if not isinstance(charge_lines, list):
+				charge_lines = None
+			cost_center = frappe.db.get_value("Patient Appointment", appointment_id, "cost_center")
+			charge_info = maybe_create_patient_visit_charge_sales_order(
+				result["patient_visit"],
+				charge_visit=1,
+				visit_type=visit_type,
+				cost_center=cost_center,
+				charge_lines=charge_lines,
+			)
+			if charge_info and charge_info.get("error"):
+				result["visit_charge_error"] = _(
+					"Visit charge order could not be created. Patient was marked arrived."
+				)
+			elif charge_info:
+				result["sales_order"] = charge_info.get("sales_order")
+				result["visit_charge_rate"] = charge_info.get("rate")
 
 	return result
 
@@ -978,7 +1028,7 @@ def make_encounter(source_name, target_doc=None):
 	return doc
 
 
-def _prepare_patient_visit_from_appointment(doc, appointment):
+def _prepare_patient_visit_from_appointment(doc, appointment, visit_type=None):
 	"""Set required Patient Visit fields before insert (case_no is the document name)."""
 	from healthcare.api.utils.api_utility import get_next_transaction_number
 	from healthcare.healthcare.doctype.patient_visit.open_visit_guard import (
@@ -993,17 +1043,28 @@ def _prepare_patient_visit_from_appointment(doc, appointment):
 		doc.encounter_time = appointment.appointment_time or get_time("00:00:00")
 	if not doc.status:
 		doc.status = "Open"
-	if not doc.visit_type:
+	chosen_type = cstr(visit_type).strip() or cstr(doc.visit_type).strip()
+	if chosen_type:
+		doc.visit_type = chosen_type
+	elif not doc.visit_type:
 		doc.visit_type = "New Visit"
 
 	ensure_patient_can_open_new_visit(appointment.patient)
 	return doc
 
 
-def get_or_create_encounter_from_appointment(appointment_id):
+def get_or_create_encounter_from_appointment(appointment_id, visit_type=None):
 	"""Return an existing Patient Visit for the appointment, or create one."""
+	visit_type = cstr(visit_type).strip() or None
 	existing = frappe.db.get_value("Patient Visit", {"appointment": appointment_id}, "name")
 	if existing:
+		if visit_type:
+			current = cstr(frappe.db.get_value("Patient Visit", existing, "visit_type")).strip()
+			# Prefer the type chosen at arrival when the visit still has the default/blank type.
+			if not current or current == "New Visit":
+				frappe.db.set_value(
+					"Patient Visit", existing, "visit_type", visit_type, update_modified=False
+				)
 		_link_appointment_patient_visit(appointment_id, existing)
 		return existing
 
@@ -1014,7 +1075,7 @@ def get_or_create_encounter_from_appointment(appointment_id):
 			title=_("Patient required"),
 		)
 	doc = make_encounter(appointment_id)
-	_prepare_patient_visit_from_appointment(doc, appointment)
+	_prepare_patient_visit_from_appointment(doc, appointment, visit_type=visit_type)
 	doc.insert()
 	frappe.db.commit()
 	_link_appointment_patient_visit(appointment_id, doc.name)

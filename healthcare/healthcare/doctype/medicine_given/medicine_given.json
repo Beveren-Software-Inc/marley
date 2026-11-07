@@ -34,6 +34,7 @@
   "ip_admission_medicine",
   "column_break_gerg",
   "ip_admission_medicine_sheet",
+  "ip_admission_medicine_sheet_23",
   "patient_medication_order",
   "override_section",
   "override_exceeded_frequency",
@@ -238,6 +239,13 @@
    "fieldtype": "Link",
    "label": "IP admission medicine Sheet",
    "options": "IP Admission Medicine Sheet"
+  },
+  {
+   "default": "0",
+   "fieldname": "ip_admission_medicine_sheet_23",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "IP_ADMISSION_MEDICINE_SHEET_23"
   },
   {
    "fieldname": "patient_medication_order",

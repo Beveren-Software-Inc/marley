@@ -1,9 +1,10 @@
 # Copyright (c) 2026, Healthcare contributors
 # See license.txt
 
+import sqlite3
 from unittest.mock import patch
 
-from frappe.tests import IntegrationTestCase
+from frappe.tests import IntegrationTestCase, UnitTestCase
 
 from healthcare.api.clinical_note_reconcile import (
 	HISTORY_TRANS_PREFIX,
@@ -20,6 +21,7 @@ from healthcare.api.clinical_note_reconcile import (
 	_ip_fresh_name_count,
 	_missing_samples,
 	_new_progress,
+	_non_empty_filter,
 	_record_errors,
 	_row_key,
 	_series_note_name,
@@ -486,5 +488,32 @@ class TestClinicalNoteIpNames(IntegrationTestCase):
 
 		self.assertEqual(result["status"], "skip_exists")
 		upsert.assert_not_called()
+
+
+class TestBlankNotesAreSkipped(UnitTestCase):
+	"""A visit with no diagnosis text is not a progress note.
+
+	Oracle drops it with ``trim(col) is not null``. The Excel upload stores that
+	same blank cell as ``''``, which SQLite would keep under that wording, so
+	the filter has to reject it there too.
+	"""
+
+	def test_varchar_filter_rejects_a_blank_in_sqlite_and_oracle_wording(self):
+		with patch(
+			"healthcare.api.clinical_note_reconcile._table_columns",
+			return_value=[{"name": "VISIT_DIAGNOSIS_DETAIL", "type": "VARCHAR2"}],
+		):
+			where = _non_empty_filter("VISIT_00_01", "VISIT_DIAGNOSIS_DETAIL")
+
+		self.assertEqual(where, "length(trim(VISIT_DIAGNOSIS_DETAIL)) > 0")
+
+		connection = sqlite3.connect(":memory:")
+		connection.execute("create table VISIT_00_01 (VISIT_DIAGNOSIS_DETAIL TEXT)")
+		connection.executemany(
+			"insert into VISIT_00_01 (VISIT_DIAGNOSIS_DETAIL) values (?)",
+			[(None,), ("",), ("   ",), ("Follow up in clinic",)],
+		)
+		kept = connection.execute(f"select count(*) from VISIT_00_01 where {where}").fetchone()[0]
+		self.assertEqual(kept, 1)
 
 
