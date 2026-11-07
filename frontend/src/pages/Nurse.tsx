@@ -57,7 +57,7 @@ import { ReceptionLongActingMedicineList } from '../components/medication/Recept
 import { PatientMedicationHub } from '../components/medication/PatientMedicationHub'
 import { BulkScheduleIOPModal } from '../components/iop/BulkScheduleIOPModal'
 import { reconcileDischargeMedicines } from '../services/medicineGiven'
-import { Loader2, PackageSearch, Plus, Calendar, CalendarClock } from 'lucide-react'
+import { ArrowUpRight, Loader2, PackageSearch, Plus, Calendar, CalendarClock } from 'lucide-react'
 import { AppointmentList } from '../components/appointments/AppointmentList'
 import { EnvironmentalChecklistList } from '../components/environmental/EnvironmentalChecklistList'
 import { MorseFallScaleList } from '../components/morse/MorseFallScaleList'
@@ -505,7 +505,19 @@ export const NursePage = () => {
         <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
           <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
-            <div className="font-semibold mb-4">Inventory Dashboard</div>
+            <div className="mb-4 flex items-center justify-between gap-2">
+              <div className="font-semibold">Inventory Dashboard</div>
+              <a
+                href={`${window.location.origin}/app/item`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                title="Open Item list in ERPNext"
+              >
+                Item
+                <ArrowUpRight className="h-3.5 w-3.5 text-primary" aria-hidden />
+              </a>
+            </div>
             <NursingInventoryDashboard />
           </section>
         </div>
