@@ -430,8 +430,16 @@ ORACLE_SOURCES: dict[str, dict[str, Any]] = {
 			},
 			{
 				"table": "INV_00_02",
-				"label": "Pharmacy sales lines (INV document detail)",
+				"upload_id": "INV_00_02_part1",
+				"label": "Pharmacy sales lines — part 1 (INV_00_02_part1.xlsx)",
 				"required": ["TRANS_NUM", "TRANS_TYPE_NUM", "SR_NUM", "ITEM_NUM"],
+			},
+			{
+				"table": "INV_00_02",
+				"upload_id": "INV_00_02_part2",
+				"label": "Pharmacy sales lines — part 2 (INV_00_02_part2.xlsx)",
+				"required": ["TRANS_NUM", "TRANS_TYPE_NUM", "SR_NUM", "ITEM_NUM"],
+				"optional": True,
 			},
 		],
 	},
@@ -479,6 +487,9 @@ def get_oracle_sources() -> dict[str, dict[str, Any]]:
 			"tables": [
 				{
 					"table": table["table"],
+					# Distinct upload slot when one Oracle table is split across
+					# several Excel files (e.g. INV_00_02 part1 / part2).
+					"upload_id": table.get("upload_id") or table["table"],
 					"label": _(table["label"]),
 					"required": list(table["required"]),
 					"optional": bool(table.get("optional")),

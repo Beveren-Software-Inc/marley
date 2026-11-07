@@ -7374,9 +7374,10 @@ function ask_oracle_source({ title, entity, intro, on_direct, on_excel }) {
 		const spec = sources[entity] || { tables: [] };
 		const tables = spec.tables || [];
 		const files = {};
+		const upload_key = (table) => table.upload_id || table.table;
 
-		const status_html = (table) => {
-			const url = files[table];
+		const status_html = (key) => {
+			const url = files[key];
 			if (!url) {
 				return `<span class="text-muted">${__('Not uploaded')}</span>`;
 			}
@@ -7415,8 +7416,8 @@ function ask_oracle_source({ title, entity, intro, on_direct, on_excel }) {
 				}
 
 				const missing = tables
-					.filter((table) => !table.optional && !files[table.table])
-					.map((table) => table.table);
+					.filter((table) => !table.optional && !files[upload_key(table)])
+					.map((table) => table.label || table.table);
 				if (missing.length) {
 					frappe.msgprint({
 						title: __('Excel export missing'),
@@ -7426,13 +7427,13 @@ function ask_oracle_source({ title, entity, intro, on_direct, on_excel }) {
 					return;
 				}
 
-				const uploaded = tables.filter((table) => files[table.table]);
+				const uploaded = tables.filter((table) => files[upload_key(table)]);
 				if (tables.length && !uploaded.length) {
 					frappe.msgprint({
 						title: __('Excel export missing'),
 						indicator: 'orange',
 						message: __('Upload the Excel export of: {0}', [
-							tables.map((table) => table.table).join(' or '),
+							tables.map((table) => table.label || table.table).join(' or '),
 						]),
 					});
 					return;
@@ -7442,10 +7443,10 @@ function ask_oracle_source({ title, entity, intro, on_direct, on_excel }) {
 				if (on_excel) {
 					on_excel(
 						tables
-							.filter((table) => files[table.table])
+							.filter((table) => files[upload_key(table)])
 							.map((table) => ({
 								table: table.table,
-								file_url: files[table.table],
+								file_url: files[upload_key(table)],
 							}))
 					);
 				}
@@ -7464,26 +7465,27 @@ function ask_oracle_source({ title, entity, intro, on_direct, on_excel }) {
 			}
 
 			const rows = tables
-				.map(
-					(table) => `<tr>
+				.map((table) => {
+					const key = upload_key(table);
+					return `<tr>
 						<td>
 							<b>${oracle_sync_escape(table.table)}</b><br>
 							<span class="text-muted small">${oracle_sync_escape(table.label)}</span>
 						</td>
 						<td class="small text-muted"><code>${oracle_sync_escape(table.hint)}</code></td>
-						<td>${status_html(table.table)}</td>
+						<td>${status_html(key)}</td>
 						<td class="text-right">
 							<button type="button" class="btn btn-xs btn-default oracle-upload-pick"
-								data-table="${oracle_sync_escape(table.table)}">${__('Upload')}</button>
+								data-upload-id="${oracle_sync_escape(key)}">${__('Upload')}</button>
 						</td>
-					</tr>`
-				)
+					</tr>`;
+				})
 				.join('');
 
 			$wrapper.html(`
 				<div class="alert alert-info small">
 					${__(
-						'In SQL Developer run the SELECT of each table below, save the result as Excel (.xlsx) and upload it here. Keep the Oracle column names; a single workbook with one sheet per table works too when the sheet is named after the table.'
+						'In SQL Developer run the SELECT of each table below, save the result as Excel (.xlsx) and upload it here. Keep the Oracle column names; a single workbook with one sheet per table works too when the sheet is named after the table. Large tables may be split into part1 / part2 files — upload both slots when shown.'
 					)}
 				</div>
 				<table class="table table-bordered table-condensed" style="margin-bottom:0">
@@ -7500,13 +7502,13 @@ function ask_oracle_source({ title, entity, intro, on_direct, on_excel }) {
 			`);
 
 			$wrapper.find('.oracle-upload-pick').on('click', function () {
-				const table = $(this).attr('data-table');
+				const key = $(this).attr('data-upload-id');
 				new frappe.ui.FileUploader({
-					dialog_title: __('{0} Excel export', [table]),
+					dialog_title: __('{0} Excel export', [key]),
 					allow_multiple: false,
 					restrictions: { allowed_file_types: ['.xlsx'] },
 					on_success(file) {
-						files[table] = file.file_url;
+						files[key] = file.file_url;
 						render_upload();
 					},
 				});
