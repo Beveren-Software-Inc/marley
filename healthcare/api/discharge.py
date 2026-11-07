@@ -4,11 +4,49 @@
 
 import frappe
 from frappe import _
+from frappe.utils import cstr
 
 from healthcare.api.inpatient_admission import (
 	_ensure_discharge_admission_access,
 	_user_can_access_discharge_portal,
 )
+
+
+def _is_legacy_oracle_user_code(value: str | None) -> bool:
+	"""Legacy import stores Oracle USR_NUM in Discharged By (e.g. 263), not a User email."""
+	text = cstr(value).strip()
+	if not text or "@" in text:
+		return False
+	if text.endswith(".0"):
+		text = text[:-2]
+	return text.isdigit()
+
+
+def _discharged_by_display_name(value: str | None, oracle_names: dict[str, str] | None = None) -> str:
+	"""User full name when Discharged By is a Frappe User; otherwise Oracle User for a legacy code."""
+	value = cstr(value).strip()
+	if not value:
+		return ""
+	user_name = cstr(frappe.db.get_value("User", value, "full_name") or "").strip()
+	if user_name:
+		return user_name
+	if not _is_legacy_oracle_user_code(value):
+		return ""
+	if oracle_names is not None:
+		from healthcare.api.discharge_checklist_import import _clean_oracle_num
+
+		return cstr(oracle_names.get(_clean_oracle_num(value)) or "").strip()
+	from healthcare.api.usr_00_01_import import get_user_name
+
+	return cstr(get_user_name(value) or "").strip()
+
+
+def _attach_discharged_by_name(doc, oracle_names: dict[str, str] | None = None) -> None:
+	if not doc:
+		return
+	name = _discharged_by_display_name(doc.get("discharged_by_user"), oracle_names=oracle_names)
+	if name:
+		doc["discharged_by_user_name"] = name
 
 
 @frappe.whitelist()
@@ -74,6 +112,7 @@ def get_discharge(name=None):
 	else:
 		doc["display_discharge_date"] = doc.get("discharge_date")
 
+	_attach_discharged_by_name(doc)
 	return doc
 
 
@@ -161,36 +200,36 @@ def get_discharges(limit=20, offset=0, patient=None, admission=None, search=None
 		ignore_permissions=ignore_permissions,
 	)
 	
+	from healthcare.api.usr_00_01_import import get_user_name_map
+
+	oracle_names = get_user_name_map()
+
 	# Get patient names if not already set
 	for discharge in discharges:
 		if discharge.file_no and not discharge.patient_name:
 			patient_name = frappe.db.get_value('Patient', discharge.file_no, 'patient_name')
 			if patient_name:
 				discharge['patient_name'] = patient_name
-		
-		# Get user names
-		if discharge.discharged_by_user:
-			user_name = frappe.db.get_value('User', discharge.discharged_by_user, 'full_name')
-			if user_name:
-				discharge['discharged_by_user_name'] = user_name
-		
+
+		_attach_discharged_by_name(discharge, oracle_names=oracle_names)
+
 		if discharge.final_discharge_user_id:
 			final_user_name = frappe.db.get_value('User', discharge.final_discharge_user_id, 'full_name')
 			if final_user_name:
 				discharge['final_discharge_user_name'] = final_user_name
-		
+
 		# Get practitioner name
 		if discharge.receiving_doctors:
 			practitioner_name = frappe.db.get_value('Healthcare Practitioner', discharge.receiving_doctors, 'practitioner_name')
 			if practitioner_name:
 				discharge['receiving_doctor_name'] = practitioner_name
-		
+
 		# Get template name
 		if discharge.discharge_template:
 			template_name = frappe.db.get_value('Discharge Template', discharge.discharge_template, 'template_name')
 			if template_name:
 				discharge['template_name'] = template_name
-		
+
 		# Get admission date from the linked Inpatient Record
 		if discharge.admission:
 			admission_row = frappe.db.get_value(
