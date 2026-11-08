@@ -2265,12 +2265,15 @@ export async function createInsuranceCompany(company_name: string): Promise<{ na
 
 export async function fetchModeOfPayments(
   search?: string,
-  costCenter?: string
+  costCenter?: string,
+  opts?: { includeDisabled?: boolean }
 ): Promise<LinkFieldOption[]> {
   // F047: whitelisted getter — filters by branch custom_cost_center when set.
+  // includeDisabled: report filters only (historical rows on disabled modes).
   const params = new URLSearchParams()
   if (search?.trim()) params.set('search', search.trim())
   if (costCenter?.trim()) params.set('cost_center', costCenter.trim())
+  if (opts?.includeDisabled) params.set('include_disabled', '1')
   const qs = params.toString()
   const res = await fetch(
     `/api/method/healthcare.api.common.get_payment_modes${qs ? `?${qs}` : ''}`,

@@ -3196,12 +3196,14 @@ def get_cost_centers(search=None, company=None, is_hospital=None):
 
 
 @frappe.whitelist()
-def get_payment_modes(search=None, cost_center=None):
+def get_payment_modes(search=None, cost_center=None, include_disabled=0):
 	"""F047: whitelisted list of Modes of Payment so portal roles (e.g. Reception)
 	that cannot read the Mode of Payment doctype directly can still populate the
 	billing payment-mode dropdown without a 403.
 
-	Never returns disabled Mode of Payment records (``enabled = 0``).
+	By default excludes disabled modes (``enabled = 0``) for new-payment forms.
+	Pass ``include_disabled=1`` for report filters so historical payments on
+	disabled modes can still be reviewed.
 
 	When ``cost_center`` (branch) is set and Mode of Payment has
 	``custom_cost_center``: return modes linked to that branch, plus modes with
@@ -3210,13 +3212,14 @@ def get_payment_modes(search=None, cost_center=None):
 	"""
 	search = cstr(search or "").strip()
 	cost_center = cstr(cost_center or "").strip()
+	include_disabled = cint(include_disabled)
 	has_branch_link = frappe.db.has_column("Mode of Payment", "custom_cost_center")
 	has_enabled = frappe.db.has_column("Mode of Payment", "enabled")
 
 	conditions = ["1=1"]
 	values = {}
-	# Record Payment / billing dropdowns: only enabled modes.
-	if has_enabled:
+	# New payments: enabled only. Report filters may include disabled modes.
+	if has_enabled and not include_disabled:
 		conditions.append("enabled = 1")
 	if search:
 		conditions.append("name like %(search)s")
