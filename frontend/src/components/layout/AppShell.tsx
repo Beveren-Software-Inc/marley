@@ -209,12 +209,9 @@ const receptionScreenGroups: ScreenGroup[] = [
   {
     groupTitle: 'Reports',
     screens: [
+      { id: 'r-reports', title: 'General Reports' },
       { id: 'r-price-report', title: 'Price Report' },
     ],
-  },
-  {
-    groupTitle: '',
-    screens: [{ id: 'r-reports', title: 'Reports' }],
   },
   {
     groupTitle: '',
