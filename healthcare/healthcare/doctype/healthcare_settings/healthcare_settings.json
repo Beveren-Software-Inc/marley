@@ -65,6 +65,7 @@
   "use_old_approach_soa",
   "validate_long_acting_dose_period_on_given_medicine",
   "validate_long_acting_dose_period_on_prescription",
+  "hide_note_with_no_visit",
   "discount_section",
   "discount_limit",
   "orders_tab",
@@ -1264,15 +1265,21 @@
   },
   {
    "default": "0",
-   "description": "When checked, the Lab page → Lab Request listing also shows Lab Requests whose payment is not confirmed yet. Those rows are read only and list the tests only.",
+   "description": "When checked, the Lab page \u2192 Lab Request listing also shows Lab Requests whose payment is not confirmed yet. Those rows are read only and list the tests only.",
    "fieldname": "display_unconfirmed_request_on_lab_page",
    "fieldtype": "Check",
    "label": "Display Unconfirmed Request on Lab Page"
+  },
+  {
+   "default": "0",
+   "fieldname": "hide_note_with_no_visit",
+   "fieldtype": "Check",
+   "label": "Hide Note with No Visit"
   }
  ],
  "issingle": 1,
  "links": [],
- "modified": "2026-11-02 19:37:17.186010",
+ "modified": "2026-11-09 02:51:48.071723",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Healthcare Settings",
