@@ -145,25 +145,28 @@ export const PaymentModal = ({
 
   useEffect(() => {
     if (!isOpen) return
-    fetchModeOfPayments()
+    fetchModeOfPayments(undefined, costCenter || undefined)
       .then((modes) => {
         const names = modes.map((m) => m.name)
         setPaymentModes(names)
-        if (names.length > 0) {
-          setModeLines((prev) =>
-            prev.map((line, idx) =>
-              idx === 0 && !line.mode_of_payment
-                ? { ...line, mode_of_payment: names[0] }
-                : line
-            )
-          )
-        }
+        setModeLines((prev) => {
+          const next = prev.map((line, idx) => {
+            if (line.mode_of_payment && !names.includes(line.mode_of_payment)) {
+              return { ...line, mode_of_payment: names[0] || '' }
+            }
+            if (idx === 0 && !line.mode_of_payment && names[0]) {
+              return { ...line, mode_of_payment: names[0] }
+            }
+            return line
+          })
+          return next
+        })
       })
       .catch((err) => {
         console.error('Failed to load modes of payment:', err)
         setPaymentModes([])
       })
-  }, [isOpen])
+  }, [isOpen, costCenter])
 
   // When modal opens or defaults change, sync from invoice
   useEffect(() => {

@@ -34,7 +34,13 @@ frappe.query_reports['Patient Appointment Analytics'] = {
 			fieldname: 'practitioner',
 			label: __('Healthcare Practitioner'),
 			fieldtype: 'Link',
-			options: 'Healthcare Practitioner'
+			options: 'Healthcare Practitioner',
+			// Disabled practitioners are of no use in this filter.
+			get_query: function () {
+				return {
+					filters: { status: ['!=', 'Disabled'] },
+				};
+			}
 		},
 		{
 			fieldname: 'department',

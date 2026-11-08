@@ -408,7 +408,6 @@ export const PatientHistoryList = ({
                       </>
                     )}
                     <th className="px-3 py-2 text-left text-[11px] font-semibold text-slate-600 uppercase">Admission</th>
-                    <th className="px-3 py-2 text-left text-[11px] font-semibold text-slate-600 uppercase">Visit</th>
                     <th />
                   </tr>
                 </thead>
@@ -441,7 +440,6 @@ export const PatientHistoryList = ({
                         </>
                       )}
                       <td className="px-3 py-2 text-slate-500 text-xs">{row.inpatient_admission || '—'}</td>
-                      <td className="px-3 py-2 text-slate-500 text-xs">{row.patient_visit || '—'}</td>
                       <td className="px-3 py-2 text-slate-500 text-xs">
                         <PrintFormatDropdown
                           doctype="Patient History"

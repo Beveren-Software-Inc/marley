@@ -144,6 +144,30 @@ const emptyMedicationRow = (startDate: string): MedicationOrderRow => ({
   written_frequency: '',
 })
 
+/**
+ * Required fields a medication line is still missing (empty array = line can be saved).
+ * Mirrors the `validMedications` filter: a stopped/discontinued line only needs Drug + Start
+ * Date, and a line whose frequency is "Other" carries the dose in Total Dose instead of Dosage.
+ */
+const getMissingMedicationFields = (med: MedicationOrderRow): string[] => {
+  const stopped = Boolean(String(med.reason_stopped || '').trim())
+  const otherFrequency = isOtherFrequency(med.patient_frequency)
+  const missing: string[] = []
+  if (!med.drug) missing.push('Drug')
+  if (!stopped) {
+    const hasDose = Boolean(med.dosage) || (otherFrequency && Boolean(String(med.total_dose || '').trim()))
+    if (!hasDose) missing.push(otherFrequency ? 'Dosage (or Total Dose)' : 'Dosage')
+  }
+  if (!med.date) missing.push('Start Date')
+  return missing
+}
+
+/** "Drug", "Drug and Dosage", "Drug, Dosage and Start Date" */
+const joinFieldLabels = (labels: string[]): string => {
+  if (labels.length <= 1) return labels.join('')
+  return `${labels.slice(0, -1).join(', ')} and ${labels[labels.length - 1]}`
+}
+
 function formatMedicationStockInline(stock: PrescriptionDrugStockCheck): string | null {
   if (!stock.warn || !stock.level) return null
   const qty = stock.actual_qty ?? 0
@@ -357,6 +381,7 @@ export const CreatePrescriptionModal = ({
     locked: practitionerLocked,
     practitionerId: linkedPractitionerId,
     practitionerLabel: linkedPractitionerLabel,
+    loading: linkedPractitionerLoading,
   } = useLockedLinkedPractitioner()
 
   const [formData, setFormData] = useState({
@@ -947,23 +972,34 @@ export const CreatePrescriptionModal = ({
     fetchDosageForms().then(setDosageForms).catch(() => setDosageForms([]))
   }, [])
 
+  /**
+   * Doctor Name default, highest priority first:
+   * 1. the logged-in user's linked Healthcare Practitioner — a new order belongs to
+   *    whoever is creating it (also keeps a locked field and the saved value in sync);
+   * 2. `initialPractitioner` (carried in by "Duplicate") for users without a linked
+   *    practitioner, e.g. reception / nurse recreating a doctor's order.
+   * Applied once so clearing the field to pick another doctor does not re-fill it.
+   */
+  const practitionerDefaultAppliedRef = useRef(false)
   useEffect(() => {
-    if (isEditing || !linkedPractitionerId) return
-    setFormData((prev) => (prev.practitioner ? prev : { ...prev, practitioner: linkedPractitionerId }))
-    setPractQuery((q) => q.trim() || linkedPractitionerLabel || linkedPractitionerId)
-  }, [linkedPractitionerId, linkedPractitionerLabel, isEditing])
-
-  useEffect(() => {
-    if (initialPractitioner && !isEditing && !formData.practitioner) {
-      setFormData((prev) => ({ ...prev, practitioner: initialPractitioner }))
-      const practitionerOption = practitioners.find((p) => p.name === initialPractitioner)
-      if (practitionerOption) {
-        setPractQuery(practitionerOption.label || initialPractitioner)
-      } else {
-        setPractQuery(initialPractitioner)
-      }
-    }
-  }, [initialPractitioner, practitioners, isEditing, formData.practitioner])
+    if (isEditing || linkedPractitionerLoading || practitionerDefaultAppliedRef.current) return
+    const preferred = linkedPractitionerId || initialPractitioner
+    if (!preferred) return
+    practitionerDefaultAppliedRef.current = true
+    const preferredLabel =
+      (preferred === linkedPractitionerId ? linkedPractitionerLabel : '') ||
+      practitioners.find((p) => p.name === preferred)?.label ||
+      preferred
+    setFormData((prev) => (prev.practitioner ? prev : { ...prev, practitioner: preferred }))
+    setPractQuery((q) => q.trim() || preferredLabel)
+  }, [
+    initialPractitioner,
+    linkedPractitionerId,
+    linkedPractitionerLabel,
+    linkedPractitionerLoading,
+    practitioners,
+    isEditing,
+  ])
 
   // Auto-fill Doctors Signature from Healthcare Practitioner.signature when a doctor is selected.
   useEffect(() => {
@@ -1347,7 +1383,22 @@ export const CreatePrescriptionModal = ({
       return
     }
     if (validMedications.length === 0) {
-      setError('Please add at least one medication with Drug, Dosage, and Date')
+      // Name the exact line and the field(s) it is missing — a generic "add a medication"
+      // message leaves the doctor hunting for which box is blank.
+      const incompleteRows = medications
+        .map((med, index) => ({ index, missing: getMissingMedicationFields(med) }))
+        .filter((row) => row.missing.length > 0)
+      if (incompleteRows.length === 0) {
+        setError('Please add at least one medication with Drug, Dosage, and Start Date')
+      } else {
+        setError(
+          incompleteRows
+            .map(({ index, missing }) => `Medication ${index + 1} is missing ${joinFieldLabels(missing)}.`)
+            .join(' '),
+        )
+        // Open the first incomplete line so the missing fields are actually on screen.
+        setExpandedMedications(new Set([incompleteRows[0].index]))
+      }
       setActiveTab('medications'); return
     }
     const pinkMissingRef = validMedications.filter(

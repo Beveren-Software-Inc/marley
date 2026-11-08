@@ -263,16 +263,29 @@ export async function updateLongActingMedicineRemarks(
   name: string,
   remarks: string
 ): Promise<{ name: string; remarks: string }> {
+  const { ensureCSRF, parseFrappeErrorPayload } = await import('./apiClient')
+  const csrf = await ensureCSRF()
   const res = await fetch(
     '/api/method/healthcare.api.common.update_long_acting_medicine_remarks',
     {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(csrf ? { 'X-Frappe-CSRF-Token': csrf } : {}),
+      },
       body: JSON.stringify({ name, remarks }),
     }
   )
-  const data = await res.json()
-  if (data?.exc) throw new Error(data?.message || 'Failed to update remarks')
+  const data = await res.json().catch(() => ({} as Record<string, unknown>))
+  if (!res.ok || data?.exc) {
+    throw new Error(
+      parseFrappeErrorPayload(data) ||
+        messageFromExc(data?.exc, data?.exc_type) ||
+        (typeof data?.message === 'string' ? data.message : '') ||
+        'Failed to update remarks',
+    )
+  }
   return (data?.message as { name: string; remarks: string }) || { name, remarks }
 }
 

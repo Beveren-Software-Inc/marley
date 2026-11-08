@@ -10,6 +10,36 @@ frappe.query_reports["Income by Doctor Patient and Source"] = {
 			options: "Doctor\nPatient\nSource",
 			default: "Doctor",
 			reqd: 1,
+			on_change(report) {
+				// Defining on_change suppresses the default report refresh, so
+				// every path here must end in exactly one refresh.
+				// The doctor filter is hidden outside Doctor view — clear it so a
+				// stale Healthcare Practitioner link is not sent with the run.
+				if (
+					report.get_filter_value("group_by") !== "Doctor" &&
+					report.get_filter_value("practitioner")
+				) {
+					// Clearing the filter re-runs the report through its own
+					// change handler.
+					report.set_filter_value("practitioner", "");
+					return;
+				}
+				report.refresh(true);
+			},
+		},
+		{
+			fieldname: "practitioner",
+			label: __("Healthcare Practitioner"),
+			// Autocomplete, not Link: Link filters are permission checked on the
+			// server before the report runs, which blocks report users who cannot
+			// read Healthcare Practitioner (e.g. users with an Employee user
+			// permission). The list is filled from onload below.
+			fieldtype: "Autocomplete",
+			depends_on:
+				"eval:frappe.query_report.get_filter_value('group_by')==='Doctor'",
+			description: __(
+				"Doctor view: pick a doctor to see only his income. With Detailed ticked, one table of the services billed for that doctor is shown."
+			),
 		},
 		{
 			fieldname: "from_date",
@@ -82,14 +112,16 @@ frappe.query_reports["Income by Doctor Patient and Source"] = {
 			label: __("Detailed"),
 			fieldtype: "Check",
 			default: 0,
-			depends_on: "eval:frappe.query_report.get_filter_value('group_by')==='Source'",
+			depends_on:
+				"eval:frappe.query_report.get_filter_value('group_by')==='Source' || frappe.query_report.get_filter_value('group_by')==='Doctor'",
 			description: __(
-				"Show each billed service (rooms, visits, therapy). Lab becomes Lab Income. Leave off for IP / OP / IOP only."
+				"Doctor: one table of services billed for the selected practitioner. Source: show each billed service (rooms, visits, therapy); Lab becomes Lab Income."
 			),
 		},
 	],
 
 	onload(report) {
+		load_practitioner_options(report);
 		report.page.add_inner_button(__("Print HTML"), () => {
 			print_ibdps_html(report);
 		});
@@ -108,8 +140,46 @@ frappe.query_reports["Income by Doctor Patient and Source"] = {
 	},
 };
 
+function load_practitioner_options(report) {
+	// The Healthcare Practitioner filter is an Autocomplete control, so its list
+	// has to be supplied by us. The options come from the server so every role
+	// that can run this report gets the full doctor list (Link filters are
+	// permission checked on the server before the report runs, which fails for
+	// users without read access on Healthcare Practitioner).
+	const field = report.get_filter("practitioner");
+	if (!field || typeof field.set_data !== "function") return;
+
+	frappe
+		.xcall(
+			"healthcare.api.doctor_wise_income_analysis.get_practitioner_filter_options",
+			// Disabled doctors are not offered, but a doctor picked earlier and
+			// disabled since must still resolve to his name, not his ID.
+			{ include: report.get_filter_value("practitioner") || null }
+		)
+		.then((options) => field.set_data(options || []))
+		.then(() => {
+			// Re-apply any value set from the URL so the label shows the doctor
+			// name instead of the raw ID.
+			const value = report.get_filter_value("practitioner");
+			if (value) field.set_value(value);
+		})
+		.catch(() => {
+			// Leave the picker empty rather than blocking the report.
+		});
+}
+
 function get_ibdps_html(report) {
 	if (report._ibdps_html) return report._ibdps_html;
+
+	// The raw message carries every HTML block (summary + detailed drill-down),
+	// so prefer it over a single DOM section.
+	const raw = report.raw_data && report.raw_data.message;
+	if (
+		typeof raw === "string" &&
+		(raw.includes("dwia-report") || raw.includes("sia-report") || raw.includes("pwia-report"))
+	) {
+		return raw;
+	}
 
 	const selectors = [".dwia-report", ".sia-report", ".pwia-report"];
 	for (const sel of selectors) {
@@ -120,13 +190,6 @@ function get_ibdps_html(report) {
 		if (from_page) return from_page.outerHTML;
 	}
 
-	const raw = report.raw_data && report.raw_data.message;
-	if (
-		typeof raw === "string" &&
-		(raw.includes("dwia-report") || raw.includes("sia-report") || raw.includes("pwia-report"))
-	) {
-		return raw;
-	}
 	return "";
 }
 

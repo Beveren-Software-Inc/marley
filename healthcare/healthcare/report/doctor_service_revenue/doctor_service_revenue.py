@@ -402,6 +402,7 @@ def get_sales_invoice_service_items(filters):
 		f"""
 		SELECT
 			si.name AS sales_order,
+			sii.sales_order AS sales_order_no,
 			si.posting_date AS transaction_date,
 			COALESCE({patient_expr}, so.patient) AS patient,
 			COALESCE({patient_name_expr}, so.custom_patient_name) AS custom_patient_name,

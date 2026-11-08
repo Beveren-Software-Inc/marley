@@ -530,6 +530,17 @@ def _existing_lam_trans_nums(lam_name: str) -> set[str]:
 
 
 def _ensure_dosage_form_injection() -> str | None:
+	"""Prefer Pharmaceutical Form (prescription / plan-item Link target)."""
+	if frappe.db.exists("Pharmaceutical Form", "Injection"):
+		return "Injection"
+	if frappe.db.exists("DocType", "Pharmaceutical Form"):
+		try:
+			frappe.get_doc(
+				{"doctype": "Pharmaceutical Form", "pharmaceutical_form": "Injection"}
+			).insert(ignore_permissions=True)
+			return "Injection"
+		except Exception:
+			pass
 	if frappe.db.exists("Dosage Form", "Injection"):
 		return "Injection"
 	return None

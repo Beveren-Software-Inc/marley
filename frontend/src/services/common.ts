@@ -2263,17 +2263,22 @@ export async function createInsuranceCompany(company_name: string): Promise<{ na
   return data.message as { name: string }
 }
 
-export async function fetchModeOfPayments(search?: string): Promise<LinkFieldOption[]> {
-  const filters: [string, string, string][] = []
-  if (search) filters.push(['name', 'like', `%${search}%`])
-  const params = new URLSearchParams({
-    doctype: 'Mode of Payment',
-    fields: JSON.stringify(['name']),
-    filters: JSON.stringify(filters),
-    limit: '30',
-    order_by: 'name asc',
-  })
-  const res = await fetch(`/api/method/frappe.client.get_list?${params}`)
+export async function fetchModeOfPayments(
+  search?: string,
+  costCenter?: string,
+  opts?: { includeDisabled?: boolean }
+): Promise<LinkFieldOption[]> {
+  // F047: whitelisted getter — filters by branch custom_cost_center when set.
+  // includeDisabled: report filters only (historical rows on disabled modes).
+  const params = new URLSearchParams()
+  if (search?.trim()) params.set('search', search.trim())
+  if (costCenter?.trim()) params.set('cost_center', costCenter.trim())
+  if (opts?.includeDisabled) params.set('include_disabled', '1')
+  const qs = params.toString()
+  const res = await fetch(
+    `/api/method/healthcare.api.common.get_payment_modes${qs ? `?${qs}` : ''}`,
+    { credentials: 'include' }
+  )
   const data = await res.json()
   return (data?.message || []).map((r: { name: string }) => ({ name: r.name, label: r.name }))
 }

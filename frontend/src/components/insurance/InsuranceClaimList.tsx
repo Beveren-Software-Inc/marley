@@ -64,6 +64,7 @@ function deriveStatus(approved: number, totalClaimed: number, isRejected: boolea
 }
 
 function UpdateClaimModal({ row, currency, onClose, onSuccess }: UpdateClaimModalProps) {
+  const { userCostCenter } = useCareContext()
   const [totalApproved, setTotalApproved] = useState(String(row.total_approved || ''))
   const [totalRejected, setTotalRejected] = useState(String(row.total_rejected || ''))
   const [isRejected, setIsRejected] = useState(row.status === 'Rejected')
@@ -83,10 +84,13 @@ function UpdateClaimModal({ row, currency, onClose, onSuccess }: UpdateClaimModa
   const previewStatus = deriveStatus(approved, row.total_claimed || 0, isRejected)
 
   useEffect(() => {
-    fetchModeOfPayments()
-      .then(setPaymentModes)
+    fetchModeOfPayments(userCostCenter)
+      .then((modes) => {
+        setPaymentModes(modes)
+        setModeOfPayment((prev) => (prev && !modes.includes(prev) ? modes[0] || '' : prev))
+      })
       .catch(() => setPaymentModes([]))
-  }, [])
+  }, [userCostCenter])
 
   const handleSave = async () => {
     setSaving(true)

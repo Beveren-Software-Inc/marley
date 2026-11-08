@@ -396,6 +396,12 @@ export const CreateLongActingMedicineModal = ({
 
     try {
       setSubmitting(true)
+      // Record-wide Doctors Remark only when a single medicine carries instructions.
+      // Multi-med rows keep instructions on each line so they are not shown under the wrong drug.
+      const singleInstructions =
+        validMedications.length === 1
+          ? (validMedications[0].instructions || '').trim()
+          : ''
       await apiRequest('/api/resource/Long%20Acting%20Medicine', {
         method: 'POST',
         body: JSON.stringify({
@@ -408,6 +414,7 @@ export const CreateLongActingMedicineModal = ({
           practitioner: formData.practitioner || undefined,
           company: formData.company || undefined,
           status: formData.status,
+          doctors_remark: singleInstructions || undefined,
           medications: validMedications.map((m) => ({
             drug: m.drug,
             drug_name: m.drug_name,

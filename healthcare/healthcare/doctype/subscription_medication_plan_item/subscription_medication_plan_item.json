@@ -53,7 +53,7 @@
    "fieldname": "dosage_form",
    "fieldtype": "Link",
    "label": "Dosage Form",
-   "options": "Dosage Form"
+   "options": "Pharmaceutical Form"
   },
   {
    "fieldname": "instructions",

@@ -178,27 +178,39 @@ export function LongActingMedicineDetailPanel({
                 <Pill className="h-5 w-5 text-emerald-600" strokeWidth={2} />
                 <h3 className="text-sm font-bold uppercase tracking-wide text-emerald-900">Medications</h3>
               </div>
-              <ul className="space-y-2">
-                {medications.map((item, idx) => (
-                  <li
-                    key={item.name || `${item.drug}-${idx}`}
-                    className="rounded-lg border border-slate-100 bg-slate-50/80 px-3 py-2.5 text-sm text-slate-800"
-                  >
-                    <p className="font-medium">{item.drug_name || item.drug || '—'}</p>
-                    <p className="mt-0.5 text-xs text-slate-600">
-                      Dosage:{' '}
-                      <span className="font-medium text-slate-800">
-                        {formatLongActingDose(item.dosage, item.uom) || '—'}
-                      </span>
-                      {item.patient_frequency ? (
-                        <span className="text-slate-500"> · {item.patient_frequency}</span>
+              <ul className="space-y-2.5">
+                {medications.map((item, idx) => {
+                  // Only this line's own instructions — never fall back to record-wide
+                  // doctors_remark (that can belong to another drug on multi-med LAMs).
+                  const lineInstructions = (item.instructions || '').trim()
+                  return (
+                    <li
+                      key={item.name || `${item.drug}-${idx}`}
+                      className="rounded-lg border border-slate-100 bg-slate-50/80 px-3 py-2.5 text-sm text-slate-800"
+                    >
+                      <p className="font-medium">{item.drug_name || item.drug || '—'}</p>
+                      <p className="mt-0.5 text-xs text-slate-600">
+                        Dosage:{' '}
+                        <span className="font-medium text-slate-800">
+                          {formatLongActingDose(item.dosage, item.uom) || '—'}
+                        </span>
+                        {item.patient_frequency ? (
+                          <span className="text-slate-500"> · {item.patient_frequency}</span>
+                        ) : null}
+                      </p>
+                      {lineInstructions ? (
+                        <div className="mt-2 rounded-md border border-amber-200/80 bg-amber-50/90 px-2.5 py-1.5">
+                          <p className="text-[10px] font-semibold uppercase tracking-wide text-amber-800/80">
+                            Instructions
+                          </p>
+                          <p className="mt-0.5 text-xs leading-snug text-amber-950/90 whitespace-pre-wrap">
+                            {lineInstructions}
+                          </p>
+                        </div>
                       ) : null}
-                    </p>
-                    {item.instructions ? (
-                      <p className="mt-1 text-xs text-slate-600">{item.instructions}</p>
-                    ) : null}
-                  </li>
-                ))}
+                    </li>
+                  )
+                })}
               </ul>
             </section>
           ) : null}

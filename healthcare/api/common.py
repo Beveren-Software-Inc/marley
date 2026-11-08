@@ -2253,12 +2253,14 @@ def get_long_acting_medicine_list_for_reception(
 			"name",
 			"patient",
 			"patient_name",
+			"practitioner",
 			"frequency",
 			"start_date",
 			"end_date",
 			"next_run_date",
 			"status",
 			"remarks",
+			"doctors_remark",
 			"injection_given_on",
 		],
 		order_by="next_run_date asc, start_date asc, name asc",
@@ -2272,16 +2274,27 @@ def get_long_acting_medicine_list_for_reception(
 
 @frappe.whitelist()
 def update_long_acting_medicine_remarks(name: str, remarks: str):
-	"""Update the remarks field on a Long Acting Medicine record."""
+	"""Update reception Remarks on a Long Acting Medicine (allow_on_submit).
+
+	Uses ``db_set`` so submitted records do not re-run full document validation
+	(which can fail on legacy / incomplete long-acting rows).
+	"""
 	assert_editing_allowed()
+	name = cstr(name or "").strip()
 	if not name:
 		frappe.throw(_("Long Acting Medicine name is required"))
 	if not frappe.db.exists("Long Acting Medicine", name):
 		frappe.throw(_("Long Acting Medicine {0} does not exist").format(frappe.bold(name)))
-	doc = frappe.get_doc("Long Acting Medicine", name)
-	doc.remarks = remarks or ''
-	doc.save(ignore_permissions=True)
-	return {"name": doc.name, "remarks": doc.remarks}
+	if not frappe.has_permission("Long Acting Medicine", "write", name):
+		# Reception portal still needs to annotate submitted LAMs.
+		if not _user_can_access_long_acting_medicine_portal():
+			frappe.throw(
+				_("Not permitted to update Long Acting Medicine remarks"),
+				frappe.PermissionError,
+			)
+	value = cstr(remarks or "")
+	frappe.db.set_value("Long Acting Medicine", name, "remarks", value, update_modified=True)
+	return {"name": name, "remarks": value}
 
 
 @frappe.whitelist()
@@ -3183,19 +3196,51 @@ def get_cost_centers(search=None, company=None, is_hospital=None):
 
 
 @frappe.whitelist()
-def get_payment_modes(search=None):
+def get_payment_modes(search=None, cost_center=None, include_disabled=0):
 	"""F047: whitelisted list of Modes of Payment so portal roles (e.g. Reception)
 	that cannot read the Mode of Payment doctype directly can still populate the
-	billing payment-mode dropdown without a 403."""
-	filters = {}
+	billing payment-mode dropdown without a 403.
+
+	By default excludes disabled modes (``enabled = 0``) for new-payment forms.
+	Pass ``include_disabled=1`` for report filters so historical payments on
+	disabled modes can still be reviewed.
+
+	When ``cost_center`` (branch) is set and Mode of Payment has
+	``custom_cost_center``: return modes linked to that branch, plus modes with
+	no cost center (available everywhere). Modes linked to a *different* branch
+	are hidden.
+	"""
+	search = cstr(search or "").strip()
+	cost_center = cstr(cost_center or "").strip()
+	include_disabled = cint(include_disabled)
+	has_branch_link = frappe.db.has_column("Mode of Payment", "custom_cost_center")
+	has_enabled = frappe.db.has_column("Mode of Payment", "enabled")
+
+	conditions = ["1=1"]
+	values = {}
+	# New payments: enabled only. Report filters may include disabled modes.
+	if has_enabled and not include_disabled:
+		conditions.append("enabled = 1")
 	if search:
-		filters["name"] = ["like", f"%{search}%"]
-	modes = frappe.get_all(
-		"Mode of Payment",
-		filters=filters or None,
-		fields=["name"],
-		order_by="name asc",
-		limit=50,
+		conditions.append("name like %(search)s")
+		values["search"] = f"%{search}%"
+	if has_branch_link and cost_center:
+		# Blank / NULL = all branches; otherwise must match selected branch.
+		conditions.append(
+			"(ifnull(custom_cost_center, '') = '' or custom_cost_center = %(cost_center)s)"
+		)
+		values["cost_center"] = cost_center
+
+	modes = frappe.db.sql(
+		f"""
+		select name
+		from `tabMode of Payment`
+		where {' and '.join(conditions)}
+		order by name asc
+		limit 100
+		""",
+		values,
+		as_dict=True,
 	)
 	return [{"name": m.name} for m in modes]
 

@@ -162,10 +162,14 @@ export async function fetchSalesInvoiceSummary(invoiceName: string): Promise<Sal
   }
 }
 
-export async function fetchModeOfPayments(): Promise<string[]> {
+export async function fetchModeOfPayments(costCenter?: string): Promise<string[]> {
   // F047: use the whitelisted getter (Reception cannot read the Mode of Payment doctype directly → 403).
+  // When costCenter (branch) is set, API returns modes for that branch + unlinked modes.
+  const params = new URLSearchParams()
+  if (costCenter?.trim()) params.set('cost_center', costCenter.trim())
+  const qs = params.toString()
   const res = await fetch(
-    `/api/method/healthcare.api.common.get_payment_modes`,
+    `/api/method/healthcare.api.common.get_payment_modes${qs ? `?${qs}` : ''}`,
     { credentials: 'include' }
   )
   const data = await res.json()

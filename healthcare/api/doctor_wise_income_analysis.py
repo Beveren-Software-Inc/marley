@@ -363,11 +363,9 @@ def _period_key_for_date(txn_date, windows: list[dict]) -> str | None:
 	return None
 
 
-def build_analysis(doc_or_filters) -> dict:
-	"""Build dynamic period analysis payload from a Doc or filters dict."""
-	src = frappe._dict(doc_or_filters or {})
-	windows = period_windows(src.from_date, src.to_date, src.get("period") or "Yearly")
-	filters = frappe._dict(
+def _item_filters(src) -> frappe._dict:
+	"""Filters handed to ``get_service_items`` — the billed lines of the range."""
+	return frappe._dict(
 		{
 			"company": src.get("company"),
 			"cost_center": src.get("cost_center"),
@@ -380,18 +378,47 @@ def build_analysis(doc_or_filters) -> dict:
 		}
 	)
 
-	items = get_service_items(filters)
+
+def prepare_service_items(doc_or_filters):
+	"""Fetch + enrich the billed service lines once.
+
+	Returns ``(items, billing_source)``. Callers that need both the doctor
+	summary and the per-transaction drill-down pass ``items`` into
+	``build_analysis`` / ``build_doctor_service_detail`` so the (expensive)
+	billing queries run only once.
+	"""
+	src = frappe._dict(doc_or_filters or {})
+	filters = _item_filters(src)
 	billing_source = filters.get("source") or "Sales Invoice"
+	items = get_service_items(filters)
 	items = _enrich_items_with_discount(items, billing_source)
 	items = _enrich_items_with_tax(items, billing_source)
+	return items, billing_source
+
+
+def build_analysis(doc_or_filters, items=None) -> dict:
+	"""Build dynamic period analysis payload from a Doc or filters dict.
+
+	``filters.practitioner`` (optional) restricts the analysis to one doctor —
+	used by the Detailed drill-down of Income by Doctor Patient and Source.
+	"""
+	src = frappe._dict(doc_or_filters or {})
+	windows = period_windows(src.from_date, src.to_date, src.get("period") or "Yearly")
+	only_practitioner = (src.get("practitioner") or "").strip()
+
+	if items is None:
+		items = prepare_service_items(src)[0]
 
 	# doctor_key -> period_key -> bucket
 	matrix = defaultdict(lambda: defaultdict(_empty_bucket))
 	meta = {}
+	practitioner_details = {}
 
 	if items:
 		practitioner_by_base = resolve_practitioners(items)
 		practitioner_ids = {p for p in practitioner_by_base.values() if p}
+		if only_practitioner:
+			practitioner_ids.add(only_practitioner)
 		practitioner_details = get_practitioner_details(practitioner_ids)
 		visit_names = {
 			(row.custom_base_reference_name or "").strip()
@@ -400,12 +427,25 @@ def build_analysis(doc_or_filters) -> dict:
 		}
 		visit_care_map = _load_visit_care_map(visit_names)
 
+		# Keep the selected doctor in the table even when nothing was billed in
+		# the range, so the drill-down header/periods stay aligned.
+		if only_practitioner and only_practitioner not in meta:
+			details = practitioner_details.get(only_practitioner) or {}
+			meta[only_practitioner] = {
+				"practitioner": only_practitioner,
+				"doctor_name": details.get("practitioner_name") or only_practitioner,
+				"is_other_income": 0,
+			}
+
 		for row in items:
 			pkey = _period_key_for_date(row.get("transaction_date"), windows)
 			if not pkey:
 				continue
 			base_key = (row.custom_base_reference, row.custom_base_reference_name)
 			practitioner = practitioner_by_base.get(base_key)
+			# Detailed drill-down asks for one doctor only.
+			if only_practitioner and practitioner != only_practitioner:
+				continue
 			if not practitioner:
 				doctor_key = OTHER_INCOME_KEY
 				if doctor_key not in meta:
@@ -497,6 +537,13 @@ def build_analysis(doc_or_filters) -> dict:
 		"from_date": str(getdate(src.from_date)),
 		"to_date": str(getdate(src.to_date)),
 		"cost_center": src.get("cost_center"),
+		"practitioner": only_practitioner or None,
+		"practitioner_name": (meta.get(only_practitioner) or {}).get("doctor_name")
+		if only_practitioner
+		else None,
+		"practitioner_id": (practitioner_details.get(only_practitioner) or {}).get("doctors_id")
+		if only_practitioner
+		else None,
 		"periods": [
 			{
 				"key": w["key"],
@@ -509,6 +556,294 @@ def build_analysis(doc_or_filters) -> dict:
 		"doctors": doctors,
 		"totals": col_totals,
 	}
+
+
+# ── Detailed drill-down: transaction (invoice / order) → billed services ─────
+
+# Transactions rendered in the HTML block above the datatable. The datatable
+# itself is never truncated.
+MAX_DETAIL_HTML_SERVICES = 500
+
+
+def build_doctor_service_detail(doc_or_filters, items=None) -> dict:
+	"""One-table service breakdown of a doctor's income (no invoice nesting).
+
+	Lines attributed to the doctor are aggregated by service (+ care channel).
+	Lab / inventory lines use the same labels as Source Detailed. Pick
+	``filters.practitioner`` to limit to one doctor; when empty, every doctor's
+	services are listed (with a doctor column).
+	"""
+	src = frappe._dict(doc_or_filters or {})
+	only_practitioner = (src.get("practitioner") or "").strip()
+	if items is None:
+		items, billing_source = prepare_service_items(src)
+	else:
+		billing_source = (src.get("source") or "Sales Invoice").strip() or "Sales Invoice"
+	is_order = billing_source.lower().startswith("sales order")
+	transaction_type = "Sales Order" if is_order else "Sales Invoice"
+
+	doctor_details = get_practitioner_details({only_practitioner}) if only_practitioner else {}
+	doctor = doctor_details.get(only_practitioner) or {}
+	practitioner_details = {}
+
+	# (doctor_key, service_label, care_channel, item_code) → totals
+	service_buckets = {}
+	doctor_totals = defaultdict(lambda: {"net": 0.0, "discount": 0.0, "tax": 0.0, "total": 0.0})
+	line_count = 0
+	txn_names = set()
+
+	if items:
+		practitioner_by_base = resolve_practitioners(items)
+		practitioner_ids = {p for p in practitioner_by_base.values() if p}
+		if only_practitioner:
+			practitioner_ids.add(only_practitioner)
+		practitioner_details = get_practitioner_details(practitioner_ids)
+		visit_names = {
+			(row.custom_base_reference_name or "").strip()
+			for row in items
+			if (row.custom_base_reference or "").strip() == "Patient Visit"
+		}
+		visit_care_map = _load_visit_care_map(visit_names)
+		lab_items = _lab_item_codes()
+
+		for row in items:
+			practitioner = practitioner_by_base.get(
+				(row.custom_base_reference, row.custom_base_reference_name)
+			)
+			if only_practitioner and practitioner != only_practitioner:
+				continue
+
+			net = flt(row.get("amount"))
+			discount = _line_discount(row)
+			tax = _line_tax(row)
+			channel = classify_care_channel(
+				row.custom_base_reference, row.custom_base_reference_name, visit_care_map
+			)
+			doctor_key = practitioner or OTHER_INCOME_KEY
+			doctor_name = (
+				_("Other Income")
+				if doctor_key == OTHER_INCOME_KEY
+				else (practitioner_details.get(practitioner) or {}).get("practitioner_name")
+				or practitioner
+				or _("Other Income")
+			)
+			raw_name = (
+				(row.get("item_name") or row.get("item_code") or _("Other")).strip() or _("Other")
+			)
+			service_label = _detailed_service_label(row, channel, lab_items)
+			item_code = (row.get("item_code") or "").strip()
+			# Lab / inventory collapse to one label per channel — drop item_code key.
+			agg_code = "" if service_label != raw_name else item_code
+			bucket_key = (doctor_key, service_label, channel, agg_code)
+			bucket = service_buckets.get(bucket_key)
+			if bucket is None:
+				bucket = service_buckets[bucket_key] = {
+					"doctor": "" if doctor_key == OTHER_INCOME_KEY else (practitioner or ""),
+					"doctor_name": doctor_name,
+					"service_name": service_label,
+					"item_code": agg_code,
+					"item_name": service_label,
+					"care_channel": channel,
+					"qty": 0.0,
+					"net": 0.0,
+					"discount": 0.0,
+					"tax": 0.0,
+					"total": 0.0,
+				}
+			bucket["qty"] += flt(row.get("qty"))
+			bucket["net"] += net
+			bucket["discount"] += discount
+			bucket["tax"] += tax
+			bucket["total"] += net + tax
+			line_count += 1
+			txn_name = row.get("sales_order") or ""
+			if txn_name:
+				txn_names.add(txn_name)
+			for metric, val in (
+				("net", net),
+				("discount", discount),
+				("tax", tax),
+				("total", net + tax),
+			):
+				doctor_totals[doctor_key][metric] += val
+
+	services = []
+	for bucket in service_buckets.values():
+		services.append({k: (flt(v) if k in ("qty", "net", "discount", "tax", "total") else v) for k, v in bucket.items()})
+	services.sort(key=lambda r: (r.get("doctor_name") or "", -flt(r.get("net")), r.get("service_name") or ""))
+
+	grand = {"net": 0.0, "discount": 0.0, "tax": 0.0, "total": 0.0}
+	for svc in services:
+		for key in grand:
+			grand[key] += flt(svc.get(key))
+
+	doctor_rows = []
+	for key, totals in doctor_totals.items():
+		is_other = key == OTHER_INCOME_KEY
+		doctor_rows.append(
+			{
+				"practitioner": None if is_other else key,
+				"doctor_name": _("Other Income")
+				if is_other
+				else (practitioner_details.get(key) or {}).get("practitioner_name") or key,
+				"is_other_income": 1 if is_other else 0,
+				**{metric: flt(val) for metric, val in totals.items()},
+			}
+		)
+	doctor_rows.sort(key=lambda r: r["net"], reverse=True)
+
+	return {
+		"practitioner": only_practitioner or None,
+		"doctor_name": doctor.get("practitioner_name")
+		or (only_practitioner if only_practitioner else _("All Doctors")),
+		"doctor_id": doctor.get("doctors_id") or only_practitioner or "",
+		"period": src.get("period") or "Yearly",
+		"from_date": str(getdate(src.from_date)) if src.get("from_date") else "",
+		"to_date": str(getdate(src.to_date)) if src.get("to_date") else "",
+		"cost_center": src.get("cost_center"),
+		"billing_source": billing_source,
+		"transaction_type": transaction_type,
+		"services": services,
+		"transactions": [],  # kept for callers expecting the key; unused in UI
+		"totals": {
+			**{key: flt(val) for key, val in grand.items()},
+			"transactions": len(txn_names),
+			"services": len(services),
+			"lines": line_count,
+		},
+		"doctors": doctor_rows,
+	}
+
+
+def render_doctor_detail_hint() -> str:
+	"""Hint shown when Detailed is ticked without picking a doctor."""
+	return (
+		'<div class="dwia-detail-hint" style="margin:12px 0 0;padding:12px;border:1px solid #e2e8f0;'
+		'border-radius:8px;background:#f8fafc;color:#475569;font-family:Arial,Helvetica,sans-serif;'
+		'font-size:12px;">'
+		+ _(
+			"Detailed: pick a Healthcare Practitioner to see one table of the services billed "
+			"for that doctor. Without a doctor selected, the table below lists every service."
+		)
+		+ "</div>"
+	)
+
+
+def render_doctor_service_detail_html(doc_or_filters=None, detail=None) -> str:
+	"""Printable one-table service breakdown for the Detailed doctor view."""
+	ctx = frappe._dict(doc_or_filters or {})
+	if detail is None:
+		detail = build_doctor_service_detail(ctx)
+
+	money = format_money_bhd
+	esc = frappe.utils.escape_html
+	services = detail.get("services") or []
+	totals = detail.get("totals") or {}
+	generated = format_datetime_safe(ctx.get("generated_on") or now_datetime())
+	branch = detail.get("cost_center") or ctx.get("cost_center") or _("All Branches (Consolidate)")
+	doctor_label = detail.get("doctor_name") or _("All Doctors")
+	doctor_id = detail.get("doctor_id") or ""
+	show_doctor = not detail.get("practitioner")
+
+	th = (
+		"border:1px solid #333;padding:3px 5px;background:#eee;text-align:center;"
+		"font-size:10px;white-space:nowrap;font-weight:bold;"
+	)
+	td = "border:1px solid #333;padding:2px 5px;font-size:10px;"
+	td_num = f"{td}text-align:right;white-space:nowrap;"
+
+	head = f'<th style="{th}text-align:center;width:28px;">#</th>'
+	if show_doctor:
+		head += f'<th style="{th}">{_("Doctor")}</th>'
+	head += (
+		f'<th style="{th}text-align:left;">{_("Service")}</th>'
+		f'<th style="{th}width:56px;">{_("Care")}</th>'
+		f'<th style="{th}width:64px;">{_("Qty")}</th>'
+		f'<th style="{th}width:96px;">{_("Amount")}</th>'
+		f'<th style="{th}width:96px;">{_("Discount")}</th>'
+		f'<th style="{th}width:88px;">{_("Tax")}</th>'
+		f'<th style="{th}width:100px;">{_("Total")}</th>'
+	)
+
+	rows = ""
+	shown = services[:MAX_DETAIL_HTML_SERVICES]
+	for idx, svc in enumerate(shown, start=1):
+		rows += "<tr>"
+		rows += f'<td style="{td}text-align:center;">{idx}</td>'
+		if show_doctor:
+			rows += f'<td style="{td}">{esc(str(svc.get("doctor_name") or ""))}</td>'
+		rows += f'<td style="{td}">{esc(str(svc.get("service_name") or svc.get("item_name") or ""))}</td>'
+		rows += f'<td style="{td}text-align:center;">{esc(str(svc.get("care_channel") or ""))}</td>'
+		rows += f'<td style="{td_num}">{flt(svc.get("qty")):g}</td>'
+		rows += f'<td style="{td_num}">{money(svc.get("net"))}</td>'
+		rows += f'<td style="{td_num}color:#c62828;">{money(svc.get("discount"))}</td>'
+		rows += f'<td style="{td_num}">{money(svc.get("tax"))}</td>'
+		rows += f'<td style="{td_num}font-weight:600;">{money(svc.get("total"))}</td>'
+		rows += "</tr>"
+
+	if not rows:
+		rows = (
+			f'<tr><td colspan="{9 if show_doctor else 8}" style="{td}color:#64748b;text-align:center;">'
+			f"{_('No billed service found for the selected doctor in this period.')}</td></tr>"
+		)
+
+	label_span = 5 if show_doctor else 4  # #, [Doctor], Service, Care, Qty
+	rows += (
+		f'<tr style="background:#eeeeee;font-weight:bold;">'
+		f'<td colspan="{label_span}" style="{td}text-align:right;">{_("Grand Total")}</td>'
+		f'<td style="{td_num}">{money(totals.get("net"))}</td>'
+		f'<td style="{td_num}color:#c62828;">{money(totals.get("discount"))}</td>'
+		f'<td style="{td_num}">{money(totals.get("tax"))}</td>'
+		f'<td style="{td_num}">{money(totals.get("total"))}</td>'
+		f"</tr>"
+	)
+
+	truncate = ""
+	if len(services) > MAX_DETAIL_HTML_SERVICES:
+		truncate = (
+			'<div style="margin:0 0 8px;color:#b45309;font-size:11px;">'
+			+ _(
+				"Showing first {0} of {1} services here — the table below lists all of them."
+			).format(MAX_DETAIL_HTML_SERVICES, len(services))
+			+ "</div>"
+		)
+
+	doctor_line = esc(str(doctor_label))
+	if doctor_id:
+		doctor_line += f" &middot; {esc(str(doctor_id))}"
+
+	return f"""
+	<div class="dwia-detail" style="font-family:Arial,Helvetica,sans-serif;font-size:11px;color:#000;">
+		<div style="font-size:10px;margin-bottom:2px;">{esc(generated)}</div>
+		<div style="text-align:center;font-size:18px;font-weight:bold;color:#8B0000;margin:2px 0 8px;">
+			{_("Doctor Detailed Income")}
+		</div>
+		<table style="margin:0 auto 12px;border-collapse:collapse;font-size:11px;">
+			<tr>
+				<td style="{td}"><b>{_("Doctor")}</b></td>
+				<td style="{td}">{doctor_line}</td>
+				<td style="{td}"><b>{_("From")}</b></td>
+				<td style="{td}">{_fmt_short_date(detail.get("from_date") or ctx.get("from_date"))}</td>
+				<td style="{td}"><b>{_("Billing Source")}</b></td>
+				<td style="{td}">{esc(str(detail.get("billing_source") or ""))}</td>
+			</tr>
+			<tr>
+				<td style="{td}"><b>{_("Branch")}</b></td>
+				<td style="{td}">{esc(str(branch))}</td>
+				<td style="{td}"><b>{_("to")}</b></td>
+				<td style="{td}">{_fmt_short_date(detail.get("to_date") or ctx.get("to_date"))}</td>
+				<td style="{td}"><b>{_("Services")}</b></td>
+				<td style="{td}">{cint(totals.get("services"))}</td>
+			</tr>
+		</table>
+		{truncate}
+		<table style="width:100%;border-collapse:collapse;table-layout:fixed;">
+			<thead><tr>{head}</tr></thead>
+			<tbody>{rows}</tbody>
+		</table>
+	</div>
+	"""
+
 
 
 def _parse_analysis(doc) -> dict | None:
@@ -915,6 +1250,90 @@ def render_source_income_html(doc_or_filters=None, summary=None) -> str:
 	"""
 
 
+INCOME_BY_DOCTOR_REPORT = "Income by Doctor Patient and Source"
+
+
+def _can_view_income_by_doctor_report() -> bool:
+	"""True when the session user may open Income by Doctor.
+
+	Matches the ways a user reaches this report: the roles listed on the Report
+	doc, ``report`` permission on Sales Invoice, or System Manager.
+	"""
+	roles = set(frappe.get_roles())
+	if "System Manager" in roles or frappe.has_permission("Sales Invoice", "report"):
+		return True
+	report_roles = {
+		row.role
+		for row in frappe.get_all(
+			"Has Role",
+			filters={
+				"parenttype": "Report",
+				"parent": INCOME_BY_DOCTOR_REPORT,
+				"parentfield": "roles",
+			},
+			fields=["role"],
+			limit_page_length=0,
+		)
+	}
+	return bool(roles & report_roles)
+
+
+def _practitioner_filter_option(row) -> dict:
+	"""One Autocomplete entry, labelled the way the report prints the doctor."""
+	doctor_name = (row.get("practitioner_name") or "").strip() or row.get("name")
+	description = " · ".join(
+		str(part) for part in (row.get("doctors_id"), row.get("status")) if part
+	)
+	return {
+		"value": row.get("name"),
+		"label": f"{doctor_name} ({row.get('name')})",
+		"description": description,
+	}
+
+
+@frappe.whitelist()
+def get_practitioner_filter_options(include: str | None = None) -> list[dict]:
+	"""Doctor picker for the Income by Doctor reports.
+
+	Report roles (Accounts / Sales / Reception …) often cannot read Healthcare
+	Practitioner itself, and Frappe also refuses *document* level reads for
+	users that carry an Employee user permission. The picker therefore only asks
+	for permission to view the report, and returns the same doctor labels the
+	report itself prints.
+
+	Disabled practitioners are left out of the picker: they should not be
+	selectable in a report filter. Records without a status stay listed, so
+	legacy practitioners are not hidden.
+
+	``include`` is the doctor already held by the filter. If he has been
+	disabled since he was picked, he is added back so the field still shows his
+	name instead of the raw ID.
+	"""
+	if not _can_view_income_by_doctor_report():
+		frappe.throw(_("You are not permitted to view this report."), frappe.PermissionError)
+
+	rows = frappe.get_all(
+		"Healthcare Practitioner",
+		filters={"status": ["!=", "Disabled"]},
+		fields=["name", "doctors_id", "practitioner_name", "status"],
+		order_by="practitioner_name asc",
+		limit_page_length=0,
+		ignore_permissions=True,
+	)
+	options = [_practitioner_filter_option(row) for row in rows]
+
+	if include and all(option["value"] != include for option in options):
+		selected = frappe.db.get_value(
+			"Healthcare Practitioner",
+			include,
+			["name", "doctors_id", "practitioner_name", "status"],
+			as_dict=True,
+		)
+		if selected:
+			options.append(_practitioner_filter_option(selected))
+	return options
+
+
 @frappe.whitelist()
 def get_source_income_analysis_html(filters=None):
 	"""Build printable HTML for Source Income Analysis (Print HTML button)."""
@@ -937,11 +1356,22 @@ def get_doctor_wise_income_analysis_html(filters=None):
 	if not filters.get("from_date") or not filters.get("to_date"):
 		frappe.throw(_("From Date and To Date are required"))
 	filters.generated_on = now_datetime()
-	analysis = build_analysis(filters)
+	items, billing_source = prepare_service_items(filters)
+	# APIs receive billing_source as ``source``; keep both in step for the detail.
+	filters.source = filters.get("source") or billing_source
+	analysis = build_analysis(filters, items=items)
 	include_chart = True
 	if filters.get("include_chart") is not None:
 		include_chart = bool(cint(filters.get("include_chart")))
-	return render_analysis_html(filters, analysis, include_chart=include_chart)
+	html = render_analysis_html(filters, analysis, include_chart=include_chart)
+	if cint(filters.get("detailed")):
+		detail = build_doctor_service_detail(filters, items=items)
+		html += (
+			render_doctor_service_detail_html(filters, detail)
+			if detail.get("practitioner")
+			else render_doctor_detail_hint()
+		)
+	return html
 
 
 def build_frappe_chart(analysis: dict) -> dict | None:

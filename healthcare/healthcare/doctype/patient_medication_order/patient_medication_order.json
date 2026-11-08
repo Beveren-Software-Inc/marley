@@ -147,6 +147,7 @@
   },
   {
    "fetch_from": "patient_encounter.practitioner",
+   "fetch_if_empty": 1,
    "fieldname": "practitioner",
    "fieldtype": "Link",
    "in_list_view": 1,
