@@ -20,6 +20,12 @@ frappe.query_reports["DUR Report"] = {
 			label: __("Practitioner"),
 			fieldtype: "Link",
 			options: "Healthcare Practitioner",
+			// Disabled practitioners are of no use in this filter.
+			get_query: function () {
+				return {
+					filters: { status: ["!=", "Disabled"] },
+				};
+			},
 		},
 		{
 			fieldname: "from_date",

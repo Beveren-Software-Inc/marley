@@ -29,6 +29,12 @@ frappe.query_reports["Doctor Commission Summary"] = {
 			label: __("Doctor"),
 			fieldtype: "Link",
 			options: "Healthcare Practitioner",
+			// Disabled doctors are of no use in this filter.
+			get_query: function () {
+				return {
+					filters: { status: ["!=", "Disabled"] },
+				};
+			},
 		},
 		{
 			fieldname: "cost_center",

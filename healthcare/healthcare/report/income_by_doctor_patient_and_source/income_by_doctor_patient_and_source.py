@@ -8,6 +8,11 @@ Income Analysis):
 - Doctor  — per practitioner, IP/OP/IOP/Total/Discount/Net by period
 - Patient — top N patients, same metrics (scrollable; raise Limit)
 - Source  — IP / OP / IOP summary + pie chart
+
+Doctor view extras:
+- ``practitioner`` narrows the summary to one doctor.
+- ``detailed`` lists, for the chosen doctor, one table of the services billed
+  for him (aggregated; no Sales Invoice nesting).
 """
 
 from __future__ import annotations
@@ -18,8 +23,12 @@ from frappe.utils import cint, flt, getdate, now_datetime
 
 from healthcare.api.doctor_wise_income_analysis import (
 	build_analysis,
+	build_doctor_service_detail,
 	build_source_income_summary,
+	prepare_service_items,
 	render_analysis_html,
+	render_doctor_detail_hint,
+	render_doctor_service_detail_html,
 	render_source_income_html,
 )
 from healthcare.api.patient_wise_income_analysis import (
@@ -83,11 +92,21 @@ def _field(period_key: str, metric: str) -> str:
 
 
 def _execute_doctor(filters):
-	analysis = build_analysis(filters)
+	# One billing query feeds both the summary and the Detailed drill-down.
+	items = prepare_service_items(filters)[0]
+	analysis = build_analysis(filters, items=items)
 	filters.generated_on = now_datetime()
 	# Doctors SVG chart lives inside the HTML only — do not also return a
 	# Frappe chart (that second IP/OP/IOP widget looks like a Source graph).
 	html = render_analysis_html(filters, analysis, include_chart=True)
+	if cint(filters.detailed):
+		detail = build_doctor_service_detail(filters, items=items)
+		html += (
+			render_doctor_service_detail_html(filters, detail)
+			if detail.get("practitioner")
+			else render_doctor_detail_hint()
+		)
+		return _doctor_detail_columns(detail), _doctor_detail_rows(detail), html, None
 	columns = _doctor_columns(analysis)
 	data = _doctor_rows(analysis)
 	return columns, data, html, None
@@ -144,6 +163,73 @@ def _doctor_rows(analysis: dict) -> list[dict]:
 			for metric in ("ip", "op", "iop", "total", "discount", "net"):
 				row[_field(key, metric)] = flt(bucket.get(metric))
 		rows.append(row)
+	return rows
+
+
+# ── Doctor — Detailed (one services table) ──────────────────────────────────
+
+
+def _doctor_detail_columns(detail: dict) -> list[dict]:
+	cols = []
+	if not detail.get("practitioner"):
+		cols.append(
+			{"label": _("Doctor"), "fieldname": "doctor_name", "fieldtype": "Data", "width": 190}
+		)
+	cols.extend(
+		[
+			{"label": _("Service"), "fieldname": "service_name", "fieldtype": "Data", "width": 260},
+			{"label": _("Item Code"), "fieldname": "item_code", "fieldtype": "Data", "width": 130},
+			{"label": _("Care"), "fieldname": "care_channel", "fieldtype": "Data", "width": 70},
+			{"label": _("Qty"), "fieldname": "qty", "fieldtype": "Float", "width": 80, "precision": 3},
+			{
+				"label": _("Amount"),
+				"fieldname": "amount",
+				"fieldtype": "Currency",
+				"width": 110,
+				"precision": 3,
+			},
+			{
+				"label": _("Discount"),
+				"fieldname": "discount",
+				"fieldtype": "Currency",
+				"width": 110,
+				"precision": 3,
+			},
+			{
+				"label": _("Tax"),
+				"fieldname": "tax",
+				"fieldtype": "Currency",
+				"width": 100,
+				"precision": 3,
+			},
+			{
+				"label": _("Total"),
+				"fieldname": "total",
+				"fieldtype": "Currency",
+				"width": 120,
+				"precision": 3,
+			},
+		]
+	)
+	return cols
+
+
+def _doctor_detail_rows(detail: dict) -> list[dict]:
+	rows = []
+	for service in detail.get("services") or []:
+		rows.append(
+			{
+				"doctor_name": service.get("doctor_name"),
+				"service_name": service.get("service_name") or service.get("item_name"),
+				"item_code": service.get("item_code"),
+				"care_channel": service.get("care_channel"),
+				"qty": flt(service.get("qty")),
+				"amount": flt(service.get("net")),
+				"discount": flt(service.get("discount")),
+				"tax": flt(service.get("tax")),
+				"total": flt(service.get("total")),
+			}
+		)
 	return rows
 
 
