@@ -814,9 +814,12 @@ const handleMakePayment = async (
   }, [currentView, effectivePatient, scopedReferenceName, fromDate, toDate, paymentModeFilter, cashierFilter, branchFilter, shiftFilterActive])
 
   useEffect(() => {
-    fetchModeOfPayments()
+    fetchModeOfPayments(undefined, branchFilter || userCostCenter || undefined)
       .then(setPaymentModes)
       .catch(() => setPaymentModes([]))
+  }, [branchFilter, userCostCenter])
+
+  useEffect(() => {
     fetchUsers(undefined, 'Receptionist')
       .then(setCashiers)
       .catch(() => setCashiers([]))

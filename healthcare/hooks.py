@@ -142,6 +142,8 @@ fixtures = [
                    "Item-custom_maximum_single_dose_long_acting",
                    "Item-custom_long_acting",
                    
+                   "Mode of Payment-custom_cost_center",
+                   
 
                 ),
             ]

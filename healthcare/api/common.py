@@ -3196,19 +3196,48 @@ def get_cost_centers(search=None, company=None, is_hospital=None):
 
 
 @frappe.whitelist()
-def get_payment_modes(search=None):
+def get_payment_modes(search=None, cost_center=None):
 	"""F047: whitelisted list of Modes of Payment so portal roles (e.g. Reception)
 	that cannot read the Mode of Payment doctype directly can still populate the
-	billing payment-mode dropdown without a 403."""
-	filters = {}
+	billing payment-mode dropdown without a 403.
+
+	Never returns disabled Mode of Payment records (``enabled = 0``).
+
+	When ``cost_center`` (branch) is set and Mode of Payment has
+	``custom_cost_center``: return modes linked to that branch, plus modes with
+	no cost center (available everywhere). Modes linked to a *different* branch
+	are hidden.
+	"""
+	search = cstr(search or "").strip()
+	cost_center = cstr(cost_center or "").strip()
+	has_branch_link = frappe.db.has_column("Mode of Payment", "custom_cost_center")
+	has_enabled = frappe.db.has_column("Mode of Payment", "enabled")
+
+	conditions = ["1=1"]
+	values = {}
+	# Record Payment / billing dropdowns: only enabled modes.
+	if has_enabled:
+		conditions.append("enabled = 1")
 	if search:
-		filters["name"] = ["like", f"%{search}%"]
-	modes = frappe.get_all(
-		"Mode of Payment",
-		filters=filters or None,
-		fields=["name"],
-		order_by="name asc",
-		limit=50,
+		conditions.append("name like %(search)s")
+		values["search"] = f"%{search}%"
+	if has_branch_link and cost_center:
+		# Blank / NULL = all branches; otherwise must match selected branch.
+		conditions.append(
+			"(ifnull(custom_cost_center, '') = '' or custom_cost_center = %(cost_center)s)"
+		)
+		values["cost_center"] = cost_center
+
+	modes = frappe.db.sql(
+		f"""
+		select name
+		from `tabMode of Payment`
+		where {' and '.join(conditions)}
+		order by name asc
+		limit 100
+		""",
+		values,
+		as_dict=True,
 	)
 	return [{"name": m.name} for m in modes]
 

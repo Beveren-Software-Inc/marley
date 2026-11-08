@@ -7,6 +7,7 @@ import { toast } from '../../hooks/useToast'
 import { createPaymentEntry } from '../../services/paymentEntry'
 import { fetchModeOfPayments, fetchSalesInvoices, fetchSalesOrders } from '../../services/paymentEntry'
 import { useMoneyInputConfig, useFormatMoney } from '../../hooks/useFormatMoney'
+import { useCareContext } from '../../providers/CareContextProvider'
 import {
   linkComboboxDropdownClass,
   linkComboboxEmptyPanelClass,
@@ -112,6 +113,7 @@ export const CreatePaymentModal = ({
 }: CreatePaymentModalProps) => {
   const moneyInput = useMoneyInputConfig()
   const formatMoney = useFormatMoney()
+  const { userCostCenter } = useCareContext()
 
   // ── Reference type selection ──
   const [referenceType, setReferenceType] = useState<ReferenceType>('Sales Invoice')
@@ -134,21 +136,25 @@ export const CreatePaymentModal = ({
   const [remarks, setRemarks] = useState('')
   const [loading, setLoading] = useState(false)
 
-  // Load payment modes once
+  // Modes for selected branch (+ unlinked); hide modes tied to other branches.
   useEffect(() => {
-    fetchModeOfPayments()
+    fetchModeOfPayments(userCostCenter)
       .then((modes) => {
         setPaymentModes(modes)
-        if (modes.length > 0) {
-          setModeLines((prev) =>
-            prev.length === 1 && !prev[0].mode_of_payment
-              ? [{ ...prev[0], mode_of_payment: modes[0] }]
-              : prev
+        setModeLines((prev) => {
+          const next = prev.map((line) =>
+            line.mode_of_payment && !modes.includes(line.mode_of_payment)
+              ? { ...line, mode_of_payment: modes[0] || '' }
+              : line
           )
-        }
+          if (next.length === 1 && !next[0].mode_of_payment && modes[0]) {
+            next[0] = { ...next[0], mode_of_payment: modes[0] }
+          }
+          return next
+        })
       })
-      .catch(() => setPaymentModes(['Cash', 'Bank Transfer', 'Credit Card', 'Cheque', 'Insurance']))
-  }, [])
+      .catch(() => setPaymentModes([]))
+  }, [userCostCenter])
 
   // When reference type changes, clear the other field's selection
   const handleTypeChange = (type: ReferenceType) => {

@@ -20,6 +20,7 @@ import {
   validatePaymentModeLines,
   type PaymentModeLine,
 } from '../billing/PaymentModeLines'
+import { useCareContext } from '../../providers/CareContextProvider'
 
 interface AppointmentPaymentModalProps {
   appointment: Appointment
@@ -34,6 +35,7 @@ export const AppointmentPaymentModal = ({
   onClose,
   onSuccess,
 }: AppointmentPaymentModalProps) => {
+  const { userCostCenter } = useCareContext()
   const [paymentModes, setPaymentModes] = useState<string[]>([])
   const [modeLines, setModeLines] = useState<PaymentModeLine[]>([newPaymentModeLine()])
   const [remarks, setRemarks] = useState('')
@@ -47,19 +49,23 @@ export const AppointmentPaymentModal = ({
     appointment.patient_name || appointment.temporary_patient_name || appointment.name
 
   useEffect(() => {
-    fetchModeOfPayments()
+    fetchModeOfPayments(userCostCenter)
       .then((modes) => {
         setPaymentModes(modes)
-        if (modes.length) {
-          setModeLines((prev) =>
-            prev.length === 1 && !prev[0].mode_of_payment
-              ? [{ ...prev[0], mode_of_payment: modes[0] }]
-              : prev
+        setModeLines((prev) => {
+          const next = prev.map((line) =>
+            line.mode_of_payment && !modes.includes(line.mode_of_payment)
+              ? { ...line, mode_of_payment: modes[0] || '' }
+              : line
           )
-        }
+          if (next.length === 1 && !next[0].mode_of_payment && modes[0]) {
+            next[0] = { ...next[0], mode_of_payment: modes[0] }
+          }
+          return next
+        })
       })
-      .catch(() => setPaymentModes(['Cash', 'Bank Transfer', 'Credit Card', 'Cheque']))
-  }, [])
+      .catch(() => setPaymentModes([]))
+  }, [userCostCenter])
 
   useEffect(() => {
     let cancelled = false
