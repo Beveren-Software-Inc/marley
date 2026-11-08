@@ -968,8 +968,12 @@ def create_patient_medication_order(
 			elif not practitioner and adm.get('secondary_practitioner'):
 				doc.practitioner = adm.secondary_practitioner
 
-	if practitioner:
-		doc.practitioner = practitioner
+	# Prescribing doctor for this create (Duplicate / portal). Must win over the
+	# Patient Visit's practitioner — fetch_from would otherwise put the visit doctor
+	# on the new order and on the Long Acting Medicine created from it.
+	intended_practitioner = cstr(practitioner or "").strip() or None
+	if intended_practitioner:
+		doc.practitioner = intended_practitioner
 	if after_discharge is not None and str(after_discharge).lower() in ("1", "true", "yes"):
 		doc.after_discharge = 1
 	if discharge_id and doc.meta.has_field("discharge_id"):
@@ -1003,6 +1007,7 @@ def create_patient_medication_order(
 				doc.end_date = max(explicit_ends)
 
 	doc.insert(ignore_permissions=True)
+	_ensure_prescribing_practitioner(doc, intended_practitioner)
 	doc.submit()
 
 	# Create Long Acting Medicine from in-memory rows (frequency is lost if we reload first).
@@ -1154,12 +1159,62 @@ def _lam_exists_for_pmo_entry(entry_name) -> bool:
 	)
 
 
+def _ensure_prescribing_practitioner(pmo_doc, intended_practitioner: str | None) -> None:
+	"""Keep the doctor who created the order; do not keep the visit's doctor.
+
+	``Patient Medication Order.practitioner`` has fetch_from the Patient Visit. Without
+	fetch_if_empty (or if something else re-fetches), Duplicate from Long Acting would
+	save the original visit doctor on the new prescription and Long Acting Medicine
+	even when the form showed the logged-in practitioner.
+	"""
+	intended = cstr(intended_practitioner or "").strip()
+	if not intended or not pmo_doc or not pmo_doc.name:
+		return
+	if cstr(pmo_doc.get("practitioner") or "").strip() == intended:
+		return
+	pmo_doc.db_set("practitioner", intended, update_modified=False)
+	pmo_doc.practitioner = intended
+	# Fresh create: lines either have no doctor or copied the wrongly-fetched
+	# visit doctor from the parent — align them to the prescribing doctor.
+	if not pmo_doc.meta.has_field("medication_orders"):
+		return
+	pract_name = (
+		frappe.db.get_value("Healthcare Practitioner", intended, "practitioner_name") or intended
+	)
+	for entry in pmo_doc.get("medication_orders") or []:
+		if not hasattr(entry, "healthcare_practitioner") or not entry.name:
+			continue
+		entry_hp = cstr(getattr(entry, "healthcare_practitioner", None) or "").strip()
+		if entry_hp == intended:
+			continue
+		frappe.db.set_value(
+			entry.doctype,
+			entry.name,
+			"healthcare_practitioner",
+			intended,
+			update_modified=False,
+		)
+		entry.healthcare_practitioner = intended
+		if hasattr(entry, "healthcare_practitioner_name"):
+			frappe.db.set_value(
+				entry.doctype,
+				entry.name,
+				"healthcare_practitioner_name",
+				pract_name,
+				update_modified=False,
+			)
+			entry.healthcare_practitioner_name = pract_name
+
+
 def _create_long_acting_medicine_for_entries(pmo_doc, only_entry_names=None):
 	"""For each long-acting medication line, create a Long Acting Medicine if one is not already linked."""
 	only = None
 	if only_entry_names:
 		only = {cstr(n).strip() for n in only_entry_names if cstr(n).strip()}
 	created = []
+	prescribing_practitioner = cstr(
+		pmo_doc.get("practitioner") or pmo_doc.get("healthcare_practitioner") or ""
+	).strip() or None
 	for entry in (pmo_doc.medication_orders or []):
 		if not _entry_is_long_acting(entry):
 			continue
@@ -1180,7 +1235,7 @@ def _create_long_acting_medicine_for_entries(pmo_doc, only_entry_names=None):
 		lam.naming_series = 'SMP-.YYYY.-'
 		lam.patient = pmo_doc.patient
 		lam.patient_name = pmo_doc.get('patient_name')
-		lam.practitioner = pmo_doc.get('practitioner')
+		lam.practitioner = prescribing_practitioner
 		lam.company = pmo_doc.company
 		lam.frequency = frequency
 		if frappe.get_meta("Long Acting Medicine").has_field("written_frequency"):
@@ -1190,14 +1245,24 @@ def _create_long_acting_medicine_for_entries(pmo_doc, only_entry_names=None):
 		lam.next_run_date = next_run
 		lam.status = 'Active'
 
-		# Single medication row from this order entry
+		# Single medication row from this order entry.
+		# Dosage Form on the plan item links to Pharmaceutical Form (same as the
+		# prescription line). Skip values that are not in that master so a legacy
+		# / mismatched string does not block Long Acting create.
+		dosage_form = cstr(getattr(entry, "dosage_form", None) or "").strip() or None
+		if dosage_form and not frappe.db.exists("Pharmaceutical Form", dosage_form):
+			dosage_form = None
+		instructions = cstr(getattr(entry, "instructions", None) or "").strip()
+		# Prescription Instructions belong on Doctors Remark (not reception Remarks).
+		if instructions and lam.meta.has_field("doctors_remark"):
+			lam.doctors_remark = instructions
 		lam.append('medications', {
 			'medication_order_entry': entry.name,
 			'drug': entry.drug,
 			'drug_name': entry.drug_name or frappe.db.get_value('Item', entry.drug, 'item_name'),
 			'dosage': flt(entry.dosage, 0) or 0,
-			'dosage_form': entry.dosage_form,
-			'instructions': entry.instructions or '',
+			'dosage_form': dosage_form,
+			'instructions': instructions,
 			'patient_frequency': entry.patient_frequency,
 			'date': entry.date,
 			'time': entry.time or '08:00:00',

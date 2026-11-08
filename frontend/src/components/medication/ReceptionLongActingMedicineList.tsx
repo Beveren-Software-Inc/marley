@@ -103,6 +103,10 @@ export const ReceptionLongActingMedicineList = ({
       guardClinicalCreate(() =>
         setDuplicateRx({
           patient: source.patient || row.patient,
+          /* Fallback only when the creator has no linked practitioner (e.g. reception).
+           * CreatePrescriptionModal prefers the logged-in linked doctor, and the API
+           * keeps that doctor on the new PMO / Long Acting Medicine (visit fetch_from
+           * must not put the original doctor back). */
           practitioner: source.practitioner || row.practitioner,
           medications,
           sourceName: row.name,
@@ -535,8 +539,10 @@ export const ReceptionLongActingMedicineList = ({
                 <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Medication</th>
                 <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Dose</th>
                 <th className="px-3 py-2 text-center text-xs font-semibold text-slate-600 uppercase">Last Inj.</th>
-                <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Status</th>
+                <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Doctor</th>
                 <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Remarks</th>
+                <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Doctors Remark</th>
+                <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Status</th>
                 <th className="px-3 py-2 text-center text-xs font-semibold text-slate-600 uppercase">Actions</th>
               </tr>
             </thead>
@@ -586,11 +592,34 @@ export const ReceptionLongActingMedicineList = ({
                           </span>,
                         )}
                       </td>
-                      <td className="px-3 py-2 text-slate-700">
-                        <span>{row.status || 'Draft'}</span>
+                      <td className="px-3 py-2 text-slate-700 max-w-[9rem]">
+                        {mask(
+                          <span
+                            className="block truncate"
+                            title={row.practitioner_name || row.practitioner || undefined}
+                          >
+                            {row.practitioner_name || row.practitioner || '—'}
+                          </span>,
+                        )}
+                      </td>
+                      <td className="px-3 py-2 text-slate-700 max-w-[10rem]">
+                        <span
+                          className="block truncate text-gray-500"
+                          title={row.remarks || undefined}
+                        >
+                          {mask(row.remarks || '—')}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2 text-slate-700 max-w-[12rem]">
+                        <span
+                          className="block truncate text-slate-700"
+                          title={row.doctors_remark || undefined}
+                        >
+                          {mask(row.doctors_remark || '—')}
+                        </span>
                       </td>
                       <td className="px-3 py-2 text-slate-700">
-                        <span className='text-gray-500'>{mask(row.remarks || 'No remarks')}</span>
+                        <span>{row.status || 'Draft'}</span>
                       </td>
                       {/* Actions column */}
                       <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>

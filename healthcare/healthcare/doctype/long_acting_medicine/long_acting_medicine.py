@@ -445,7 +445,66 @@ def enrich_long_acting_medicine_row(doc):
 	data["default_uom"] = default_uom
 	data["default_dosage_form"] = default_dosage_form
 
+	# Detail view: same doctors_remark fallback as the list (linked Rx instructions).
+	if name and not (data.get("doctors_remark") or "").strip():
+		fallback = _doctors_remark_from_linked_prescription([name]).get(name)
+		if fallback:
+			data["doctors_remark"] = fallback
+
 	return data
+
+
+def _doctors_remark_from_linked_prescription(parent_names):
+	"""For older LAMs with empty Doctors Remark: show prescription line Instructions.
+
+	Looks at the plan-item ``instructions`` first, then the linked
+	``Inpatient Medication Order Entry.instructions`` when the LAM was created
+	from a Patient Medication Order. Reception ``remarks`` stays separate.
+	"""
+	if not parent_names:
+		return {}
+
+	remarks: dict[str, str] = {}
+	plan_rows = frappe.get_all(
+		"Subscription Medication Plan Item",
+		filters={"parent": ["in", list(parent_names)]},
+		fields=["parent", "instructions", "medication_order_entry", "idx"],
+		order_by="parent asc, idx asc",
+	)
+	entry_names: list[str] = []
+	for row in plan_rows:
+		parent = row.parent
+		if parent in remarks:
+			continue
+		text = (row.instructions or "").strip()
+		if text:
+			remarks[parent] = text
+			continue
+		entry = (row.medication_order_entry or "").strip()
+		if entry:
+			entry_names.append(entry)
+
+	entry_instructions: dict[str, str] = {}
+	if entry_names:
+		for erow in frappe.get_all(
+			"Inpatient Medication Order Entry",
+			filters={"name": ["in", list(set(entry_names))]},
+			fields=["name", "instructions"],
+		):
+			text = (erow.instructions or "").strip()
+			if text:
+				entry_instructions[erow.name] = text
+
+	if entry_instructions:
+		for row in plan_rows:
+			parent = row.parent
+			if parent in remarks:
+				continue
+			entry = (row.medication_order_entry or "").strip()
+			if entry and entry in entry_instructions:
+				remarks[parent] = entry_instructions[entry]
+
+	return remarks
 
 
 def enrich_long_acting_medicine_list_rows(rows):
@@ -477,6 +536,26 @@ def enrich_long_acting_medicine_list_rows(rows):
 
 	medication_labels = _first_medication_labels_for_parents(names)
 	medication_defaults = _first_medication_doses_for_parents(names)
+	# Older records often left Doctors Remark blank while Instructions lived on
+	# the linked prescription line — surface those in the Doctors Remark column.
+	needs_doctors_remark = [
+		row["name"]
+		for row in rows
+		if row.get("name") and not (row.get("doctors_remark") or "").strip()
+	]
+	prescription_doctors_remarks = _doctors_remark_from_linked_prescription(needs_doctors_remark)
+	practitioner_ids = list(
+		{
+			(row.get("practitioner") or "").strip()
+			for row in rows
+			if (row.get("practitioner") or "").strip()
+		}
+	)
+	practitioner_names = {}
+	if practitioner_ids:
+		from healthcare.api.common import get_practitioner_name_map
+
+		practitioner_names = get_practitioner_name_map(practitioner_ids)
 
 	today = getdate()
 	can_give = user_can_give_out_long_acting_medicine()
@@ -527,6 +606,13 @@ def enrich_long_acting_medicine_list_rows(rows):
 		item["default_dosage"] = plan_defaults.get("default_dosage")
 		item["default_uom"] = plan_defaults.get("default_uom")
 		item["default_dosage_form"] = plan_defaults.get("default_dosage_form")
+		pract_id = (item.get("practitioner") or "").strip()
+		if pract_id:
+			item["practitioner_name"] = practitioner_names.get(pract_id) or pract_id
+		if not (item.get("doctors_remark") or "").strip():
+			fallback = prescription_doctors_remarks.get(item["name"])
+			if fallback:
+				item["doctors_remark"] = fallback
 		enriched.append(item)
 	return enriched
 

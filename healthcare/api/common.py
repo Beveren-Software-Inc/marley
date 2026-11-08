@@ -2253,12 +2253,14 @@ def get_long_acting_medicine_list_for_reception(
 			"name",
 			"patient",
 			"patient_name",
+			"practitioner",
 			"frequency",
 			"start_date",
 			"end_date",
 			"next_run_date",
 			"status",
 			"remarks",
+			"doctors_remark",
 			"injection_given_on",
 		],
 		order_by="next_run_date asc, start_date asc, name asc",
@@ -2272,16 +2274,27 @@ def get_long_acting_medicine_list_for_reception(
 
 @frappe.whitelist()
 def update_long_acting_medicine_remarks(name: str, remarks: str):
-	"""Update the remarks field on a Long Acting Medicine record."""
+	"""Update reception Remarks on a Long Acting Medicine (allow_on_submit).
+
+	Uses ``db_set`` so submitted records do not re-run full document validation
+	(which can fail on legacy / incomplete long-acting rows).
+	"""
 	assert_editing_allowed()
+	name = cstr(name or "").strip()
 	if not name:
 		frappe.throw(_("Long Acting Medicine name is required"))
 	if not frappe.db.exists("Long Acting Medicine", name):
 		frappe.throw(_("Long Acting Medicine {0} does not exist").format(frappe.bold(name)))
-	doc = frappe.get_doc("Long Acting Medicine", name)
-	doc.remarks = remarks or ''
-	doc.save(ignore_permissions=True)
-	return {"name": doc.name, "remarks": doc.remarks}
+	if not frappe.has_permission("Long Acting Medicine", "write", name):
+		# Reception portal still needs to annotate submitted LAMs.
+		if not _user_can_access_long_acting_medicine_portal():
+			frappe.throw(
+				_("Not permitted to update Long Acting Medicine remarks"),
+				frappe.PermissionError,
+			)
+	value = cstr(remarks or "")
+	frappe.db.set_value("Long Acting Medicine", name, "remarks", value, update_modified=True)
+	return {"name": name, "remarks": value}
 
 
 @frappe.whitelist()

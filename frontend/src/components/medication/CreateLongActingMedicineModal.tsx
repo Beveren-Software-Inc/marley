@@ -396,6 +396,10 @@ export const CreateLongActingMedicineModal = ({
 
     try {
       setSubmitting(true)
+      const doctorsRemarkFromInstructions = validMedications
+        .map((m) => (m.instructions || '').trim())
+        .filter(Boolean)
+        .join('\n')
       await apiRequest('/api/resource/Long%20Acting%20Medicine', {
         method: 'POST',
         body: JSON.stringify({
@@ -408,6 +412,8 @@ export const CreateLongActingMedicineModal = ({
           practitioner: formData.practitioner || undefined,
           company: formData.company || undefined,
           status: formData.status,
+          // Prescription / line instructions → Doctors Remark (reception Remarks stays separate).
+          doctors_remark: doctorsRemarkFromInstructions || undefined,
           medications: validMedications.map((m) => ({
             drug: m.drug,
             drug_name: m.drug_name,
