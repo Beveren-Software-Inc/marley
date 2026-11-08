@@ -167,6 +167,7 @@ function useVisitTabData(visitNo: string, patient?: string) {
       const rows = await fetchPrescriptions(100, 0, {
         careContext: 'Patient Visit',
         patientEncounter: visitNo,
+        ...(patient ? { patient } : {}),
       })
       setPrescriptions(rows || [])
     } catch {
@@ -174,7 +175,7 @@ function useVisitTabData(visitNo: string, patient?: string) {
     } finally {
       setLoadingPrescriptions(false)
     }
-  }, [visitNo])
+  }, [visitNo, patient])
 
   const loadNotes = useCallback(async () => {
     setLoadingNotes(true)
@@ -802,7 +803,10 @@ export const PatientVisitDetails = ({ visitNo, onUpdate }: PatientVisitDetailsPr
                             `Dosage ${displayMedicationDosageWithUom(med)}`,
                             `Freq ${displayMedicationFrequency(med)}`,
                             `Route ${displayMedicationRoute(med)}`,
-                          ].join(' · ')}
+                            med.date ? `Start ${formatDate(med.date)}` : null,
+                          ]
+                            .filter(Boolean)
+                            .join(' · ')}
                         </p>
                       </li>
                     ))}
