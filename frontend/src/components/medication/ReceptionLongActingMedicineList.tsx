@@ -603,20 +603,24 @@ export const ReceptionLongActingMedicineList = ({
                         )}
                       </td>
                       <td className="px-3 py-2 text-slate-700 max-w-[10rem]">
-                        <span
-                          className="block truncate text-gray-500"
-                          title={row.remarks || undefined}
-                        >
-                          {mask(row.remarks || '—')}
-                        </span>
+                        {mask(
+                          <span
+                            className="block truncate text-gray-500"
+                            title={row.remarks || undefined}
+                          >
+                            {row.remarks || '—'}
+                          </span>,
+                        )}
                       </td>
                       <td className="px-3 py-2 text-slate-700 max-w-[12rem]">
-                        <span
-                          className="block truncate text-slate-700"
-                          title={row.doctors_remark || undefined}
-                        >
-                          {mask(row.doctors_remark || '—')}
-                        </span>
+                        {mask(
+                          <span
+                            className="block truncate text-slate-700"
+                            title={row.doctors_remark || undefined}
+                          >
+                            {row.doctors_remark || '—'}
+                          </span>,
+                        )}
                       </td>
                       <td className="px-3 py-2 text-slate-700">
                         <span>{row.status || 'Draft'}</span>

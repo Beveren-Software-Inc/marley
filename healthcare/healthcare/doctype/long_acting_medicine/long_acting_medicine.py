@@ -621,6 +621,26 @@ class LongActingMedicine(Document):
 	pass
 
 
+def _sanitize_plan_item_dosage_forms(doc) -> None:
+	"""Clear child dosage_form values that are not valid Pharmaceutical Form links.
+
+	Plan items were migrated from Dosage Form → Pharmaceutical Form. Give-out / stop
+	save the whole submitted document; an orphan legacy value would block those actions.
+	"""
+	if not frappe.db.exists("DocType", "Pharmaceutical Form"):
+		return
+	for med in doc.get("medications") or []:
+		value = (_row_field(med, "dosage_form") or "").strip()
+		if not value:
+			continue
+		if frappe.db.exists("Pharmaceutical Form", value):
+			continue
+		if isinstance(med, dict):
+			med["dosage_form"] = None
+		else:
+			med.dosage_form = None
+
+
 @frappe.whitelist()
 def record_long_acting_medicine_give_out(
 	name, notes=None, dose=None, dose_term=None, injection_given_on=None
@@ -636,6 +656,7 @@ def record_long_acting_medicine_give_out(
 		frappe.throw(_("Please select injection side (Left or Right)"))
 
 	doc = frappe.get_doc("Long Acting Medicine", name)
+	_sanitize_plan_item_dosage_forms(doc)
 	if doc.docstatus == 2:
 		frappe.throw(_("Cannot give out a cancelled Long Acting Medicine"))
 
@@ -701,6 +722,7 @@ def stop_long_acting_medicine(name, reason=None):
 		frappe.throw(_("Only nurses and doctors can stop long acting medicine."), frappe.PermissionError)
 
 	doc = frappe.get_doc("Long Acting Medicine", name)
+	_sanitize_plan_item_dosage_forms(doc)
 	if doc.docstatus == 2:
 		frappe.throw(_("Cannot stop a cancelled Long Acting Medicine"))
 

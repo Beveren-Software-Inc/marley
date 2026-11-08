@@ -180,14 +180,9 @@ export function LongActingMedicineDetailPanel({
               </div>
               <ul className="space-y-2.5">
                 {medications.map((item, idx) => {
+                  // Only this line's own instructions — never fall back to record-wide
+                  // doctors_remark (that can belong to another drug on multi-med LAMs).
                   const lineInstructions = (item.instructions || '').trim()
-                  // Older LAMs often only have doctors_remark / linked Rx instructions —
-                  // show that under the first line when the child instructions are empty.
-                  const doctorsRemarkFallback =
-                    idx === 0
-                      ? (doc?.doctors_remark || preview?.doctors_remark || '').trim()
-                      : ''
-                  const instructionsText = lineInstructions || doctorsRemarkFallback
                   return (
                     <li
                       key={item.name || `${item.drug}-${idx}`}
@@ -203,13 +198,13 @@ export function LongActingMedicineDetailPanel({
                           <span className="text-slate-500"> · {item.patient_frequency}</span>
                         ) : null}
                       </p>
-                      {instructionsText ? (
+                      {lineInstructions ? (
                         <div className="mt-2 rounded-md border border-amber-200/80 bg-amber-50/90 px-2.5 py-1.5">
                           <p className="text-[10px] font-semibold uppercase tracking-wide text-amber-800/80">
                             Instructions
                           </p>
                           <p className="mt-0.5 text-xs leading-snug text-amber-950/90 whitespace-pre-wrap">
-                            {instructionsText}
+                            {lineInstructions}
                           </p>
                         </div>
                       ) : null}
