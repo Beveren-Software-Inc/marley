@@ -814,11 +814,26 @@ const handleMakePayment = async (
   }, [currentView, effectivePatient, scopedReferenceName, fromDate, toDate, paymentModeFilter, cashierFilter, branchFilter, shiftFilterActive])
 
   useEffect(() => {
+    let cancelled = false
     fetchModeOfPayments(undefined, branchFilter || userCostCenter || undefined, {
       includeDisabled: true,
     })
-      .then(setPaymentModes)
-      .catch(() => setPaymentModes([]))
+      .then((modes) => {
+        if (cancelled) return
+        setPaymentModes(modes)
+        // Drop stale mode filter when branch refresh removes that option.
+        setPaymentModeFilter((prev) =>
+          prev && !modes.some((m) => m.name === prev) ? '' : prev
+        )
+      })
+      .catch(() => {
+        if (cancelled) return
+        setPaymentModes([])
+        setPaymentModeFilter('')
+      })
+    return () => {
+      cancelled = true
+    }
   }, [branchFilter, userCostCenter])
 
   useEffect(() => {
