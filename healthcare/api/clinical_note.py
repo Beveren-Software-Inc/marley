@@ -4,7 +4,7 @@
 
 import frappe
 from frappe import _
-from frappe.utils import cint, nowdate
+from frappe.utils import cint, cstr, nowdate
 
 from healthcare.api.care_episode import patient_visit_type_info
 from healthcare.api.utils.api_utility import get_next_transaction_number
@@ -332,6 +332,18 @@ def _resolve_clinical_note_medical_role(data: dict) -> str:
 # 		limit_start=offset,
 # 		order_by='posting_date desc'
 # 	)
+def _hide_note_with_no_visit_enabled() -> bool:
+	"""Healthcare Settings → Hide Note with No Visit."""
+	return bool(cint(frappe.db.get_single_value("Healthcare Settings", "hide_note_with_no_visit")))
+
+
+def _clinical_note_has_visit_reference(note: dict) -> bool:
+	return bool(
+		cstr(note.get("reference_document") or "").strip()
+		or cstr(note.get("reference_name") or "").strip()
+	)
+
+
 def _clinical_note_list_filters(kwargs: dict) -> tuple[list, list | None]:
 	"""Build frappe AND filters and optional OR filters for Clinical Note listing."""
 	patient = kwargs.get('patient')
@@ -375,11 +387,19 @@ def _clinical_note_list_filters(kwargs: dict) -> tuple[list, list | None]:
 	elif reference_doctype == "Patient Visit" and reference_document:
 		# Live notes link to Patient Visit; legacy OP history notes link to
 		# VISIT_00_01_HISTORY keys like ``{oracle_visit}-{cr_date}``. Also match
-		# Oracle visit id stored on Patient Visit.old_trans_num.
+		# Oracle visit id on Patient Visit.old_trans_num, and same patient+day
+		# when the ERP visit was opened separately (no old_trans_num yet).
 		from healthcare.api.visit_diagnosis_sync import patient_visit_lookup_keys
 
 		visit_keys = patient_visit_lookup_keys(reference_document)
-		visit_patient = frappe.db.get_value("Patient Visit", reference_document, "patient")
+		visit_row = frappe.db.get_value(
+			"Patient Visit",
+			reference_document,
+			["patient", "encounter_date"],
+			as_dict=True,
+		) or {}
+		visit_patient = (visit_row.get("patient") or "").strip()
+		encounter_date = visit_row.get("encounter_date")
 		if visit_patient and not patient:
 			filter_list.append(["patient", "=", visit_patient])
 		or_filters = [
@@ -389,6 +409,14 @@ def _clinical_note_list_filters(kwargs: dict) -> tuple[list, list | None]:
 		for key in visit_keys:
 			or_filters.append(["reference_document", "like", f"{key}-%"])
 			or_filters.append(["reference_name", "like", f"{key}-%"])
+		if visit_patient and encounter_date:
+			day = str(encounter_date)[:10]
+			# Same patient+day catches history / visit notes when old_trans_num is
+			# missing. Combined with Hide Note with No Visit (reference_document
+			# is set), orphan OPDX rows on that day stay hidden.
+			or_filters.append(
+				["posting_date", "between", [f"{day} 00:00:00", f"{day} 23:59:59"]]
+			)
 
 	elif reference_doctype:
 		filter_list.append(['reference_doctype', '=', reference_doctype])
@@ -403,6 +431,11 @@ def _clinical_note_list_filters(kwargs: dict) -> tuple[list, list | None]:
 		filter_list.append(['posting_date', '>=', posting_date_from])
 	elif posting_date_to:
 		filter_list.append(['posting_date', '<=', posting_date_to])
+
+	# Healthcare Settings → Hide Note with No Visit: drop orphan OP notes
+	# (e.g. OPDX-* reconcile rows that never resolved a Patient Visit link).
+	if _hide_note_with_no_visit_enabled():
+		filter_list.append(["reference_document", "is", "set"])
 
 	return filter_list, or_filters  # or_filters reserved; admission uses inpatient_admission only
 
@@ -464,6 +497,7 @@ def get_clinical_notes(**kwargs):
 			'note',
 			'reference_doctype',
 			'reference_document',
+			'reference_name',
 			'inpatient_admission',
 			'branch',
 			'creation',
@@ -475,6 +509,10 @@ def get_clinical_notes(**kwargs):
 		order_by='posting_date desc',
 		ignore_permissions=ignore_permissions,
 	)
+	if _hide_note_with_no_visit_enabled():
+		dropped = sum(1 for n in clinical_notes if not _clinical_note_has_visit_reference(n))
+		clinical_notes = [n for n in clinical_notes if _clinical_note_has_visit_reference(n)]
+		total_count = max(0, int(total_count or 0) - dropped)
 	_enrich_clinical_note_rows(clinical_notes)
 	_attach_visit_encounter_dates(clinical_notes)
 
