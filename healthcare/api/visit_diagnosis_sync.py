@@ -22,14 +22,16 @@ def _strip(value) -> str:
 
 
 def _resolve_patient_visit(visit_num: str, patient: str | None = None) -> str | None:
-	"""Resolve import visit number to Patient Visit name (case_no)."""
+	"""Resolve import visit number to Patient Visit name (case_no / old_trans_num)."""
 	key = _strip(visit_num)
 	if not key:
 		return None
 	if frappe.db.exists("Patient Visit", key):
 		return key
 
-	for field in ("case_no", "name"):
+	for field in ("case_no", "name", "old_trans_num"):
+		if not frappe.get_meta("Patient Visit").has_field(field):
+			continue
 		name = frappe.db.get_value("Patient Visit", {field: key}, "name")
 		if name:
 			return name
@@ -38,25 +40,51 @@ def _resolve_patient_visit(visit_num: str, patient: str | None = None) -> str | 
 	if plain:
 		if frappe.db.exists("Patient Visit", plain):
 			return plain
-		name = frappe.db.get_value("Patient Visit", {"case_no": plain}, "name")
-		if name:
-			return name
+		for field in ("case_no", "old_trans_num"):
+			if not frappe.get_meta("Patient Visit").has_field(field):
+				continue
+			name = frappe.db.get_value("Patient Visit", {field: plain}, "name")
+			if name:
+				return name
 
 	if patient and frappe.db.exists("Patient", patient):
-		for field in ("case_no", "name"):
+		for field in ("case_no", "name", "old_trans_num"):
+			if not frappe.get_meta("Patient Visit").has_field(field):
+				continue
 			name = frappe.db.get_value(
 				"Patient Visit", {"patient": patient, field: key}, "name"
 			)
 			if name:
 				return name
 		if plain:
-			name = frappe.db.get_value(
-				"Patient Visit", {"patient": patient, "case_no": plain}, "name"
-			)
-			if name:
-				return name
+			for field in ("case_no", "old_trans_num"):
+				if not frappe.get_meta("Patient Visit").has_field(field):
+					continue
+				name = frappe.db.get_value(
+					"Patient Visit", {"patient": patient, field: plain}, "name"
+				)
+				if name:
+					return name
 
 	return None
+
+
+def patient_visit_lookup_keys(visit_name: str | None) -> list[str]:
+	"""ERP visit name plus any Oracle/legacy ids stored on it (old_trans_num, case_no)."""
+	visit_name = _strip(visit_name)
+	if not visit_name:
+		return []
+	keys = [visit_name]
+	meta = frappe.get_meta("Patient Visit")
+	if frappe.db.exists("Patient Visit", visit_name):
+		fields = [f for f in ("case_no", "old_trans_num") if meta.has_field(f)]
+		if fields:
+			row = frappe.db.get_value("Patient Visit", visit_name, fields, as_dict=True) or {}
+			for field in fields:
+				val = _strip(row.get(field))
+				if val and val not in keys:
+					keys.append(val)
+	return keys
 
 
 def _resolve_inpatient_admission(admission_num: str, patient: str | None = None) -> str | None:

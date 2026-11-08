@@ -108,6 +108,23 @@ def _enrich_entry_practitioners_for_display(doc) -> None:
 			row.healthcare_practitioner_name = parent_name
 
 
+def _hide_deduplicate_prescription_enabled() -> bool:
+	"""Healthcare Settings → Hide Deduplicate Prescription."""
+	return bool(cint(frappe.db.get_single_value("Healthcare Settings", "hide_deduplicate_prescription")))
+
+
+def _filter_deduplicate_medication_entries(entries):
+	"""Drop HIS re-prescription lines flagged ``is_deduplicate`` when the setting is on."""
+	if not entries or not _hide_deduplicate_prescription_enabled():
+		return entries
+	filtered = []
+	for e in entries:
+		flag = e.get("is_deduplicate") if isinstance(e, dict) else getattr(e, "is_deduplicate", 0)
+		if not cint(flag):
+			filtered.append(e)
+	return filtered
+
+
 @frappe.whitelist()
 def get_medication_orders(
 	limit=50,
@@ -174,8 +191,51 @@ def get_medication_orders(
 			conditions.append('care_context = %(care_context)s')
 			params['care_context'] = care_context
 		if patient_encounter:
-			conditions.append('patient_encounter = %(patient_encounter)s')
-			params['patient_encounter'] = patient_encounter
+			# Visit panel: linked encounter / Oracle visit_cd, plus same patient+day
+			# (legacy imports often keep the wrong parent posting_date but correct line cr_date).
+			from healthcare.api.visit_diagnosis_sync import patient_visit_lookup_keys
+
+			visit_keys = patient_visit_lookup_keys(patient_encounter)
+			params["patient_encounter"] = patient_encounter
+			visit_match = ["patient_encounter = %(patient_encounter)s"]
+			if frappe.get_meta("Patient Medication Order").has_field("visit_cd"):
+				key_placeholders = []
+				for i, key in enumerate(visit_keys):
+					pname = f"visit_key_{i}"
+					key_placeholders.append(f"%({pname})s")
+					params[pname] = key
+				visit_match.append(f"visit_cd IN ({', '.join(key_placeholders)})")
+
+			visit_row = frappe.db.get_value(
+				"Patient Visit",
+				patient_encounter,
+				["patient", "encounter_date"],
+				as_dict=True,
+			) or {}
+			visit_patient = (visit_row.get("patient") or "").strip()
+			encounter_date = visit_row.get("encounter_date")
+			if visit_patient and encounter_date:
+				params["visit_patient"] = visit_patient
+				params["encounter_date"] = encounter_date
+				same_day = [
+					"patient = %(visit_patient)s",
+					"("
+					"posting_date = %(encounter_date)s"
+					" OR EXISTS ("
+					"  SELECT 1 FROM `tabInpatient Medication Order Entry` ime"
+					"  WHERE ime.parenttype = 'Patient Medication Order'"
+					"    AND ime.parent = `tabPatient Medication Order`.name"
+					"    AND ("
+					"      ime.date = %(encounter_date)s"
+					"      OR DATE(ime.cr_date) = %(encounter_date)s"
+					"      OR LEFT(IFNULL(ime.cr_date, ''), 10) = %(encounter_date)s"
+					"    )"
+					")"
+					")",
+				]
+				visit_match.append("(" + " AND ".join(same_day) + ")")
+
+			conditions.append("(" + " OR ".join(visit_match) + ")")
 		if inpatient_record:
 			conditions.append('inpatient_record = %(inpatient_record)s')
 			params['inpatient_record'] = inpatient_record
@@ -276,6 +336,8 @@ def get_medication_orders(
 			entry_fields.append('stoped_by')
 		if frappe.db.has_column('Inpatient Medication Order Entry', 'stopped_by_name'):
 			entry_fields.append('stopped_by_name')
+		if frappe.db.has_column('Inpatient Medication Order Entry', 'is_deduplicate'):
+			entry_fields.append('is_deduplicate')
 		entries = frappe.get_all(
 			'Inpatient Medication Order Entry',
 			filters={
@@ -404,7 +466,9 @@ def get_medication_orders(
 		if owner and owner not in fullname_cache:
 			fullname_cache[owner] = frappe.utils.get_fullname(owner)
 		o['owner_full_name'] = fullname_cache.get(owner)
-		o['medication_orders'] = entries_by_parent.get(o['name'], [])
+		o['medication_orders'] = _filter_deduplicate_medication_entries(
+			entries_by_parent.get(o['name'], [])
+		)
 		# Older lines may lack child doctor — expose parent doctor for list UI
 		parent_hp = cstr(o.get('practitioner') or o.get('healthcare_practitioner') or '').strip()
 		parent_name = cstr(o.get('healthcare_practitioner_name') or '').strip()
@@ -420,6 +484,11 @@ def get_medication_orders(
 						)
 						or e['healthcare_practitioner']
 					)
+
+	# HIS-only re-prescription docs can end up with no visible lines — drop them
+	# from the list so visit / prescription panels do not show empty duplicates.
+	if _hide_deduplicate_prescription_enabled():
+		orders = [o for o in orders if o.get('medication_orders')]
 
 	# Display name of whoever stopped / held each line — older rows only carry the
 	# ``stoped_by`` link, so resolve the practitioner name in one batched query.
@@ -1406,6 +1475,9 @@ def get_medication_order_by_id(name):
 	# Legacy lines: show the Prescription Type mapped from Oracle ``redundancy_type``.
 	from healthcare.api.prescription_type_mapping import apply_resolved_prescription_type
 
+	payload["medication_orders"] = _filter_deduplicate_medication_entries(
+		payload.get("medication_orders") or []
+	)
 	apply_resolved_prescription_type(payload.get("medication_orders") or [])
 
 	return payload
@@ -1913,6 +1985,7 @@ def get_medication_order_by_inpatient_or_encounter(inpatient_record=None, patien
 	# the type mapped through the Prescription Type doctype so the UI groups them too.
 	from healthcare.api.prescription_type_mapping import apply_resolved_prescription_type
 
+	merged_entries = _filter_deduplicate_medication_entries(merged_entries)
 	apply_resolved_prescription_type(merged_entries)
 
 	result = primary.as_dict()
