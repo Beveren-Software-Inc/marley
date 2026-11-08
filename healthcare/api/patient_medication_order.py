@@ -174,8 +174,30 @@ def get_medication_orders(
 			conditions.append('care_context = %(care_context)s')
 			params['care_context'] = care_context
 		if patient_encounter:
-			conditions.append('patient_encounter = %(patient_encounter)s')
+			# Match Patient Visit link and legacy Oracle visit_cd (old_trans_num).
+			from healthcare.api.visit_diagnosis_sync import patient_visit_lookup_keys
+
+			visit_keys = patient_visit_lookup_keys(patient_encounter)
 			params['patient_encounter'] = patient_encounter
+			if (
+				frappe.get_meta("Patient Medication Order").has_field("visit_cd")
+				and len(visit_keys) > 1
+			):
+				key_placeholders = []
+				for i, key in enumerate(visit_keys):
+					pname = f"visit_key_{i}"
+					key_placeholders.append(f"%({pname})s")
+					params[pname] = key
+				conditions.append(
+					"(patient_encounter = %(patient_encounter)s "
+					f"OR visit_cd IN ({', '.join(key_placeholders)}))"
+				)
+			elif frappe.get_meta("Patient Medication Order").has_field("visit_cd"):
+				conditions.append(
+					"(patient_encounter = %(patient_encounter)s OR visit_cd = %(patient_encounter)s)"
+				)
+			else:
+				conditions.append('patient_encounter = %(patient_encounter)s')
 		if inpatient_record:
 			conditions.append('inpatient_record = %(inpatient_record)s')
 			params['inpatient_record'] = inpatient_record

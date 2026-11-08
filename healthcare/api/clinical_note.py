@@ -372,6 +372,24 @@ def _clinical_note_list_filters(kwargs: dict) -> tuple[list, list | None]:
 	or_filters = None
 	if inpatient_admission:
 		filter_list.append(['inpatient_admission', '=', inpatient_admission])
+	elif reference_doctype == "Patient Visit" and reference_document:
+		# Live notes link to Patient Visit; legacy OP history notes link to
+		# VISIT_00_01_HISTORY keys like ``{oracle_visit}-{cr_date}``. Also match
+		# Oracle visit id stored on Patient Visit.old_trans_num.
+		from healthcare.api.visit_diagnosis_sync import patient_visit_lookup_keys
+
+		visit_keys = patient_visit_lookup_keys(reference_document)
+		visit_patient = frappe.db.get_value("Patient Visit", reference_document, "patient")
+		if visit_patient and not patient:
+			filter_list.append(["patient", "=", visit_patient])
+		or_filters = [
+			["reference_document", "=", reference_document],
+			["reference_name", "=", reference_document],
+		]
+		for key in visit_keys:
+			or_filters.append(["reference_document", "like", f"{key}-%"])
+			or_filters.append(["reference_name", "like", f"{key}-%"])
+
 	elif reference_doctype:
 		filter_list.append(['reference_doctype', '=', reference_doctype])
 		if reference_document:
