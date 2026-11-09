@@ -1306,6 +1306,7 @@ def get_lab_tests(
 	pending_review=False,
 	pipeline_pending=False,
 	is_outsourced=None,
+	is_legacy_import=None,
 	from_date=None,
 	to_date=None,
 	template=None,
@@ -1332,6 +1333,11 @@ def get_lab_tests(
 		if isinstance(is_outsourced, str):
 			is_outsourced = is_outsourced == "1"
 		filters["is_outsourced"] = 1 if is_outsourced else 0
+
+	if is_legacy_import is not None:
+		if isinstance(is_legacy_import, str):
+			is_legacy_import = is_legacy_import in ("1", "true", "True", "yes")
+		filters["is_legacy_import"] = 1 if is_legacy_import else 0
 
 	nurse_templates = _nurse_lab_test_template_names(by_nurse)
 	or_filters, template_empty = _apply_lab_test_template_list_filter(

@@ -707,7 +707,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { Navigate, useSearchParams } from 'react-router-dom'
 import { useCareContext } from '../providers/CareContextProvider'
-import { ArrowUpRight, FlaskConical, Droplet, History, Clock, TestTube2, Tags, Layers } from 'lucide-react'
+import { ArrowUpRight, FlaskConical, Droplet, History, Clock, TestTube2, Tags, Layers, Archive } from 'lucide-react'
 import { PatientCareHeader } from '../components/patients/PatientCareHeader'
 import { LabTestList, type LabTestListBatchSaveRef } from '../components/labTests/LabTestList'
 import { LabBookedRequestList } from '../components/labTests/LabBookedRequestList'
@@ -725,7 +725,7 @@ import { NursingInventoryDashboard } from '../components/nursingInventory/Nursin
 import { fetchLabTestSamples, fetchSampleTypes, type LabTestSampleOption, type LinkFieldOption } from '../services/common'
 import { fetchHealthcarePortalSettings } from '../services/healthcareSettings'
 
-type LabTab = 'pending-lab-tests' | 'lab-tests' | 'sample-collection' | 'lab-history'
+type LabTab = 'pending-lab-tests' | 'lab-tests' | 'sample-collection' | 'lab-history' | 'legacy-import'
 
 type SetupTab = 'lab-setup' | 'samples' | 'sample-types'
 
@@ -734,6 +734,7 @@ const VALID_LAB_TABS: LabTab[] = [
   'sample-collection',
   'lab-tests',
   'lab-history',
+  'legacy-import',
 ]
 
 const SETUP_NAV_CARDS = [
@@ -788,6 +789,13 @@ const NAV_CARDS = [
     icon: History,
     color: 'bg-teal-50 text-teal-700 border-teal-200',
     iconColor: 'text-teal-600',
+  },
+  {
+    id: 'legacy-import' as LabTab,
+    title: 'Legacy Import',
+    icon: Archive,
+    color: 'bg-amber-50 text-amber-800 border-amber-200',
+    iconColor: 'text-amber-700',
   },
 ]
 
@@ -1300,6 +1308,15 @@ export const LabPage = () => {
             <div className="flex flex-col flex-1 min-h-0 p-1 overflow-auto">
               <LabTestHistory patientId={selectedPatient} onPatientChange={(p) => handlePatientSelect(p)} />
             </div>
+          )}
+          {resolvedTab === 'legacy-import' && (
+            <LabTestList
+              patient={selectedPatient}
+              key={`legacy-${labTestRefreshKey}`}
+              isLegacyImport
+              onPatientClick={handlePatientSelect}
+              hideAmount={isLabTechnologist}
+            />
           )}
         </DashboardCard>
 

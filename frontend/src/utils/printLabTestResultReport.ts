@@ -2,6 +2,8 @@ import { fetchLabRequestReview } from '../services/serviceRequests'
 
 export const LAB_TEST_PRINT_FORMAT = 'Lab Test Print'
 export const LAB_TEST_EXTERNAL_PRINT_FORMAT = 'Lab Test External Print'
+/** Same Laboratory Report look, built from legacy ``lab_test_lines`` children. */
+export const LAB_TEST_LEGACY_PRINT_FORMAT = 'Lab Test Legacy Print'
 
 /**
  * Open a Lab Test print view.

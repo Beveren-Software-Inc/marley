@@ -384,18 +384,9 @@ def _sections_html(lab_tests, cache) -> str:
 	return "".join(parts)
 
 
-@frappe.whitelist()
-def render_lab_test_result_report(doc):
-	"""Jinja method + whitelisted: full body HTML for the Laboratory Report."""
-	if isinstance(doc, str):
-		doc = frappe.get_doc("Lab Test", doc)
-
-	lab_tests = _resolve_group_lab_tests(doc)
-	cache: dict = {}
-	sections = _sections_html(lab_tests, cache)
-
+def _laboratory_report_shell(doc, sections: str) -> str:
+	"""Shared Laboratory Report chrome (header / note / signatures)."""
 	note = (doc.get("lab_test_comment") or "").strip()
-
 	return f"""
 	<style>
 		/* Force colors in browser print + PDF (class CSS alone is often overridden). */
@@ -451,6 +442,107 @@ def render_lab_test_result_report(doc):
 		</table>
 	</div>
 	"""
+
+
+@frappe.whitelist()
+def render_lab_test_result_report(doc):
+	"""Jinja method + whitelisted: full body HTML for the Laboratory Report."""
+	if isinstance(doc, str):
+		doc = frappe.get_doc("Lab Test", doc)
+
+	lab_tests = _resolve_group_lab_tests(doc)
+	cache: dict = {}
+	sections = _sections_html(lab_tests, cache)
+	return _laboratory_report_shell(doc, sections)
+
+
+def _legacy_lab_test_lines(doc) -> list:
+	"""LAB 00-04 child rows for a legacy-imported Lab Test parent."""
+	rows = list(doc.get("lab_test_lines") or [])
+	if rows:
+		return rows
+	name = doc.get("name")
+	if not name:
+		return []
+	return frappe.get_all(
+		"Lab Test Line",
+		filters={"parent": name, "parenttype": "Lab Test"},
+		fields=[
+			"lab_group_num",
+			"group_name",
+			"lab_sub_num",
+			"lab_result_value",
+			"sr_num",
+			"idx",
+		],
+		order_by="sr_num asc, idx asc",
+	)
+
+
+def _legacy_group_label(group_code: str, group_name: str, cache: dict) -> str:
+	label = (group_name or "").strip()
+	if label:
+		return label
+	code = (group_code or "").strip()
+	if not code:
+		return "Lab Test"
+	tpl = _template_info(code, cache)
+	return tpl.get("lab_test_name") or code
+
+
+def _sections_html_from_legacy_lines(doc, cache) -> str:
+	"""Group ``lab_test_lines`` panels into the same section layout as Lab Test Print."""
+	lines = _legacy_lab_test_lines(doc)
+	if not lines:
+		return _section_html_from_rows(
+			doc.get("lab_test_name") or doc.get("template") or doc.name,
+			[_result_row_html("—", "", "", "", "")],
+		)
+
+	buckets: OrderedDict[str, list] = OrderedDict()
+	for line in lines:
+		if hasattr(line, "as_dict"):
+			line = line.as_dict()
+		group_code = (line.get("lab_group_num") or doc.get("template") or doc.name or "").strip()
+		buckets.setdefault(group_code, []).append(line)
+
+	sex = doc.get("patient_sex")
+	parts: list[str] = []
+	for group_code, group_lines in buckets.items():
+		body_rows: list[str] = []
+		group_name = ""
+		for line in group_lines:
+			group_name = group_name or (line.get("group_name") or "")
+			code = (line.get("lab_sub_num") or "").strip()
+			result = (line.get("lab_result_value") or "").strip()
+			tpl = _template_info(code, cache) if code else {}
+			name = tpl.get("lab_test_name") or code or "—"
+			uom = tpl.get("lab_test_uom") or ""
+			lo, hi = _range_bounds(tpl, sex) if tpl else (None, None)
+			flag = _flag(result, lo, hi) if result else ""
+			body_rows.append(_result_row_html(name, result, uom, flag, _range_text(lo, hi)))
+		if not body_rows:
+			body_rows = [_result_row_html("—", "", "", "", "")]
+		parts.append(
+			_section_html_from_rows(_legacy_group_label(group_code, group_name, cache), body_rows)
+		)
+	return "".join(parts)
+
+
+@frappe.whitelist()
+def render_lab_test_legacy_result_report(doc):
+	"""Laboratory Report layout for ``is_legacy_import`` Lab Tests (``lab_test_lines``).
+
+	Same look as ``render_lab_test_result_report``, but reads child Lab Test Line rows
+	instead of Service Request sibling docs / custom_result tables. Used only by the
+	``Lab Test Legacy Print`` format — does not change Lab Test Print.
+	"""
+	if isinstance(doc, str):
+		doc = frappe.get_doc("Lab Test", doc)
+
+	cache: dict = {}
+	sections = _sections_html_from_legacy_lines(doc, cache)
+	return _laboratory_report_shell(doc, sections)
 
 
 def _external_meta(doc):
