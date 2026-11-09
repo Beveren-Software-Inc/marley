@@ -1264,6 +1264,7 @@ export const InpatientAdmissionDetails = ({ admissionName, onUpdate }: Inpatient
   const [showAdmissionForm, setShowAdmissionForm] = useState(false)
   const [selectedPackage, setSelectedPackage] = useState<InpatientPackage | null>(null)
   const [selectedOtherServices, setSelectedOtherServices] = useState<string[]>([])
+  const [otherServicesHydrated, setOtherServicesHydrated] = useState(false)
   const [otherServicesRefresh, setOtherServicesRefresh] = useState(0)
   const [showScheduleDischarge, setShowScheduleDischarge] = useState(false)
   const [showMedicalSupervision, setShowMedicalSupervision] = useState(false)
@@ -1561,6 +1562,8 @@ export const InpatientAdmissionDetails = ({ admissionName, onUpdate }: Inpatient
               selectedServices={selectedOtherServices}
               onSelectedServicesChange={setSelectedOtherServices}
               refreshKey={otherServicesRefresh}
+              otherServicesHydrated={otherServicesHydrated}
+              setOtherServicesHydrated={setOtherServicesHydrated}
             />
           )}
           {activeTab === 'diagnosis' && (

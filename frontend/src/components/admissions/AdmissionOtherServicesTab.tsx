@@ -1,5 +1,5 @@
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   checkAdmissionQuotation,
   updateAdmissionQuotationOtherServices,
@@ -17,6 +17,8 @@ interface AdmissionOtherServicesTabProps {
   selectedServices: string[]
   onSelectedServicesChange: (services: string[]) => void
   refreshKey: number
+  otherServicesHydrated: boolean
+  setOtherServicesHydrated: (hydrated: boolean) => void
 }
 
 export const AdmissionOtherServicesTab = ({
@@ -25,6 +27,8 @@ export const AdmissionOtherServicesTab = ({
   selectedServices,
   onSelectedServicesChange,
   refreshKey,
+  otherServicesHydrated,
+  setOtherServicesHydrated,
 }: AdmissionOtherServicesTabProps) => {
   const [packageData, setPackageData] =
     useState<AdmissionPackageDetailsResponse | null>(null)
@@ -43,7 +47,6 @@ export const AdmissionOtherServicesTab = ({
   const [loadingOptions, setLoadingOptions] = useState(false)
   const [pickerOpen, setPickerOpen] = useState(false)
 
-  const hydratedSelection = useRef(false)
 
   const activePackage = selectedPackage || packageData?.active_package || null
 
@@ -72,7 +75,7 @@ export const AdmissionOtherServicesTab = ({
       const packageName =
         selectedPackage?.name || details.active_package?.name
 
-      if (!packageName || packageName === '__custom__') {
+      if (!packageName) {
         setSubmitted(false)
         setQuotationName(null)
         setSavedServices([])
@@ -88,11 +91,11 @@ export const AdmissionOtherServicesTab = ({
       setQuotationName(quotation.exists ? quotation.quotation_name || null : null)
       setSavedServices(Array.from(new Set(quotation.other_services || [])))
 
-      if ((quotation.docstatus === 1 || !hydratedSelection.current) && quotation.other_services) {
+      if ((quotation.docstatus === 1 || !otherServicesHydrated) && quotation.other_services) {
         onSelectedServicesChange(
           Array.from(new Set(quotation.other_services)),
         )
-        hydratedSelection.current = true
+        setOtherServicesHydrated(true)
       }
     } catch (err) {
       setError(
@@ -107,6 +110,8 @@ export const AdmissionOtherServicesTab = ({
     admissionName,
     onSelectedServicesChange,
     refreshKey,
+    otherServicesHydrated,
+    setOtherServicesHydrated,
     selectedPackage?.name,
   ])
 
