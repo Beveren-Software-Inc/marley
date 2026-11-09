@@ -3671,7 +3671,7 @@ def _parse_admission_other_services(other_services=None, package=None):
 
 	These rows are informational quotation metadata only; they are never quotation items.
 	"""
-	raw = other_services
+	raw = [] if other_services is None else other_services
 	if isinstance(raw, str):
 		raw = raw.strip()
 		if raw:
@@ -4441,9 +4441,11 @@ def create_admission_quotation(
 				"submitted": True,
 				"message": _("Quotation {0} is submitted and cannot be modified").format(existing_quotation.name),
 			}
+		existing_quotation.check_permission("write")
+
 		services = _parse_admission_other_services(other_services, package=package)
 		_set_quotation_additional_services(existing_quotation, services)
-		existing_quotation.save(ignore_permissions=True)
+		existing_quotation.save()
 		return {
 			"success": True,
 			"quotation_name": existing_quotation.name,
@@ -4561,69 +4563,85 @@ def create_admission_quotation(
 		'message': _('Quotation {0} created successfully (Draft)').format(quotation.name)
 	}
 
-
 @frappe.whitelist()
 def update_admission_quotation_other_services(admission_name, package_name, other_services):
-	"""Replace only additional-service metadata on an existing Draft quotation."""
-	if not admission_name or not package_name:
-		frappe.throw(_("Admission and package are required"))
-	name = frappe.db.get_value(
-		"Quotation",
-		{"custom_inpatient_admission": admission_name, "custom_package": package_name,
-		 "docstatus": ["<", 2]},
-		"name", order_by="modified desc",
-	)
-	if not name:
-		frappe.throw(_("No active quotation exists for this admission and package"))
-	quotation = frappe.get_doc("Quotation", name)
-	quotation.check_permission("write")
-	if quotation.docstatus != 0:
-		frappe.throw(_("Only Draft quotations can be updated"))
-	package = frappe.get_doc("Inpatient Package", package_name)
-	services = _parse_admission_other_services(other_services, package=package)
-	_set_quotation_additional_services(quotation, services)
-	quotation.save()
-	return {
-		"success": True, "quotation_name": quotation.name,
-		"other_services": services,
-		"message": _("Quotation {0} additional services updated").format(quotation.name),
-	}
+    """Replace only additional-service metadata on an existing Draft quotation."""
+    if not admission_name or not package_name:
+        frappe.throw(_("Admission and package are required"))
 
+    is_custom = package_name == "__custom__"
+    package_filter = ["is", "not set"] if is_custom else package_name
+
+    name = frappe.db.get_value(
+        "Quotation",
+        {
+            "custom_inpatient_admission": admission_name,
+            "custom_package": package_filter,
+            "docstatus": ["<", 2],
+        },
+        "name",
+        order_by="modified desc",
+    )
+
+    if not name:
+        frappe.throw(_("No active quotation exists for this admission and package"))
+
+    quotation = frappe.get_doc("Quotation", name)
+    quotation.check_permission("write")
+
+    if quotation.docstatus != 0:
+        frappe.throw(_("Only Draft quotations can be updated"))
+
+    package = None if is_custom else frappe.get_doc("Inpatient Package", package_name)
+
+    services = _parse_admission_other_services(other_services, package=package)
+    _set_quotation_additional_services(quotation, services)
+    quotation.save()
+
+    return {
+        "success": True,
+        "quotation_name": quotation.name,
+        "other_services": services,
+        "message": _("Quotation {0} additional services updated").format(quotation.name),
+    }
 
 @frappe.whitelist()
 def check_admission_quotation(admission_name, package_name):
-	"""Check if a quotation already exists for this admission and package"""
-	
-	if not admission_name or not package_name:
-		return {'exists': False}
-	
-	# Check for existing quotation
-	existing = frappe.db.get_value(
-		'Quotation',
-		{
-			'custom_inpatient_admission': admission_name,
-			'custom_package': package_name,
-			'docstatus': ['<', 2]  # Not cancelled
-		},
-		['name', 'docstatus'],
-		order_by='modified desc',
-		as_dict=True
-	)
-	
-	if existing:
-		quotation = frappe.get_doc('Quotation', existing.name)
-		return {
-			'exists': True,
-			'quotation_name': existing.name,
-			'docstatus': existing.docstatus,
-			'other_services': [
-				row.healthcare_service_template
-				for row in (quotation.get('custom_additional_services') or [])
-				if row.healthcare_service_template
-			],
-		}
-	
-	return {'exists': False}
+    """Check if a quotation already exists for this admission and package."""
+
+    if not admission_name or not package_name:
+        return {"exists": False}
+
+    is_custom = package_name == "__custom__"
+    package_filter = ["is", "not set"] if is_custom else package_name
+
+    existing = frappe.db.get_value(
+        "Quotation",
+        {
+            "custom_inpatient_admission": admission_name,
+            "custom_package": package_filter,
+            "docstatus": ["<", 2],
+        },
+        ["name", "docstatus"],
+        order_by="modified desc",
+        as_dict=True,
+    )
+
+    if existing:
+        quotation = frappe.get_doc("Quotation", existing.name)
+
+        return {
+            "exists": True,
+            "quotation_name": existing.name,
+            "docstatus": existing.docstatus,
+            "other_services": [
+                row.healthcare_service_template
+                for row in (quotation.get("custom_additional_services") or [])
+                if row.healthcare_service_template
+            ],
+        }
+
+    return {"exists": False}
 
 
 @frappe.whitelist()
