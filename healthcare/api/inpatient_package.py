@@ -360,6 +360,11 @@ def get_inpatient_packages(category=None, active_only=True):
 				)
 				dp["duration_name"] = duration_name or dp.duration_class
 		pkg["duration_pricing"] = duration_pricing
+		pkg["services"] = frappe.get_all(
+			"Inpatient Package Service",
+			filters={"parent": pkg.name},
+			fields=["service_type", "reference_doctype", "reference"],
+		)
 
 	return {
 		"packages": packages,

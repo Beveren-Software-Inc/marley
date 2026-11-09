@@ -6,11 +6,13 @@ import {
   ADMISSION_UI_STATUS_DISCHARGE_IN_PROGRESS,
   type InpatientRecord,
   type InpatientPackage,
+  fetchAdmissionPackageDetails,
   NO_PACKAGE,
 } from '../../services/inpatientRecords'
 import { StatusPill } from '../ui/StatusPill'
 import { PackageSelectionModal } from './PackageSelectionModal'
 import { AdmissionPackageTab } from './AdmissionPackageTab'
+import { AdmissionOtherServicesTab } from './AdmissionOtherServicesTab'
 import { AdmissionFormModal } from './AdmissionFormModal'
 import { ScheduleDischargeModal } from './ScheduleDischargeModal'
 import { ModifyMedicalSupervisionModal } from './ModifyMedicalSupervisionModal'
@@ -53,7 +55,7 @@ const STATUS_COLORS: Record<string, string> = {
   'Cancelled': 'danger',
 } as const
 
-type TabType = 'details' | 'package' | 'diagnosis' | 'lab_tests' | 'medicine_given' | 'prescriptions' | 'progress_notes' | 'signatures'
+type TabType = 'details' | 'package' | 'other_services' | 'diagnosis' | 'lab_tests' | 'medicine_given' | 'prescriptions' | 'progress_notes' | 'signatures'
 
 interface InpatientAdmissionDetailsProps {
   admissionName: string
@@ -1261,6 +1263,8 @@ export const InpatientAdmissionDetails = ({ admissionName, onUpdate }: Inpatient
   const [showPackages, setShowPackages] = useState(false)
   const [showAdmissionForm, setShowAdmissionForm] = useState(false)
   const [selectedPackage, setSelectedPackage] = useState<InpatientPackage | null>(null)
+  const [selectedOtherServices, setSelectedOtherServices] = useState<string[]>([])
+  const [otherServicesRefresh, setOtherServicesRefresh] = useState(0)
   const [showScheduleDischarge, setShowScheduleDischarge] = useState(false)
   const [showMedicalSupervision, setShowMedicalSupervision] = useState(false)
 
@@ -1313,8 +1317,27 @@ export const InpatientAdmissionDetails = ({ admissionName, onUpdate }: Inpatient
   const handleAdmissionComplete = () => {
     setShowAdmissionForm(false)
     setSelectedPackage(null)
+    setOtherServicesRefresh((value) => value + 1)
     loadRecord()
     onUpdate?.()
+  }
+
+  const handleStartAdmission = async () => {
+    if (selectedPackage) {
+      setShowAdmissionForm(true)
+      return
+    }
+    try {
+      const packageDetails = await fetchAdmissionPackageDetails(admissionName)
+      if (packageDetails.active_package) {
+        setSelectedPackage(packageDetails.active_package)
+        setShowAdmissionForm(true)
+      } else {
+        setShowPackages(true)
+      }
+    } catch {
+      setShowPackages(true)
+    }
   }
 
   const handleDischargeScheduled = () => {
@@ -1375,6 +1398,9 @@ export const InpatientAdmissionDetails = ({ admissionName, onUpdate }: Inpatient
     ...(canViewPackageTab
       ? [{ id: 'package' as TabType, label: 'Package', icon: Package, count: 0 }]
       : []),
+    ...(canViewPackageTab
+      ? [{ id: 'other_services' as TabType, label: 'Other Services', icon: Plus, count: 0 }]
+      : []),
     { id: 'diagnosis' as TabType, label: 'Diagnoses', icon: Stethoscope, count: diagnoses.length },
     { id: 'lab_tests' as TabType, label: 'Lab Tests', icon: FlaskConical, count: labTests.length },
     { id: 'medicine_given' as TabType, label: 'Medicine Given', icon: Pill, count: medicineGiven.length + missedMedicine.length },
@@ -1423,7 +1449,7 @@ export const InpatientAdmissionDetails = ({ admissionName, onUpdate }: Inpatient
             {record.status === 'Admission Scheduled' && (
               <>
                 <button
-                  onClick={() => setShowPackages(true)}
+                  onClick={() => void handleStartAdmission()}
                   className="px-4 py-2 bg-primary text-white text-sm font-medium rounded-md hover:bg-primary/90 transition-colors"
                 >
                   Admit Patient
@@ -1432,6 +1458,7 @@ export const InpatientAdmissionDetails = ({ admissionName, onUpdate }: Inpatient
                   type="button"
                   onClick={() => {
                     setSelectedPackage(NO_PACKAGE)
+                    setSelectedOtherServices([])
                     setShowPackages(false)
                     setShowAdmissionForm(true)
                   }}
@@ -1527,6 +1554,15 @@ export const InpatientAdmissionDetails = ({ admissionName, onUpdate }: Inpatient
               }}
             />
           )}
+          {activeTab === 'other_services' && canViewPackageTab && (
+            <AdmissionOtherServicesTab
+              admissionName={admissionName}
+              selectedPackage={selectedPackage}
+              selectedServices={selectedOtherServices}
+              onSelectedServicesChange={setSelectedOtherServices}
+              refreshKey={otherServicesRefresh}
+            />
+          )}
           {activeTab === 'diagnosis' && (
             <DiagnosesTab
               diagnoses={diagnoses}
@@ -1573,8 +1609,9 @@ export const InpatientAdmissionDetails = ({ admissionName, onUpdate }: Inpatient
           admissionNo={record.name}
           onSelect={(pkg) => {
             setSelectedPackage(pkg)
+            setSelectedOtherServices([])
             setShowPackages(false)
-            setShowAdmissionForm(true)
+            setActiveTab('other_services')
           }}
           onClose={() => setShowPackages(false)}
         />
@@ -1584,8 +1621,9 @@ export const InpatientAdmissionDetails = ({ admissionName, onUpdate }: Inpatient
         <AdmissionFormModal
           admissionNo={record.name}
           selectedPackage={selectedPackage}
+          otherServices={selectedOtherServices}
           onComplete={handleAdmissionComplete}
-          onClose={() => { setShowAdmissionForm(false); setSelectedPackage(null) }}
+          onClose={() => setShowAdmissionForm(false)}
         />
       )}
 

@@ -1791,12 +1791,15 @@ def get_service_request_templates(template_dt, search=None, department=None, is_
 		return [{'name': t.name, 'label': t.activity_type or t.name} for t in templates]
 
 	elif template_dt == 'Healthcare Service Template' and frappe.db.exists("DocType", "Healthcare Service Template"):
-		if search:
-			filters['service_name'] = ['like', f'%{search}%']
+		template_search = None
+		if search and str(search).strip():
+			like = f'%{str(search).strip()}%'
+			template_search = [['name', 'like', like], ['service_name', 'like', like]]
 		filters['disabled'] = 0
 		templates = frappe.get_all(
 			'Healthcare Service Template',
 			filters=filters,
+			or_filters=template_search,
 			fields=['name', 'service_name'],
 			limit=50,
 			order_by='service_name'
