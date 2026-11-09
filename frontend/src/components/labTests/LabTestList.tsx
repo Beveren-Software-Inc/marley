@@ -1717,6 +1717,10 @@ import { LabTestSampleCollectionModal } from './LabTestSampleCollectionModal'
 import { AttachLabTestDocumentModal } from './AttachLabTestDocumentModal'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 import { PortalActionsMenu } from '../ui/PortalActionsMenu'
+import {
+  LAB_TEST_LEGACY_PRINT_FORMAT,
+  openLabTestResultReportPrint,
+} from '../../utils/printLabTestResultReport'
 import { PaginationControls, LoadMoreControls, DEFAULT_PAGE_SIZE, type PageSize } from '../ui/PaginationControls'
 import { toast } from '../../hooks/useToast'
 import {
@@ -1726,7 +1730,7 @@ import {
   isGroupedLabRequestFinished,
   labResultLockReason,
 } from '../../config/permissions'
-import { Search, X, ChevronDown, ChevronRight, ArrowDown, ArrowUp, AlertTriangle, ShieldAlert, Trash2, Download, Paperclip } from 'lucide-react'
+import { Search, X, ChevronDown, ChevronRight, ArrowDown, ArrowUp, AlertTriangle, ShieldAlert, Trash2, Download, Paperclip, Printer } from 'lucide-react'
 import { createPortal } from 'react-dom'
 import { useCardFilters, useCardHeaderSlot, useCardLeadingSlot, useDashboardCompactClinical, usePreferCardLoadMore } from '../../contexts/CardFilterContext'
 import { useBatchLabTestResults } from '../../hooks/useBatchLabTestResults'
@@ -1752,6 +1756,7 @@ import {
 } from '../ui/IsMedicalSelect'
 import {
   expandLegacyLabTestsForDisplay,
+  formatLabRangeBound,
   isLegacyHistoryLabRow,
   resolveLabTestDocName,
 } from './labTestDisplayUtils'
@@ -2458,6 +2463,7 @@ export const LabTestList = ({
   batchSaveRef,
   doctorLabDefaults = false,
   pipelinePending = false,
+  isLegacyImport = false,
   title = 'Lab Tests',
   onAdd,
   addButtonTitle = 'New Lab Test',
@@ -2486,6 +2492,8 @@ export const LabTestList = ({
   doctorLabDefaults?: boolean
   /** Only show tests still in the lab pipeline (requested through testing, before doctor review). */
   pipelinePending?: boolean
+  /** Lab page → Legacy Import: only ``is_legacy_import`` parents, print via Lab Test Legacy Print. */
+  isLegacyImport?: boolean
   title?: string
   onAdd?: () => void
   addButtonTitle?: string
@@ -2703,15 +2711,17 @@ export const LabTestList = ({
     filters.template || undefined, filters.practitioner || undefined, byNurse,
     pageSize, (page - 1) * pageSize, defaultsReady, pipelinePending,
     preferLoadMore,
+    isLegacyImport || undefined,
   )
 
-  /** Legacy LAB 00-03 parents expand into LAB 00-04 singles for the list UI. */
+  /** Legacy LAB 00-03 parents expand into LAB 00-04 singles for the list UI.
+   *  The Legacy Import tab keeps parents intact so print covers all child lines. */
   const displayLabTests = useMemo(() => {
-    const expanded = expandLegacyLabTestsForDisplay(labTests)
+    const base = isLegacyImport ? labTests : expandLegacyLabTestsForDisplay(labTests)
     const templateFilter = filters.template?.trim()
-    if (!templateFilter) return expanded
+    if (!templateFilter) return base
 
-    return expanded.filter((lt) => {
+    return base.filter((lt) => {
       if (
         lt.template === templateFilter ||
         lt.lab_test_group === templateFilter ||
@@ -2726,7 +2736,7 @@ export const LabTestList = ({
       }
       return false
     })
-  }, [labTests, filters.template, filters.templateLabel])
+  }, [labTests, filters.template, filters.templateLabel, isLegacyImport])
 
   const [defaultLabTechnician, setDefaultLabTechnician] = useState<LinkFieldOption | null>(null)
 
@@ -3754,25 +3764,31 @@ export const LabTestList = ({
     )
   }
 
+  const renderRangeBound = (value?: number | string | null) => {
+    const formatted = formatLabRangeBound(value)
+    if (!formatted) return <span className="text-slate-300">—</span>
+    return <span className="font-medium">{formatted}</span>
+  }
+
   // Helper: render range cells
   const renderRangeCells = (labTest: LabTest) => (
     <>
       {rangeHeaders.showFemale && (
         <>
-          <td className="px-3 py-1.5 text-center text-sm text-slate-700">{labTest.female_min_range != null ? <span className="font-medium">{labTest.female_min_range}</span> : <span className="text-slate-300">—</span>}</td>
-          <td className="px-3 py-1.5 text-center text-sm text-slate-700">{labTest.female_max_range != null ? <span className="font-medium">{labTest.female_max_range}</span> : <span className="text-slate-300">—</span>}</td>
+          <td className="px-3 py-1.5 text-center text-sm text-slate-700">{renderRangeBound(labTest.female_min_range)}</td>
+          <td className="px-3 py-1.5 text-center text-sm text-slate-700">{renderRangeBound(labTest.female_max_range)}</td>
         </>
       )}
       {rangeHeaders.showMale && (
         <>
-          <td className="px-3 py-1.5 text-center text-sm text-slate-700">{labTest.male_min_range != null ? <span className="font-medium">{labTest.male_min_range}</span> : <span className="text-slate-300">—</span>}</td>
-          <td className="px-3 py-1.5 text-center text-sm text-slate-700">{labTest.male_max_range != null ? <span className="font-medium">{labTest.male_max_range}</span> : <span className="text-slate-300">—</span>}</td>
+          <td className="px-3 py-1.5 text-center text-sm text-slate-700">{renderRangeBound(labTest.male_min_range)}</td>
+          <td className="px-3 py-1.5 text-center text-sm text-slate-700">{renderRangeBound(labTest.male_max_range)}</td>
         </>
       )}
       {rangeHeaders.showGeneric && (
         <>
-          <td className="px-3 py-1.5 text-center text-sm text-slate-700">{labTest.min_range != null ? <span className="font-medium">{labTest.min_range}</span> : <span className="text-slate-300">—</span>}</td>
-          <td className="px-3 py-1.5 text-center text-sm text-slate-700">{labTest.max_range != null ? <span className="font-medium">{labTest.max_range}</span> : <span className="text-slate-300">—</span>}</td>
+          <td className="px-3 py-1.5 text-center text-sm text-slate-700">{renderRangeBound(labTest.min_range)}</td>
+          <td className="px-3 py-1.5 text-center text-sm text-slate-700">{renderRangeBound(labTest.max_range)}</td>
         </>
       )}
     </>
@@ -3898,7 +3914,25 @@ export const LabTestList = ({
             )}
           </PortalActionsMenu>
         </div>
-        <PrintFormatDropdown doctype="Lab Test" docName={labTest.name} noLetterhead={0} triggerPrint={1} />
+        {isLegacyImport ? (
+          <button
+            type="button"
+            title="Print Laboratory Report (Legacy Import)"
+            aria-label="Print Laboratory Report"
+            onClick={(e) => {
+              e.stopPropagation()
+              openLabTestResultReportPrint(
+                resolveLabTestDocName(labTest) || labTest.name,
+                LAB_TEST_LEGACY_PRINT_FORMAT,
+              )
+            }}
+            className="inline-flex h-7 w-7 items-center justify-center rounded border border-teal-300 bg-white text-teal-700 hover:bg-teal-50"
+          >
+            <Printer className="h-3.5 w-3.5" />
+          </button>
+        ) : (
+          <PrintFormatDropdown doctype="Lab Test" docName={labTest.name} noLetterhead={0} triggerPrint={1} />
+        )}
       </div>
     </td>
   )
@@ -4867,8 +4901,25 @@ export const LabTestList = ({
                 </p>
               </div>
               <div className="relative flex items-center gap-2">
-                <PrintFormatDropdown doctype="Lab Test" docName={selectedLabTestForDetails} noLetterhead={0} triggerPrint={1}
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-emerald-200/80 bg-white text-primary shadow-sm hover:bg-emerald-50" />
+                {isLegacyImport ? (
+                  <button
+                    type="button"
+                    title="Print Laboratory Report (Legacy Import)"
+                    aria-label="Print Laboratory Report"
+                    onClick={() =>
+                      openLabTestResultReportPrint(
+                        selectedLabTestForDetails,
+                        LAB_TEST_LEGACY_PRINT_FORMAT,
+                      )
+                    }
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-emerald-200/80 bg-white text-primary shadow-sm hover:bg-emerald-50"
+                  >
+                    <Printer className="h-4 w-4" />
+                  </button>
+                ) : (
+                  <PrintFormatDropdown doctype="Lab Test" docName={selectedLabTestForDetails} noLetterhead={0} triggerPrint={1}
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-emerald-200/80 bg-white text-primary shadow-sm hover:bg-emerald-50" />
+                )}
                 <button type="button" onClick={() => setSelectedLabTestForDetails(null)}
                   className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-emerald-800/70 transition hover:bg-emerald-200/50 hover:text-emerald-950" aria-label="Close">
                   <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">

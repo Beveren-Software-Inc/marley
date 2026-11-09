@@ -198,7 +198,8 @@ export async function fetchLabTests(
   template?: string,
   practitioner?: string,
   by_nurse?: boolean,
-  pipeline_pending?: boolean
+  pipeline_pending?: boolean,
+  is_legacy_import?: boolean,
 ): Promise<PaginatedLabTests> {
   const params = new URLSearchParams()
   params.append('limit', limit.toString())
@@ -208,6 +209,7 @@ export async function fetchLabTests(
   if (pending_review) params.append('pending_review', '1')
   if (pipeline_pending) params.append('pipeline_pending', '1')
   if (is_outsourced !== undefined) params.append('is_outsourced', is_outsourced ? '1' : '0')
+  if (is_legacy_import !== undefined) params.append('is_legacy_import', is_legacy_import ? '1' : '0')
   if (from_date) params.append('from_date', from_date)
   if (to_date) params.append('to_date', to_date)
   if (template) params.append('template', template)

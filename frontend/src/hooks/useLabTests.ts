@@ -17,6 +17,7 @@ export function useLabTests(
   pipelinePending: boolean = false,
   /** When true, pages with offset > 0 append instead of replace (card Load more). */
   appendOnOffset?: boolean,
+  isLegacyImport?: boolean,
 ) {
   const [labTests, setLabTests] = useState<LabTest[]>([])
   const [totalCount, setTotalCount] = useState(0)
@@ -41,6 +42,7 @@ export function useLabTests(
         practitioner,
         byNurse,
         pipelinePending,
+        isLegacyImport,
       )
       const shouldAppend = Boolean(appendOnOffset && (offset ?? 0) > 0)
       setLabTests((prev) => (shouldAppend ? [...prev, ...response.data] : response.data))
@@ -50,7 +52,7 @@ export function useLabTests(
     } finally {
       setLoading(false)
     }
-  }, [enabled, patient, status, pendingReview, isOutsourced, fromDate, toDate, template, practitioner, byNurse, limit, offset, pipelinePending, appendOnOffset])
+  }, [enabled, patient, status, pendingReview, isOutsourced, fromDate, toDate, template, practitioner, byNurse, limit, offset, pipelinePending, appendOnOffset, isLegacyImport])
 
   useEffect(() => {
     loadLabTests()

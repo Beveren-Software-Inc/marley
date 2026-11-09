@@ -1,5 +1,19 @@
 import type { LabTest, LabTestLine } from '../../services/labTests'
 
+/**
+ * Reference min/max for list UI.
+ * Whole numbers → ``6``; values with a fraction → up to 3 decimals (``0.600000000`` → ``0.6``).
+ */
+export function formatLabRangeBound(value?: number | string | null): string {
+  if (value === null || value === undefined) return ''
+  const text = String(value).trim().replace(/,/g, '')
+  if (!text) return ''
+  const num = Number(text)
+  if (!Number.isFinite(num)) return String(value).trim()
+  if (Math.abs(num - Math.round(num)) < 1e-9) return String(Math.round(num))
+  return String(parseFloat(num.toFixed(3)))
+}
+
 /** LAB-001, LAB-002, LAB-010 — natural order by template id, not display name. */
 export function compareLabTestTemplateCode(a: string, b: string): number {
   return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' })

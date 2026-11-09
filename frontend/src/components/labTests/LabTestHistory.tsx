@@ -9,6 +9,7 @@ import { searchPatients, fetchPatients, type PatientListItem } from '../../servi
 import { Search, User } from 'lucide-react'
 import { ClearFiltersButton } from '../ui/ClearFiltersButton'
 import { DateFilterInput } from '../ui/DateFilterInput'
+import { formatLabRangeBound } from './labTestDisplayUtils'
 
 interface LabTestHistoryProps {
   patientId?: string
@@ -245,13 +246,9 @@ function cellDirectionArrow(direction?: 'high' | 'low' | null) {
   return null
 }
 
-/** Trim trailing zeros from a numeric bound (8.60 → 8.6). */
+/** Trim trailing zeros / long float noise (0.600000000 → 0.6, 6.000 → 6). */
 function formatRangeBound(value?: number | string | null): string {
-  if (value === null || value === undefined) return ''
-  const text = String(value).trim()
-  if (!text) return ''
-  const num = Number(text)
-  return Number.isFinite(num) ? String(num) : text
+  return formatLabRangeBound(value)
 }
 
 /** Reference min/max for a result — cell bounds first, then the row-level range. */
