@@ -1263,6 +1263,7 @@ export const InpatientAdmissionDetails = ({ admissionName, onUpdate }: Inpatient
   const [showPackages, setShowPackages] = useState(false)
   const [showAdmissionForm, setShowAdmissionForm] = useState(false)
   const [selectedPackage, setSelectedPackage] = useState<InpatientPackage | null>(null)
+  const [resolvedPackage, setResolvedPackage] = useState<InpatientPackage | null>(null)
   const [selectedOtherServices, setSelectedOtherServices] = useState<string[]>([])
   const [otherServicesHydrated, setOtherServicesHydrated] = useState<string | null>(null)
   const [otherServicesRefresh, setOtherServicesRefresh] = useState(0)
@@ -1299,7 +1300,11 @@ export const InpatientAdmissionDetails = ({ admissionName, onUpdate }: Inpatient
     try {
       setLoading(true)
       setError(null)
-      const data = await fetchInpatientRecord(admissionName)
+      const [data, packageDetails] = await Promise.all([
+        fetchInpatientRecord(admissionName),
+        fetchAdmissionPackageDetails(admissionName).catch(() => null),
+      ])
+      if (packageDetails) setResolvedPackage(packageDetails.active_package)
       setRecord(data)
     } catch (err) {
       setError(err instanceof Error ? err : new Error('Failed to fetch admission details'))
@@ -1315,7 +1320,7 @@ export const InpatientAdmissionDetails = ({ admissionName, onUpdate }: Inpatient
   // FIX 6: Coerce to boolean with !! so it is never `boolean | null`
   const canEdit = !!(record && ['Admission Scheduled', 'Admitted', 'Discharge Scheduled'].includes(record.status))
 
-  const otherServicesPackageKey = `${admissionName}:${selectedPackage?.name || record?.inpatient_package || '__unassigned__'}`
+  const otherServicesPackageKey = `${admissionName}:${selectedPackage?.name || resolvedPackage?.name || '__unassigned__'}`
   const previousOtherServicesPackageKey = useRef(otherServicesPackageKey)
   useEffect(() => {
     if (previousOtherServicesPackageKey.current !== otherServicesPackageKey) {
@@ -1567,9 +1572,9 @@ export const InpatientAdmissionDetails = ({ admissionName, onUpdate }: Inpatient
           )}
           {activeTab === 'other_services' && canViewPackageTab && (
             <AdmissionOtherServicesTab
-              key={`${admissionName}:${selectedPackage?.name || record.inpatient_package || '__unassigned__'}`}
+              key={otherServicesPackageKey}
               admissionName={admissionName}
-              selectedPackage={selectedPackage}
+              selectedPackage={selectedPackage || resolvedPackage}
               selectedServices={selectedOtherServices}
               onSelectedServicesChange={setSelectedOtherServices}
               refreshKey={otherServicesRefresh}
