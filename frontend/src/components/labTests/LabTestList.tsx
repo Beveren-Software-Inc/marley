@@ -3873,7 +3873,7 @@ export const LabTestList = ({
             <button type="button" onClick={() => openRemarksModal(labTest.name)}
               className="flex items-center gap-2 w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100">Add Remarks</button>
             {canAttachLabTestDocument(labTest, userRole, { nurseLabContext }) && (
-              <button type="button" onClick={() => { setOpenActionRow(null); setAttachDocLabTest(labTest.name) }}
+              <button type="button" onClick={() => { setOpenActionRow(null); setAttachDocLabTest(resolveLabTestDocName(labTest)) }}
                 className="flex items-center gap-2 w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100">Attach Document…</button>
             )}
             {labTest.status === 'Pending Review' && (

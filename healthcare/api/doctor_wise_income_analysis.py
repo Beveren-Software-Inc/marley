@@ -1082,17 +1082,23 @@ def _bucket_payments(rows) -> dict:
 
 
 def _pos_payment_rows(invoices, from_date, to_date):
-	"""Payment rows of POS invoices (they settle on the invoice, not via Payment Entry)."""
+	"""Payment rows of POS invoices (they settle on the invoice, not via Payment Entry).
+
+	``Sales Invoice Payment.amount`` is the tendered amount. When the patient overpays,
+	``change_amount`` is returned — subtract it so collections match the invoice total
+	(e.g. pay 100 / change 20 on an 80 invoice → 80 collected, not 100).
+	"""
 	if not frappe.db.has_column("Sales Invoice", "is_pos"):
 		return []
 	if not frappe.db.exists("DocType", "Sales Invoice Payment"):
 		return []
 	try:
-		return frappe.db.sql(
+		rows = frappe.db.sql(
 			"""
 			SELECT si.name AS invoice,
 				sip.mode_of_payment AS mode_of_payment,
-				IFNULL(sip.amount, 0) AS allocated
+				IFNULL(sip.amount, 0) AS allocated,
+				IFNULL(si.change_amount, 0) AS change_amount
 			FROM `tabSales Invoice Payment` sip
 			INNER JOIN `tabSales Invoice` si ON si.name = sip.parent
 			WHERE sip.parent IN %(invoices)s
@@ -1109,6 +1115,55 @@ def _pos_payment_rows(invoices, from_date, to_date):
 			message=frappe.get_traceback(),
 		)
 		return []
+
+	# One change_amount per invoice; peel it off cash first, else the largest tender.
+	remaining_change = {}
+	for row in rows:
+		remaining_change[row.invoice] = flt(row.change_amount)
+
+	has_cash = {
+		inv
+		for inv, change in remaining_change.items()
+		if change > 0
+		and any(
+			"cash" in ((r.mode_of_payment or "").strip().lower())
+			for r in rows
+			if r.invoice == inv
+		)
+	}
+
+	out = []
+	for row in rows:
+		amount = flt(row.allocated)
+		inv = row.invoice
+		mode = (row.mode_of_payment or "").strip().lower()
+		if inv in has_cash and "cash" in mode and remaining_change.get(inv, 0) > 0:
+			deduct = min(amount, remaining_change[inv])
+			amount -= deduct
+			remaining_change[inv] = flt(remaining_change[inv]) - deduct
+		out.append(
+			frappe._dict(
+				invoice=inv,
+				mode_of_payment=row.mode_of_payment,
+				allocated=amount,
+			)
+		)
+
+	# Leftover change (no cash line) comes off the largest tender.
+	by_inv = defaultdict(list)
+	for idx, row in enumerate(out):
+		by_inv[row.invoice].append(idx)
+	for inv, change_left in remaining_change.items():
+		change_left = flt(change_left)
+		if change_left <= 0:
+			continue
+		idxs = by_inv.get(inv) or []
+		if not idxs:
+			continue
+		largest_idx = max(idxs, key=lambda i: flt(out[i].allocated))
+		deduct = min(flt(out[largest_idx].allocated), change_left)
+		out[largest_idx].allocated = flt(out[largest_idx].allocated) - deduct
+	return out
 
 
 def _visit_ledger_payments(invoice_names, from_date, to_date) -> dict:
