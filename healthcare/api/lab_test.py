@@ -1545,7 +1545,11 @@ def _sex_or_default_bounds(sex_min, sex_max, default_min, default_max):
 	smax = _to_float_range(sex_max)
 	if (smin is None and smax is None) or (smin == 0 and smax == 0):
 		return _to_float_range(default_min), _to_float_range(default_max)
-	return smin, smax
+	# Partial sex pairs (e.g. min set, max blank) fill the missing end from defaults.
+	return (
+		_to_float_range(default_min) if smin is None else smin,
+		_to_float_range(default_max) if smax is None else smax,
+	)
 
 
 def _reference_range_bounds(
@@ -2400,12 +2404,15 @@ def get_lab_test(name):
 			and (not row_template or row_template == parent_template)
 		)
 		if is_shared_parent_template and existing_range:
+			# Prefer the sex-specific segment before parsing so
+			# "M: 30 – 70; F: 20 – 60" yields 20–60 for a female patient.
+			selected_range = _sex_range_segment(existing_range, patient_sex) or existing_range
 			row_min, row_max = _normalize_reference_bounds(
-				*_parse_normal_range_text(existing_range)
+				*_parse_normal_range_text(selected_range)
 			)
 			row_out['range_min'] = row_min
 			row_out['range_max'] = row_max
-			row_out['normal_range'] = _sex_range_segment(existing_range, patient_sex) or existing_range
+			row_out['normal_range'] = selected_range
 			continue
 
 		row_tpl_info = (
