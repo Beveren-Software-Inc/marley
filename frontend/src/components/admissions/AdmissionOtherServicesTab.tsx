@@ -14,6 +14,7 @@ import {
 interface AdmissionOtherServicesTabProps {
   admissionName: string
   selectedPackage: InpatientPackage | null
+  onResolvedPackageChange: (pkg: InpatientPackage | null) => void
   selectedServices: string[]
   onSelectedServicesChange: (services: string[]) => void
   refreshKey: number
@@ -24,6 +25,7 @@ interface AdmissionOtherServicesTabProps {
 export const AdmissionOtherServicesTab = ({
   admissionName,
   selectedPackage,
+  onResolvedPackageChange,
   selectedServices,
   onSelectedServicesChange,
   refreshKey,
@@ -58,7 +60,7 @@ export const AdmissionOtherServicesTab = ({
   const selectionIdentity = activePackage
     ? JSON.stringify([admissionName, activePackage.name, quotationName])
     : null
-  const selectionReady = !loading && selectionIdentity === otherServicesHydrated
+  const selectionReady = !loading && !error && selectionIdentity === otherServicesHydrated
 
 
   const includedTemplates = useMemo(
@@ -89,6 +91,7 @@ export const AdmissionOtherServicesTab = ({
         selectedPackage?.name || details.active_package?.name
 
       if (!packageName) {
+        onResolvedPackageChange(details.active_package)
         setSubmitted(false)
         setQuotationName(null)
         setSavedServices([])
@@ -101,6 +104,7 @@ export const AdmissionOtherServicesTab = ({
       )
 
       if (generation !== loadGeneration.current) return
+      onResolvedPackageChange(details.active_package)
       setSubmitted(quotation.docstatus === 1)
       setQuotationName(quotation.exists ? quotation.quotation_name || null : null)
       setSavedServices(Array.from(new Set(quotation.other_services || [])))
@@ -112,6 +116,8 @@ export const AdmissionOtherServicesTab = ({
       }
 
     } catch (err) {
+      if (generation !== loadGeneration.current) return
+      setQuotationName(null)
       setError(
         err instanceof Error
           ? err
@@ -122,6 +128,7 @@ export const AdmissionOtherServicesTab = ({
     }
   }, [
     admissionName,
+    onResolvedPackageChange,
     onSelectedServicesChange,
     refreshKey,
     setOtherServicesHydrated,
