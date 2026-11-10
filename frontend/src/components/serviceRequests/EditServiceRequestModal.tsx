@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import {
   searchPatients,
   fetchPatients,
@@ -139,6 +139,19 @@ export const EditServiceRequestModal = ({
   const [selectedPrice, setSelectedPrice] = useState<number | null>(null)
   /** True when catalog/list price is missing — cost stays editable even after a manual amount is entered. */
   const [allowManualCost, setAllowManualCost] = useState(false)
+  /**
+   * Template + amount as loaded from the server. The saved amount is the price the
+   * user already agreed to (it may already be a manual edit), so the pricing effect
+   * must not replace it with a freshly multiplied catalog price while the template
+   * is unchanged. The patient category multiplier only applies once, when the
+   * template/visit type is first chosen.
+   */
+  const loadedPricingRef = useRef<{ template_dt: string; template_dn: string; cost: number | null } | null>(null)
+  /**
+   * Template key (`dt::dn`) for which the user typed a cost by hand. A manual amount
+   * is final — it is never re-priced (no patient category multiplier re-applied).
+   */
+  const manualCostRef = useRef<string | null>(null)
   const [patientCategory, setPatientCategory] = useState('')
   const [labBasket, setLabBasket] = useState<LabRequestItem[]>([])
   const [lineDiscounts, setLineDiscounts] = useState<Record<string, LabLineDiscount>>({})
@@ -306,6 +319,11 @@ export const EditServiceRequestModal = ({
         const initialCost = (doc.cost as number) ?? null
         setSelectedPrice(initialCost)
         setAllowManualCost(!(initialCost != null && initialCost > 0))
+        loadedPricingRef.current = {
+          template_dt: (doc.template_dt as string) || '',
+          template_dn: (doc.template_dn as string) || '',
+          cost: initialCost != null && Number(initialCost) > 0 ? Number(initialCost) : null,
+        }
 
         const parsedLabItems = parseLabRequestItems(doc.lab_request_items)
         const templateDn = (doc.template_dn as string) || ''
@@ -522,22 +540,44 @@ export const EditServiceRequestModal = ({
         }
         const catalogPrice = match?.price != null ? Number(match.price) : null
         const hasCatalogPrice = catalogPrice != null && catalogPrice > 0
+        const templateKey = `${formData.template_dt}::${formData.template_dn}`
+        // Amount typed by the user for this template — final, never re-priced.
+        const manualForTemplate = manualCostRef.current === templateKey
+        // Keep the amount saved on the request while the template is unchanged: it
+        // already reflects the price resolved when the template was chosen (and any
+        // manual edit). Re-pricing it here would re-apply the patient category
+        // multiplier on every edit.
+        const loadedPricing = loadedPricingRef.current
+        const savedCost =
+          loadedPricing &&
+          loadedPricing.template_dt === formData.template_dt &&
+          loadedPricing.template_dn === formData.template_dn
+            ? loadedPricing.cost
+            : null
+        const effectivePrice = manualForTemplate
+          ? null
+          : savedCost != null && savedCost > 0
+            ? savedCost
+            : catalogPrice
+        const hasEffectivePrice = effectivePrice != null && effectivePrice > 0
         setAllowManualCost(!hasCatalogPrice)
-        if (hasCatalogPrice) {
-          setSelectedPrice(catalogPrice)
+        if (manualForTemplate) {
+          // Leave the hand-typed amount (and its totals) untouched.
+        } else if (hasEffectivePrice) {
+          setSelectedPrice(effectivePrice as number)
           const insPct = Number(match?.discount_pct || 0)
           const insAmt =
             match?.discount_amount != null && Number(match.discount_amount) > 0
               ? Number(match.discount_amount)
               : insPct > 0
-                ? ((catalogPrice as number) * insPct) / 100
+                ? ((effectivePrice as number) * insPct) / 100
                 : 0
           setFormData((prev) => {
             // Prefer saved discount; auto-fill insurance only when empty.
             const hasSavedDisc = Number(prev.discount) !== 0 || Number(prev.discount_amount) !== 0
             return {
               ...prev,
-              cost: catalogPrice as number,
+              cost: effectivePrice as number,
               ...(hasSavedDisc
                 ? {}
                 : {
@@ -1420,6 +1460,8 @@ export const EditServiceRequestModal = ({
                       readOnly={!allowManualCost}
                       onChange={(e) => {
                         if (!allowManualCost) return
+                        // Manual amount: keep it exactly as typed, never re-price it.
+                        manualCostRef.current = `${formData.template_dt}::${formData.template_dn}`
                         const val = e.target.value === '' ? 0 : parseFloat(e.target.value)
                         setSelectedPrice(Number.isNaN(val) ? 0 : val)
                         set('cost', Number.isNaN(val) ? 0 : val)

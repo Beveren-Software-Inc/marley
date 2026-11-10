@@ -40,6 +40,8 @@ function mergePricingIntoRow(
     stock_uom: p.stock_uom || undefined,
     item_name: (p.item_name as string) || itemNameFallback,
     uom_options: Array.isArray(p.uom_options) ? p.uom_options : undefined,
+    // Authoritative server price — clears any manual (hand-typed) rate marker.
+    manual_rate: undefined,
     billing_price_meta: {
       base_rate: Number(base) || 0,
       multiplier: mult,
@@ -240,6 +242,9 @@ export function BillingInvoiceItemsEditor({
     async (idx: number, uomOverride?: string) => {
       const row = itemsRef.current[idx]
       if (!row?.item_code?.trim() || !company?.trim()) return
+      // A hand-typed rate is final: re-pricing it would re-apply the patient category
+      // multiplier on top of the user's amount. Only an explicit UOM change re-prices.
+      if (row.manual_rate && !uomOverride) return
       try {
         const p = await fetchSalesItemPricingForBilling({
           item_code: row.item_code.trim(),
@@ -273,6 +278,8 @@ export function BillingInvoiceItemsEditor({
       for (let idx = 0; idx < snapshot.length; idx++) {
         const row = snapshot[idx]
         if (!row.item_code?.trim()) continue
+        // Never re-price a hand-typed rate (it is already the final amount).
+        if (row.manual_rate) continue
         try {
           const p = await fetchSalesItemPricingForBilling({
             item_code: row.item_code.trim(),
@@ -376,9 +383,16 @@ export function BillingInvoiceItemsEditor({
               min="0"
               step="any"
               value={item.rate}
-              onChange={(e) => patchRow(idx, { rate: Number(e.target.value || 0) })}
+              onChange={(e) =>
+                // Typed rate is final: flag it so nothing re-applies the category multiplier.
+                patchRow(idx, { rate: Number(e.target.value || 0), manual_rate: true })
+              }
             />
-            {item.billing_price_meta && item.billing_price_meta.multiplier !== 1 ? (
+            {item.manual_rate ? (
+              <p className="text-[10px] text-slate-600 mt-1">
+                Manual rate — visit type / patient category multiplier not applied
+              </p>
+            ) : item.billing_price_meta && item.billing_price_meta.multiplier !== 1 ? (
               <p className="text-[10px] text-slate-600 mt-1">
                 Base {formatBase(item.billing_price_meta.base_rate)} × {item.billing_price_meta.multiplier}
                 {item.billing_price_meta.patient_category

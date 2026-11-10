@@ -948,6 +948,11 @@ export interface BillingInvoiceItemInput {
   discount_percentage?: number
   discount_amount?: number
   cost_center?: string
+  /**
+   * True once the user types a rate by hand. A manual rate is never re-priced, so the
+   * patient category / visit type multiplier is not applied again on later changes.
+   */
+  manual_rate?: boolean
   /** Default sales / line UOM from Item (ERPNext resolution) */
   uom?: string
   /** Stock UOM from Item — shown for reference */

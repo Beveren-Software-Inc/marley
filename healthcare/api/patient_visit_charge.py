@@ -251,7 +251,10 @@ def _resolve_charge_lines_for_so(
 
 	`charge_lines` (from the UI) is a list of dicts:
 	    {template, item_code, rate?, qty?, discount_type?, discount_rate?, discount?}
-	When rate is explicitly provided by the UI, it overrides the template rate.
+	When rate is explicitly provided by the UI, it overrides the template rate and
+	is treated as a manual price: the patient category multiplier is not applied
+	again (it is resolved once, when the visit type / patient category prices the
+	line), so editing a price or discount never re-multiplies it.
 	When charge_lines is None (API callers that omit it), visit type defaults are used.
 	When charge_lines is [] (UI unticked / removed every service), return [] — do not
 	fall back to defaults.
@@ -273,19 +276,32 @@ def _resolve_charge_lines_for_so(
 				if not config.get("configured"):
 					continue
 				# Explicit UI rate overrides list rate; insurance discount still applied below.
+				# The UI rate is already the final (multiplied) price the user picked or
+				# typed, so never multiply it again.
 				if ui_rate is not None and ui_rate != "" and flt(ui_rate) > 0:
 					config["rate"] = flt(ui_rate)
 					config["source"] = "manual"
+					manual_pct = flt(config.get("discount_pct") or 0)
+					config["discount_amount"] = (
+						flt(config["rate"] * manual_pct / 100) if manual_pct > 0 else 0
+					)
+					config["net_rate"] = flt(config["rate"]) - flt(config["discount_amount"])
 			elif item_code:
 				from healthcare.controllers.insurance_pricing import charge_list_and_discount, resolve_charge
 
-				base = flt(ui_rate) if ui_rate is not None else 0
+				# A rate sent by the UI was entered/edited by hand (visit charge editor,
+				# reception override). It is final: no category multiplier and no
+				# inclusive-price replacement, otherwise editing a price would re-apply
+				# the multiplier (VIP 2.5, Military 5, ...) on every save.
+				has_manual_rate = ui_rate is not None and ui_rate != ""
+				base = flt(ui_rate) if has_manual_rate else 0
 				charged = resolve_charge(
 					patient=patient,
 					base_rate=base,
 					patient_care_type="OP",
 					item_code=item_code,
 					service_type="OP",
+					manual=has_manual_rate,
 				)
 				parts = charge_list_and_discount(charged)
 				config = {
@@ -294,7 +310,7 @@ def _resolve_charge_lines_for_so(
 					"service_name": cl.get("item_name") or cl.get("service_name") or item_code,
 					"item_code": item_code,
 					"item_name": cl.get("item_name"),
-					"rate": parts["list_rate"] if patient else base,
+					"rate": parts["list_rate"],
 					"discount_pct": parts["discount_pct"],
 					"discount_amount": parts["discount_amount"],
 					"net_rate": parts["net_rate"],
@@ -539,7 +555,9 @@ def get_patient_visit_charge_editor(visit_name: str) -> dict:
 			editable = False
 			locked_reason = "invoiced"
 
-	charge_data = resolve_visit_charge_lines(visit.visit_type)
+	# Price the services for this patient so a service added from the editor already
+	# carries the visit-type / patient-category price (multiplier included once).
+	charge_data = resolve_visit_charge_lines(visit.visit_type, patient=visit.patient)
 	available_services = [
 		{
 			"template": line.get("template"),
@@ -567,6 +585,9 @@ def update_patient_visit_charge(visit_name: str, lines=None) -> dict:
 
 	`lines` is a list of {item_code, item_name, rate, qty, discount} (fixed
 	amount discount). Removing all lines removes the charge entirely.
+	The supplied rate is a manual price (the editor shows the multiplied visit
+	type price): it is billed as-is, the patient category multiplier is never
+	re-applied on edit.
 	Fails when the existing charge has already been invoiced.
 	"""
 	if isinstance(lines, str):

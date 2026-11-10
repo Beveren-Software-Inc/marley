@@ -156,8 +156,16 @@ def resolve_charge(
 	template_dn: str | None = None,
 	service_type: str | None = None,
 	multiplier: float | None = None,
+	manual: bool = False,
 ) -> dict:
 	"""Resolve final charge for a template/item for a patient.
+
+	``manual`` marks a rate the user typed/edited by hand (changing a price or
+	discount on a Patient Visit / Service Request). A manual rate is used as-is:
+	the inclusive insurance price does not replace it and the patient category
+	multiplier (VIP 2.5, Military 5, ...) is not re-applied — the multiplier only
+	applies once, when the visit type / patient category first prices the line.
+	Insurance % discount still applies to the manual rate.
 
 	Returns keys: base_rate, multiplier, rate_before_discount, discount_pct,
 	rate, context, insurance, used_insurance_price
@@ -182,12 +190,17 @@ def resolve_charge(
 		service_type=service_type,
 	)
 
-	insurance_price = get_inclusive_price(inclusive)
-	if insurance_price is not None:
-		base = insurance_price
-		used_insurance_price = True
+	if not manual:
+		insurance_price = get_inclusive_price(inclusive)
+		if insurance_price is not None:
+			base = insurance_price
+			used_insurance_price = True
 
-	if multiplier is None:
+	if manual:
+		# Hand-entered rate: the multiplier was already resolved (or bypassed)
+		# when the visit type / patient category priced the line.
+		multiplier = 1.0
+	elif multiplier is None:
 		if should_apply_category_multiplier(patient):
 			mult, _ = get_category_multiplier(patient) if patient else (1.0, None)
 			multiplier = mult
