@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { resultValuesFromHtml } from '../components/labTests/labTestDisplayUtils'
 import {
   recalculatePanelForServiceRequest,
   saveAndSubmitLabTest,
@@ -52,9 +53,16 @@ export function useBatchLabTestResults(
 
   const getDisplayResult = useCallback(
     (labTest: LabTest) => {
-      const raw =
-        labTest.name in pendingResults ? pendingResults[labTest.name] : (labTest.custom_result ?? '')
-      return stripHtml(String(raw))
+      if (labTest.name in pendingResults) {
+        return stripHtml(String(pendingResults[labTest.name]))
+      }
+      const raw = String(labTest.custom_result ?? '')
+      // Legacy imports keep the result as an HTML table (Panel | Test Code | Result).
+      // Show the Result column values only — stripping the tags would glue the
+      // panel / test name / test code labels to the value (LAB-007-001 0.94).
+      const storedValues = resultValuesFromHtml(raw)
+      if (storedValues.length) return storedValues.join(', ')
+      return stripHtml(raw)
     },
     [pendingResults]
   )

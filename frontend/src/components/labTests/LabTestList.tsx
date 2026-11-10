@@ -1714,7 +1714,6 @@ import { LabTestDetails } from './LabTestDetails'
 import { EditLabTestModal } from './EditLabTestModal'
 import { LabTestReviewModal } from './LabTestReviewModal'
 import { LabTestSampleCollectionModal } from './LabTestSampleCollectionModal'
-import { AttachLabTestDocumentModal } from './AttachLabTestDocumentModal'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 import { PortalActionsMenu } from '../ui/PortalActionsMenu'
 import {
@@ -1724,13 +1723,12 @@ import {
 import { PaginationControls, LoadMoreControls, DEFAULT_PAGE_SIZE, type PageSize } from '../ui/PaginationControls'
 import { toast } from '../../hooks/useToast'
 import {
-  canAttachLabTestDocument,
   canEditLabTestResults,
   canEditLabTestResultForRow,
   isGroupedLabRequestFinished,
   labResultLockReason,
 } from '../../config/permissions'
-import { Search, X, ChevronDown, ChevronRight, ArrowDown, ArrowUp, AlertTriangle, ShieldAlert, Trash2, Download, Paperclip, Printer } from 'lucide-react'
+import { Search, X, ChevronDown, ChevronRight, ArrowDown, ArrowUp, AlertTriangle, ShieldAlert, Trash2, Download, Printer } from 'lucide-react'
 import { createPortal } from 'react-dom'
 import { useCardFilters, useCardHeaderSlot, useCardLeadingSlot, useDashboardCompactClinical, usePreferCardLoadMore } from '../../contexts/CardFilterContext'
 import { useBatchLabTestResults } from '../../hooks/useBatchLabTestResults'
@@ -2776,9 +2774,6 @@ export const LabTestList = ({
   const [editingResult, setEditingResult] = useState<string | null>(null)
   const [editingValue, setEditingValue] = useState<string>('')
 
-  /** Attach / upload document dialog (paperclip icon in the Results column). */
-  const [attachDocLabTest, setAttachDocLabTest] = useState<{ name: string; label?: string } | null>(null)
-
   /** Inline lab technician picker (table column after Results). */
   const [inlineLabTechLabTestName, setInlineLabTechLabTestName] = useState<string | null>(null)
   const [inlineLabTechQuery, setInlineLabTechQuery] = useState('')
@@ -3539,9 +3534,6 @@ export const LabTestList = ({
     const dirty = batch.isDirty(labTest)
     const rowEditable = canEditResultRow(labTest)
     const isEmpty = !displayResult
-    const documentCount = Number(labTest.documents_count || 0)
-    // Attaching a report / scan works before sample collection and after the result is final.
-    const canAttachDocument = canAttachLabTestDocument(labTest, userRole, { nurseLabContext })
     return (
     <td className="px-3 py-1.5 text-sm max-w-[200px]">
       <div className="flex items-center gap-1 min-w-0">
@@ -3596,34 +3588,6 @@ export const LabTestList = ({
           )}
         </div>
       )}
-      {canAttachDocument ? (
-        <button
-          type="button"
-          aria-label="Attach document"
-          title={
-            documentCount > 0
-              ? `${documentCount} document${documentCount === 1 ? '' : 's'} attached — attach another`
-              : 'Attach / upload a report or scan'
-          }
-          onClick={(e) => {
-            e.stopPropagation()
-            setAttachDocLabTest({
-              name: resolveLabTestDocName(labTest),
-              label: (labTest.lab_test_name || labTest.template || '').trim() || undefined,
-            })
-          }}
-          className={`inline-flex h-6 min-w-[1.5rem] shrink-0 items-center justify-center gap-0.5 rounded-md border px-1 transition-colors ${
-            documentCount > 0
-              ? 'border-primary/40 bg-primary/5 text-primary hover:bg-primary/10'
-              : 'border-slate-200 bg-white text-slate-400 hover:border-primary hover:text-primary'
-          }`}
-        >
-          <Paperclip className="h-3.5 w-3.5" />
-          {documentCount > 0 ? (
-            <span className="text-[9px] font-bold leading-none">{documentCount}</span>
-          ) : null}
-        </button>
-      ) : null}
       </div>
     </td>
   )
@@ -4462,12 +4426,12 @@ export const LabTestList = ({
                 )}
                 <th className={`${LAB_LIST_TH} text-left`}>Result Flag</th>
                 <th className={`${LAB_LIST_TH_CENTER} px-2 w-10`} title="Result trend">↑↓</th>
-                <th className={`${LAB_LIST_TH} text-left`}>Lab technician</th>
+                <th className={`${LAB_LIST_TH} text-left`}>Actions</th>
                 <th className={`${LAB_LIST_TH} text-left max-w-[11rem] w-[11rem]`}>Doctor</th>
                 <th className={`${LAB_LIST_TH} text-left`}>Outsourced</th>
                 {!hideAmount && <th className={LAB_LIST_TH_RIGHT}>Amount</th>}
                 <th className={`${LAB_LIST_TH} text-left`}>Status</th>
-                <th className={`${LAB_LIST_TH} text-left`}>Actions</th>
+                <th className={`${LAB_LIST_TH} text-left`}>Lab technician</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200">
@@ -4590,39 +4554,6 @@ export const LabTestList = ({
                       <td className="px-3 py-1.5"><span className="text-xs text-slate-400">—</span></td>
                       {/* Result Trend */}
                       <td className="px-3 py-1.5"><span className="text-xs text-slate-400">—</span></td>
-                      {/* Lab technician */}
-                      <td className="px-3 py-1.5"><span className="text-xs text-slate-400">—</span></td>
-                      {/* Doctor */}
-                      <td className="px-3 py-1.5 text-sm text-slate-700 max-w-[11rem] w-[11rem]">
-                        <span className="line-clamp-2 break-words" title={practitioner !== '-' ? practitioner : undefined}>
-                          {practitioner}
-                        </span>
-                      </td>
-                      {/* Outsourced */}
-                      <td className="px-3 py-1.5"><span className="text-slate-400 text-xs">—</span></td>
-                      {/* Amount */}
-                      {!hideAmount && <td className="px-3 py-1.5 text-sm font-semibold text-indigo-700 text-right">{combinedAmount > 0 ? combinedAmount.toFixed(3) : '-'}</td>}
-                      {/* Status */}
-                      <td className="px-3 py-1.5">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium ${
-                            groupStatus.status === 'Complete' ? 'bg-green-100 text-green-700' :
-                            groupStatus.status === 'Partially Complete' ? 'bg-blue-100 text-blue-700' :
-                            'bg-amber-100 text-amber-700'
-                          }`}>
-                            <span>{groupStatus.icon}</span>
-                            <span>{groupStatus.status}</span>
-                            <span className="font-normal opacity-80">
-                              ({children.filter(labTestHasResultsEntered).length}/{children.length})
-                            </span>
-                          </span>
-                          {groupFinished && (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-slate-200 text-slate-700">
-                              Finished
-                            </span>
-                          )}
-                        </div>
-                       </td>
                       {/* Actions */}
                       <td className="px-3 py-1.5 text-sm text-slate-700" data-no-row-click onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center gap-2">
@@ -4672,6 +4603,39 @@ export const LabTestList = ({
                           {canForceOverride && renderGroupOverrideMenu(children, groupKey)}
                         </div>
                        </td>
+                      {/* Doctor */}
+                      <td className="px-3 py-1.5 text-sm text-slate-700 max-w-[11rem] w-[11rem]">
+                        <span className="line-clamp-2 break-words" title={practitioner !== '-' ? practitioner : undefined}>
+                          {practitioner}
+                        </span>
+                      </td>
+                      {/* Outsourced */}
+                      <td className="px-3 py-1.5"><span className="text-slate-400 text-xs">—</span></td>
+                      {/* Amount */}
+                      {!hideAmount && <td className="px-3 py-1.5 text-sm font-semibold text-indigo-700 text-right">{combinedAmount > 0 ? combinedAmount.toFixed(3) : '-'}</td>}
+                      {/* Status */}
+                      <td className="px-3 py-1.5">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium ${
+                            groupStatus.status === 'Complete' ? 'bg-green-100 text-green-700' :
+                            groupStatus.status === 'Partially Complete' ? 'bg-blue-100 text-blue-700' :
+                            'bg-amber-100 text-amber-700'
+                          }`}>
+                            <span>{groupStatus.icon}</span>
+                            <span>{groupStatus.status}</span>
+                            <span className="font-normal opacity-80">
+                              ({children.filter(labTestHasResultsEntered).length}/{children.length})
+                            </span>
+                          </span>
+                          {groupFinished && (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-slate-200 text-slate-700">
+                              Finished
+                            </span>
+                          )}
+                        </div>
+                       </td>
+                      {/* Lab technician */}
+                      <td className="px-3 py-1.5"><span className="text-xs text-slate-400">—</span></td>
                     </tr>
 
                     {isExpanded && children.map((child) => (
@@ -4724,8 +4688,8 @@ export const LabTestList = ({
                         {renderResultFlagCell(child)}
                         {/* Result Trend */}
                         {renderResultArrowCell(child)}
-                        {/* Lab technician */}
-                        {renderTechnicianCell(child)}
+                        {/* Actions */}
+                        {renderActionsCell(child)}
                         {/* Doctor */}
                         <td className="px-3 py-1.5 text-sm text-slate-700 max-w-[11rem] w-[11rem]">
                           <span
@@ -4747,8 +4711,8 @@ export const LabTestList = ({
                         </td>}
                         {/* Status */}
                         <td className="px-3 py-1.5"><StatusPill status={statusDisplayLabel(child.status || 'Draft')} color={statusColors[child.status || 'Draft'] || 'default'} /></td>
-                        {/* Actions */}
-                        {renderActionsCell(child)}
+                        {/* Lab technician */}
+                        {renderTechnicianCell(child)}
                       </tr>
                     ))}
                   </Fragment>
@@ -4828,8 +4792,8 @@ export const LabTestList = ({
                   {renderResultFlagCell(labTest)}
                   {/* Result Trend */}
                   {renderResultArrowCell(labTest)}
-                  {/* Lab technician */}
-                  {renderTechnicianCell(labTest)}
+                  {/* Actions */}
+                  {renderActionsCell(labTest)}
                   {/* Doctor */}
                   <td className="px-3 py-1.5 text-sm text-slate-700 max-w-[11rem] w-[11rem]">
                     <span
@@ -4851,8 +4815,8 @@ export const LabTestList = ({
                   </td>}
                   {/* Status */}
                   <td className="px-3 py-1.5"><StatusPill status={statusDisplayLabel(labTest.status || 'Draft')} color={statusColors[labTest.status || 'Draft'] || 'default'} /></td>
-                  {/* Actions */}
-                  {renderActionsCell(labTest)}
+                  {/* Lab technician */}
+                  {renderTechnicianCell(labTest)}
                 </tr>
                 )
               })}
@@ -5508,17 +5472,6 @@ export const LabTestList = ({
           />
         </label>
       </ConfirmActionModal>
-
-      {attachDocLabTest ? (
-        <AttachLabTestDocumentModal
-          labTestName={attachDocLabTest.name}
-          labTestLabel={attachDocLabTest.label}
-          onClose={() => setAttachDocLabTest(null)}
-          onAttached={() => {
-            void refetch()
-          }}
-        />
-      ) : null}
     </div>
   )
 }
