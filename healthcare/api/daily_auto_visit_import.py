@@ -260,15 +260,23 @@ def _resolve_case_no(row: dict) -> str | None:
 	return get_next_transaction_number("Patient Visit", fieldname="case_no")
 
 
-def _resolve_patient(file_no: str | None) -> str | None:
+def _lookup_patient(file_no: str | None) -> str | None:
+	"""Find an existing patient only — never create (safe for preview / dry-run scans)."""
 	file_no = _clean_oracle_num(file_no)
 	if not file_no:
 		return None
 	if frappe.db.exists("Patient", file_no):
 		return file_no
-	match = frappe.db.get_value("Patient", {"file_no": file_no}, "name")
+	return frappe.db.get_value("Patient", {"file_no": file_no}, "name")
+
+
+def _resolve_patient(file_no: str | None) -> str | None:
+	match = _lookup_patient(file_no)
 	if match:
 		return match
+	file_no = _clean_oracle_num(file_no)
+	if not file_no:
+		return None
 	result = ensure_patient_for_legacy_import(file_no)
 	return result.get("patient") if result.get("status") != "skip" else None
 
@@ -290,7 +298,8 @@ def _find_existing_daily_auto_visit(row: dict, patient: str | None = None) -> st
 		if frappe.db.exists("Patient Visit", trans_num):
 			return trans_num
 
-	patient = patient or _resolve_patient(row.get("patient_num"))
+	# Lookup only: preview/dry-run call this before any create path.
+	patient = patient or _lookup_patient(row.get("patient_num"))
 	encounter_date = row.get("encounter_date")
 	if not patient or not encounter_date:
 		return None
@@ -318,6 +327,7 @@ def upsert_daily_auto_visit_from_row(row: dict, *, default_company: str | None =
 	if existing:
 		doc = frappe.get_doc("Patient Visit", existing)
 		action = "updated"
+		case_no = (doc.case_no or doc.name or "").strip() or None
 	else:
 		case_no = _resolve_case_no(row)
 		if not case_no:

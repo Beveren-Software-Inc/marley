@@ -1534,6 +1534,20 @@ def _normalize_reference_bounds(min_val, max_val):
 	return min_val, max_val
 
 
+def _sex_or_default_bounds(sex_min, sex_max, default_min, default_max):
+	"""Prefer the sex-specific pair, including a valid ``0`` endpoint.
+
+	Templates store an unset sex pair as blank or ``0 / 0``. Only then fall back
+	to the default min/max. Using ``or`` would treat a real ``0`` as missing
+	(e.g. female ``0 – 5`` wrongly becoming ``1 – 5``).
+	"""
+	smin = _to_float_range(sex_min)
+	smax = _to_float_range(sex_max)
+	if (smin is None and smax is None) or (smin == 0 and smax == 0):
+		return _to_float_range(default_min), _to_float_range(default_max)
+	return smin, smax
+
+
 def _reference_range_bounds(
 	patient_gender=None,
 	*,
@@ -1548,11 +1562,13 @@ def _reference_range_bounds(
 	"""Resolve min/max reference bounds from template fields and/or normal_range text."""
 	gender = (patient_gender or "").strip()
 	if gender == "Female":
-		min_val = _to_float_range(female_min_range) or _to_float_range(min_range)
-		max_val = _to_float_range(female_max_range) or _to_float_range(max_range)
+		min_val, max_val = _sex_or_default_bounds(
+			female_min_range, female_max_range, min_range, max_range
+		)
 	elif gender == "Male":
-		min_val = _to_float_range(male_min_range) or _to_float_range(min_range)
-		max_val = _to_float_range(male_max_range) or _to_float_range(max_range)
+		min_val, max_val = _sex_or_default_bounds(
+			male_min_range, male_max_range, min_range, max_range
+		)
 	else:
 		min_val = _to_float_range(min_range)
 		max_val = _to_float_range(max_range)
@@ -2369,10 +2385,29 @@ def get_lab_test(name):
 	out['range_text'] = _reference_range_text(
 		test_range_min, test_range_max, test_tpl_info.get('lab_test_normal_range'), patient_sex
 	)
+	parent_template = (getattr(lab_test, 'template', None) or '').strip()
 	for row_out in out['normal_test_items']:
+		existing_range = (row_out.get('normal_range') or '').strip()
 		row_template = (row_out.get('template') or '').strip()
 		if not row_template and len(out['normal_test_items']) == 1:
-			row_template = (getattr(lab_test, 'template', None) or '').strip()
+			row_template = parent_template
+
+		# Compound / multi-result children often keep the parent on `template` while
+		# each row has its own normal_range. Do not overwrite those with the parent
+		# template's numeric bounds.
+		is_shared_parent_template = (
+			len(out['normal_test_items']) > 1
+			and (not row_template or row_template == parent_template)
+		)
+		if is_shared_parent_template and existing_range:
+			row_min, row_max = _normalize_reference_bounds(
+				*_parse_normal_range_text(existing_range)
+			)
+			row_out['range_min'] = row_min
+			row_out['range_max'] = row_max
+			row_out['normal_range'] = _sex_range_segment(existing_range, patient_sex) or existing_range
+			continue
+
 		row_tpl_info = (
 			_lab_test_template_info(row_template, template_info_cache) if row_template else {}
 		)
@@ -2382,8 +2417,7 @@ def get_lab_test(name):
 		row_out['normal_range'] = _reference_range_text(
 			row_min,
 			row_max,
-			(row_out.get('normal_range') or '').strip()
-			or (row_tpl_info.get('lab_test_normal_range') or ''),
+			existing_range or (row_tpl_info.get('lab_test_normal_range') or ''),
 			patient_sex,
 		)
 	out['total_inclusions'] = _template_total_inclusions(getattr(lab_test, 'template', None))

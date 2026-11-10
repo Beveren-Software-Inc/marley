@@ -436,7 +436,8 @@ def _apply_item(item: dict, *, dry_run: int = 0) -> str:
 	row = item.get("row") or {}
 	kind = item.get("kind")
 	if cint(dry_run):
-		return item.get("action") or "skip"
+		# Worker counts "created" / "updated"; map planned actions to those keys.
+		return {"create": "created", "update": "updated"}.get(item.get("action"), "skip")
 	if kind == "setup":
 		result = upsert_daily_patient_visit_setup_from_row(row)
 	elif kind == "visit":

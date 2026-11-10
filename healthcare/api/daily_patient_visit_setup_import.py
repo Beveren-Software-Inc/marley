@@ -136,15 +136,23 @@ def _parse_excel_rows(file_url: str) -> list[dict]:
 	return parsed
 
 
-def _resolve_patient(file_no: str | None) -> str | None:
+def _lookup_patient(file_no: str | None) -> str | None:
+	"""Find an existing patient only — never create (safe for preview / dry-run scans)."""
 	file_no = _clean_oracle_num(file_no)
 	if not file_no:
 		return None
 	if frappe.db.exists("Patient", file_no):
 		return file_no
-	match = frappe.db.get_value("Patient", {"file_no": file_no}, "name")
+	return frappe.db.get_value("Patient", {"file_no": file_no}, "name")
+
+
+def _resolve_patient(file_no: str | None) -> str | None:
+	match = _lookup_patient(file_no)
 	if match:
 		return match
+	file_no = _clean_oracle_num(file_no)
+	if not file_no:
+		return None
 	result = ensure_patient_for_legacy_import(file_no)
 	return result.get("patient") if result.get("status") != "skip" else None
 
@@ -167,7 +175,8 @@ def _find_existing_daily_patient_visit_setup(row: dict, patient: str | None = No
 		if existing:
 			return existing
 
-	patient = patient or _resolve_patient(row.get("patient_num"))
+	# Lookup only: preview/dry-run call this before any create path.
+	patient = patient or _lookup_patient(row.get("patient_num"))
 	start = row.get("start_date")
 	if not patient or not start:
 		return None
