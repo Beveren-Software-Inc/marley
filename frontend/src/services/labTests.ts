@@ -7,6 +7,9 @@ export interface LabTestLine {
   lab_result_value?: string
   /** Reference / normal range from the child Lab Test Template */
   normal_range?: string
+  /** Reference/normal range bounds resolved for the patient's sex (review UI) */
+  range_min?: number | null
+  range_max?: number | null
   lab_amt_book?: number
   lab_amt_add?: number
   lab_amt_disc?: number
@@ -111,6 +114,11 @@ export interface LabTest {
   grand_total?: number
   min_range?: number | null
   max_range?: number | null
+  /** Reference bounds resolved for the patient's sex (female/male → default fallback) */
+  range_min?: number | null
+  range_max?: number | null
+  /** Display text for the resolved reference range (e.g. "15 – 150") */
+  range_text?: string
   results?: string | null
   descriptive_result?: string
   custom_result?: string
