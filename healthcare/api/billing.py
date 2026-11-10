@@ -2183,6 +2183,81 @@ def _load_payload_list(payload):
     return payload or []
 
 
+# Whitelisted billing endpoints build Sales Invoices and `insert(ignore_permissions=True)`
+# because reception roles have no Sales Invoice DocPerm, so the DocPerm check never runs.
+# Access must therefore be asserted explicitly before those creation paths — otherwise any
+# signed-in user could raise invoices (the party/Customer check is not an access boundary).
+BILLING_INVOICE_ROLES = frozenset(
+    {
+        "Administrator",
+        "System Manager",
+        "Healthcare Administrator",
+        "Accounts User",
+        "Accounts Manager",
+        "Sales User",
+        "Sales Manager",
+        "Reception",
+        "Receptionist",
+        "Healthcare Receptionist",
+        "Pharmacy",
+        "Pharmacist",
+    }
+)
+BILLING_INVOICE_ROLE_KEYWORDS = ("reception", "billing", "cashier", "accounts", "pharmac", "sales")
+
+
+def _can_create_sales_invoices(user=None) -> bool:
+    """True when the caller may raise Sales Invoices (create DocPerm or a billing role)."""
+    user = user or frappe.session.user
+    if not user or user == "Guest":
+        return False
+    if frappe.has_permission("Sales Invoice", "create"):
+        return True
+
+    roles = {role for role in frappe.get_roles(user) if role}
+    if roles & BILLING_INVOICE_ROLES:
+        return True
+    return any(
+        keyword in role.lower() for role in roles for keyword in BILLING_INVOICE_ROLE_KEYWORDS
+    )
+
+
+def _assert_cost_centers_permitted(cost_centers):
+    """Raise unless every cost center in *cost_centers* is inside the caller's scope."""
+    from healthcare.api.common import get_permitted_cost_centers
+
+    permitted = get_permitted_cost_centers()
+    if permitted is None:
+        return
+    if not permitted:
+        frappe.throw(
+            _("You do not have permission to bill any cost center."), frappe.PermissionError
+        )
+    for cost_center in cost_centers or []:
+        if cost_center and cost_center not in permitted:
+            frappe.throw(
+                _("You do not have permission for cost center {0}.").format(cost_center),
+                frappe.PermissionError,
+            )
+
+
+def _assert_can_create_sales_invoices(cost_center=None):
+    """Raise unless the caller may raise invoices, optionally within *cost_center*."""
+    if not _can_create_sales_invoices():
+        frappe.throw(_("You are not permitted to create Sales Invoices."), frappe.PermissionError)
+
+    if cost_center:
+        _assert_cost_centers_permitted([cost_center])
+
+
+def _assert_invoice_cost_centers_permitted(invoice):
+    """Guard the cost centers the invoice will actually be booked to (header + lines)."""
+    _assert_cost_centers_permitted(
+        [invoice.get("custom_created_at")]
+        + [row.cost_center for row in (invoice.get("items") or [])]
+    )
+
+
 def _get_or_create_employee_customer(employee_id):
     """Customer.name = Employee ID; Customer.customer_name = Employee display name."""
     employee_id = (employee_id or "").strip()
@@ -2532,6 +2607,8 @@ def create_additional_collection_invoice(
     if not created_at_cost_center:
         frappe.throw(_("Collection cost center is required"))
 
+    _assert_can_create_sales_invoices(created_at_cost_center)
+
     invoice = frappe.new_doc("Sales Invoice")
     invoice.company = company
     invoice.customer = customer
@@ -2584,6 +2661,7 @@ def create_additional_collection_invoice(
     from healthcare.api.receptionist_shift import stamp_receptionist_shift_on_doc
 
     stamp_receptionist_shift_on_doc(invoice)
+    _assert_invoice_cost_centers_permitted(invoice)
     invoice.insert(ignore_permissions=True)
     return {"name": invoice.name, "grand_total": invoice.grand_total, "customer": invoice.customer}
 
@@ -2610,6 +2688,8 @@ def create_internal_employee_invoice(
     items = _load_payload_list(items)
     if not items:
         frappe.throw(_("Please add at least one item"))
+
+    _assert_can_create_sales_invoices(created_at_cost_center)
 
     customer = _get_or_create_employee_customer(employee_id)
 
@@ -2652,6 +2732,7 @@ def create_internal_employee_invoice(
     from healthcare.api.receptionist_shift import stamp_receptionist_shift_on_doc
 
     stamp_receptionist_shift_on_doc(invoice)
+    _assert_invoice_cost_centers_permitted(invoice)
     invoice.insert(ignore_permissions=True)
     return {"name": invoice.name, "customer": invoice.customer, "grand_total": invoice.grand_total}
 
@@ -2732,6 +2813,9 @@ def create_internal_employee_invoice_from_sales_order(sales_order_name):
     if not sales_order_name:
         frappe.throw(_("Sales Order is required"))
 
+    # `_load_billable_sales_orders_by_names` enforces the caller's cost-center scope.
+    _assert_can_create_sales_invoices()
+
     if not frappe.db.has_column("Sales Order", "custom_internal_employee_dispensing"):
         frappe.throw(_("Internal employee dispensing is not configured on Sales Order"))
 
@@ -2768,6 +2852,7 @@ def create_internal_employee_invoice_from_sales_order(sales_order_name):
     from healthcare.api.receptionist_shift import stamp_receptionist_shift_on_doc
 
     stamp_receptionist_shift_on_doc(invoice)
+    _assert_invoice_cost_centers_permitted(invoice)
     invoice.insert(ignore_permissions=True)
     return {
         "name": invoice.name,
