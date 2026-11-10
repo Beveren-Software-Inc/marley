@@ -1264,7 +1264,7 @@ export const InpatientAdmissionDetails = ({ admissionName, onUpdate }: Inpatient
   const [showAdmissionForm, setShowAdmissionForm] = useState(false)
   const [selectedPackage, setSelectedPackage] = useState<InpatientPackage | null>(null)
   const [selectedOtherServices, setSelectedOtherServices] = useState<string[]>([])
-  const [otherServicesHydrated, setOtherServicesHydrated] = useState(false)
+  const [otherServicesHydrated, setOtherServicesHydrated] = useState<string | null>(null)
   const [otherServicesRefresh, setOtherServicesRefresh] = useState(0)
   const [showScheduleDischarge, setShowScheduleDischarge] = useState(false)
   const [showMedicalSupervision, setShowMedicalSupervision] = useState(false)
@@ -1314,6 +1314,16 @@ export const InpatientAdmissionDetails = ({ admissionName, onUpdate }: Inpatient
 
   // FIX 6: Coerce to boolean with !! so it is never `boolean | null`
   const canEdit = !!(record && ['Admission Scheduled', 'Admitted', 'Discharge Scheduled'].includes(record.status))
+
+  const otherServicesPackageKey = `${admissionName}:${selectedPackage?.name || record?.inpatient_package || '__unassigned__'}`
+  const previousOtherServicesPackageKey = useRef(otherServicesPackageKey)
+  useEffect(() => {
+    if (previousOtherServicesPackageKey.current !== otherServicesPackageKey) {
+      previousOtherServicesPackageKey.current = otherServicesPackageKey
+      setSelectedOtherServices([])
+      setOtherServicesHydrated(null)
+    }
+  }, [otherServicesPackageKey])
 
   const handleAdmissionComplete = () => {
     setShowAdmissionForm(false)
@@ -1557,6 +1567,7 @@ export const InpatientAdmissionDetails = ({ admissionName, onUpdate }: Inpatient
           )}
           {activeTab === 'other_services' && canViewPackageTab && (
             <AdmissionOtherServicesTab
+              key={`${admissionName}:${selectedPackage?.name || record.inpatient_package || '__unassigned__'}`}
               admissionName={admissionName}
               selectedPackage={selectedPackage}
               selectedServices={selectedOtherServices}
