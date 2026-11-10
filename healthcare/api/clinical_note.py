@@ -372,7 +372,15 @@ def _clinical_note_list_filters(kwargs: dict) -> tuple[list, list | None]:
 		filter_list.append(['practitioner', '=', practitioner])
 
 	if clinical_note_type:
-		filter_list.append(['clinical_note_type', '=', clinical_note_type])
+		# A single type name, or a comma-separated list (e.g. "Therapist Note,General Note")
+		# for screens that group several types into one listing.
+		note_types = [t.strip() for t in cstr(clinical_note_type).split(',') if t.strip()] or [
+			cstr(clinical_note_type)
+		]
+		if len(note_types) == 1:
+			filter_list.append(['clinical_note_type', '=', note_types[0]])
+		else:
+			filter_list.append(['clinical_note_type', 'in', note_types])
 	elif medical_role:
 		roles_to_filter = resolve_medical_role_filter(medical_role)
 		if len(roles_to_filter) == 1:
@@ -434,7 +442,9 @@ def _clinical_note_list_filters(kwargs: dict) -> tuple[list, list | None]:
 
 	# Healthcare Settings → Hide Note with No Visit: drop orphan OP notes
 	# (e.g. OPDX-* reconcile rows that never resolved a Patient Visit link).
-	if _hide_note_with_no_visit_enabled():
+	# Listings that must show every note of a given type (therapy notes) opt out with
+	# include_notes_without_visit=1 and get the unfiltered set.
+	if _hide_note_with_no_visit_enabled() and not cint(kwargs.get('include_notes_without_visit')):
 		filter_list.append(["reference_document", "is", "set"])
 
 	return filter_list, or_filters  # or_filters reserved; admission uses inpatient_admission only
@@ -509,7 +519,7 @@ def get_clinical_notes(**kwargs):
 		order_by='posting_date desc',
 		ignore_permissions=ignore_permissions,
 	)
-	if _hide_note_with_no_visit_enabled():
+	if _hide_note_with_no_visit_enabled() and not cint(kwargs.get('include_notes_without_visit')):
 		dropped = sum(1 for n in clinical_notes if not _clinical_note_has_visit_reference(n))
 		clinical_notes = [n for n in clinical_notes if _clinical_note_has_visit_reference(n)]
 		total_count = max(0, int(total_count or 0) - dropped)

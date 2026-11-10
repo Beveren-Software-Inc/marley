@@ -90,6 +90,8 @@ export async function fetchClinicalNotes(
   practitioner?: string,
   postingDateFrom?: string,
   postingDateTo?: string,
+  /** Skip Healthcare Settings → Hide Note with No Visit (typed listings that must show all). */
+  includeNotesWithoutVisit?: boolean,
 ): Promise<ClinicalNoteListResponse> {
   const params = new URLSearchParams()
   params.append('limit', limit.toString())
@@ -105,6 +107,7 @@ export async function fetchClinicalNotes(
   if (practitioner) params.append('practitioner', practitioner)
   if (postingDateFrom) params.append('posting_date_from', postingDateFrom)
   if (postingDateTo) params.append('posting_date_to', postingDateTo)
+  if (includeNotesWithoutVisit) params.append('include_notes_without_visit', '1')
   const url = `/api/method/healthcare.api.clinical_note.get_clinical_notes?${params.toString()}`
   
   try {

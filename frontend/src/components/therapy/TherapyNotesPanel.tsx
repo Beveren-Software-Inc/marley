@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { ClinicalNotesList } from '../clinicalNotes/ClinicalNotesList'
 import { CreateClinicalNoteModal } from '../clinicalNotes/CreateClinicalNoteModal'
+import { THERAPY_EXTRA_NOTE_TYPES } from '../clinicalNotes/noteTypeGroups'
 import { DashboardCard } from '../ui/DashboardCard'
 import { useCareContext } from '../../providers/CareContextProvider'
 
@@ -30,6 +31,8 @@ export function TherapyNotesPanel({
     <ClinicalNotesList
       patient={patient}
       clinicalNoteType="Therapist Note"
+      includeClinicalNoteTypes={THERAPY_EXTRA_NOTE_TYPES}
+      scopeToCareContext={false}
       title="Therapy Notes"
       key={refreshKey}
       onPatientClick={onPatientClick}

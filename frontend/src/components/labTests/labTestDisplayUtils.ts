@@ -44,16 +44,25 @@ export function resolveLabTestDocName(lt: LabTest): string {
  * Result`` (older rows: ``Panel | Test Code | Result``) — so stripping the tags
  * leaves the labels glued to the value (``LAB-007-001 0.94``). Screens must show
  * the Result column only: ``['0.94']``.
+ *
+ * The stored HTML is authored through the result-save endpoint on an unfiltered
+ * field, so it is parsed into an **inert** document (``DOMParser``) instead of a
+ * live ``innerHTML`` sink: scripts never run and ``<img onerror>`` / other
+ * handlers never fire while we only read the last cell of each row.
  */
 export function resultValuesFromHtml(html?: string | null): string[] {
   const raw = (html || '').trim()
-  if (!raw || !/<table[\s>]/i.test(raw) || typeof document === 'undefined') return []
+  if (!raw || !/<table[\s>]/i.test(raw) || typeof DOMParser === 'undefined') return []
 
-  const holder = document.createElement('div')
-  holder.innerHTML = raw
+  let doc: Document
+  try {
+    doc = new DOMParser().parseFromString(raw, 'text/html')
+  } catch {
+    return []
+  }
 
   const values: string[] = []
-  holder.querySelectorAll('table tr').forEach((row) => {
+  doc.querySelectorAll('table tr').forEach((row) => {
     const cells = Array.from(row.querySelectorAll('td'))
     // Header rows hold <th> only — they are not result lines.
     if (cells.length === 0) return

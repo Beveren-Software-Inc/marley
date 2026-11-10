@@ -9,6 +9,7 @@ import { LabTestList, type LabTestListBatchSaveRef } from '../components/labTest
 import { LabTestResultsSaveHeader } from '../components/labTests/LabTestResultsSaveHeader'
 import { ECTDashboard } from '../components/ect/ECTDashboard'
 import { ClinicalNotesList } from '../components/clinicalNotes/ClinicalNotesList'
+import { THERAPY_EXTRA_NOTE_TYPES } from '../components/clinicalNotes/noteTypeGroups'
 import { ObservationList } from '../components/observations/ObservationList'
 import { VitalSignsList } from '../components/vitalSigns/VitalSignsList'
 import { CreateVitalSignModal } from '../components/vitalSigns/CreateVitalSignModal'
@@ -1113,6 +1114,8 @@ export const NursePage = () => {
             <ClinicalNotesList
               patient={selectedPatient}
               clinicalNoteType="Therapist Note"
+              includeClinicalNoteTypes={THERAPY_EXTRA_NOTE_TYPES}
+              scopeToCareContext={false}
               title="Therapist Note"
               key={clinicalNotesRefreshKey}
               onPatientClick={handlePatientSelect}

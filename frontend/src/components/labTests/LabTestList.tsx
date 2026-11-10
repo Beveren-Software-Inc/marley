@@ -1711,6 +1711,7 @@ import {
 } from '../../services/common'
 import { uploadPatientFile, type PatientDocumentRow } from '../../services/patients'
 import { LabTestDetails } from './LabTestDetails'
+import { AttachLabTestDocumentModal } from './AttachLabTestDocumentModal'
 import { EditLabTestModal } from './EditLabTestModal'
 import { LabTestReviewModal } from './LabTestReviewModal'
 import { LabTestSampleCollectionModal } from './LabTestSampleCollectionModal'
@@ -1723,6 +1724,7 @@ import {
 import { PaginationControls, LoadMoreControls, DEFAULT_PAGE_SIZE, type PageSize } from '../ui/PaginationControls'
 import { toast } from '../../hooks/useToast'
 import {
+  canAttachLabTestDocument,
   canEditLabTestResults,
   canEditLabTestResultForRow,
   isGroupedLabRequestFinished,
@@ -2844,6 +2846,9 @@ export const LabTestList = ({
   const [selectedLabTestForDetails, setSelectedLabTestForDetails] = useState<string | null>(null)
   const [editLabTestName, setEditLabTestName] = useState<string | null>(null)
   const actionMenuRef = useRef<HTMLDivElement>(null)
+  // Reports / scans are filed independently of result entry — allowed before sample
+  // collection and after final approval (see canAttachLabTestDocument).
+  const [attachDocLabTest, setAttachDocLabTest] = useState<string | null>(null)
   const [sampleModalLabTest, setSampleModalLabTest] = useState<LabTest | null>(null)
   const [sampleModalLoading, setSampleModalLoading] = useState(false)
   const [sampleModalError, setSampleModalError] = useState<string | null>(null)
@@ -3867,6 +3872,10 @@ export const LabTestList = ({
             )}
             <button type="button" onClick={() => openRemarksModal(labTest.name)}
               className="flex items-center gap-2 w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100">Add Remarks</button>
+            {canAttachLabTestDocument(labTest, userRole, { nurseLabContext }) && (
+              <button type="button" onClick={() => { setOpenActionRow(null); setAttachDocLabTest(labTest.name) }}
+                className="flex items-center gap-2 w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100">Attach Document…</button>
+            )}
             {labTest.status === 'Pending Review' && (
               <>
                 <div className="border-t border-slate-100 my-1" />
@@ -5335,6 +5344,18 @@ export const LabTestList = ({
       {editLabTestName && (
         <EditLabTestModal labTestName={editLabTestName} onClose={() => setEditLabTestName(null)}
           onSuccess={() => { setEditLabTestName(null); refetch() }} />
+      )}
+
+      {/* ── Attach document modal (independent of result editing) ── */}
+      {attachDocLabTest && (
+        <AttachLabTestDocumentModal
+          labTestName={attachDocLabTest}
+          onClose={() => setAttachDocLabTest(null)}
+          onAttached={() => {
+            setAttachDocLabTest(null)
+            refetch()
+          }}
+        />
       )}
 
       {reviewModal && (

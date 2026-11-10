@@ -14,7 +14,11 @@ import { PortalActionsMenu } from '../ui/PortalActionsMenu'
 import { ConfirmDialog } from '../ui/ConfirmDialog'
 import { useCareContext } from '../../providers/CareContextProvider'
 import { useCardFilters, useDashboardCompactClinical } from '../../contexts/CardFilterContext'
-import { CardRowMetaHint, dashboardCardRowHoverClass } from '../ui/dashboardCardListing'
+import {
+  CardRowMetaHint,
+  dashboardCardRowHoverClass,
+  type CardMetaField,
+} from '../ui/dashboardCardListing'
 import { ClearFiltersButton } from '../ui/ClearFiltersButton'
 import { DateFilterInput } from '../ui/DateFilterInput'
 import {
@@ -39,6 +43,17 @@ interface ClinicalNotesListProps {
   patient?: string
   /** Filter and scope the list by Clinical Note Type (preferred over medical role). */
   clinicalNoteType?: string
+  /**
+   * Additional Clinical Note Types to list alongside `clinicalNoteType` — e.g. the
+   * therapy screen shows migrated "General Note" rows together with "Therapist Note".
+   */
+  includeClinicalNoteTypes?: string[]
+  /**
+   * Restrict rows to the current care context (active visit / admission) and honour
+   * Healthcare Settings → Hide Note with No Visit. Therapy listings pass `false` so every
+   * note of the listed type shows, whatever OP/IP context it was filed against.
+   */
+  scopeToCareContext?: boolean
   noteType?: string
   hideTypes?: boolean
   onPatientClick?: (patient: string) => void
@@ -111,6 +126,8 @@ function clinicalNoteAuthorLabel(note: ClinicalNote, clinicalNoteType?: string):
 export const ClinicalNotesList = ({
   patient,
   clinicalNoteType,
+  includeClinicalNoteTypes,
+  scopeToCareContext = true,
   noteType,
   hideTypes = false,
   onPatientClick,
@@ -122,6 +139,15 @@ export const ClinicalNotesList = ({
 }: ClinicalNotesListProps) => {
   const listTitle = resolveListTitle(clinicalNoteType, title)
   const resolvedAddTitle = addButtonTitle ?? `Add ${clinicalNoteType || 'Clinical Note'}`
+  /**
+   * Extra note types listed with the primary one (therapy lists migrated "General Note"
+   * rows together with "Therapist Note"). Comma-joined for the `clinical_note_type` API
+   * filter, which accepts a single type or a comma-separated list.
+   */
+  const extraNoteTypes = (includeClinicalNoteTypes || []).map((t) => t.trim()).filter(Boolean)
+  const noteTypeFilter =
+    [clinicalNoteType ? clinicalNoteType.trim() : '', ...extraNoteTypes].filter(Boolean).join(',') ||
+    undefined
   const { mode, activeVisit, activeAdmission, isIOPVisit, guardClinicalEdit, therapyNoteUneditableIn24Hour } = useCareContext()
   const [clinicalNotes, setClinicalNotes] = useState<ClinicalNote[]>([])
   const [pendingEncounters, setPendingEncounters] = useState<PendingDoctorProgressEncounter[]>([])
@@ -161,7 +187,7 @@ export const ClinicalNotesList = ({
    */
   const listContextKey = [
     patient || '',
-    clinicalNoteType || '',
+    noteTypeFilter || '',
     noteType || '',
     mode || '',
     activeVisit || '',
@@ -253,14 +279,18 @@ export const ClinicalNotesList = ({
         let inpatientAdmission: string | undefined
 
         // Care context: IP uses inpatient_admission link; OP uses Patient Visit references.
-        if (mode === 'OP' && activeVisit) {
-          referenceDoctype = 'Patient Visit'
-          referenceDocument = activeVisit
-        } else if (mode === 'OP' && patient) {
-          // OP mode without a specific visit: still limit to this patient's visit notes only.
-          referenceDoctype = 'Patient Visit'
-        } else if (mode === 'IP' && activeAdmission) {
-          inpatientAdmission = activeAdmission
+        // Therapy listings opt out (scopeToCareContext=false): they list every note of the
+        // configured note type, whatever visit/admission it was filed against.
+        if (scopeToCareContext) {
+          if (mode === 'OP' && activeVisit) {
+            referenceDoctype = 'Patient Visit'
+            referenceDocument = activeVisit
+          } else if (mode === 'OP' && patient) {
+            // OP mode without a specific visit: still limit to this patient's visit notes only.
+            referenceDoctype = 'Patient Visit'
+          } else if (mode === 'IP' && activeAdmission) {
+            inpatientAdmission = activeAdmission
+          }
         }
 
         const practitionerForApi = notePractitionerFilter || undefined
@@ -270,7 +300,7 @@ export const ClinicalNotesList = ({
           (page - 1) * pageSize,
           patient,
           undefined,
-          clinicalNoteType,
+          noteTypeFilter,
           noteType,
           referenceDoctype,
           referenceDocument,
@@ -279,6 +309,7 @@ export const ClinicalNotesList = ({
           practitionerForApi,
           postingDateFrom || undefined,
           postingDateTo || undefined,
+          !scopeToCareContext,
         )
         
         if (cancelled) return
@@ -300,7 +331,8 @@ export const ClinicalNotesList = ({
     }
   }, [
     patient,
-    clinicalNoteType,
+    noteTypeFilter,
+    scopeToCareContext,
     noteType,
     mode,
     activeVisit,
@@ -331,7 +363,7 @@ export const ClinicalNotesList = ({
     setPage(1)
   }, [
     patient,
-    clinicalNoteType,
+    noteTypeFilter,
     noteType,
     mode,
     activeVisit,
@@ -412,14 +444,6 @@ export const ClinicalNotesList = ({
           <h3 className="text-red-800 font-semibold mb-2">Error Loading Clinical Notes</h3>
           <p className="text-red-700 text-sm mb-2">{error.message}</p>
         </div>
-      </div>
-    )
-  }
-
-  if (loading && !aggregateDoctorProgressLayout && !detailName) {
-    return (
-      <div className="flex items-center justify-center p-8">
-        <div className="text-slate-600">Loading clinical notes...</div>
       </div>
     )
   }
@@ -563,12 +587,15 @@ export const ClinicalNotesList = ({
         </thead>
         <tbody className="divide-y divide-slate-200">
           {clinicalNotes.map((note) => {
-            const metaFields = [
+            // Therapy listings are titled by note type, so the type is redundant here too.
+            const metaFields: CardMetaField[] = [
               ['Note ID', note.name],
               [authorColumnLabel, clinicalNoteAuthorLabel(note, clinicalNoteType)],
-              ['Clinical note type', clinicalNoteTypeLabel(note)],
+              ...(hideTypeColumns
+                ? []
+                : [['Clinical note type', clinicalNoteTypeLabel(note)] as CardMetaField]),
               ['Reference', noteReferenceLabel(note)],
-            ] as const
+            ]
             return (
               <tr
                 key={note.name}
@@ -935,7 +962,7 @@ export const ClinicalNotesList = ({
 
       <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
         <div className="flex-1 min-h-0 overflow-auto">
-      {loading && aggregateDoctorProgressLayout ? (
+      {loading && (aggregateDoctorProgressLayout || !detailName) ? (
         <div className="flex items-center justify-center p-8">
           <div className="text-slate-600">Loading clinical notes…</div>
         </div>

@@ -1,9 +1,12 @@
 import { Fragment, useState, useEffect } from 'react'
-import { ClipboardCheck, Clock, UserCheck } from 'lucide-react'
+import { ClipboardCheck, Clock, Paperclip, UserCheck } from 'lucide-react'
 import { fetchLabTest, type LabTest } from '../../services/labTests'
 import { SavedInclusionRows, type TotalInclusionLine } from './multipleResultEntry'
 import { StatusPill } from '../ui/StatusPill'
 import { LabTestReviewModal } from './LabTestReviewModal'
+import { AttachLabTestDocumentModal } from './AttachLabTestDocumentModal'
+import { canAttachLabTestDocument } from '../../config/permissions'
+import { useCareContext } from '../../providers/CareContextProvider'
 
 const statusColors: Record<string, string> = {
   Reviewed: 'success',
@@ -116,10 +119,15 @@ function ResultValueBadge({ value }: { value?: string | null }) {
 }
 
 export const LabTestDetails = ({ labTestName, onUpdate }: LabTestDetailsProps) => {
+  const { userRole } = useCareContext()
   const [labTest, setLabTest] = useState<LabTest | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
   const [reviewModal, setReviewModal] = useState<'Reviewed' | 'Rejected' | null>(null)
+  // Attachments are NOT behind result editing: reports/scans may arrive before sample
+  // collection or after final approval, so this dialog is gated on
+  // canAttachLabTestDocument() only (see the Documents section below).
+  const [attachDocOpen, setAttachDocOpen] = useState(false)
 
   const load = async () => {
     try {
@@ -184,6 +192,8 @@ export const LabTestDetails = ({ labTestName, onUpdate }: LabTestDetailsProps) =
     Boolean(labTest.normal_test_items?.length) ||
     Boolean(labTest.sensitivity_test_items?.length) ||
     Boolean(labTest.descriptive_result || labTest.custom_result || labTest.lab_test_comment)
+  const documents = Array.isArray(labTest.documents) ? labTest.documents : []
+  const canAttachDocument = canAttachLabTestDocument(labTest, userRole)
 
   return (
     <div className="space-y-5">
@@ -804,55 +814,92 @@ export const LabTestDetails = ({ labTestName, onUpdate }: LabTestDetailsProps) =
           </div>
         )}
 
-      {labTest.documents && labTest.documents.length > 0 && (
+      {(documents.length > 0 || canAttachDocument) && (
         <div className="space-y-2">
-          <SectionTitle title="Documents" />
-          <div className="space-y-2">
-            {labTest.documents.map(
-              (
-                doc: {
-                  file_name?: string
-                  document_type?: string
-                  transaction_no?: string
-                  upload_remarks?: string
-                  document?: string
-                },
-                i: number
-              ) => {
-                const docUrl = doc.document
-                const label = doc.file_name || doc.document_type || 'Document'
-                const base = typeof window !== 'undefined' ? window.location.origin : ''
-                const href = docUrl && (docUrl.startsWith('http') ? docUrl : `${base}${docUrl}`)
-                return (
-                  <div
-                    key={i}
-                    className="flex items-center justify-between gap-3 rounded-md border border-slate-200 bg-slate-50/50 px-3 py-2"
-                  >
-                    <div className="min-w-0">
-                      <div className="truncate text-sm font-medium text-slate-800">{label}</div>
-                      {(doc.document_type || doc.transaction_no) && (
-                        <div className="mt-0.5 flex flex-wrap gap-x-3 text-xs text-slate-500">
-                          {doc.document_type && <span>Type: {doc.document_type}</span>}
-                          {doc.transaction_no && <span>Txn: {doc.transaction_no}</span>}
-                        </div>
-                      )}
-                    </div>
-                    {href && (
-                      <a
-                        href={href}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex shrink-0 items-center rounded-md border border-primary/30 px-3 py-1.5 text-xs font-medium text-primary hover:bg-primary/5"
-                      >
-                        Open
-                      </a>
-                    )}
-                  </div>
-                )
-              }
+          <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-1">
+            <h3 className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+              Documents
+              {documents.length > 0 && (
+                <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[11px] font-medium text-slate-600">
+                  {documents.length}
+                </span>
+              )}
+            </h3>
+            {canAttachDocument && (
+              <button
+                type="button"
+                onClick={() => setAttachDocOpen(true)}
+                title="Attach a report or scan to this lab test"
+                className="inline-flex items-center gap-1.5 rounded-md border border-primary/30 bg-white px-2.5 py-1 text-xs font-medium text-primary hover:bg-primary/5"
+              >
+                <Paperclip className="h-3.5 w-3.5" />
+                Attach document
+              </button>
             )}
           </div>
+          {documents.length === 0 ? (
+            <p className="text-xs italic text-slate-400">No documents attached yet.</p>
+          ) : (
+            <div className="space-y-2">
+              {documents.map(
+                (
+                  doc: {
+                    file_name?: string
+                    document_type?: string
+                    transaction_no?: string
+                    upload_remarks?: string
+                    document?: string
+                  },
+                  i: number
+                ) => {
+                  const docUrl = doc.document
+                  const label = doc.file_name || doc.document_type || 'Document'
+                  const base = typeof window !== 'undefined' ? window.location.origin : ''
+                  const href = docUrl && (docUrl.startsWith('http') ? docUrl : `${base}${docUrl}`)
+                  return (
+                    <div
+                      key={i}
+                      className="flex items-center justify-between gap-3 rounded-md border border-slate-200 bg-slate-50/50 px-3 py-2"
+                    >
+                      <div className="min-w-0">
+                        <div className="truncate text-sm font-medium text-slate-800">{label}</div>
+                        {(doc.document_type || doc.transaction_no) && (
+                          <div className="mt-0.5 flex flex-wrap gap-x-3 text-xs text-slate-500">
+                            {doc.document_type && <span>Type: {doc.document_type}</span>}
+                            {doc.transaction_no && <span>Txn: {doc.transaction_no}</span>}
+                          </div>
+                        )}
+                      </div>
+                      {href && (
+                        <a
+                          href={href}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex shrink-0 items-center rounded-md border border-primary/30 px-3 py-1.5 text-xs font-medium text-primary hover:bg-primary/5"
+                        >
+                          Open
+                        </a>
+                      )}
+                    </div>
+                  )
+                }
+              )}
+            </div>
+          )}
         </div>
+      )}
+
+      {attachDocOpen && (
+        <AttachLabTestDocumentModal
+          labTestName={labTestName}
+          labTestLabel={labTest.lab_test_name || undefined}
+          onClose={() => setAttachDocOpen(false)}
+          onAttached={async () => {
+            setAttachDocOpen(false)
+            await load()
+            onUpdate?.()
+          }}
+        />
       )}
 
       {reviewModal && (

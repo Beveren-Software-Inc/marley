@@ -273,11 +273,39 @@ def _resolve_patient(file_no: str | None) -> str | None:
 	return result.get("patient") if result.get("status") != "skip" else None
 
 
-def upsert_daily_auto_visit_from_row(row: dict, *, default_company: str | None = None) -> dict:
-	case_no = _resolve_case_no(row)
-	if not case_no:
-		return {"status": "skip", "reason": "no_case_no", "key": row.get("_key")}
+def _find_existing_daily_auto_visit(row: dict, patient: str | None = None) -> str | None:
+	"""Match by INV_NUM / TRANS_NUM, else same patient + encounter date + Daily Auto Visit."""
+	inv_num = _clean_oracle_num(row.get("inv_num"))
+	trans_num = _clean_oracle_num(row.get("trans_num"))
+	if inv_num and frappe.db.exists("Patient Visit", inv_num):
+		return inv_num
+	if inv_num:
+		by_inv = frappe.db.get_value("Patient Visit", {"inv_num": inv_num}, "name")
+		if by_inv:
+			return by_inv
+	if trans_num:
+		by_trans = frappe.db.get_value("Patient Visit", {"old_trans_num": trans_num}, "name")
+		if by_trans:
+			return by_trans
+		if frappe.db.exists("Patient Visit", trans_num):
+			return trans_num
 
+	patient = patient or _resolve_patient(row.get("patient_num"))
+	encounter_date = row.get("encounter_date")
+	if not patient or not encounter_date:
+		return None
+	try:
+		day = getdate(encounter_date)
+	except Exception:
+		return None
+	return frappe.db.get_value(
+		"Patient Visit",
+		{"patient": patient, "encounter_date": day, "visit_type": DAILY_AUTO_VISIT_TYPE},
+		"name",
+	)
+
+
+def upsert_daily_auto_visit_from_row(row: dict, *, default_company: str | None = None) -> dict:
 	patient = _resolve_patient(row.get("patient_num"))
 	if not patient:
 		return {"status": "skip", "reason": "no_patient", "key": row.get("_key")}
@@ -286,13 +314,21 @@ def upsert_daily_auto_visit_from_row(row: dict, *, default_company: str | None =
 	if not encounter_date:
 		return {"status": "skip", "reason": "no_date", "key": row.get("_key")}
 
-	if frappe.db.exists("Patient Visit", case_no):
-		doc = frappe.get_doc("Patient Visit", case_no)
+	existing = _find_existing_daily_auto_visit(row, patient=patient)
+	if existing:
+		doc = frappe.get_doc("Patient Visit", existing)
 		action = "updated"
 	else:
-		doc = frappe.new_doc("Patient Visit")
-		doc.case_no = case_no
-		action = "created"
+		case_no = _resolve_case_no(row)
+		if not case_no:
+			return {"status": "skip", "reason": "no_case_no", "key": row.get("_key")}
+		if frappe.db.exists("Patient Visit", case_no):
+			doc = frappe.get_doc("Patient Visit", case_no)
+			action = "updated"
+		else:
+			doc = frappe.new_doc("Patient Visit")
+			doc.case_no = case_no
+			action = "created"
 
 	doc.patient = patient
 	doc.patient_name = frappe.db.get_value("Patient", patient, "patient_name")
