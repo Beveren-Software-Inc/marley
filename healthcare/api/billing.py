@@ -1896,6 +1896,12 @@ def submit_sales_invoice_doc(invoice_name):
         sync_sales_invoice_uom_from_previous_docs,
     )
 
+    # Deferred party-detail/defaults work (set_missing_values) hits ERPNext's
+    # Customer permission + User Permission checks; the caller was already
+    # authorised on the invoice above, so run the rest of the submit without
+    # per-document permission checks (also applied to save/submit below).
+    doc.flags.ignore_permissions = True
+
     finalize_sales_invoice_cost_centers(doc)
     sync_sales_invoice_uom_from_previous_docs(doc)
     _ensure_sales_invoice_due_date(doc)

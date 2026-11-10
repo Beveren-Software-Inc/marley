@@ -156,6 +156,29 @@ def sync_sales_invoice_uom_from_previous_docs(invoice) -> None:
 			item.stock_qty = flt(flt(item.qty) * flt(item.conversion_factor, prec), item.precision("stock_qty"))
 
 
+def set_missing_values_ignoring_permissions(invoice):
+	"""Run ERPNext ``set_missing_values`` on the invoice without party permission checks.
+
+	``SellingController.set_missing_lead_customer_details`` calls
+	``erpnext.accounts.party._get_party_details(ignore_permissions=self.flags.ignore_permissions)``
+	and that helper runs ``frappe.has_permission("Customer", ...)``, which also
+	evaluates User Permissions. Reception users carry User Permissions on Employee,
+	so a Patient whose Customer is linked to another Employee (``custom_employee``)
+	therefore blocks saving/submitting the invoice for them.
+
+	The healthcare billing APIs have already authorised the caller against the
+	Sales Invoice itself — the party details fetched here are computed defaults,
+	not a permission boundary. The flag is restored afterwards so the caller's
+	own permission semantics stay untouched.
+	"""
+	previous = invoice.flags.ignore_permissions
+	invoice.flags.ignore_permissions = True
+	try:
+		invoice.set_missing_values()
+	finally:
+		invoice.flags.ignore_permissions = previous
+
+
 def finalize_sales_invoice_cost_centers(invoice, cost_center=None):
 	"""Ensure header, item, and tax rows have cost center before save/submit."""
 	cc = cost_center or getattr(invoice, "cost_center", None) or getattr(invoice, "custom_created_at", None)
@@ -174,7 +197,7 @@ def finalize_sales_invoice_cost_centers(invoice, cost_center=None):
 
 	# set_missing_values can overwrite UOM conversion from Item master — restore after
 	if cc:
-		invoice.set_missing_values()
+		set_missing_values_ignoring_permissions(invoice)
 		invoice.run_method("calculate_taxes_and_totals")
 		apply_cost_center_to_sales_invoice(invoice, cc)
 	sync_sales_invoice_uom_from_previous_docs(invoice)
