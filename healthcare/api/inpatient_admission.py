@@ -4629,6 +4629,7 @@ def check_admission_quotation(admission_name, package_name):
 
     if existing:
         quotation = frappe.get_doc("Quotation", existing.name)
+        quotation.check_permission("read")
 
         return {
             "exists": True,

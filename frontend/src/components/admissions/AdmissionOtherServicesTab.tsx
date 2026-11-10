@@ -1,5 +1,5 @@
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   checkAdmissionQuotation,
   updateAdmissionQuotationOtherServices,
@@ -17,8 +17,8 @@ interface AdmissionOtherServicesTabProps {
   selectedServices: string[]
   onSelectedServicesChange: (services: string[]) => void
   refreshKey: number
-  otherServicesHydrated: boolean
-  setOtherServicesHydrated: (hydrated: boolean) => void
+  otherServicesHydrated: string | null
+  setOtherServicesHydrated: (hydrated: string | null) => void
 }
 
 export const AdmissionOtherServicesTab = ({
@@ -49,6 +49,17 @@ export const AdmissionOtherServicesTab = ({
 
 
   const activePackage = selectedPackage || packageData?.active_package || null
+  const loadGeneration = useRef(0)
+  const otherServicesHydratedRef = useRef(otherServicesHydrated)
+  useEffect(() => {
+    otherServicesHydratedRef.current = otherServicesHydrated
+  }, [otherServicesHydrated])
+  useEffect(() => () => { loadGeneration.current += 1 }, [])
+  const selectionIdentity = activePackage
+    ? JSON.stringify([admissionName, activePackage.name, quotationName])
+    : null
+  const selectionReady = !loading && selectionIdentity === otherServicesHydrated
+
 
   const includedTemplates = useMemo(
     () =>
@@ -65,11 +76,13 @@ export const AdmissionOtherServicesTab = ({
   )
 
   const load = useCallback(async () => {
+    const generation = ++loadGeneration.current
     try {
       setLoading(true)
       setError(null)
 
       const details = await fetchAdmissionPackageDetails(admissionName)
+      if (generation !== loadGeneration.current) return
       setPackageData(details)
 
       const packageName =
@@ -87,16 +100,17 @@ export const AdmissionOtherServicesTab = ({
         packageName,
       )
 
+      if (generation !== loadGeneration.current) return
       setSubmitted(quotation.docstatus === 1)
       setQuotationName(quotation.exists ? quotation.quotation_name || null : null)
       setSavedServices(Array.from(new Set(quotation.other_services || [])))
 
-      if ((quotation.docstatus === 1 || !otherServicesHydrated) && quotation.other_services) {
-        onSelectedServicesChange(
-          Array.from(new Set(quotation.other_services)),
-        )
-        setOtherServicesHydrated(true)
+      const identity = JSON.stringify([admissionName, packageName, quotation.quotation_name || null])
+      if (quotation.docstatus === 1 || otherServicesHydratedRef.current !== identity) {
+        onSelectedServicesChange(Array.from(new Set(quotation.other_services || [])))
+        setOtherServicesHydrated(identity)
       }
+
     } catch (err) {
       setError(
         err instanceof Error
@@ -104,13 +118,12 @@ export const AdmissionOtherServicesTab = ({
           : new Error('Failed to load other services'),
       )
     } finally {
-      setLoading(false)
+      if (generation === loadGeneration.current) setLoading(false)
     }
   }, [
     admissionName,
     onSelectedServicesChange,
     refreshKey,
-    otherServicesHydrated,
     setOtherServicesHydrated,
     selectedPackage?.name,
   ])
@@ -207,7 +220,7 @@ export const AdmissionOtherServicesTab = ({
     || selectedServices.some((name) => !savedServices.includes(name))
 
   const updateQuotation = async () => {
-    if (!activePackage || !quotationName || submitted || !servicesChanged) return
+    if (!selectionReady || !activePackage || !quotationName || submitted || !servicesChanged) return
     try {
       setUpdating(true)
       setError(null)
@@ -295,7 +308,7 @@ export const AdmissionOtherServicesTab = ({
             )}
           </section>
 
-          {!submitted && (
+          {!submitted && selectionReady && (
             <button
               type="button"
               onClick={openPicker}
@@ -314,7 +327,7 @@ export const AdmissionOtherServicesTab = ({
           )}
 
           <section>
-            {quotationName && !submitted && servicesChanged && (
+            {quotationName && selectionReady && !submitted && servicesChanged && (
               <button type="button" onClick={() => void updateQuotation()} disabled={updating || loading}
                 className="mb-3 rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 disabled:opacity-50">
                 {updating ? 'Updating Quotation...' : 'Update Quotation'}
