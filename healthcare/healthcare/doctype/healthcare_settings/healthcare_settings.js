@@ -42,6 +42,15 @@ frappe.ui.form.on('Healthcare Settings', {
 			open_oracle_op_visit(frm);
 		}, __('Oracle -> ERPNext'));
 
+		// Daily Auto Visit setup: DAILY_PATIENTS_01 → Daily Patient Visit Setup
+		// and DAILY_PATIENTS_02 → Patient Visit (Daily Auto Visit). Matches on
+		// TRANS_NUM / INV_NUM and also patient + from/encounter date.
+		frm.add_custom_button(
+			__('Daily Patient Visit Setup'),
+			() => open_daily_patient_visit_reconcile(frm),
+			__('Oracle -> ERPNext')
+		);
+
 		frm.add_custom_button(
 			__('Cleanup IP Admission'),
 			() => open_ip_admission_cleanup(frm),
@@ -12477,6 +12486,12 @@ function show_create_missing_reconcile_dialog(frm, spec, data, values) {
 					missing
 				)}</b></td></tr>
 			${
+				data.update_total != null
+					? `<tr><td class="text-muted">${__('Existing to update')}</td>
+				<td><b>${format_number(cint(data.update_total))}</b></td></tr>`
+					: ''
+			}
+			${
 				data.duplicates != null
 					? `<tr><td class="text-muted">${__('Duplicates to remove')}</td>
 				<td><b>${format_number(cint(data.duplicates))}</b></td></tr>`
@@ -12784,6 +12799,20 @@ function open_session_schedule_reconcile(frm) {
 		suffix_label: __('Import rows whose sr number is already used (as <sr>-S)'),
 		poll_limit: SESSION_SCHEDULE_RECONCILE_POLL_LIMIT,
 		progress_title: __('Reconciling session schedules from Oracle'),
+	});
+}
+
+function open_daily_patient_visit_reconcile(frm) {
+	open_create_missing_reconcile(frm, {
+		title: __('Oracle -> ERPNext: Daily Patient Visit Setup'),
+		entity: 'daily_patient_visit',
+		intro: __(
+			'Reads DAILY_PATIENTS_01 (Daily Patient Visit Setup) and DAILY_PATIENTS_02 (Daily Auto Visit). Creates missing setups/visits and updates existing ones. Matching uses TRANS_NUM / INV_NUM and also patient + from date / encounter date — not trans number alone.'
+		),
+		api_prefix: 'healthcare.api.daily_patient_visit_reconcile',
+		method_suffix: 'daily_patient_visit_reconcile',
+		poll_limit: 300,
+		progress_title: __('Reconciling Daily Patient Visit Setup / Auto Visits'),
 	});
 }
 

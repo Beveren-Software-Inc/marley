@@ -550,6 +550,11 @@ def resolve_patient_customer_group(category=None, customer_group=None):
 
 def _ensure_patient_customer_after_commit(patient_name: str) -> None:
 	"""Create Customer after Patient transaction has committed."""
+
+	# Anything written from an `after_commit` callback lands in a brand new
+	# transaction that Frappe never commits, so it is rolled back when the
+	# request connection closes.  Commit explicitly here, otherwise the new
+	# Customer and the Patient -> Customer link are silently discarded.
 	try:
 		if not patient_name or not frappe.db.exists("Patient", patient_name):
 			return
@@ -557,28 +562,37 @@ def _ensure_patient_customer_after_commit(patient_name: str) -> None:
 		if patient.customer:
 			return
 		create_customer(patient)
+		frappe.db.commit()
 	except Exception:
+		frappe.db.rollback()
 		frappe.log_error(
 			message=frappe.get_traceback(),
 			title=f"Create Customer for Patient {patient_name} failed",
 		)
+		# Persist the error log as well, it lives in its own transaction.
+		frappe.db.commit()
 
 
 def _sync_linked_customer_after_commit(patient_name: str) -> None:
 	"""Sync Customer details after Patient transaction has committed."""
+	# See `_ensure_patient_customer_after_commit` for why this commit is needed.
 	try:
 		if not patient_name or not frappe.db.exists("Patient", patient_name):
 			return
 		patient = frappe.get_doc("Patient", patient_name)
 		if not patient.customer:
 			create_customer(patient)
+			frappe.db.commit()
 			return
 		patient.update_linked_customer()
+		frappe.db.commit()
 	except Exception:
+		frappe.db.rollback()
 		frappe.log_error(
 			message=frappe.get_traceback(),
 			title=f"Sync Customer for Patient {patient_name} failed",
 		)
+		frappe.db.commit()
 
 
 def create_customer(doc):

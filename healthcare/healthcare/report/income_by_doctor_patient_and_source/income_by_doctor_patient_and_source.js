@@ -38,7 +38,7 @@ frappe.query_reports["Income by Doctor Patient and Source"] = {
 			depends_on:
 				"eval:frappe.query_report.get_filter_value('group_by')==='Doctor'",
 			description: __(
-				"Doctor view: pick a doctor to see only his income. With Detailed ticked, one table of the services billed for that doctor is shown."
+				"Doctor view: pick a doctor to see only his income. With Detailed ticked, that doctor's visit sheet (one row per visit, grouped by OP / IP / IOP) is printed below."
 			),
 		},
 		{
@@ -115,7 +115,7 @@ frappe.query_reports["Income by Doctor Patient and Source"] = {
 			depends_on:
 				"eval:frappe.query_report.get_filter_value('group_by')==='Source' || frappe.query_report.get_filter_value('group_by')==='Doctor'",
 			description: __(
-				"Doctor: one table of services billed for the selected practitioner. Source: show each billed service (rooms, visits, therapy); Lab becomes Lab Income."
+				"Doctor: “Patients Visits by Doctors” sheet — one row per visit with Consultation / Pharmacy / Lab, the visit's Cash / Cheque / Card / B-Wallet receipts, discount and balance, grouped by OP / IP / IOP under Patient Type Total, Doctor Total and Report Total. Source: show each billed service (rooms, visits, therapy); Lab becomes Lab Income."
 			),
 		},
 	],

@@ -11,8 +11,11 @@ Income Analysis):
 
 Doctor view extras:
 - ``practitioner`` narrows the summary to one doctor.
-- ``detailed`` lists, for the chosen doctor, one table of the services billed
-  for him (aggregated; no Sales Invoice nesting).
+- ``detailed`` prints, for the chosen doctor, the visit sheet: one row per
+  visit with Consultation / Pharmacy / Lab income, the visit's Cash /
+  Cheque-Online / Credit Card / B-Wallet receipts, discount and balance,
+  grouped by patient type (OP / IP / IOP) under Patient Type Total, Doctor
+  Total and Report Total.
 """
 
 from __future__ import annotations
@@ -22,13 +25,13 @@ from frappe import _
 from frappe.utils import cint, flt, getdate, now_datetime
 
 from healthcare.api.doctor_wise_income_analysis import (
+	VISIT_LEDGER_AMOUNT_KEYS,
 	build_analysis,
-	build_doctor_service_detail,
+	build_doctor_visit_ledger,
 	build_source_income_summary,
 	prepare_service_items,
 	render_analysis_html,
-	render_doctor_detail_hint,
-	render_doctor_service_detail_html,
+	render_doctor_visit_ledger_html,
 	render_source_income_html,
 )
 from healthcare.api.patient_wise_income_analysis import (
@@ -100,13 +103,9 @@ def _execute_doctor(filters):
 	# Frappe chart (that second IP/OP/IOP widget looks like a Source graph).
 	html = render_analysis_html(filters, analysis, include_chart=True)
 	if cint(filters.detailed):
-		detail = build_doctor_service_detail(filters, items=items)
-		html += (
-			render_doctor_service_detail_html(filters, detail)
-			if detail.get("practitioner")
-			else render_doctor_detail_hint()
-		)
-		return _doctor_detail_columns(detail), _doctor_detail_rows(detail), html, None
+		ledger = build_doctor_visit_ledger(filters, items=items)
+		html += render_doctor_visit_ledger_html(filters, ledger)
+		return _visit_ledger_columns(ledger), _visit_ledger_rows(ledger), html, None
 	columns = _doctor_columns(analysis)
 	data = _doctor_rows(analysis)
 	return columns, data, html, None
@@ -166,70 +165,67 @@ def _doctor_rows(analysis: dict) -> list[dict]:
 	return rows
 
 
-# ── Doctor — Detailed (one services table) ──────────────────────────────────
+# ── Doctor — Detailed (per-visit ledger) ────────────────────────────────────
+
+# Amount columns of the sheet, in print order.
+VISIT_LEDGER_COLUMN_LABELS = (
+	("consultation", "Consultation"),
+	("pharmacy", "Pharmacy"),
+	("lab", "Lab"),
+	("paid_previous", "Paid of Previous"),
+	("disc_previous", "Disc. of Previous"),
+	("total_due", "Total Due"),
+	("cash", "Cash"),
+	("cheque", "Cheque / Online"),
+	("card", "Credit Card"),
+	("bwallet", "B-Wallet / Benefit"),
+	("disc", "Disc."),
+	("balance", "Balance"),
+)
 
 
-def _doctor_detail_columns(detail: dict) -> list[dict]:
+def _visit_ledger_columns(ledger: dict) -> list[dict]:
 	cols = []
-	if not detail.get("practitioner"):
+	if not ledger.get("practitioner"):
 		cols.append(
-			{"label": _("Doctor"), "fieldname": "doctor_name", "fieldtype": "Data", "width": 190}
+			{"label": _("Doctor"), "fieldname": "doctor_name", "fieldtype": "Data", "width": 180}
 		)
 	cols.extend(
 		[
-			{"label": _("Service"), "fieldname": "service_name", "fieldtype": "Data", "width": 260},
-			{"label": _("Item Code"), "fieldname": "item_code", "fieldtype": "Data", "width": 130},
-			{"label": _("Care"), "fieldname": "care_channel", "fieldtype": "Data", "width": 70},
-			{"label": _("Qty"), "fieldname": "qty", "fieldtype": "Float", "width": 80, "precision": 3},
-			{
-				"label": _("Amount"),
-				"fieldname": "amount",
-				"fieldtype": "Currency",
-				"width": 110,
-				"precision": 3,
-			},
-			{
-				"label": _("Discount"),
-				"fieldname": "discount",
-				"fieldtype": "Currency",
-				"width": 110,
-				"precision": 3,
-			},
-			{
-				"label": _("Tax"),
-				"fieldname": "tax",
-				"fieldtype": "Currency",
-				"width": 100,
-				"precision": 3,
-			},
-			{
-				"label": _("Total"),
-				"fieldname": "total",
-				"fieldtype": "Currency",
-				"width": 120,
-				"precision": 3,
-			},
+			{"label": _("Care"), "fieldname": "patient_type", "fieldtype": "Data", "width": 60},
+			{"label": _("Visit/Adm No"), "fieldname": "visit_no", "fieldtype": "Data", "width": 130},
+			{"label": _("Date"), "fieldname": "date", "fieldtype": "Data", "width": 90},
+			{"label": _("File No."), "fieldname": "file_no", "fieldtype": "Data", "width": 100},
+			{"label": _("Patient Name"), "fieldname": "patient_name", "fieldtype": "Data", "width": 200},
 		]
 	)
+	for fieldname, label in VISIT_LEDGER_COLUMN_LABELS:
+		cols.append(
+			{
+				"label": _(label),
+				"fieldname": fieldname,
+				"fieldtype": "Currency",
+				"width": 110,
+				"precision": 3,
+			}
+		)
 	return cols
 
 
-def _doctor_detail_rows(detail: dict) -> list[dict]:
+def _visit_ledger_rows(ledger: dict) -> list[dict]:
 	rows = []
-	for service in detail.get("services") or []:
-		rows.append(
-			{
-				"doctor_name": service.get("doctor_name"),
-				"service_name": service.get("service_name") or service.get("item_name"),
-				"item_code": service.get("item_code"),
-				"care_channel": service.get("care_channel"),
-				"qty": flt(service.get("qty")),
-				"amount": flt(service.get("net")),
-				"discount": flt(service.get("discount")),
-				"tax": flt(service.get("tax")),
-				"total": flt(service.get("total")),
-			}
-		)
+	for row in ledger.get("rows") or []:
+		out = {
+			"doctor_name": row.get("doctor_name"),
+			"patient_type": row.get("patient_type"),
+			"visit_no": row.get("visit_no"),
+			"date": row.get("date"),
+			"file_no": row.get("file_no"),
+			"patient_name": row.get("patient_name"),
+		}
+		for key in VISIT_LEDGER_AMOUNT_KEYS:
+			out[key] = flt(row.get(key))
+		rows.append(out)
 	return rows
 
 

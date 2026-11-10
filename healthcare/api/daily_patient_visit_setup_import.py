@@ -159,19 +159,43 @@ def _apply_services(doc, services: list[dict]):
 		doc.append("services", {"session": session, "amount": amount})
 
 
-def upsert_daily_patient_visit_setup_from_row(row: dict) -> dict:
-	trans_num = row.get("trans_num")
-	if not trans_num:
-		return {"status": "skip", "reason": "no_trans_num"}
+def _find_existing_daily_patient_visit_setup(row: dict, patient: str | None = None) -> str | None:
+	"""Match by TRANS_NUM first, else same patient + from_date (START_DATE)."""
+	trans_num = _clean_oracle_num(row.get("trans_num"))
+	if trans_num:
+		existing = frappe.db.get_value("Daily Patient Visit Setup", {"trans_num": trans_num}, "name")
+		if existing:
+			return existing
 
+	patient = patient or _resolve_patient(row.get("patient_num"))
+	start = row.get("start_date")
+	if not patient or not start:
+		return None
+	try:
+		from_date = getdate(start)
+	except Exception:
+		return None
+	return frappe.db.get_value(
+		"Daily Patient Visit Setup",
+		{"patient": patient, "from_date": from_date},
+		"name",
+	)
+
+
+def upsert_daily_patient_visit_setup_from_row(row: dict) -> dict:
+	trans_num = _clean_oracle_num(row.get("trans_num"))
 	patient = _resolve_patient(row.get("patient_num"))
 	if not patient:
 		return {"status": "skip", "reason": "no_patient", "trans_num": trans_num}
 
-	existing = frappe.db.get_value("Daily Patient Visit Setup", {"trans_num": trans_num}, "name")
+	existing = _find_existing_daily_patient_visit_setup(row, patient=patient)
 	if existing:
 		doc = frappe.get_doc("Daily Patient Visit Setup", existing)
 		action = "updated"
+		if trans_num and not (doc.trans_num or "").strip():
+			doc.trans_num = trans_num
+	elif not trans_num:
+		return {"status": "skip", "reason": "no_trans_num"}
 	else:
 		doc = frappe.new_doc("Daily Patient Visit Setup")
 		doc.trans_num = trans_num

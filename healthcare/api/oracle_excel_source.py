@@ -60,6 +60,22 @@ ORACLE_SOURCES: dict[str, dict[str, Any]] = {
 			}
 		],
 	},
+	"daily_patient_visit": {
+		"label": "Daily Patient Visit Setup / Auto Visit",
+		"doctype": "Daily Patient Visit Setup",
+		"tables": [
+			{
+				"table": "DAILY_PATIENTS_01",
+				"label": "Daily Patient Visit Setup",
+				"required": ["TRANS_NUM", "PATIENT_NUM", "START_DATE"],
+			},
+			{
+				"table": "DAILY_PATIENTS_02",
+				"label": "Daily Auto Visits",
+				"required": ["INV_NUM", "PATIENT_NUM", "TRANS_NUM"],
+			},
+		],
+	},
 	"prescriptions": {
 		"label": "Reconcile Prescriptions",
 		"doctype": "Patient Medication Order",

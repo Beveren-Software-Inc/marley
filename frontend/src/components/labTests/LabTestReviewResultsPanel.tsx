@@ -24,6 +24,9 @@ type NestedResultRow = {
   value: string
   flag?: string
   range?: string
+  /** Patient-specific bounds resolved on the server (female/male → default) */
+  rangeMin?: number | null
+  rangeMax?: number | null
   collection?: string
 }
 
@@ -37,6 +40,8 @@ function nestedRowsForTest(test: LabTest): NestedResultRow[] {
         value: (item.result_value || '').trim() || '—',
         flag: (item.result_status || '').trim(),
         range: (item.normal_range || '').trim(),
+        rangeMin: item.range_min as number | null | undefined,
+        rangeMax: item.range_max as number | null | undefined,
         collection: (item.collection_name || '').trim(),
       }))
       .filter((row) => row.value !== '—' || row.name !== '—')
@@ -58,10 +63,27 @@ function nestedRowsForTest(test: LabTest): NestedResultRow[] {
         '—',
       value: (line.lab_result_value || '').trim() || '—',
       range: (line.normal_range || '').trim(),
+      rangeMin: line.range_min,
+      rangeMax: line.range_max,
     }))
   }
 
   return []
+}
+
+function formatRangeBound(value?: number | null): string {
+  const n = value == null ? NaN : Number(value)
+  return Number.isFinite(n) ? String(n) : '—'
+}
+
+/** Reference range cell — min/max when known, else the template's range text. */
+function referenceRangeLabel(
+  min?: number | null,
+  max?: number | null,
+  fallback?: string | null
+): string {
+  if (min != null || max != null) return `${formatRangeBound(min)} – ${formatRangeBound(max)}`
+  return (fallback || '').trim() || '—'
 }
 
 function flatResultForTest(test: LabTest): string {
@@ -130,6 +152,7 @@ export function LabTestReviewResultsPanel({ tests }: { tests: LabTest[] }) {
             <tr>
               <th className="px-3 py-2 text-left">Test</th>
               <th className="px-3 py-2 text-left">Result</th>
+              <th className="px-3 py-2 text-left">Normal Range</th>
               <th className="px-3 py-2 text-left">Flag</th>
               {rows.length > 1 ? <th className="px-3 py-2 text-left">Status</th> : null}
             </tr>
@@ -143,7 +166,7 @@ export function LabTestReviewResultsPanel({ tests }: { tests: LabTest[] }) {
                     <tr className="bg-emerald-50/40">
                       <td
                         className="px-3 py-2 font-semibold text-slate-800"
-                        colSpan={rows.length > 1 ? 3 : 2}
+                        colSpan={rows.length > 1 ? 4 : 3}
                       >
                         {label}
                         <span className="ml-1.5 text-[10px] font-normal text-slate-400">
@@ -164,7 +187,7 @@ export function LabTestReviewResultsPanel({ tests }: { tests: LabTest[] }) {
                       {row.collection && row.collection !== nested[rowIndex - 1]?.collection ? (
                         <tr className="bg-teal-700 text-white">
                           <td
-                            colSpan={rows.length > 1 ? 4 : 3}
+                            colSpan={rows.length > 1 ? 5 : 4}
                             className="px-3 py-1.5 pl-6 text-[11px] font-semibold uppercase tracking-wide"
                           >
                             {row.collection}
@@ -173,11 +196,9 @@ export function LabTestReviewResultsPanel({ tests }: { tests: LabTest[] }) {
                       ) : null}
                       <tr>
                         <td className="px-3 py-1.5 pl-6 text-slate-600">{row.name}</td>
-                        <td className="px-3 py-1.5 font-medium text-slate-800">
-                          {row.value}
-                          {row.range ? (
-                            <span className="ml-2 text-xs font-normal text-slate-400">{row.range}</span>
-                          ) : null}
+                        <td className="px-3 py-1.5 font-medium text-slate-800">{row.value}</td>
+                        <td className="px-3 py-1.5 text-slate-500">
+                          {referenceRangeLabel(row.rangeMin, row.rangeMax, row.range)}
                         </td>
                         <td className="px-3 py-1.5">
                           <FlagBadge flag={row.flag || test.result_flag} />
@@ -200,7 +221,7 @@ export function LabTestReviewResultsPanel({ tests }: { tests: LabTest[] }) {
                                   result_value: item.result_value,
                                 }))}
                                 sex={test.patient_sex || test.gender}
-                                colSpan={rows.length > 1 ? 4 : 3}
+                                colSpan={rows.length > 1 ? 5 : 4}
                               />
                             ))
                         : null}
@@ -211,7 +232,9 @@ export function LabTestReviewResultsPanel({ tests }: { tests: LabTest[] }) {
               }
 
               const value = nested.length === 1 ? nested[0].value : flat
-              const range = nested.length === 1 ? nested[0].range : ''
+              const rangeMin = nested.length === 1 ? nested[0].rangeMin : test.range_min
+              const rangeMax = nested.length === 1 ? nested[0].rangeMax : test.range_max
+              const rangeText = nested.length === 1 ? nested[0].range : test.range_text
               const flag = nested.length === 1 ? nested[0].flag || test.result_flag : test.result_flag
               return (
                 <tr key={test.name} className="align-top">
@@ -222,15 +245,13 @@ export function LabTestReviewResultsPanel({ tests }: { tests: LabTest[] }) {
                   </td>
                   <td className="px-3 py-2 text-slate-700">
                     {value ? (
-                      <span className="whitespace-pre-wrap">
-                        {value}
-                        {range ? (
-                          <span className="ml-2 text-xs font-normal text-slate-400">{range}</span>
-                        ) : null}
-                      </span>
+                      <span className="whitespace-pre-wrap">{value}</span>
                     ) : (
                       <span className="text-slate-300">—</span>
                     )}
+                  </td>
+                  <td className="px-3 py-2 text-slate-500">
+                    {referenceRangeLabel(rangeMin, rangeMax, rangeText)}
                   </td>
                   <td className="px-3 py-2">
                     <FlagBadge flag={flag} />

@@ -1,5 +1,6 @@
 import type { LabTest } from '../../services/labTests'
 import { stripHtmlToText } from '../ui/dashboardCardListing'
+import { resultValuesFromHtml } from './labTestDisplayUtils'
 
 export type BulkReviewBucket = 'toReview' | 'awaitingResults' | 'alreadyReviewed'
 
@@ -35,21 +36,17 @@ export function resultFlagBadgeClass(flag?: string | null): string {
 export function labTestResultPreview(lt: LabTest): string {
   const lines = lt.lab_test_lines || []
   if (lt.is_legacy_line_row || lt.is_legacy_import) {
-    if (lines.length === 1) {
-      const single = (lines[0].lab_result_value || '').trim()
-      if (single) return single
-    }
-    if (lines.length > 1) {
-      const parts = lines
-        .map((line) => {
-          const code = (line.lab_sub_num || line.group_name || '').trim()
-          const value = (line.lab_result_value || '').trim()
-          if (!value) return ''
-          return code ? `${code}: ${value}` : value
-        })
-        .filter(Boolean)
-      if (parts.length) return parts.join(', ')
-    }
+    // Legacy results are shown as the values only — never the panel / test name /
+    // test code prefixes (Oracle LAB 00-04 rows) or the stored Panel/Test Code/
+    // Result HTML table dumped as text.
+    const lineValues = lines
+      .map((line) => (line.lab_result_value || '').trim())
+      .filter(Boolean)
+    if (lineValues.length) return lineValues.join(', ')
+
+    const storedValues = resultValuesFromHtml(lt.custom_result)
+    if (storedValues.length) return storedValues.join(', ')
+
     const plainResults = (typeof lt.results === 'string' ? lt.results : '').trim()
     if (plainResults && !plainResults.includes('<')) return plainResults
   }

@@ -383,8 +383,8 @@ def prepare_service_items(doc_or_filters):
 	"""Fetch + enrich the billed service lines once.
 
 	Returns ``(items, billing_source)``. Callers that need both the doctor
-	summary and the per-transaction drill-down pass ``items`` into
-	``build_analysis`` / ``build_doctor_service_detail`` so the (expensive)
+	summary and the visit ledger of the Detailed view pass ``items`` into
+	``build_analysis`` / ``build_doctor_visit_ledger`` so the (expensive)
 	billing queries run only once.
 	"""
 	src = frappe._dict(doc_or_filters or {})
@@ -844,6 +844,836 @@ def render_doctor_service_detail_html(doc_or_filters=None, detail=None) -> str:
 	</div>
 	"""
 
+
+
+# ── Doctor — Detailed visit ledger (Patients Visits by Doctors) ─────────────
+
+# Amount columns of the Accounts team's “Patients Visits by Doctors” sheet:
+# the doctor's income per visit split into consultation / pharmacy / lab, the
+# receipts of that visit split by payment mode, plus discount and balance.
+VISIT_LEDGER_AMOUNT_KEYS = (
+	"consultation",
+	"pharmacy",
+	"lab",
+	"paid_previous",
+	"disc_previous",
+	"total_due",
+	"cash",
+	"cheque",
+	"card",
+	"bwallet",
+	"disc",
+	"balance",
+)
+# Care channels of the sheet, in the order it prints them.
+PATIENT_TYPE_ORDER = ("OP", "IP", "IOP")
+# Visits rendered in the HTML block above the datatable (never truncated there).
+MAX_DETAIL_HTML_VISITS = 500
+
+# Scoped styles for the printable block: the print window has no desk styles,
+# and keeping them here (instead of on every cell) keeps the payload small.
+VISIT_LEDGER_STYLE = """
+.dwia-vl { font-family:Arial,Helvetica,sans-serif; font-size:11px; color:#000; }
+.dwia-vl .generated { font-size:10px; margin-bottom:2px; }
+.dwia-vl .doctor-head { text-align:center; font-size:15px; font-weight:bold; color:#8B0000; margin:10px 0 4px; }
+.dwia-vl .doctor-head .doctor-id { font-size:10px; font-weight:normal; color:#333; }
+.dwia-vl table { border-collapse:collapse; }
+.dwia-vl table.meta { margin:0 auto 8px; font-size:11px; }
+.dwia-vl table.meta td { border:1px solid #333; padding:3px 8px; }
+.dwia-vl .sheet-wrap { overflow:auto; max-width:100%; }
+.dwia-vl table.sheet { width:100%; }
+.dwia-vl th {
+	border:1px solid #333; padding:3px 4px; background:#d6d6d6; color:#000080;
+	text-align:center; font-size:9px; font-weight:bold; white-space:nowrap;
+}
+.dwia-vl th.l { text-align:left; }
+.dwia-vl td { border:1px solid #333; padding:1px 4px; font-size:9px; }
+.dwia-vl td.c { text-align:center; white-space:nowrap; }
+.dwia-vl td.n { text-align:right; white-space:nowrap; }
+.dwia-vl td.disc { color:#c62828; }
+.dwia-vl tr.section td { background:#d6d6d6; color:#000080; font-weight:bold; }
+.dwia-vl tr.type-total td { background:#f2f2f2; color:#000080; font-weight:bold; }
+.dwia-vl tr.doctor-total td { background:#e8e8e8; color:#000080; font-weight:bold; }
+.dwia-vl tr.report-total td { background:#fdecea; color:#ff0000; font-weight:bold; }
+.dwia-vl tr.report-total td.label { color:#000080; }
+.dwia-vl .report-block { margin-top:10px; }
+.dwia-vl td.label { text-align:right; }
+.dwia-vl .empty { padding:8px; text-align:center; color:#64748b; }
+.dwia-vl .truncate { margin:0 0 8px; color:#b45309; font-size:11px; }
+"""
+
+
+def _ledger_zero_amounts() -> dict:
+	return {key: 0.0 for key in VISIT_LEDGER_AMOUNT_KEYS}
+
+
+def _ledger_add_amounts(target, source) -> None:
+	for key in VISIT_LEDGER_AMOUNT_KEYS:
+		target[key] = flt(target.get(key)) + flt(source.get(key))
+
+
+def _ledger_round_amounts(row) -> None:
+	for key in VISIT_LEDGER_AMOUNT_KEYS:
+		row[key] = flt(row.get(key), 3)
+	# Total Due of the sheet = consultation + pharmacy + lab (no tax column).
+	row["total_due"] = flt(
+		flt(row.get("consultation")) + flt(row.get("pharmacy")) + flt(row.get("lab")), 3
+	)
+
+
+def _payment_mode_column(mode_of_payment) -> str:
+	"""Cash / Cheque-Online / Credit Card / B-Wallet column of a payment mode.
+
+	Uses the Daily Collection Summary buckets so both sheets split payments the
+	same way.
+	"""
+	from healthcare.api.billing import _collection_mode_bucket
+
+	return _collection_mode_bucket(mode_of_payment)
+
+
+def _visit_service_split(lines, base_reference) -> dict:
+	"""Billed lines of one visit → consultation / pharmacy / lab amounts."""
+	from healthcare.api.reception_reports import _soa_is_lab_item, _soa_is_medicine_item
+
+	split = {"consultation": 0.0, "pharmacy": 0.0, "lab": 0.0}
+	base_reference = (base_reference or "").strip()
+	if base_reference in ("Lab Test", "Lab Test Template"):
+		split["lab"] = flt(sum(flt(line.get("amount")) for line in lines))
+		return split
+
+	bucket_by_item = {}
+	for line in lines:
+		item_code = (line.get("item_code") or "").strip()
+		bucket = bucket_by_item.get(item_code)
+		if bucket is None:
+			item_group = (line.get("item_group") or "").strip()
+			if _soa_is_lab_item(item_code, item_group=item_group, base_reference=base_reference):
+				bucket = "lab"
+			elif _soa_is_medicine_item(
+				item_code,
+				item_group=item_group,
+				base_reference=base_reference,
+				item_name=(line.get("item_name") or "").strip(),
+			):
+				bucket = "pharmacy"
+			else:
+				bucket = "consultation"
+			bucket_by_item[item_code] = bucket
+		split[bucket] += flt(line.get("amount"))
+	return split
+
+
+def _in_chunks(names, size: int = 500):
+	names = list(names)
+	for start in range(0, len(names), size):
+		yield names[start : start + size]
+
+
+def _sales_invoice_headers(invoice_names) -> dict:
+	"""Invoice header fields the ledger needs (name → row)."""
+	names = sorted({name for name in (invoice_names or []) if name})
+	if not names:
+		return {}
+	meta = frappe.get_meta("Sales Invoice")
+	fields = ["name", "posting_date", "grand_total", "outstanding_amount"]
+	for fieldname in (
+		"discount_amount",
+		"patient",
+		"custom_patient_name",
+		"custom_base_reference",
+		"custom_base_reference_name",
+	):
+		if meta.has_field(fieldname):
+			fields.append(fieldname)
+	headers = {}
+	for chunk in _in_chunks(names):
+		for row in frappe.get_all(
+			"Sales Invoice",
+			filters={"name": ["in", chunk], "docstatus": 1},
+			fields=fields,
+			limit_page_length=0,
+		):
+			headers[row.get("name")] = row
+	return headers
+
+
+def _sales_order_headers(order_names) -> dict:
+	names = sorted({name for name in (order_names or []) if name})
+	if not names:
+		return {}
+	meta = frappe.get_meta("Sales Order")
+	fields = ["name", "transaction_date", "grand_total"]
+	if meta.has_field("advance_paid"):
+		fields.append("advance_paid")
+	headers = {}
+	for chunk in _in_chunks(names):
+		for row in frappe.get_all(
+			"Sales Order",
+			filters={"name": ["in", chunk], "docstatus": 1},
+			fields=fields,
+			limit_page_length=0,
+		):
+			headers[row.get("name")] = row
+	return headers
+
+
+def _invoice_allocation_by_sales_order(order_names) -> tuple[dict, dict]:
+	"""Sales Order → submitted Sales Invoices, plus each order's share of them.
+
+	One invoice can combine several orders, so an invoice's receipts and balance
+	are split between its orders by the order's share of the invoiced amount —
+	counting the whole invoice for every order would multiply the totals.
+	Returns ``(invoices_by_order, share_by_order_invoice)``.
+	"""
+	names = sorted({name for name in (order_names or []) if name})
+	if not names:
+		return {}, {}
+	billed = {}
+	for chunk in _in_chunks(names):
+		rows = frappe.db.sql(
+			"""
+			SELECT sii.sales_order AS sales_order,
+				si.name AS invoice,
+				IFNULL(SUM(sii.amount), 0) AS billed
+			FROM `tabSales Invoice Item` sii
+			INNER JOIN `tabSales Invoice` si ON si.name = sii.parent
+			WHERE si.docstatus = 1 AND sii.sales_order IN %(orders)s
+			GROUP BY sii.sales_order, si.name
+			""",
+			{"orders": tuple(chunk)},
+			as_dict=True,
+		)
+		for row in rows:
+			billed[(row.sales_order, row.invoice)] = flt(row.billed)
+
+	invoice_totals = defaultdict(float)
+	for (_order, invoice), amount in billed.items():
+		invoice_totals[invoice] += amount
+
+	invoices_by_order = defaultdict(list)
+	share = {}
+	for (order, invoice), amount in billed.items():
+		if invoice not in invoices_by_order[order]:
+			invoices_by_order[order].append(invoice)
+		invoice_total = invoice_totals.get(invoice) or 0
+		share[(order, invoice)] = (amount / invoice_total) if invoice_total else 0.0
+	return invoices_by_order, share
+
+
+def _bucket_payments(rows) -> dict:
+	"""Group payment allocations per invoice into the sheet's mode columns."""
+	payments = {}
+	for row in rows:
+		entry = payments.get(row.invoice)
+		if entry is None:
+			entry = payments[row.invoice] = {
+				"total": 0.0,
+				"cash": 0.0,
+				"cheque": 0.0,
+				"card": 0.0,
+				"bwallet": 0.0,
+			}
+		column = _payment_mode_column(row.mode_of_payment)
+		amount = flt(row.allocated)
+		entry[column] = flt(entry.get(column)) + amount
+		entry["total"] = flt(entry["total"]) + amount
+	return payments
+
+
+def _pos_payment_rows(invoices, from_date, to_date):
+	"""Payment rows of POS invoices (they settle on the invoice, not via Payment Entry)."""
+	if not frappe.db.has_column("Sales Invoice", "is_pos"):
+		return []
+	if not frappe.db.exists("DocType", "Sales Invoice Payment"):
+		return []
+	try:
+		return frappe.db.sql(
+			"""
+			SELECT si.name AS invoice,
+				sip.mode_of_payment AS mode_of_payment,
+				IFNULL(sip.amount, 0) AS allocated
+			FROM `tabSales Invoice Payment` sip
+			INNER JOIN `tabSales Invoice` si ON si.name = sip.parent
+			WHERE sip.parent IN %(invoices)s
+				AND si.docstatus = 1
+				AND IFNULL(si.is_pos, 0) = 1
+				AND si.posting_date BETWEEN %(from_date)s AND %(to_date)s
+			""",
+			{"invoices": invoices, "from_date": from_date, "to_date": to_date},
+			as_dict=True,
+		)
+	except Exception:
+		frappe.log_error(
+			title="Doctor Wise Income Analysis: POS receipts",
+			message=frappe.get_traceback(),
+		)
+		return []
+
+
+def _visit_ledger_payments(invoice_names, from_date, to_date) -> dict:
+	"""Receipts of the period per invoice, split into the sheet's mode columns.
+
+	Payment Entries cover cash/cheque/card receipts; POS invoices (appointment
+	billing pays them at creation) keep their payment rows on the invoice itself
+	and never raise a Payment Entry, so both sources are read.
+	"""
+	names = sorted({name for name in (invoice_names or []) if name})
+	if not names or not from_date or not to_date:
+		return {}
+	rows = []
+	for chunk in _in_chunks(names):
+		rows.extend(
+			frappe.db.sql(
+				"""
+				SELECT per.reference_name AS invoice,
+					pe.mode_of_payment AS mode_of_payment,
+					IFNULL(per.allocated_amount, 0) AS allocated
+				FROM `tabPayment Entry Reference` per
+				INNER JOIN `tabPayment Entry` pe ON pe.name = per.parent
+				WHERE per.reference_doctype = 'Sales Invoice'
+					AND per.reference_name IN %(invoices)s
+					AND pe.docstatus = 1
+					AND IFNULL(pe.payment_type, 'Receive') != 'Pay'
+					AND pe.posting_date BETWEEN %(from_date)s AND %(to_date)s
+				""",
+				{"invoices": tuple(chunk), "from_date": from_date, "to_date": to_date},
+				as_dict=True,
+			)
+		)
+		rows.extend(_pos_payment_rows(tuple(chunk), from_date, to_date))
+	return _bucket_payments(rows)
+
+
+def _previous_visit_payments(
+	from_date, to_date, exclude_names, company=None, cost_center=None
+) -> dict:
+	"""Receipts of the period on visits billed before it (previous dues).
+
+	Scoped like the in-period lines (company + cost centre) so a receipt from
+	another company/branch is never folded into the selected branch's totals.
+	"""
+	if not from_date or not to_date:
+		return {}
+	conditions = [
+		"per.reference_doctype = 'Sales Invoice'",
+		"pe.docstatus = 1",
+		"IFNULL(pe.payment_type, 'Receive') != 'Pay'",
+		"pe.posting_date BETWEEN %(from_date)s AND %(to_date)s",
+		"si.posting_date < %(from_date)s",
+	]
+	values = {"from_date": from_date, "to_date": to_date}
+	if company:
+		conditions.append("si.company = %(company)s")
+		values["company"] = company
+	if cost_center:
+		# Same scoping as the in-period items: the line's cost centre, falling
+		# back to the invoice header when the line is blank.
+		conditions.append(
+			"""EXISTS (
+				SELECT 1 FROM `tabSales Invoice Item` sii_cc
+				WHERE sii_cc.parent = si.name
+					AND COALESCE(NULLIF(sii_cc.cost_center, ''), si.cost_center) = %(cost_center)s
+			)"""
+		)
+		values["cost_center"] = cost_center
+	exclude_names = sorted({name for name in (exclude_names or []) if name})
+	if exclude_names:
+		conditions.append("per.reference_name NOT IN %(in_period)s")
+		values["in_period"] = tuple(exclude_names)
+	rows = frappe.db.sql(
+		f"""
+		SELECT per.reference_name AS invoice,
+			pe.mode_of_payment AS mode_of_payment,
+			IFNULL(per.allocated_amount, 0) AS allocated
+		FROM `tabPayment Entry Reference` per
+		INNER JOIN `tabPayment Entry` pe ON pe.name = per.parent
+		INNER JOIN `tabSales Invoice` si ON si.name = per.reference_name
+		WHERE {" AND ".join(conditions)}
+		""",
+		values,
+		as_dict=True,
+	)
+	return _bucket_payments(rows)
+
+
+def _patient_ledger_display(patients) -> dict:
+	"""Patient → {file_no, patient_name} for the sheet's File No / Patient Name."""
+	names = sorted({patient for patient in (patients or []) if patient})
+	out = {}
+	for chunk in _in_chunks(names):
+		for row in frappe.get_all(
+			"Patient",
+			filters={"name": ["in", chunk]},
+			fields=["name", "file_no", "patient_name"],
+			limit_page_length=0,
+		):
+			out[row.get("name")] = {
+				"file_no": row.get("file_no") or "",
+				"patient_name": row.get("patient_name") or "",
+			}
+	return out
+
+
+def build_doctor_visit_ledger(doc_or_filters, items=None) -> dict:
+	"""Visit-by-visit ledger of the Detailed doctor view.
+
+	The Accounts team's “Patients Visits by Doctors” sheet: for the selected
+	doctor, one row per billed visit (Visit/Adm No, Date, File No, Patient Name)
+	with the visit's income split into Consultation / Pharmacy / Lab, the visit's
+	receipts split into Cash / Cheque-Online / Credit Card / B-Wallet, plus
+	Discount and Balance. Rows are grouped by care channel (OP / IP / IOP) under
+	the doctor, followed by a Patient Type Total per channel, a Doctor Total and
+	a Report Total.
+
+	Payments come from Payment Entries of the selected From–To range; visits
+	billed before the range that were paid inside it show only their previous
+	columns (Paid of Previous / Disc. of Previous / Balance), like the Daily
+	Collection Summary does.
+	"""
+	src = frappe._dict(doc_or_filters or {})
+	only_practitioner = (src.get("practitioner") or "").strip()
+	if items is None:
+		items, billing_source = prepare_service_items(src)
+	else:
+		billing_source = (src.get("source") or "Sales Invoice").strip() or "Sales Invoice"
+	is_order = billing_source.lower().startswith("sales order")
+	transaction_type = "Sales Order" if is_order else "Sales Invoice"
+	from_date = getdate(src.get("from_date")) if src.get("from_date") else None
+	to_date = getdate(src.get("to_date")) if src.get("to_date") else None
+	items = items or []
+
+	practitioner_by_base = resolve_practitioners(items) if items else {}
+
+	# Doctor-attributed lines grouped per billed transaction (visit).
+	lines_by_txn = defaultdict(list)
+	visit_names = set()
+	for row in items:
+		base_type = (row.get("custom_base_reference") or "").strip()
+		base_name = (row.get("custom_base_reference_name") or "").strip()
+		if only_practitioner and practitioner_by_base.get((base_type, base_name)) != only_practitioner:
+			continue
+		transaction = (row.get("sales_order") or "").strip()
+		if not transaction:
+			continue
+		lines_by_txn[transaction].append(row)
+		if base_type == "Patient Visit":
+			visit_names.add(base_name)
+
+	invoices_by_txn, invoice_share = (
+		_invoice_allocation_by_sales_order(list(lines_by_txn))
+		if is_order
+		else ({transaction: [transaction] for transaction in lines_by_txn}, {})
+	)
+	period_invoices = sorted({inv for invs in invoices_by_txn.values() for inv in invs})
+	order_headers = _sales_order_headers(list(lines_by_txn)) if is_order else {}
+	invoice_headers = _sales_invoice_headers(period_invoices)
+	payments = _visit_ledger_payments(period_invoices, from_date, to_date)
+
+	# Visits billed before the range but paid inside it (previous dues).
+	previous_invoices = []
+	previous_payments = _previous_visit_payments(
+		from_date,
+		to_date,
+		period_invoices,
+		company=src.get("company"),
+		cost_center=src.get("cost_center"),
+	)
+	if previous_payments:
+		dated = _sales_invoice_headers(list(previous_payments))
+		for invoice in sorted(dated):
+			posted = dated[invoice].get("posting_date")
+			if posted and getdate(posted) < from_date:
+				previous_invoices.append(invoice)
+		invoice_headers.update(dated)
+		for invoice in previous_invoices:
+			header = invoice_headers.get(invoice) or {}
+			if (header.get("custom_base_reference") or "").strip() == "Patient Visit":
+				visit_names.add((header.get("custom_base_reference_name") or "").strip())
+		# Older visits are not in the period's lines, so their doctor has to be
+		# resolved from their own base document — otherwise they land in
+		# Other Income (or are dropped by the doctor filter).
+		previous_bases = []
+		for invoice in previous_invoices:
+			header = invoice_headers.get(invoice) or {}
+			base_type = (header.get("custom_base_reference") or "").strip()
+			base_name = (header.get("custom_base_reference_name") or "").strip()
+			if base_type and base_name:
+				previous_bases.append(
+					frappe._dict(
+						custom_base_reference=base_type,
+						custom_base_reference_name=base_name,
+					)
+				)
+		if previous_bases:
+			practitioner_by_base.update(resolve_practitioners(previous_bases))
+
+	visit_care_map = _load_visit_care_map(visit_names)
+	patients = {(row.get("patient") or "").strip() for row in items}
+	patients.update(
+		((invoice_headers.get(invoice) or {}).get("patient") or "").strip()
+		for invoice in previous_invoices
+	)
+	patient_display = _patient_ledger_display(patients)
+
+	rows = []
+
+	def _base_row(transaction, base_type, base_name, patient, patient_name, header):
+		display = patient_display.get(patient) or {}
+		visit_date = header.get("transaction_date") or header.get("posting_date")
+		return {
+			"practitioner": practitioner_by_base.get((base_type, base_name)) or "",
+			"patient_type": classify_care_channel(base_type, base_name, visit_care_map),
+			"visit_no": base_name or transaction,
+			"transaction": transaction,
+			"patient": patient,
+			"file_no": display.get("file_no") or "",
+			"patient_name": display.get("patient_name") or patient_name or "",
+			"sort_date": str(visit_date or ""),
+			"date": _fmt_short_date(visit_date) if visit_date else "",
+			"is_previous": 0,
+			**_ledger_zero_amounts(),
+		}
+
+	for transaction, lines in lines_by_txn.items():
+		first = lines[0]
+		base_type = (first.get("custom_base_reference") or "").strip()
+		base_name = (first.get("custom_base_reference_name") or "").strip()
+		if is_order:
+			header = order_headers.get(transaction) or {}
+		else:
+			header = invoice_headers.get(transaction) or {}
+		row = _base_row(
+			transaction,
+			base_type,
+			base_name,
+			(first.get("patient") or "").strip(),
+			(first.get("custom_patient_name") or "").strip()
+			or (first.get("customer_name") or "").strip(),
+			header,
+		)
+		split = _visit_service_split(lines, base_type)
+		row["consultation"] = split["consultation"]
+		row["pharmacy"] = split["pharmacy"]
+		row["lab"] = split["lab"]
+		row["disc"] = sum(_line_discount(line) for line in lines)
+
+		invoices = invoices_by_txn.get(transaction) or []
+		outstanding = 0.0
+		invoiced_value = 0.0
+		for invoice in invoices:
+			# A shared invoice (several orders billed on one invoice) only counts
+			# the order's share here, so its receipts/balance are not multiplied.
+			share = invoice_share.get((transaction, invoice), 1.0)
+			paid = payments.get(invoice) or {}
+			for column in ("cash", "cheque", "card", "bwallet"):
+				row[column] = flt(row.get(column)) + flt(paid.get(column)) * share
+			invoice_header = invoice_headers.get(invoice) or {}
+			outstanding += flt(invoice_header.get("outstanding_amount")) * share
+			invoiced_value += flt(invoice_header.get("grand_total")) * share
+		if is_order:
+			# Whatever the order has not billed yet is still owed, even when part
+			# of it is already invoiced; an advance can only settle it once.
+			uninvoiced = max(0.0, flt(header.get("grand_total")) - invoiced_value)
+			unused_advance = max(0.0, flt(header.get("advance_paid")) - invoiced_value)
+			row["balance"] = outstanding + max(0.0, uninvoiced - unused_advance)
+		else:
+			row["balance"] = outstanding
+		_ledger_round_amounts(row)
+		rows.append(row)
+
+	for invoice in previous_invoices:
+		header = invoice_headers.get(invoice) or {}
+		row = _base_row(
+			invoice,
+			(header.get("custom_base_reference") or "").strip(),
+			(header.get("custom_base_reference_name") or "").strip(),
+			(header.get("patient") or "").strip(),
+			(header.get("custom_patient_name") or "").strip(),
+			header,
+		)
+		if only_practitioner and row["practitioner"] != only_practitioner:
+			continue
+		paid = previous_payments.get(invoice) or {}
+		for column in ("cash", "cheque", "card", "bwallet"):
+			row[column] = flt(paid.get(column))
+		row["is_previous"] = 1
+		row["paid_previous"] = flt(paid.get("total"))
+		row["disc_previous"] = flt(header.get("discount_amount"))
+		row["balance"] = flt(header.get("outstanding_amount"))
+		_ledger_round_amounts(row)
+		rows.append(row)
+
+	return _group_visit_ledger(
+		rows,
+		{
+			"practitioner": only_practitioner or None,
+			"from_date": str(from_date or ""),
+			"to_date": str(to_date or ""),
+			"cost_center": src.get("cost_center"),
+			"billing_source": billing_source,
+			"transaction_type": transaction_type,
+		},
+	)
+
+
+def _group_visit_ledger(rows, meta) -> dict:
+	"""Doctor → patient type → visit rows, with type / doctor / report totals."""
+	practitioner_ids = {row.get("practitioner") for row in rows if row.get("practitioner")}
+	practitioner_details = get_practitioner_details(practitioner_ids) if practitioner_ids else {}
+
+	def doctor_label(key):
+		if not key:
+			return _("Other Income"), ""
+		details = practitioner_details.get(key) or {}
+		return details.get("practitioner_name") or key, details.get("doctors_id") or ""
+
+	buckets = {}
+	order = []
+	for row in rows:
+		key = row.get("practitioner") or ""
+		if key not in buckets:
+			doctor_name, doctors_id = doctor_label(key)
+			buckets[key] = {
+				"practitioner": key or None,
+				"doctor_name": doctor_name,
+				"doctor_id": doctors_id,
+				"is_other_income": 0 if key else 1,
+				"patient_types": {},
+			}
+			order.append(key)
+		buckets[key]["patient_types"].setdefault(row["patient_type"], []).append(row)
+
+	doctors = []
+	for key in order:
+		bucket = buckets[key]
+		doctor_total = _ledger_zero_amounts()
+		patient_types = []
+		extra_types = sorted(set(bucket["patient_types"]) - set(PATIENT_TYPE_ORDER))
+		for patient_type in PATIENT_TYPE_ORDER + tuple(extra_types):
+			type_rows = bucket["patient_types"].get(patient_type)
+			if not type_rows:
+				continue
+			type_rows.sort(key=lambda r: (r.get("sort_date") or "", r.get("visit_no") or ""))
+			type_total = _ledger_zero_amounts()
+			for row in type_rows:
+				_ledger_add_amounts(type_total, row)
+			_ledger_round_amounts(type_total)
+			patient_types.append(
+				{
+					"patient_type": patient_type,
+					"label": _("{0} Patients").format(patient_type),
+					"rows": type_rows,
+					"total": type_total,
+					"visits": len(type_rows),
+				}
+			)
+			_ledger_add_amounts(doctor_total, type_total)
+		_ledger_round_amounts(doctor_total)
+		doctors.append(
+			{
+				"practitioner": bucket["practitioner"],
+				"doctor_name": bucket["doctor_name"],
+				"doctor_id": bucket["doctor_id"],
+				"is_other_income": bucket["is_other_income"],
+				"patient_types": patient_types,
+				"total": doctor_total,
+				"visits": sum(item["visits"] for item in patient_types),
+			}
+		)
+
+	doctors.sort(
+		key=lambda d: (cint(d.get("is_other_income")), -flt((d.get("total") or {}).get("total_due")))
+	)
+	report_total = _ledger_zero_amounts()
+	for doctor in doctors:
+		_ledger_add_amounts(report_total, doctor["total"])
+	_ledger_round_amounts(report_total)
+
+	flat_rows = [
+		{**row, "doctor_name": doctor["doctor_name"]}
+		for doctor in doctors
+		for item in doctor["patient_types"]
+		for row in item["rows"]
+	]
+	practitioner = meta.get("practitioner")
+	selected = next(
+		(d for d in doctors if d.get("practitioner") == practitioner), {}
+	) if practitioner else {}
+
+	return {
+		**meta,
+		"doctor_name": selected.get("doctor_name")
+		or (_("All Doctors") if not practitioner else practitioner),
+		"doctor_id": selected.get("doctor_id") or "",
+		"doctors": doctors,
+		"rows": flat_rows,
+		"report_total": report_total,
+		"visits": len(flat_rows),
+	}
+
+
+# Columns of the sheet, in print order: four text columns then the amounts.
+VISIT_LEDGER_COLUMNS = (
+	("visit_no", "Visit/Adm No"),
+	("date", "Date"),
+	("file_no", "File No."),
+	("patient_name", "Patient Name"),
+	("consultation", "Consultation"),
+	("pharmacy", "Pharmacy"),
+	("lab", "Lab"),
+	("paid_previous", "Paid of Previous"),
+	("disc_previous", "Disc. of Previous"),
+	("total_due", "Total Due"),
+	("cash", "Cash"),
+	("cheque", "Cheque / Online"),
+	("card", "Credit Card"),
+	("bwallet", "B-Wallet / Benefit"),
+	("disc", "Disc."),
+	("balance", "Balance"),
+)
+VISIT_LEDGER_TEXT_COLUMNS = 4
+VISIT_LEDGER_AMOUNT_COLUMNS = tuple(
+	key for key, _label in VISIT_LEDGER_COLUMNS if key in VISIT_LEDGER_AMOUNT_KEYS
+)
+
+
+def render_doctor_visit_ledger_html(doc_or_filters=None, ledger=None) -> str:
+	"""Printable visit ledger for the Detailed doctor view.
+
+	Each doctor is a heading (its name) followed by the sheet table with the
+	patient-type sections, type totals, doctor total and — for a single doctor —
+	the grand total.
+	"""
+	ctx = frappe._dict(doc_or_filters or {})
+	if ledger is None:
+		ledger = build_doctor_visit_ledger(ctx)
+
+	money = format_money_bhd
+	esc = frappe.utils.escape_html
+	generated = format_datetime_safe(ctx.get("generated_on") or now_datetime())
+	branch = (
+		ledger.get("cost_center") or ctx.get("cost_center") or _("All Branches (Consolidate)")
+	)
+	from_s = _fmt_short_date(ledger.get("from_date") or ctx.get("from_date"))
+	to_s = _fmt_short_date(ledger.get("to_date") or ctx.get("to_date"))
+	doctors = ledger.get("doctors") or []
+	report_total = ledger.get("report_total") or _ledger_zero_amounts()
+	total_visits = cint(ledger.get("visits"))
+	span = len(VISIT_LEDGER_COLUMNS)
+
+	head = ""
+	for key, label in VISIT_LEDGER_COLUMNS:
+		align = ' class="l"' if key == "patient_name" else ""
+		head += f"<th{align}>{_(label)}</th>"
+
+	def amount_cells(amounts) -> str:
+		cells = ""
+		for key in VISIT_LEDGER_AMOUNT_COLUMNS:
+			value = flt((amounts or {}).get(key))
+			style = ' class="n disc"' if key in ("disc", "disc_previous") and value else ' class="n"'
+			cells += f"<td{style}>{money(value)}</td>"
+		return cells
+
+	def total_row(label, amounts, row_class) -> str:
+		return (
+			f'<tr class="{row_class}">'
+			f'<td class="label" colspan="{VISIT_LEDGER_TEXT_COLUMNS}">{esc(label)}</td>'
+			f"{amount_cells(amounts)}</tr>"
+		)
+
+	def sheet_table(rows_html) -> str:
+		"""One table per doctor: the column header sits right under the name."""
+		return (
+			'<div class="sheet-wrap"><table class="sheet">'
+			f"<thead><tr>{head}</tr></thead><tbody>{rows_html}</tbody>"
+			"</table></div>"
+		)
+
+	single_doctor = len(doctors) == 1
+	blocks = ""
+	shown = 0
+	for doctor in doctors:
+		doctor_label = esc(str(doctor.get("doctor_name") or ""))
+		if doctor.get("doctor_id"):
+			doctor_label += (
+				f' <span class="doctor-id">&middot; {esc(str(doctor.get("doctor_id")))}</span>'
+			)
+		body = ""
+		for block in doctor.get("patient_types") or []:
+			body += (
+				f'<tr class="section"><td colspan="{span}">'
+				f'{esc(str(block.get("label") or ""))} &nbsp;({cint(block.get("visits"))})</td></tr>'
+			)
+			for row in block.get("rows") or []:
+				if shown >= MAX_DETAIL_HTML_VISITS:
+					continue
+				body += (
+					"<tr>"
+					f'<td class="c">{esc(str(row.get("visit_no") or ""))}</td>'
+					f'<td class="c">{esc(str(row.get("date") or ""))}</td>'
+					f'<td class="c">{esc(str(row.get("file_no") or ""))}</td>'
+					f'<td>{esc(str(row.get("patient_name") or ""))}</td>'
+					f"{amount_cells(row)}</tr>"
+				)
+				shown += 1
+			body += total_row(_("Patient Type Total"), block.get("total"), "type-total")
+		body += total_row(_("Doctor Total"), doctor.get("total"), "doctor-total")
+		# A single-doctor sheet closes with the grand total, like the Accounts sheet.
+		if single_doctor:
+			body += total_row(_("Report Total"), report_total, "report-total")
+		blocks += f'<div class="doctor-head">{doctor_label}</div>{sheet_table(body)}'
+
+	if not doctors:
+		blocks = (
+			'<div class="empty">'
+			+ _("No billed visit found for the selected doctor in this period.")
+			+ "</div>"
+		)
+	elif not single_doctor:
+		# Several doctors printed together: grand total in its own table.
+		blocks += (
+			'<div class="report-block">'
+			+ sheet_table(total_row(_("Report Total"), report_total, "report-total"))
+			+ "</div>"
+		)
+
+	truncate = ""
+	if total_visits > MAX_DETAIL_HTML_VISITS:
+		truncate = (
+			'<div class="truncate">'
+			+ _(
+				"Showing first {0} of {1} visits here — the table below lists all of them."
+			).format(MAX_DETAIL_HTML_VISITS, total_visits)
+			+ "</div>"
+		)
+
+	billing_source_label = esc(str(ledger.get("billing_source") or ""))
+
+	return f"""
+	<div class="dwia-detail dwia-vl">
+		<style>{VISIT_LEDGER_STYLE}</style>
+		<div class="generated">{generated}</div>
+		<table class="meta">
+			<tr>
+				<td><b>{_("From Date")}</b></td>
+				<td>{from_s}</td>
+				<td><b>{_("to")}</b></td>
+				<td>{to_s}</td>
+				<td><b>{_("Visits")}</b></td>
+				<td>{total_visits}</td>
+			</tr>
+			<tr>
+				<td><b>{_("Branch")}</b></td>
+				<td colspan="3">{esc(str(branch))}</td>
+				<td><b>{_("Billing Source")}</b></td>
+				<td>{billing_source_label}</td>
+			</tr>
+		</table>
+		{truncate}
+		{blocks}
+	</div>
+	"""
 
 
 def _parse_analysis(doc) -> dict | None:
@@ -1365,12 +2195,8 @@ def get_doctor_wise_income_analysis_html(filters=None):
 		include_chart = bool(cint(filters.get("include_chart")))
 	html = render_analysis_html(filters, analysis, include_chart=include_chart)
 	if cint(filters.get("detailed")):
-		detail = build_doctor_service_detail(filters, items=items)
-		html += (
-			render_doctor_service_detail_html(filters, detail)
-			if detail.get("practitioner")
-			else render_doctor_detail_hint()
-		)
+		ledger = build_doctor_visit_ledger(filters, items=items)
+		html += render_doctor_visit_ledger_html(filters, ledger)
 	return html
 
 

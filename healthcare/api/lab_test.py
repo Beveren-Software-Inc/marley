@@ -1738,32 +1738,66 @@ def _format_minmax_range(lo, hi):
 	return f"{lo if has_lo else '—'} – {hi if has_hi else '—'}"
 
 
-def _format_template_normal_range_for_patient(tpl_info: dict, patient_sex: str | None = None) -> str:
-	"""Human-readable reference range for a lab_test_lines row (view modal)."""
-	text = (tpl_info.get("lab_test_normal_range") or "").strip()
-	if text:
-		return text
+def _format_range_bound(value) -> str:
+	"""Compact numeric bound for reference ranges (``15.0`` → ``15``)."""
+	if value is None or cstr(value).strip() == "":
+		return ""
+	number = flt(value)
+	if number == int(number):
+		return str(int(number))
+	return f"{number:g}"
 
+
+def _sex_range_segment(text: str, patient_sex: str | None = None) -> str:
+	"""Pick the patient's side of a labelled range such as ``M: 30 – 70; F: 20 – 60``."""
+	raw = (text or "").strip()
+	if not raw:
+		return ""
 	sex = (patient_sex or "").strip().lower()
-	if sex.startswith("f"):
-		formatted = _format_minmax_range(tpl_info.get("female_min_range"), tpl_info.get("female_max_range"))
-		if formatted:
-			return formatted
-	elif sex.startswith("m"):
-		formatted = _format_minmax_range(tpl_info.get("male_min_range"), tpl_info.get("male_max_range"))
-		if formatted:
-			return formatted
+	label = "female" if sex.startswith("f") else "male" if sex.startswith("m") else ""
+	if not label:
+		return raw
+	import re
 
-	formatted = _format_minmax_range(tpl_info.get("min_range"), tpl_info.get("max_range"))
-	if formatted:
-		return formatted
+	for tag, segment in re.findall(
+		r"(?:^|[;\n])\s*(male|female|m|f)\s*[:=]\s*([^;\n]+)", raw, flags=re.IGNORECASE
+	):
+		tag_sex = "female" if tag.strip().lower().startswith("f") else "male"
+		if tag_sex == label:
+			return segment.strip()
+	return raw
 
-	return _format_multiple_result_normal_range(
-		tpl_info.get("male_min_range"),
-		tpl_info.get("male_max_range"),
-		tpl_info.get("female_min_range"),
-		tpl_info.get("female_max_range"),
+
+def _template_reference_bounds(tpl_info: dict, patient_sex: str | None = None):
+	"""Patient-appropriate reference min/max for a Lab Test Template row.
+
+	Templates store unset numeric fields as ``0``, so a zero/blank sex-specific pair
+	(male or female) falls back to the template's default min/max.
+	"""
+	if not tpl_info:
+		return None, None
+	# Patient.sex is "Male"/"Female"; tolerate lowercase/upper-case legacy values.
+	sex = (patient_sex or "").strip().title()
+	return _normalize_reference_bounds(
+		*_reference_range_bounds(
+			sex,
+			female_min_range=tpl_info.get("female_min_range"),
+			female_max_range=tpl_info.get("female_max_range"),
+			male_min_range=tpl_info.get("male_min_range"),
+			male_max_range=tpl_info.get("male_max_range"),
+			min_range=tpl_info.get("min_range"),
+			max_range=tpl_info.get("max_range"),
+		)
 	)
+
+
+def _reference_range_text(
+	min_val, max_val, fallback: str | None = None, patient_sex: str | None = None
+) -> str:
+	"""Display range: numeric ``15 – 150`` when known, else the labelled template text."""
+	if min_val is not None or max_val is not None:
+		return _format_minmax_range(_format_range_bound(min_val), _format_range_bound(max_val))
+	return _sex_range_segment(fallback or "", patient_sex)
 
 
 def _lab_test_template_name(template_id: str, cache: dict) -> str:
@@ -2322,11 +2356,42 @@ def get_lab_test(name):
 			or ''
 		)
 	out['patient_sex'] = patient_sex
+	# Reference ranges for the doctor review UI: sex-specific min/max when configured,
+	# else the template default (a zero/blank male or female pair counts as "unset").
+	test_tpl_info = (
+		_lab_test_template_info(getattr(lab_test, 'template', None), template_info_cache)
+		if getattr(lab_test, 'template', None)
+		else {}
+	)
+	test_range_min, test_range_max = _template_reference_bounds(test_tpl_info, patient_sex)
+	out['range_min'] = test_range_min
+	out['range_max'] = test_range_max
+	out['range_text'] = _reference_range_text(
+		test_range_min, test_range_max, test_tpl_info.get('lab_test_normal_range'), patient_sex
+	)
+	for row_out in out['normal_test_items']:
+		row_template = (row_out.get('template') or '').strip()
+		if not row_template and len(out['normal_test_items']) == 1:
+			row_template = (getattr(lab_test, 'template', None) or '').strip()
+		row_tpl_info = (
+			_lab_test_template_info(row_template, template_info_cache) if row_template else {}
+		)
+		row_min, row_max = _template_reference_bounds(row_tpl_info, patient_sex)
+		row_out['range_min'] = row_min
+		row_out['range_max'] = row_max
+		row_out['normal_range'] = _reference_range_text(
+			row_min,
+			row_max,
+			(row_out.get('normal_range') or '').strip()
+			or (row_tpl_info.get('lab_test_normal_range') or ''),
+			patient_sex,
+		)
 	out['total_inclusions'] = _template_total_inclusions(getattr(lab_test, 'template', None))
 	out['lab_test_lines'] = []
 	for r in line_rows:
 		sub = (getattr(r, 'lab_sub_num', None) or '').strip()
 		tpl_info = _lab_test_template_info(sub, template_info_cache) if sub else {}
+		line_range_min, line_range_max = _template_reference_bounds(tpl_info, patient_sex)
 		out['lab_test_lines'].append(
 			{
 				'sr_num': getattr(r, 'sr_num', None) or '',
@@ -2335,7 +2400,15 @@ def get_lab_test(name):
 				'lab_sub_num': sub,
 				'lab_sub_template_name': (tpl_info.get('name') or '').strip() if sub else '',
 				'lab_result_value': getattr(r, 'lab_result_value', None) or '',
-				'normal_range': _format_template_normal_range_for_patient(tpl_info, patient_sex) if sub else '',
+				'normal_range': (
+					_reference_range_text(
+						line_range_min, line_range_max, tpl_info.get('lab_test_normal_range'), patient_sex
+					)
+					if sub
+					else ''
+				),
+				'range_min': line_range_min,
+				'range_max': line_range_max,
 				'lab_amt_book': getattr(r, 'lab_amt_book', None),
 				'lab_amt_add': getattr(r, 'lab_amt_add', None),
 				'lab_amt_disc': getattr(r, 'lab_amt_disc', None),

@@ -37,6 +37,41 @@ export function resolveLabTestDocName(lt: LabTest): string {
   return lt.legacy_parent_name || lt.name
 }
 
+/**
+ * Result values stored inside a legacy ``custom_result`` HTML table.
+ *
+ * Oracle imports write the result as a table — ``Panel | Test Name | Test Code |
+ * Result`` (older rows: ``Panel | Test Code | Result``) — so stripping the tags
+ * leaves the labels glued to the value (``LAB-007-001 0.94``). Screens must show
+ * the Result column only: ``['0.94']``.
+ *
+ * The stored HTML is authored through the result-save endpoint on an unfiltered
+ * field, so it is parsed into an **inert** document (``DOMParser``) instead of a
+ * live ``innerHTML`` sink: scripts never run and ``<img onerror>`` / other
+ * handlers never fire while we only read the last cell of each row.
+ */
+export function resultValuesFromHtml(html?: string | null): string[] {
+  const raw = (html || '').trim()
+  if (!raw || !/<table[\s>]/i.test(raw) || typeof DOMParser === 'undefined') return []
+
+  let doc: Document
+  try {
+    doc = new DOMParser().parseFromString(raw, 'text/html')
+  } catch {
+    return []
+  }
+
+  const values: string[] = []
+  doc.querySelectorAll('table tr').forEach((row) => {
+    const cells = Array.from(row.querySelectorAll('td'))
+    // Header rows hold <th> only — they are not result lines.
+    if (cells.length === 0) return
+    const value = (cells[cells.length - 1].textContent || '').trim()
+    if (value) values.push(value)
+  })
+  return values
+}
+
 function legacyLineSortKey(line: LabTestLine, index: number): number {
   const sr = line.sr_num
   if (sr === undefined || sr === null || sr === '') return index

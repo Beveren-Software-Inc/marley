@@ -7,6 +7,7 @@ import { DischargeAdmissionView } from '../components/admissions/DischargeAdmiss
 import { SuicidalPatientAssessmentModal } from '../components/admissions/SuicidalPatientAssessmentModal'
 import { CreateAppointmentModal } from '../components/appointments/CreateAppointmentModal'
 import { ClinicalNotesList } from '../components/clinicalNotes/ClinicalNotesList'
+import { THERAPY_EXTRA_NOTE_TYPES } from '../components/clinicalNotes/noteTypeGroups'
 import { CreateClinicalNoteModal } from '../components/clinicalNotes/CreateClinicalNoteModal'
 import { MainNursingNoteList } from '../components/nursing/MainNursingNoteList'
 import { CreateMainNursingNoteModal } from '../components/nursing/CreateMainNursingNoteModal'
@@ -980,6 +981,8 @@ export const DoctorPage = () => {
             <ClinicalNotesList 
               patient={selectedPatient} 
               clinicalNoteType="Therapist Note"
+              includeClinicalNoteTypes={THERAPY_EXTRA_NOTE_TYPES}
+              scopeToCareContext={false}
               key={clinicalNotesRefreshKey}
               onPatientClick={handlePatientSelect}
             />
