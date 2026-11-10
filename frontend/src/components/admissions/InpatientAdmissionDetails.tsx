@@ -1574,7 +1574,8 @@ export const InpatientAdmissionDetails = ({ admissionName, onUpdate }: Inpatient
             <AdmissionOtherServicesTab
               key={otherServicesPackageKey}
               admissionName={admissionName}
-              selectedPackage={selectedPackage || resolvedPackage}
+              selectedPackage={selectedPackage}
+              onResolvedPackageChange={setResolvedPackage}
               selectedServices={selectedOtherServices}
               onSelectedServicesChange={setSelectedOtherServices}
               refreshKey={otherServicesRefresh}
