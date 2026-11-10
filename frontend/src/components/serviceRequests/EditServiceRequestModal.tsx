@@ -140,13 +140,21 @@ export const EditServiceRequestModal = ({
   /** True when catalog/list price is missing — cost stays editable even after a manual amount is entered. */
   const [allowManualCost, setAllowManualCost] = useState(false)
   /**
-   * Template + amount as loaded from the server. The saved amount is the price the
-   * user already agreed to (it may already be a manual edit), so the pricing effect
-   * must not replace it with a freshly multiplied catalog price while the template
-   * is unchanged. The patient category multiplier only applies once, when the
-   * template/visit type is first chosen.
+   * Template + patient/care context + amount as loaded from the server. The saved
+   * amount is the price the user already agreed to (it may already be a manual
+   * edit), so the pricing effect must not replace it with a freshly multiplied
+   * catalog price while the template, patient and OP/IP context are unchanged.
+   * The patient category multiplier only applies once, when the template/visit
+   * type is first chosen.
    */
-  const loadedPricingRef = useRef<{ template_dt: string; template_dn: string; cost: number | null } | null>(null)
+  const loadedPricingRef = useRef<{
+    template_dt: string
+    template_dn: string
+    cost: number | null
+    patient: string
+    patient_visit: string
+    inpatient_record: string
+  } | null>(null)
   /**
    * Template key (`dt::dn`) for which the user typed a cost by hand. A manual amount
    * is final — it is never re-priced (no patient category multiplier re-applied).
@@ -323,6 +331,9 @@ export const EditServiceRequestModal = ({
           template_dt: (doc.template_dt as string) || '',
           template_dn: (doc.template_dn as string) || '',
           cost: initialCost != null && Number(initialCost) > 0 ? Number(initialCost) : null,
+          patient,
+          patient_visit: (doc.patient_visit as string) || '',
+          inpatient_record: (doc.inpatient_record as string) || '',
         }
 
         const parsedLabItems = parseLabRequestItems(doc.lab_request_items)
@@ -541,19 +552,29 @@ export const EditServiceRequestModal = ({
         const catalogPrice = match?.price != null ? Number(match.price) : null
         const hasCatalogPrice = catalogPrice != null && catalogPrice > 0
         const templateKey = `${formData.template_dt}::${formData.template_dn}`
-        // Amount typed by the user for this template — final, never re-priced.
-        const manualForTemplate = manualCostRef.current === templateKey
-        // Keep the amount saved on the request while the template is unchanged: it
-        // already reflects the price resolved when the template was chosen (and any
-        // manual edit). Re-pricing it here would re-apply the patient category
-        // multiplier on every edit.
+        // Keep the amount saved on the request while the template, patient and care
+        // context are unchanged: it already reflects the price resolved when the
+        // template was chosen (and any manual edit). Re-pricing it here would
+        // re-apply the patient category multiplier on every edit. Switching patient
+        // or OP/IP must re-price — the saved amount belongs to the original context.
         const loadedPricing = loadedPricingRef.current
-        const savedCost =
-          loadedPricing &&
+        const sameTemplate =
+          !!loadedPricing &&
           loadedPricing.template_dt === formData.template_dt &&
           loadedPricing.template_dn === formData.template_dn
-            ? loadedPricing.cost
-            : null
+        const sameContext =
+          sameTemplate &&
+          loadedPricing?.patient === (selectedPatient?.name || '') &&
+          loadedPricing?.patient_visit === (formData.patient_visit || '') &&
+          loadedPricing?.inpatient_record === (formData.inpatient_record || '')
+        // A hand-typed amount belongs to the context it was typed in: once the
+        // patient / OP-IP / template changes it has to be priced again.
+        if (loadedPricing && !sameContext) {
+          manualCostRef.current = null
+        }
+        // Amount typed by the user for this template — final, never re-priced.
+        const manualForTemplate = manualCostRef.current === templateKey
+        const savedCost = sameContext ? (loadedPricing?.cost ?? null) : null
         const effectivePrice = manualForTemplate
           ? null
           : savedCost != null && savedCost > 0
@@ -587,6 +608,11 @@ export const EditServiceRequestModal = ({
                   }),
             }
           })
+        } else if (loadedPricing && !sameContext) {
+          // Patient / OP-IP context (or template) changed and the new one has no
+          // configured price — the previous context's amount must not be resent.
+          setSelectedPrice(null)
+          setFormData((prev) => ({ ...prev, cost: '' }))
         }
       } catch {
         setPricing([])

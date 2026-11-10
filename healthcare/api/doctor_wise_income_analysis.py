@@ -1018,27 +1018,47 @@ def _sales_order_headers(order_names) -> dict:
 	return headers
 
 
-def _invoice_names_by_sales_order(order_names) -> dict:
-	"""Sales Order → submitted Sales Invoices raised from it."""
+def _invoice_allocation_by_sales_order(order_names) -> tuple[dict, dict]:
+	"""Sales Order → submitted Sales Invoices, plus each order's share of them.
+
+	One invoice can combine several orders, so an invoice's receipts and balance
+	are split between its orders by the order's share of the invoiced amount —
+	counting the whole invoice for every order would multiply the totals.
+	Returns ``(invoices_by_order, share_by_order_invoice)``.
+	"""
 	names = sorted({name for name in (order_names or []) if name})
 	if not names:
-		return {}
-	out = defaultdict(list)
+		return {}, {}
+	billed = {}
 	for chunk in _in_chunks(names):
 		rows = frappe.db.sql(
 			"""
-			SELECT DISTINCT sii.sales_order AS sales_order, si.name AS invoice
+			SELECT sii.sales_order AS sales_order,
+				si.name AS invoice,
+				IFNULL(SUM(sii.amount), 0) AS billed
 			FROM `tabSales Invoice Item` sii
 			INNER JOIN `tabSales Invoice` si ON si.name = sii.parent
 			WHERE si.docstatus = 1 AND sii.sales_order IN %(orders)s
+			GROUP BY sii.sales_order, si.name
 			""",
 			{"orders": tuple(chunk)},
 			as_dict=True,
 		)
 		for row in rows:
-			if row.invoice not in out[row.sales_order]:
-				out[row.sales_order].append(row.invoice)
-	return out
+			billed[(row.sales_order, row.invoice)] = flt(row.billed)
+
+	invoice_totals = defaultdict(float)
+	for (_order, invoice), amount in billed.items():
+		invoice_totals[invoice] += amount
+
+	invoices_by_order = defaultdict(list)
+	share = {}
+	for (order, invoice), amount in billed.items():
+		if invoice not in invoices_by_order[order]:
+			invoices_by_order[order].append(invoice)
+		invoice_total = invoice_totals.get(invoice) or 0
+		share[(order, invoice)] = (amount / invoice_total) if invoice_total else 0.0
+	return invoices_by_order, share
 
 
 def _bucket_payments(rows) -> dict:
@@ -1061,8 +1081,43 @@ def _bucket_payments(rows) -> dict:
 	return payments
 
 
+def _pos_payment_rows(invoices, from_date, to_date):
+	"""Payment rows of POS invoices (they settle on the invoice, not via Payment Entry)."""
+	if not frappe.db.has_column("Sales Invoice", "is_pos"):
+		return []
+	if not frappe.db.exists("DocType", "Sales Invoice Payment"):
+		return []
+	try:
+		return frappe.db.sql(
+			"""
+			SELECT si.name AS invoice,
+				sip.mode_of_payment AS mode_of_payment,
+				IFNULL(sip.amount, 0) AS allocated
+			FROM `tabSales Invoice Payment` sip
+			INNER JOIN `tabSales Invoice` si ON si.name = sip.parent
+			WHERE sip.parent IN %(invoices)s
+				AND si.docstatus = 1
+				AND IFNULL(si.is_pos, 0) = 1
+				AND si.posting_date BETWEEN %(from_date)s AND %(to_date)s
+			""",
+			{"invoices": invoices, "from_date": from_date, "to_date": to_date},
+			as_dict=True,
+		)
+	except Exception:
+		frappe.log_error(
+			title="Doctor Wise Income Analysis: POS receipts",
+			message=frappe.get_traceback(),
+		)
+		return []
+
+
 def _visit_ledger_payments(invoice_names, from_date, to_date) -> dict:
-	"""Receipts of the period per invoice, split into the sheet's mode columns."""
+	"""Receipts of the period per invoice, split into the sheet's mode columns.
+
+	Payment Entries cover cash/cheque/card receipts; POS invoices (appointment
+	billing pays them at creation) keep their payment rows on the invoice itself
+	and never raise a Payment Entry, so both sources are read.
+	"""
 	names = sorted({name for name in (invoice_names or []) if name})
 	if not names or not from_date or not to_date:
 		return {}
@@ -1086,11 +1141,18 @@ def _visit_ledger_payments(invoice_names, from_date, to_date) -> dict:
 				as_dict=True,
 			)
 		)
+		rows.extend(_pos_payment_rows(tuple(chunk), from_date, to_date))
 	return _bucket_payments(rows)
 
 
-def _previous_visit_payments(from_date, to_date, exclude_names) -> dict:
-	"""Receipts of the period on visits billed before it (previous dues)."""
+def _previous_visit_payments(
+	from_date, to_date, exclude_names, company=None, cost_center=None
+) -> dict:
+	"""Receipts of the period on visits billed before it (previous dues).
+
+	Scoped like the in-period lines (company + cost centre) so a receipt from
+	another company/branch is never folded into the selected branch's totals.
+	"""
 	if not from_date or not to_date:
 		return {}
 	conditions = [
@@ -1101,6 +1163,20 @@ def _previous_visit_payments(from_date, to_date, exclude_names) -> dict:
 		"si.posting_date < %(from_date)s",
 	]
 	values = {"from_date": from_date, "to_date": to_date}
+	if company:
+		conditions.append("si.company = %(company)s")
+		values["company"] = company
+	if cost_center:
+		# Same scoping as the in-period items: the line's cost centre, falling
+		# back to the invoice header when the line is blank.
+		conditions.append(
+			"""EXISTS (
+				SELECT 1 FROM `tabSales Invoice Item` sii_cc
+				WHERE sii_cc.parent = si.name
+					AND COALESCE(NULLIF(sii_cc.cost_center, ''), si.cost_center) = %(cost_center)s
+			)"""
+		)
+		values["cost_center"] = cost_center
 	exclude_names = sorted({name for name in (exclude_names or []) if name})
 	if exclude_names:
 		conditions.append("per.reference_name NOT IN %(in_period)s")
@@ -1184,10 +1260,10 @@ def build_doctor_visit_ledger(doc_or_filters, items=None) -> dict:
 		if base_type == "Patient Visit":
 			visit_names.add(base_name)
 
-	invoices_by_txn = (
-		_invoice_names_by_sales_order(list(lines_by_txn))
+	invoices_by_txn, invoice_share = (
+		_invoice_allocation_by_sales_order(list(lines_by_txn))
 		if is_order
-		else {transaction: [transaction] for transaction in lines_by_txn}
+		else ({transaction: [transaction] for transaction in lines_by_txn}, {})
 	)
 	period_invoices = sorted({inv for invs in invoices_by_txn.values() for inv in invs})
 	order_headers = _sales_order_headers(list(lines_by_txn)) if is_order else {}
@@ -1196,7 +1272,13 @@ def build_doctor_visit_ledger(doc_or_filters, items=None) -> dict:
 
 	# Visits billed before the range but paid inside it (previous dues).
 	previous_invoices = []
-	previous_payments = _previous_visit_payments(from_date, to_date, period_invoices)
+	previous_payments = _previous_visit_payments(
+		from_date,
+		to_date,
+		period_invoices,
+		company=src.get("company"),
+		cost_center=src.get("cost_center"),
+	)
 	if previous_payments:
 		dated = _sales_invoice_headers(list(previous_payments))
 		for invoice in sorted(dated):
@@ -1208,6 +1290,23 @@ def build_doctor_visit_ledger(doc_or_filters, items=None) -> dict:
 			header = invoice_headers.get(invoice) or {}
 			if (header.get("custom_base_reference") or "").strip() == "Patient Visit":
 				visit_names.add((header.get("custom_base_reference_name") or "").strip())
+		# Older visits are not in the period's lines, so their doctor has to be
+		# resolved from their own base document — otherwise they land in
+		# Other Income (or are dropped by the doctor filter).
+		previous_bases = []
+		for invoice in previous_invoices:
+			header = invoice_headers.get(invoice) or {}
+			base_type = (header.get("custom_base_reference") or "").strip()
+			base_name = (header.get("custom_base_reference_name") or "").strip()
+			if base_type and base_name:
+				previous_bases.append(
+					frappe._dict(
+						custom_base_reference=base_type,
+						custom_base_reference_name=base_name,
+					)
+				)
+		if previous_bases:
+			practitioner_by_base.update(resolve_practitioners(previous_bases))
 
 	visit_care_map = _load_visit_care_map(visit_names)
 	patients = {(row.get("patient") or "").strip() for row in items}
@@ -1260,22 +1359,26 @@ def build_doctor_visit_ledger(doc_or_filters, items=None) -> dict:
 		row["disc"] = sum(_line_discount(line) for line in lines)
 
 		invoices = invoices_by_txn.get(transaction) or []
-		collected = 0.0
+		outstanding = 0.0
+		invoiced_value = 0.0
 		for invoice in invoices:
+			# A shared invoice (several orders billed on one invoice) only counts
+			# the order's share here, so its receipts/balance are not multiplied.
+			share = invoice_share.get((transaction, invoice), 1.0)
 			paid = payments.get(invoice) or {}
 			for column in ("cash", "cheque", "card", "bwallet"):
-				row[column] = flt(row.get(column)) + flt(paid.get(column))
-			collected += flt(paid.get("total"))
-		if is_order and not invoices:
-			# Nothing invoiced yet — the order itself is the outstanding balance.
-			row["balance"] = (
-				flt(header.get("grand_total")) - flt(header.get("advance_paid")) - collected
-			)
+				row[column] = flt(row.get(column)) + flt(paid.get(column)) * share
+			invoice_header = invoice_headers.get(invoice) or {}
+			outstanding += flt(invoice_header.get("outstanding_amount")) * share
+			invoiced_value += flt(invoice_header.get("grand_total")) * share
+		if is_order:
+			# Whatever the order has not billed yet is still owed, even when part
+			# of it is already invoiced; an advance can only settle it once.
+			uninvoiced = max(0.0, flt(header.get("grand_total")) - invoiced_value)
+			unused_advance = max(0.0, flt(header.get("advance_paid")) - invoiced_value)
+			row["balance"] = outstanding + max(0.0, uninvoiced - unused_advance)
 		else:
-			row["balance"] = sum(
-				flt((invoice_headers.get(invoice) or {}).get("outstanding_amount"))
-				for invoice in invoices
-			)
+			row["balance"] = outstanding
 		_ledger_round_amounts(row)
 		rows.append(row)
 
