@@ -197,14 +197,15 @@ export function PatientDiagnosisModal({
     getMedicalDiagnosisContextDefaults(parentDoctype, parentName)
       .then((fromParent) => {
         if (cancelled) return
+        // Prefer the logged-in linked practitioner over the visit/admission doctor.
         const pract =
-          fromParent.practitioner || linkedPractitionerId || ''
+          linkedPractitionerId || fromParent.practitioner || ''
         const merged: MedicalDiagnosisContextDefaults = {
           cost_center: fromParent.cost_center || userCostCenter || '',
           practitioner: pract,
           practitioner_name:
-            fromParent.practitioner_name ||
             (pract === linkedPractitionerId ? linkedPractitionerLabel : '') ||
+            fromParent.practitioner_name ||
             pract,
         }
         if (merged.practitioner && !merged.practitioner_name) {
