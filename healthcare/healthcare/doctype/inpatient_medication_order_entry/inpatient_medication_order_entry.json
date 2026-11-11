@@ -208,7 +208,7 @@
   {
    "allow_on_submit": 1,
    "default": "0",
-   "description": "Ticked when this line comes from PATIENT_VISIT_PRESCRIPTION_HIS and the same PRESCRIP_ID also exists on PATIENT_VISIT_PRESCRIPTION. Kept in the backend; hidden on the form when Healthcare Settings → Hide Deduplicate Prescription is enabled.",
+   "description": "Ticked when this line comes from PATIENT_VISIT_PRESCRIPTION_HIS and the same PRESCRIP_ID also exists on PATIENT_VISIT_PRESCRIPTION. Kept in the backend; hidden on the form when Healthcare Settings \u2192 Hide Deduplicate Prescription is enabled.",
    "fieldname": "is_deduplicate",
    "fieldtype": "Check",
    "label": "Is Deduplicate"
@@ -486,12 +486,15 @@
    "fieldtype": "Column Break"
   },
   {
+   "allow_on_submit": 1,
    "fieldname": "stoped_by",
    "fieldtype": "Link",
+   "ignore_user_permissions": 1,
    "label": "Stoped By",
    "options": "Healthcare Practitioner"
   },
   {
+   "allow_on_submit": 1,
    "fetch_from": "stoped_by.practitioner_name",
    "fieldname": "stopped_by_name",
    "fieldtype": "Data",
@@ -516,7 +519,7 @@
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2026-10-04 16:20:50.023216",
+ "modified": "2026-11-12 01:26:38.299749",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Inpatient Medication Order Entry",
