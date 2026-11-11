@@ -416,7 +416,6 @@ export const CreatePrescriptionModal = ({
   const [drugLoading, setDrugLoading] = useState<Record<number, boolean>>({})
 
   const [frequencyQueries, setFrequencyQueries] = useState<Record<number, string>>({})
-  const [shownFrequencyQueries, setShownFrequencyQueries] = useState<Record<number, string>>({})
   const [doseFrequencyQueries, setDoseFrequencyQueries] = useState<Record<number, string>>({})
   const [routeQueries, setRouteQueries] = useState<Record<number, string>>({})
   const [uomQueries, setUomQueries] = useState<Record<number, string>>({})
@@ -890,17 +889,14 @@ export const CreatePrescriptionModal = ({
         const queries: Record<number, string> = {}
         const nextUomQueries: Record<number, string> = {}
         const nextDoseFreqQueries: Record<number, string> = {}
-        const nextShownFreqQueries: Record<number, string> = {}
         loadedMedications.forEach((med, idx) => {
           if (med.drug) queries[idx] = med.drug_name || med.drug
           if (med.uom) nextUomQueries[idx] = med.uom
           if (med.total_dose_per) nextDoseFreqQueries[idx] = med.total_dose_per
-          if (med.written_frequency) nextShownFreqQueries[idx] = med.written_frequency
         })
         setDrugQueries(queries)
         setUomQueries(nextUomQueries)
         setDoseFrequencyQueries(nextDoseFreqQueries)
-        setShownFrequencyQueries(nextShownFreqQueries)
       }
 
       if (prescriptionData.doctors_signature) {
@@ -1073,7 +1069,6 @@ export const CreatePrescriptionModal = ({
       medicationRowKeysRef.current = prepared.map(() => nextMedicationRowKey())
       const queries: Record<number, string> = {}
       const nextFreq: Record<number, string> = {}
-      const nextShownFreq: Record<number, string> = {}
       const nextDoseFreq: Record<number, string> = {}
       const nextRoute: Record<number, string> = {}
       const nextUom: Record<number, string> = {}
@@ -1081,7 +1076,6 @@ export const CreatePrescriptionModal = ({
       prepared.forEach((med, idx) => {
         queries[idx] = (med.drug_name || med.drug || '').trim()
         if (med.patient_frequency) nextFreq[idx] = med.patient_frequency
-        if (med.written_frequency) nextShownFreq[idx] = med.written_frequency
         if (med.total_dose_per) nextDoseFreq[idx] = med.total_dose_per
         if (med.route_of_administration) nextRoute[idx] = med.route_of_administration
         if (med.uom) nextUom[idx] = med.uom
@@ -1089,7 +1083,6 @@ export const CreatePrescriptionModal = ({
       })
       setDrugQueries(queries)
       setFrequencyQueries(nextFreq)
-      setShownFrequencyQueries(nextShownFreq)
       setDoseFrequencyQueries(nextDoseFreq)
       setRouteQueries(nextRoute)
       setUomQueries(nextUom)
@@ -1364,8 +1357,7 @@ export const CreatePrescriptionModal = ({
       (med) =>
         !String(med.total_dose || '').trim() ||
         !String(med.total_dose_per || '').trim() ||
-        !String(med.written_frequency || '').trim() ||
-        isOtherFrequency(med.written_frequency),
+        !String(med.written_frequency || '').trim(),
     )
     if (otherMissing.length > 0) {
       const names = otherMissing.map((m) => m.drug_name || m.drug).join(', ')
@@ -2177,39 +2169,17 @@ export const CreatePrescriptionModal = ({
                               <label className="block text-xs font-medium text-slate-600 mb-1">
                                 Frequency to show <span className="text-red-500">*</span>
                               </label>
-                              <Combobox
+                              <input
+                                type="text"
                                 value={row.written_frequency ?? ''}
-                                displayValue={
-                                  shownFrequencyQueries[index] ??
-                                  (row.written_frequency
-                                    ? frequencyOptions.find((f) => f.name === row.written_frequency)?.label ||
-                                      row.written_frequency
-                                    : '')
+                                onChange={(e) =>
+                                  updateMedicationRow(index, 'written_frequency', e.target.value)
                                 }
-                                placeholder="Select the frequency that appears..."
-                                options={frequencyOptions.filter((f) => !isOtherFrequency(f.name))}
-                                loading={loadingFrequency}
-                                onQueryChange={(q) => {
-                                  setShownFrequencyQueries((prev) => ({ ...prev, [index]: q }))
-                                  searchFrequencies(q)
-                                }}
-                                onOpen={() => {
-                                  if (frequencyOptions.length === 0) searchFrequencies('')
-                                }}
-                                onSelect={(opt) => {
-                                  updateMedicationRow(index, 'written_frequency', opt.name)
-                                  setShownFrequencyQueries((prev) => ({
-                                    ...prev,
-                                    [index]: opt.label || opt.name,
-                                  }))
-                                }}
-                                onClear={() => {
-                                  updateMedicationRow(index, 'written_frequency', '')
-                                  setShownFrequencyQueries((prev) => ({ ...prev, [index]: '' }))
-                                }}
+                                placeholder="e.g. twice weekly after meals"
+                                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm transition placeholder:text-slate-400 focus:border-emerald-400/80 focus:outline-none focus:ring-2 focus:ring-emerald-500/25"
                               />
                               <p className="mt-1 text-[11px] text-slate-500">
-                                Other above is only the guide. This frequency is saved and shown on the prescription.
+                                Free text shown on the prescription. Other above is only the dosing guide.
                               </p>
                             </div>
                             <div className="grid grid-cols-2 gap-3">

@@ -388,7 +388,6 @@ export const EditMedicationEntryModal = ({
   const [doseLimitAddNewLine, setDoseLimitAddNewLine] = useState(false)
 
   const [freqQuery, setFreqQuery] = useState(order.patient_frequency || '')
-  const [shownFreqQuery, setShownFreqQuery] = useState(order.written_frequency || '')
   const [freqOptions, setFreqOptions] = useState<LinkFieldOption[]>([])
   const [freqLoading, setFreqLoading] = useState(false)
   /** "Total Dose Per" options shown when the frequency is "Other". */
@@ -619,8 +618,7 @@ export const EditMedicationEntryModal = ({
       if (
         !String(form.total_dose || '').trim() ||
         !String(form.total_dose_per || '').trim() ||
-        !String(form.written_frequency || '').trim() ||
-        isOtherFrequency(form.written_frequency)
+        !String(form.written_frequency || '').trim()
       ) {
         toast.error('Total Dose, Total Dose Per, and the frequency to show are required when Frequency is Other')
         return
@@ -698,7 +696,6 @@ export const EditMedicationEntryModal = ({
         next.total_dose_per = ''
         next.written_frequency = ''
         setDoseFreqQuery('')
-        setShownFreqQuery('')
       }
       return next
     })
@@ -930,20 +927,16 @@ export const EditMedicationEntryModal = ({
             <div className="space-y-3">
             <div>
               <label className="block text-xs font-medium text-slate-600 mb-1">Frequency to show <span className="text-red-500">*</span></label>
-              <MiniCombobox
-                value={form.written_frequency}
-                displayValue={shownFreqQuery}
-                placeholder="Select the frequency that appears..."
-                options={freqOptions.filter((f) => !isOtherFrequency(f.name))}
-                loading={freqLoading}
+              <input
+                type="text"
+                value={form.written_frequency || ''}
+                onChange={(e) => updateField('written_frequency', e.target.value)}
                 disabled={disabled}
-                onQueryChange={(q) => { setShownFreqQuery(q); searchFrequencies(q) }}
-                onOpen={() => { if (freqOptions.length === 0) searchFrequencies('') }}
-                onSelect={(opt) => { updateField('written_frequency', opt.name); setShownFreqQuery(opt.label || opt.name) }}
-                onClear={() => { updateField('written_frequency', ''); setShownFreqQuery('') }}
+                placeholder="e.g. twice weekly after meals"
+                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm transition placeholder:text-slate-400 focus:border-emerald-400/80 focus:outline-none focus:ring-2 focus:ring-emerald-500/25 disabled:bg-slate-100 disabled:text-slate-500"
               />
               <p className="mt-1 text-[11px] text-slate-500">
-                Other above is only the guide. This frequency is saved and shown on the prescription.
+                Free text shown on the prescription. Other above is only the dosing guide.
               </p>
             </div>
             <div className="grid grid-cols-2 gap-3">
@@ -1190,7 +1183,6 @@ export const AddMedicationEntryModal = ({
   const [addPinkItemLocked, setAddPinkItemLocked] = useState(false)
 
   const [addFreqQuery, setAddFreqQuery] = useState('')
-  const [addShownFreqQuery, setAddShownFreqQuery] = useState('')
   const [addFreqOptions, setAddFreqOptions] = useState<LinkFieldOption[]>([])
   const [addFreqLoading, setAddFreqLoading] = useState(false)
   /** "Total Dose Per" options shown when the frequency is "Other". */
@@ -1389,8 +1381,7 @@ export const AddMedicationEntryModal = ({
       if (
         !String(form.total_dose || '').trim() ||
         !String(form.total_dose_per || '').trim() ||
-        !String(form.written_frequency || '').trim() ||
-        isOtherFrequency(form.written_frequency)
+        !String(form.written_frequency || '').trim()
       ) {
         toast.error('Total Dose, Total Dose Per, and the frequency to show are required when Frequency is Other')
         return
@@ -1457,7 +1448,6 @@ export const AddMedicationEntryModal = ({
         next.total_dose_per = ''
         next.written_frequency = ''
         setAddDoseFreqQuery('')
-        setAddShownFreqQuery('')
       }
       return next
     })
@@ -1705,19 +1695,15 @@ export const AddMedicationEntryModal = ({
             <div className="space-y-3">
             <div>
               <label className="block text-xs font-medium text-slate-600 mb-1">Frequency to show <span className="text-red-500">*</span></label>
-              <MiniCombobox
-                value={form.written_frequency}
-                displayValue={addShownFreqQuery}
-                placeholder="Select the frequency that appears..."
-                options={addFreqOptions.filter((f) => !isOtherFrequency(f.name))}
-                loading={addFreqLoading}
-                onQueryChange={(q) => { setAddShownFreqQuery(q); addSearchFrequencies(q) }}
-                onOpen={() => { if (addFreqOptions.length === 0) addSearchFrequencies('') }}
-                onSelect={(opt) => { updateField('written_frequency', opt.name); setAddShownFreqQuery(opt.label || opt.name) }}
-                onClear={() => { updateField('written_frequency', ''); setAddShownFreqQuery('') }}
+              <input
+                type="text"
+                value={form.written_frequency || ''}
+                onChange={(e) => updateField('written_frequency', e.target.value)}
+                placeholder="e.g. twice weekly after meals"
+                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm transition placeholder:text-slate-400 focus:border-emerald-400/80 focus:outline-none focus:ring-2 focus:ring-emerald-500/25"
               />
               <p className="mt-1 text-[11px] text-slate-500">
-                Other above is only the guide. This frequency is saved and shown on the prescription.
+                Free text shown on the prescription. Other above is only the dosing guide.
               </p>
             </div>
             <div className="grid grid-cols-2 gap-3">

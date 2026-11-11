@@ -780,12 +780,9 @@ def _set_medication_row(doc, row):
 			entry.total_dose_per = cstr(row.get('total_dose_per') or '').strip() or None
 		# Frequency "Other" is dosed as a total over a period → both are required.
 		if entry.meta.has_field('written_frequency'):
+			# Free-text Data field — doctors type whatever should print on the Rx
+			# (not a Prescription Frequency link).
 			shown = cstr(row.get('written_frequency') or '').strip()
-			if _is_other_frequency(shown):
-				frappe.throw(
-					_("Choose the frequency that should appear on the prescription. Other is only the guide."),
-					title=_("Missing Frequency"),
-				)
 			entry.written_frequency = shown or None
 			if (
 				not shown
@@ -793,7 +790,7 @@ def _set_medication_row(doc, row):
 				and cstr(entry.get('total_dose_per') or '').strip()
 			):
 				frappe.throw(
-					_("Choose the frequency that should appear for {0}. Other is only the guide.").format(
+					_("Enter the frequency to show for {0}.").format(
 						cstr(row.get('drug_name') or entry.drug or '').strip() or _("this medicine")
 					),
 					title=_("Missing Frequency"),
