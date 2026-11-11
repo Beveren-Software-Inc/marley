@@ -18,6 +18,8 @@ export function useLabTests(
   /** When true, pages with offset > 0 append instead of replace (card Load more). */
   appendOnOffset?: boolean,
   isLegacyImport?: boolean,
+  /** Doctor soft default: page Pending Review units first without filtering them alone. */
+  prioritizePendingReview?: boolean,
 ) {
   const [labTests, setLabTests] = useState<LabTest[]>([])
   const [totalCount, setTotalCount] = useState(0)
@@ -43,6 +45,7 @@ export function useLabTests(
         byNurse,
         pipelinePending,
         isLegacyImport,
+        prioritizePendingReview,
       )
       const shouldAppend = Boolean(appendOnOffset && (offset ?? 0) > 0)
       setLabTests((prev) => (shouldAppend ? [...prev, ...response.data] : response.data))
@@ -52,7 +55,7 @@ export function useLabTests(
     } finally {
       setLoading(false)
     }
-  }, [enabled, patient, status, pendingReview, isOutsourced, fromDate, toDate, template, practitioner, byNurse, limit, offset, pipelinePending, appendOnOffset, isLegacyImport])
+  }, [enabled, patient, status, pendingReview, isOutsourced, fromDate, toDate, template, practitioner, byNurse, limit, offset, pipelinePending, appendOnOffset, isLegacyImport, prioritizePendingReview])
 
   useEffect(() => {
     loadLabTests()

@@ -2722,6 +2722,7 @@ export const LabTestList = ({
     pageSize, (page - 1) * pageSize, defaultsReady, pipelinePending,
     preferLoadMore,
     isLegacyImport || undefined,
+    softPrioritizePendingReview,
   )
 
   /** Legacy LAB 00-03 parents expand into LAB 00-04 singles for the list UI.
@@ -3498,11 +3499,21 @@ export const LabTestList = ({
     }
 
     const rows: LabTestDisplayRow[] = []
+    const childSort = (a: LabTest, b: LabTest) => {
+      if (softPrioritizePendingReview) {
+        const ap = a.status === 'Pending Review' ? 0 : 1
+        const bp = b.status === 'Pending Review' ? 0 : 1
+        if (ap !== bp) return ap - bp
+      }
+      return labTestCreationMs(b) - labTestCreationMs(a) || a.name.localeCompare(b.name)
+    }
+    const rowIsPending = (row: LabTestDisplayRow) =>
+      row.kind === 'group'
+        ? row.children.some((c) => c.status === 'Pending Review')
+        : row.labTest.status === 'Pending Review'
 
     for (const [groupKey, children] of groups.entries()) {
-      const sortedChildren = [...children].sort(
-        (a, b) => labTestCreationMs(b) - labTestCreationMs(a) || a.name.localeCompare(b.name)
-      )
+      const sortedChildren = [...children].sort(childSort)
       const sortMs = Math.max(...sortedChildren.map(labTestCreationMs), 0)
       const representative = sortedChildren[0]
       rows.push({
@@ -3519,10 +3530,20 @@ export const LabTestList = ({
       rows.push({ kind: 'standalone', labTest: lt, sortMs: labTestCreationMs(lt) })
     }
 
-    return rows.sort((a, b) => b.sortMs - a.sortMs || (a.kind === 'group' ? a.groupKey : a.labTest.name).localeCompare(
-      b.kind === 'group' ? b.groupKey : b.labTest.name
-    ))
-  }, [displayLabTests])
+    return rows.sort((a, b) => {
+      if (softPrioritizePendingReview) {
+        const ap = rowIsPending(a) ? 0 : 1
+        const bp = rowIsPending(b) ? 0 : 1
+        if (ap !== bp) return ap - bp
+      }
+      return (
+        b.sortMs - a.sortMs ||
+        (a.kind === 'group' ? a.groupKey : a.labTest.name).localeCompare(
+          b.kind === 'group' ? b.groupKey : b.labTest.name,
+        )
+      )
+    })
+  }, [displayLabTests, softPrioritizePendingReview])
 
   const rangeHeaders = getRangeHeaders(displayLabTests)
 
