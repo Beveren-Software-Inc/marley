@@ -239,7 +239,6 @@ interface AdmissionFormModalProps {
   selectedPackage: InpatientPackage
   onComplete: () => void
   onClose: () => void
-  otherServices?: string[]
 }
 
 type Tab = 'admission' | 'other_services' | 'case_management' | 'medical_supervision' | 'documents' | 'signatures' | 'relatives'
@@ -300,7 +299,6 @@ export const AdmissionFormModal = ({
   selectedPackage,
   onComplete,
   onClose,
-  otherServices = [],
 }: AdmissionFormModalProps) => {
   const skipPackage = isNoPackage(selectedPackage)
   const packageName = selectedPackage.name
@@ -337,6 +335,7 @@ export const AdmissionFormModal = ({
     : ([user?.role, user?.role_profile_name].filter(Boolean) as string[])
   const [enhancedWorkflow, setEnhancedWorkflow] = useState(false)
   const showOtherServices = enhancedWorkflow && !skipPackage && (isAdmin(userRoles) || isReceptionRole(userRoles))
+  const canCheckQuotation = !skipPackage && (selectedPackage.name !== '__custom__' || enhancedWorkflow)
   const servicesIdentity = JSON.stringify([admissionNo, selectedPackage.name])
   const [selectedOtherServices, setSelectedOtherServices] = useState<string[]>([])
   const [otherServicesHydrated, setOtherServicesHydrated] = useState<string | null>(null)
@@ -874,7 +873,6 @@ export const AdmissionFormModal = ({
 
   useEffect(() => {
     const checkQuotation = async () => {
-      if (skipPackage || selectedPackage.name === '__custom__') return
       try {
         setCheckingQuotation(true)
         const result = await loadInitialQuotation()
@@ -888,8 +886,8 @@ export const AdmissionFormModal = ({
         setCheckingQuotation(false)
       }
     }
-    if (admissionNo && selectedPackage.name && !skipPackage) checkQuotation()
-  }, [admissionNo, selectedPackage.name, skipPackage, loadInitialQuotation])
+    if (admissionNo && selectedPackage.name && canCheckQuotation) checkQuotation()
+  }, [admissionNo, selectedPackage.name, canCheckQuotation, loadInitialQuotation])
 
   // ── Service unit toggle (FIX: no longer replaces query on select) ─────────
 
@@ -1091,7 +1089,7 @@ export const AdmissionFormModal = ({
         selectedRoomType.name,
         enhancedWorkflow
           ? Array.from(new Set(selectedOtherServices.filter(Boolean)))
-          : Array.from(new Set(otherServices.filter(Boolean)))
+          : undefined
       )
       const quotationName = (result as any).quotation_name || (result as any).sales_order_name || null
       if (quotationName) {
