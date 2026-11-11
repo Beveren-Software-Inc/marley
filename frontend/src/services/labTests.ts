@@ -2,6 +2,8 @@ export interface LabTestLine {
   sr_num?: string
   lab_group_num?: string
   group_name?: string
+  /** Resolved panel display name from Lab Test Template (e.g. LAB-001 → CBC). */
+  lab_group_name?: string
   lab_sub_num?: string
   lab_sub_template_name?: string
   lab_result_value?: string

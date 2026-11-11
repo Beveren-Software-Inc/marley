@@ -727,6 +727,28 @@ _LAB_TEST_LINE_LIST_FIELDS = [
 ]
 
 
+def _legacy_lab_group_name(
+	group_code: str | None, group_name: str | None, template_info_cache: dict
+) -> str:
+	"""Human panel name for an imported LAB group (``LAB-001`` → ``CBC``).
+
+	Oracle rows often repeat the code in ``group_name`` (or leave it blank), so
+	the group code is resolved through ``Lab Test Template.lab_test_name``. When
+	the template is missing or its name is also just the code, return ``""`` and
+	let the UI fall back to the code.
+	"""
+	code = (group_code or "").strip()
+	name = (group_name or "").strip()
+	if name and name.upper() != code.upper():
+		return name
+	if not code:
+		return ""
+	resolved = _lab_test_template_name(code, template_info_cache)
+	if resolved and resolved.upper() != code.upper():
+		return resolved
+	return ""
+
+
 def _attach_legacy_lab_test_lines(lab_tests):
 	"""Attach LAB 00-04 child rows for legacy imports (list API)."""
 	legacy_names = [lt.name for lt in lab_tests if cint(lt.get("is_legacy_import"))]
@@ -748,6 +770,9 @@ def _attach_legacy_lab_test_lines(lab_tests):
 		sub_template = (row.get("lab_sub_num") or "").strip()
 		if sub_template:
 			row["lab_sub_template_name"] = _lab_test_template_name(sub_template, template_info_cache)
+		row["lab_group_name"] = _legacy_lab_group_name(
+			row.get("lab_group_num"), row.get("group_name"), template_info_cache
+		)
 		by_parent.setdefault(parent, []).append(row)
 
 	for lab_test in lab_tests:
@@ -2433,11 +2458,18 @@ def get_lab_test(name):
 		sub = (getattr(r, 'lab_sub_num', None) or '').strip()
 		tpl_info = _lab_test_template_info(sub, template_info_cache) if sub else {}
 		line_range_min, line_range_max = _template_reference_bounds(tpl_info, patient_sex)
+		group_code = (getattr(r, 'lab_group_num', None) or '').strip()
+		group_display_name = _legacy_lab_group_name(
+			group_code,
+			getattr(r, 'group_name', None),
+			template_info_cache,
+		)
 		out['lab_test_lines'].append(
 			{
 				'sr_num': getattr(r, 'sr_num', None) or '',
-				'lab_group_num': getattr(r, 'lab_group_num', None) or '',
+				'lab_group_num': group_code,
 				'group_name': getattr(r, 'group_name', None) or '',
+				'lab_group_name': group_display_name,
 				'lab_sub_num': sub,
 				'lab_sub_template_name': (tpl_info.get('name') or '').strip() if sub else '',
 				'lab_result_value': getattr(r, 'lab_result_value', None) or '',

@@ -1758,6 +1758,7 @@ import {
   expandLegacyLabTestsForDisplay,
   formatLabRangeBound,
   isLegacyHistoryLabRow,
+  labTestDisplayGroupKey,
   resolveLabTestDocName,
 } from './labTestDisplayUtils'
 
@@ -2704,8 +2705,17 @@ export const LabTestList = ({
     </button>
   )
 
+  // Doctor Reports: "Pending Review" is a soft default — show those first, then the
+  // rest of the patient's labs. Other status picks stay hard filters.
+  const softPrioritizePendingReview =
+    Boolean(doctorLabDefaults) && filters.status === 'Pending Review'
+  const apiStatus = softPrioritizePendingReview ? undefined : filters.status || undefined
+  const apiPendingReview = softPrioritizePendingReview
+    ? false
+    : filters.status === 'Pending Review'
+
   const { labTests, totalCount, loading, error, refetch } = useLabTests(
-    effectivePatient, filters.status || undefined, filters.status === 'Pending Review',
+    effectivePatient, apiStatus, apiPendingReview,
     isOutsourced !== undefined ? isOutsourced : (filters.isOutsourced ? filters.isOutsourced === 'yes' : undefined),
     filters.fromDate || undefined, filters.toDate || undefined,
     filters.template || undefined, filters.practitioner || undefined, byNurse,
@@ -2717,26 +2727,39 @@ export const LabTestList = ({
   /** Legacy LAB 00-03 parents expand into LAB 00-04 singles for the list UI.
    *  The Legacy Import tab keeps parents intact so print covers all child lines. */
   const displayLabTests = useMemo(() => {
-    const base = isLegacyImport ? labTests : expandLegacyLabTestsForDisplay(labTests)
+    let base = isLegacyImport ? labTests : expandLegacyLabTestsForDisplay(labTests)
     const templateFilter = filters.template?.trim()
-    if (!templateFilter) return base
-
-    return base.filter((lt) => {
-      if (
-        lt.template === templateFilter ||
-        lt.lab_test_group === templateFilter ||
-        lt.legacy_sub_template === templateFilter
-      ) {
-        return true
-      }
-      if (lt.is_legacy_line_row && filters.templateLabel) {
-        const label = filters.templateLabel.replace(/\s*\(Group\)\s*$/i, '').trim().toLowerCase()
-        const rowLabel = (lt.lab_test_name || '').trim().toLowerCase()
-        if (label && rowLabel === label) return true
-      }
-      return false
+    if (templateFilter) {
+      base = base.filter((lt) => {
+        if (
+          lt.template === templateFilter ||
+          lt.lab_test_group === templateFilter ||
+          lt.legacy_sub_template === templateFilter
+        ) {
+          return true
+        }
+        if (lt.is_legacy_line_row && filters.templateLabel) {
+          const label = filters.templateLabel.replace(/\s*\(Group\)\s*$/i, '').trim().toLowerCase()
+          const rowLabel = (lt.lab_test_name || '').trim().toLowerCase()
+          if (label && rowLabel === label) return true
+        }
+        return false
+      })
+    }
+    if (!softPrioritizePendingReview) return base
+    // Pending Review rows / groups first; everything else keeps relative order below.
+    return [...base].sort((a, b) => {
+      const ap = a.status === 'Pending Review' ? 0 : 1
+      const bp = b.status === 'Pending Review' ? 0 : 1
+      return ap - bp
     })
-  }, [labTests, filters.template, filters.templateLabel, isLegacyImport])
+  }, [
+    labTests,
+    filters.template,
+    filters.templateLabel,
+    isLegacyImport,
+    softPrioritizePendingReview,
+  ])
 
   const [defaultLabTechnician, setDefaultLabTechnician] = useState<LinkFieldOption | null>(null)
 
@@ -3464,8 +3487,8 @@ export const LabTestList = ({
     const standalone: LabTest[] = []
 
     for (const lt of displayLabTests) {
-      if (lt.is_group_lab_test && lt.service_request) {
-        const key = labRequestDisplayGroupKey(lt)
+      const key = labTestDisplayGroupKey(lt)
+      if (key) {
         const arr = groups.get(key) || []
         arr.push(lt)
         groups.set(key, arr)
@@ -3515,8 +3538,8 @@ export const LabTestList = ({
     if (!doctorLabDefaults || !hasGroupedLabTests) return
     const groups = new Map<string, LabTest[]>()
     for (const lt of displayLabTests) {
-      if (lt.is_group_lab_test && lt.service_request) {
-        const key = labRequestDisplayGroupKey(lt)
+      const key = labTestDisplayGroupKey(lt)
+      if (key) {
         const arr = groups.get(key) || []
         arr.push(lt)
         groups.set(key, arr)
@@ -4095,13 +4118,25 @@ export const LabTestList = ({
     : null
 
   const handlePrintGroup = async (serviceRequest: string, groupLabel: string, children: LabTest[]) => {
+    // Legacy imports have no Service Request: their flattened rows point back to
+    // one legacy Lab Test parent, whose "Lab Test Legacy Print" format renders
+    // every imported line for the report.
+    const firstChild = children[0]
+    if (firstChild && isLegacyHistoryLabRow(firstChild)) {
+      openLabTestResultReportPrint(
+        resolveLabTestDocName(firstChild) || firstChild.name,
+        LAB_TEST_LEGACY_PRINT_FORMAT,
+      )
+      return
+    }
+
     // The "Lab Test Print" format renders the whole Service Request group when given
     // any member, so open the Frappe print view for the first child.
-    const firstChild = children[0]?.name
-    if (firstChild) {
+    const firstChildName = firstChild?.name
+    if (firstChildName) {
       const params = new URLSearchParams({
         doctype: 'Lab Test',
-        name: firstChild,
+        name: firstChildName,
         format: 'Lab Test Print',
         trigger_print: '1',
         no_letterhead: '0',
@@ -4450,6 +4485,7 @@ export const LabTestList = ({
                 const { serviceRequest, children, groupKey, labTestGroup } = row
                 const isExpanded = !!expandedGroupKeys[groupKey]
                 const representativeChild = children[0]
+                const isLegacyGroup = children.every((child) => isLegacyHistoryLabRow(child))
                 // Show the test group's NAME (e.g. "Lipid Profile"), resolved from the
                 // group code (lab_test_group like LAB-004) by the backend — not the child test names.
                 const groupLabel =
@@ -4470,11 +4506,19 @@ export const LabTestList = ({
                   <Fragment key={`group-${groupKey}`}>
                     <tr
                       className="bg-indigo-50 hover:bg-indigo-100 border-l-4 border-indigo-400 cursor-pointer"
-                      title="Click to record sample collection for this group"
+                      title={
+                        isLegacyGroup
+                          ? 'Legacy panel — click to expand its tests'
+                          : 'Click to record sample collection for this group'
+                      }
                       onClick={(e) => {
                         const el = e.target as HTMLElement
                         if (el.closest('[data-no-row-click]')) return
                         if (el.closest('button, a, input, select, textarea, label')) return
+                        if (isLegacyGroup) {
+                          setExpandedGroupKeys((prev) => ({ ...prev, [groupKey]: !isExpanded }))
+                          return
+                        }
                         const allCollected = children.every((c) => isLabTestSampleCollectionDone(c))
                         if (allCollected) return
                         const sampleTarget =
@@ -4566,23 +4610,25 @@ export const LabTestList = ({
                       {/* Actions */}
                       <td className="px-3 py-1.5 text-sm text-slate-700" data-no-row-click onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center gap-2">
-                          <button type="button" data-no-row-click
-                            disabled={groupFinished || groupStatus.status !== 'Complete' || finishingGroupKey === groupKey}
-                            onClick={(e) => { e.stopPropagation(); handleFinishGroup(serviceRequest, groupKey, labTestGroup) }}
-                            className={`px-2 py-1 text-xs rounded-md border transition-colors ${
-                              !groupFinished && groupStatus.status === 'Complete'
-                                ? 'border-emerald-600 text-emerald-700 hover:bg-emerald-50'
-                                : 'border-slate-300 text-slate-400 cursor-not-allowed'
-                            }`}
-                            title={
-                              groupFinished
-                                ? 'This grouped request is already finished'
-                                : groupStatus.status === 'Complete'
-                                  ? 'Finish this grouped request'
-                                  : 'All tests must have results entered first'
-                            }>
-                            {groupFinished ? 'Finished' : finishingGroupKey === groupKey ? 'Finishing…' : 'Finish Group'}
-                          </button>
+                          {!isLegacyGroup && (
+                            <button type="button" data-no-row-click
+                              disabled={groupFinished || groupStatus.status !== 'Complete' || finishingGroupKey === groupKey}
+                              onClick={(e) => { e.stopPropagation(); handleFinishGroup(serviceRequest, groupKey, labTestGroup) }}
+                              className={`px-2 py-1 text-xs rounded-md border transition-colors ${
+                                !groupFinished && groupStatus.status === 'Complete'
+                                  ? 'border-emerald-600 text-emerald-700 hover:bg-emerald-50'
+                                  : 'border-slate-300 text-slate-400 cursor-not-allowed'
+                              }`}
+                              title={
+                                groupFinished
+                                  ? 'This grouped request is already finished'
+                                  : groupStatus.status === 'Complete'
+                                    ? 'Finish this grouped request'
+                                    : 'All tests must have results entered first'
+                              }>
+                              {groupFinished ? 'Finished' : finishingGroupKey === groupKey ? 'Finishing…' : 'Finish Group'}
+                            </button>
+                          )}
                           <button
                             type="button"
                             data-no-row-click
@@ -4590,12 +4636,17 @@ export const LabTestList = ({
                               e.stopPropagation()
                               void handlePrintGroup(serviceRequest, groupLabel, children)
                             }}
-                            className="px-2 py-1 text-xs rounded-md border border-primary text-primary hover:bg-primary/5"
-                            title="Print all tests under this group"
+                            className="inline-flex items-center justify-center rounded-md border border-primary p-1.5 text-primary hover:bg-primary/5"
+                            title={
+                              isLegacyGroup
+                                ? 'Print Laboratory Report (Legacy Import)'
+                                : 'Print Laboratory Report'
+                            }
+                            aria-label="Print"
                           >
-                            Print Group
+                            <Printer className="h-3.5 w-3.5" />
                           </button>
-                          {children.some((child) => child.status === 'Pending Review') && (
+                          {!isLegacyGroup && children.some((child) => child.status === 'Pending Review') && (
                             <button
                               type="button"
                               data-no-row-click
@@ -4609,7 +4660,7 @@ export const LabTestList = ({
                               Review
                             </button>
                           )}
-                          {canForceOverride && renderGroupOverrideMenu(children, groupKey)}
+                          {!isLegacyGroup && canForceOverride && renderGroupOverrideMenu(children, groupKey)}
                         </div>
                        </td>
                       {/* Doctor */}
@@ -4874,14 +4925,15 @@ export const LabTestList = ({
                 </p>
               </div>
               <div className="relative flex items-center gap-2">
-                {isLegacyImport ? (
+                {isLegacyImport || (detailsSlideOverLabTest && isLegacyHistoryLabRow(detailsSlideOverLabTest)) ? (
                   <button
                     type="button"
                     title="Print Laboratory Report (Legacy Import)"
                     aria-label="Print Laboratory Report"
                     onClick={() =>
                       openLabTestResultReportPrint(
-                        selectedLabTestForDetails,
+                        (detailsSlideOverLabTest && resolveLabTestDocName(detailsSlideOverLabTest)) ||
+                          selectedLabTestForDetails,
                         LAB_TEST_LEGACY_PRINT_FORMAT,
                       )
                     }
