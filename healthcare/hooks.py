@@ -148,9 +148,7 @@ fixtures = [
 
                    "Mode of Payment-custom_cost_center",
 
-                   #Room Category
 
-				   #Healthcare Service Template
                 ),
             ]
         ],

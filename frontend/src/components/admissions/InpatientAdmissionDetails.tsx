@@ -13,6 +13,7 @@ import {
 import { StatusPill } from '../ui/StatusPill'
 import { PackageSelectionModal } from './PackageSelectionModal'
 import { AdmissionPackageTab } from './AdmissionPackageTab'
+import { AdmissionOtherServicesTab } from './AdmissionOtherServicesTab'
 import { AdmissionFormModal } from './AdmissionFormModal'
 import { ScheduleDischargeModal } from './ScheduleDischargeModal'
 import { ModifyMedicalSupervisionModal } from './ModifyMedicalSupervisionModal'
@@ -55,7 +56,7 @@ const STATUS_COLORS: Record<string, string> = {
   'Cancelled': 'danger',
 } as const
 
-type TabType = 'details' | 'package' | 'diagnosis' | 'lab_tests' | 'medicine_given' | 'prescriptions' | 'progress_notes' | 'signatures'
+type TabType = 'details' | 'package' | 'other_services' | 'diagnosis' | 'lab_tests' | 'medicine_given' | 'prescriptions' | 'progress_notes' | 'signatures'
 
 interface InpatientAdmissionDetailsProps {
   admissionName: string
@@ -1264,6 +1265,10 @@ export const InpatientAdmissionDetails = ({ admissionName, onUpdate }: Inpatient
   const [showAdmissionForm, setShowAdmissionForm] = useState(false)
   const [enhancedWorkflow, setEnhancedWorkflow] = useState(false)
   const [selectedPackage, setSelectedPackage] = useState<InpatientPackage | null>(null)
+  const [resolvedPackage, setResolvedPackage] = useState<InpatientPackage | null>(null)
+  const [selectedOtherServices, setSelectedOtherServices] = useState<string[]>([])
+  const [otherServicesHydrated, setOtherServicesHydrated] = useState<string | null>(null)
+  const [otherServicesRefresh, setOtherServicesRefresh] = useState(0)
   const [showScheduleDischarge, setShowScheduleDischarge] = useState(false)
   const [showMedicalSupervision, setShowMedicalSupervision] = useState(false)
 
@@ -1297,7 +1302,11 @@ export const InpatientAdmissionDetails = ({ admissionName, onUpdate }: Inpatient
     try {
       setLoading(true)
       setError(null)
-      const data = await fetchInpatientRecord(admissionName)
+      const [data, packageDetails] = await Promise.all([
+        fetchInpatientRecord(admissionName),
+        fetchAdmissionPackageDetails(admissionName).catch(() => null),
+      ])
+      if (packageDetails) setResolvedPackage(packageDetails.active_package)
       setRecord(data)
     } catch (err) {
       setError(err instanceof Error ? err : new Error('Failed to fetch admission details'))
@@ -1313,9 +1322,20 @@ export const InpatientAdmissionDetails = ({ admissionName, onUpdate }: Inpatient
   // FIX 6: Coerce to boolean with !! so it is never `boolean | null`
   const canEdit = !!(record && ['Admission Scheduled', 'Admitted', 'Discharge Scheduled'].includes(record.status))
 
+  const otherServicesPackageKey = `${admissionName}:${selectedPackage?.name || resolvedPackage?.name || '__unassigned__'}`
+  const previousOtherServicesPackageKey = useRef(otherServicesPackageKey)
+  useEffect(() => {
+    if (previousOtherServicesPackageKey.current !== otherServicesPackageKey) {
+      previousOtherServicesPackageKey.current = otherServicesPackageKey
+      setSelectedOtherServices([])
+      setOtherServicesHydrated(null)
+    }
+  }, [otherServicesPackageKey])
+
   const handleAdmissionComplete = () => {
     setShowAdmissionForm(false)
     setSelectedPackage(null)
+    setOtherServicesRefresh((value) => value + 1)
     loadRecord()
     onUpdate?.()
   }
@@ -1403,6 +1423,9 @@ export const InpatientAdmissionDetails = ({ admissionName, onUpdate }: Inpatient
     ...(canViewPackageTab
       ? [{ id: 'package' as TabType, label: 'Package', icon: Package, count: 0 }]
       : []),
+    ...(canViewPackageTab
+      ? [{ id: 'other_services' as TabType, label: 'Other Services', icon: Plus, count: 0 }]
+      : []),
     { id: 'diagnosis' as TabType, label: 'Diagnoses', icon: Stethoscope, count: diagnoses.length },
     { id: 'lab_tests' as TabType, label: 'Lab Tests', icon: FlaskConical, count: labTests.length },
     { id: 'medicine_given' as TabType, label: 'Medicine Given', icon: Pill, count: medicineGiven.length + missedMedicine.length },
@@ -1460,6 +1483,7 @@ export const InpatientAdmissionDetails = ({ admissionName, onUpdate }: Inpatient
                   type="button"
                   onClick={() => {
                     setSelectedPackage(NO_PACKAGE)
+                    setSelectedOtherServices([])
                     setShowPackages(false)
                     setShowAdmissionForm(true)
                   }}
@@ -1555,6 +1579,19 @@ export const InpatientAdmissionDetails = ({ admissionName, onUpdate }: Inpatient
               }}
             />
           )}
+          {activeTab === 'other_services' && canViewPackageTab && (
+            <AdmissionOtherServicesTab
+              key={otherServicesPackageKey}
+              admissionName={admissionName}
+              selectedPackage={selectedPackage}
+              onResolvedPackageChange={setResolvedPackage}
+              selectedServices={selectedOtherServices}
+              onSelectedServicesChange={setSelectedOtherServices}
+              refreshKey={otherServicesRefresh}
+              otherServicesHydrated={otherServicesHydrated}
+              setOtherServicesHydrated={setOtherServicesHydrated}
+            />
+          )}
           {activeTab === 'diagnosis' && (
             <DiagnosesTab
               diagnoses={diagnoses}
@@ -1601,8 +1638,9 @@ export const InpatientAdmissionDetails = ({ admissionName, onUpdate }: Inpatient
           admissionNo={record.name}
           onSelect={(pkg) => {
             setSelectedPackage(pkg)
+            setSelectedOtherServices([])
             setShowPackages(false)
-            setShowAdmissionForm(true)
+            setActiveTab('other_services')
           }}
           onClose={() => setShowPackages(false)}
         />
@@ -1612,6 +1650,7 @@ export const InpatientAdmissionDetails = ({ admissionName, onUpdate }: Inpatient
         <AdmissionFormModal
           admissionNo={record.name}
           selectedPackage={selectedPackage}
+          otherServices={selectedOtherServices}
           onComplete={handleAdmissionComplete}
           onClose={() => {
             setShowAdmissionForm(false)

@@ -239,6 +239,7 @@ interface AdmissionFormModalProps {
   selectedPackage: InpatientPackage
   onComplete: () => void
   onClose: () => void
+  otherServices?: string[]
 }
 
 type Tab = 'admission' | 'other_services' | 'case_management' | 'medical_supervision' | 'documents' | 'signatures' | 'relatives'
@@ -299,6 +300,7 @@ export const AdmissionFormModal = ({
   selectedPackage,
   onComplete,
   onClose,
+  otherServices = [],
 }: AdmissionFormModalProps) => {
   const skipPackage = isNoPackage(selectedPackage)
   const packageName = selectedPackage.name
@@ -1087,7 +1089,9 @@ export const AdmissionFormModal = ({
             }
           : undefined,
         selectedRoomType.name,
-        enhancedWorkflow ? Array.from(new Set(selectedOtherServices.filter(Boolean))) : undefined
+        enhancedWorkflow
+          ? Array.from(new Set(selectedOtherServices.filter(Boolean)))
+          : Array.from(new Set(otherServices.filter(Boolean)))
       )
       const quotationName = (result as any).quotation_name || (result as any).sales_order_name || null
       if (quotationName) {

@@ -663,7 +663,7 @@ export async function createAdmissionQuotation(
         case_management_services: caseManagement?.services?.length
           ? caseManagement.services
           : null,
-        other_services: otherServices && Array.from(new Set(otherServices.filter(Boolean))),
+        other_services: Array.from(new Set((otherServices || []).filter(Boolean))),
       })
     }
   )
