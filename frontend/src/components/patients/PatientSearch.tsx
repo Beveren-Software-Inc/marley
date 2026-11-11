@@ -728,7 +728,7 @@ export const PatientSearch = ({
               placeholder={selectedPatientName || 'Search Patient by File No. / Name / CPR No. / Mobile'}
               title="Search Patient by File No. / Name / CPR No."
               aria-label="Search Patient by File No. / Name / CPR No."
-              className="w-full rounded-md border border-primary/40 pl-2 md:pl-3 pr-20 md:pr-24 py-1.5 md:py-2 text-xs md:text-sm text-slate-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-white focus:border-white"
+              className="w-full rounded-md border border-primary/40 pl-2 md:pl-3 pr-20 md:pr-24 py-1.5 md:py-2 text-[11px] leading-4 md:text-xs md:leading-5 text-slate-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-white focus:border-white"
             />
             <div className="absolute inset-y-0 right-2 flex items-center gap-1">
               {selectedPatient && (

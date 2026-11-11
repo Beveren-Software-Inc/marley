@@ -1,6 +1,8 @@
 import { Fragment, useState, useEffect } from 'react'
 import { ClipboardCheck, Clock, Paperclip, UserCheck } from 'lucide-react'
 import { fetchLabTest, type LabTest } from '../../services/labTests'
+import { labResultFlag } from './labTestDisplayUtils'
+import { resultFlagBadgeClass, simplifyResultFlagLabel } from './labTestReviewUtils'
 import { SavedInclusionRows, type TotalInclusionLine } from './multipleResultEntry'
 import { StatusPill } from '../ui/StatusPill'
 import { LabTestReviewModal } from './LabTestReviewModal'
@@ -118,6 +120,20 @@ function ResultValueBadge({ value }: { value?: string | null }) {
   )
 }
 
+function ResultFlagBadge({ flag }: { flag?: string | null }) {
+  const stored = (flag || '').trim()
+  if (!stored) return <span className="text-slate-300">—</span>
+  const label = simplifyResultFlagLabel(stored) || stored
+  return (
+    <span
+      className={`inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] font-medium ${resultFlagBadgeClass(stored)}`}
+      title={stored}
+    >
+      {label}
+    </span>
+  )
+}
+
 export const LabTestDetails = ({ labTestName, onUpdate }: LabTestDetailsProps) => {
   const { userRole } = useCareContext()
   const [labTest, setLabTest] = useState<LabTest | null>(null)
@@ -221,20 +237,23 @@ export const LabTestDetails = ({ labTestName, onUpdate }: LabTestDetailsProps) =
               <table className="min-w-full table-fixed divide-y divide-slate-200 text-sm">
                 <thead className="bg-slate-50">
                   <tr>
-                    <th className="w-[18%] px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
+                    <th className="w-[14%] px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
                       Panel
                     </th>
-                    <th className="w-[28%] px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
+                    <th className="w-[24%] px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
                       Test Name
                     </th>
-                    <th className="w-[16%] px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
+                    <th className="w-[18%] px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
                       Test Code
                     </th>
-                    <th className="w-[18%] px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
+                    <th className="w-[16%] px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
                       Result
                     </th>
-                    <th className="w-[20%] px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
+                    <th className="w-[16%] px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
                       Range
+                    </th>
+                    <th className="w-[12%] px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
+                      Flag
                     </th>
                   </tr>
                 </thead>
@@ -248,6 +267,12 @@ export const LabTestDetails = ({ labTestName, onUpdate }: LabTestDetailsProps) =
                       '—'
                     const testCode = (line.lab_sub_num || '').trim() || '—'
                     const range = (line.normal_range || '').trim() || '—'
+                    const flag = labResultFlag(
+                      line.lab_result_value,
+                      line.range_min,
+                      line.range_max,
+                      line.normal_range,
+                    )
                     return (
                       <tr key={`${line.sr_num || i}-${testCode}`} className="hover:bg-slate-50/80">
                         <td className="px-3 py-2.5 align-top text-slate-700 break-words">{panel}</td>
@@ -262,6 +287,9 @@ export const LabTestDetails = ({ labTestName, onUpdate }: LabTestDetailsProps) =
                         </td>
                         <td className="px-3 py-2.5 align-top whitespace-pre-line text-slate-600">
                           {range}
+                        </td>
+                        <td className="px-3 py-2.5 align-top">
+                          <ResultFlagBadge flag={flag} />
                         </td>
                       </tr>
                     )

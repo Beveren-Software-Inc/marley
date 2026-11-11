@@ -1,5 +1,5 @@
 import { useMemo, useState, Fragment } from 'react'
-import { ChevronDown, ChevronRight } from 'lucide-react'
+import { ChevronDown, ChevronRight, Eye, Printer } from 'lucide-react'
 import type { LabTest } from '../../services/labTests'
 import { StatusPill } from '../ui/StatusPill'
 import {
@@ -8,8 +8,17 @@ import {
   formatDashboardDate,
 } from '../ui/dashboardCardListing'
 import { displayResultFlag, labTestResultPreview, resultFlagBadgeClass } from './labTestReviewUtils'
-import { isLegacyHistoryLabRow, resolveLabTestDocName } from './labTestDisplayUtils'
+import {
+  isLegacyHistoryLabRow,
+  labTestDisplayGroupKey,
+  resolveLabTestDocName,
+} from './labTestDisplayUtils'
 import { looksLikeLabCode } from '../../utils/labBriefingGroups'
+import {
+  LAB_TEST_LEGACY_PRINT_FORMAT,
+  LAB_TEST_PRINT_FORMAT,
+  openLabTestResultReportPrint,
+} from '../../utils/printLabTestResultReport'
 
 const statusColors: Record<string, string> = {
   Draft: 'default',
@@ -36,13 +45,6 @@ export function labTestReportDate(lt: LabTest): string | undefined {
   )
 }
 
-function groupKeyFor(lt: LabTest): string | null {
-  if (!lt.is_group_lab_test || !lt.service_request) return null
-  const group = (lt.lab_test_group || '').trim()
-  const sr = (lt.service_request || '').trim()
-  return group ? `${sr}::${group}` : sr
-}
-
 function groupLabelFor(children: LabTest[]): string {
   const rep = children[0]
   const name = (rep?.lab_test_group_name || '').trim()
@@ -50,6 +52,21 @@ function groupLabelFor(children: LabTest[]): string {
   const code = (rep?.lab_test_group || '').trim()
   if (code && !looksLikeLabCode(code)) return code
   return name || code || 'Group'
+}
+
+/** Summarise child statuses for the collapsed GROUP header (not a placeholder). */
+function groupStatusSummary(children: LabTest[]): { status: string; color: string } {
+  const statuses = children.map((c) => (c.status || 'Draft').trim()).filter(Boolean)
+  if (!statuses.length) return { status: 'Draft', color: statusColors.Draft || 'default' }
+  const unique = [...new Set(statuses)]
+  if (unique.length === 1) {
+    const status = unique[0]
+    return { status, color: statusColors[status] || 'default' }
+  }
+  if (statuses.some((s) => s === 'Pending Review')) {
+    return { status: 'Pending Review', color: statusColors['Pending Review'] || 'warning' }
+  }
+  return { status: 'Mixed', color: 'info' }
 }
 
 type DisplayRow =
@@ -85,11 +102,23 @@ export function LabTestDashboardCardTable({
   const isDoctor = variant === 'doctor'
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
 
+  const printLabTestOrGroup = (children: LabTest[] | LabTest) => {
+    const list = Array.isArray(children) ? children : [children]
+    const first = list[0]
+    if (!first) return
+    const docName = resolveDocName(first) || first.name
+    if (!docName) return
+    const format = isLegacyHistoryLabRow(first)
+      ? LAB_TEST_LEGACY_PRINT_FORMAT
+      : LAB_TEST_PRINT_FORMAT
+    openLabTestResultReportPrint(docName, format)
+  }
+
   const displayRows = useMemo((): DisplayRow[] => {
     const groups = new Map<string, LabTest[]>()
     const standalone: LabTest[] = []
     for (const lt of labTests) {
-      const key = groupKeyFor(lt)
+      const key = labTestDisplayGroupKey(lt)
       if (!key) {
         standalone.push(lt)
         continue
@@ -113,6 +142,7 @@ export function LabTestDashboardCardTable({
     const docName = resolveDocName(lt)
     const testLabel = (lt.lab_test_name || lt.template || '').trim()
     const reportDate = labTestReportDate(lt)
+    const nested = !!opts?.nested
     const metaFields = [
       ['Lab Test ID', docName],
       ['Practitioner', lt.practitioner_name || lt.practitioner],
@@ -125,9 +155,9 @@ export function LabTestDashboardCardTable({
     ] as const
     return (
       <tr key={lt.name} className={dashboardCardRowHoverClass}>
-        <td className={`px-2 py-2 text-slate-800 font-medium align-top ${opts?.nested ? 'pl-5' : ''}`}>
+        <td className={`px-2 py-2 text-slate-800 font-medium align-top ${nested ? 'pl-5' : ''}`}>
           <div className="flex items-start gap-1 min-w-0">
-            {opts?.nested ? <span className="text-slate-400 text-xs mt-0.5 shrink-0">↳</span> : null}
+            {nested ? <span className="text-slate-400 text-xs mt-0.5 shrink-0">↳</span> : null}
             <button
               type="button"
               className={`line-clamp-2 min-w-0 flex-1 text-left ${
@@ -181,29 +211,51 @@ export function LabTestDashboardCardTable({
         </td>
         {isDoctor && (
           <td className="px-2 py-2 align-top text-right">
-            {lt.status === 'Pending Review' && onReview && !isLegacyHistoryLabRow(lt) ? (
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  onReview(docName)
-                }}
-                className="rounded border border-emerald-600 px-2 py-0.5 text-[10px] font-medium text-emerald-700 hover:bg-emerald-50"
-              >
-                Review
-              </button>
-            ) : (
+            <div className="inline-flex flex-wrap items-center justify-end gap-1">
+              {/* Nested group children: Print lives on the GROUP header and prints the whole report. */}
+              {!nested ? (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    printLabTestOrGroup(lt)
+                  }}
+                  className="inline-flex items-center justify-center rounded border border-slate-300 p-1 text-slate-600 hover:bg-slate-50"
+                  title={
+                    isLegacyHistoryLabRow(lt)
+                      ? 'Print Laboratory Report (Legacy Import)'
+                      : 'Print Laboratory Report'
+                  }
+                  aria-label="Print"
+                >
+                  <Printer className="h-3.5 w-3.5" />
+                </button>
+              ) : null}
+              {lt.status === 'Pending Review' && onReview && !isLegacyHistoryLabRow(lt) ? (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onReview(docName)
+                  }}
+                  className="rounded border border-emerald-600 px-2 py-0.5 text-[10px] font-medium text-emerald-700 hover:bg-emerald-50"
+                >
+                  Review
+                </button>
+              ) : null}
               <button
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation()
                   onOpen(docName)
                 }}
-                className="rounded border border-slate-300 px-2 py-0.5 text-[10px] font-medium text-slate-600 hover:bg-slate-50"
+                className="inline-flex items-center justify-center rounded border border-slate-300 p-1 text-slate-600 hover:bg-slate-50"
+                title="View lab test details"
+                aria-label="View"
               >
-                View
+                <Eye className="h-3.5 w-3.5" />
               </button>
-            )}
+            </div>
           </td>
         )}
       </tr>
@@ -225,7 +277,7 @@ export function LabTestDashboardCardTable({
               Date
             </th>
             {isDoctor && (
-              <th className="px-2 py-2 text-right text-xs font-semibold text-slate-600 uppercase w-[72px]">
+              <th className="px-2 py-2 text-right text-xs font-semibold text-slate-600 uppercase min-w-[9.5rem]">
                 Action
               </th>
             )}
@@ -238,6 +290,7 @@ export function LabTestDashboardCardTable({
             }
             const isOpen = !!expanded[row.key]
             const pendingCount = row.children.filter((c) => c.status === 'Pending Review').length
+            const isLegacyGroup = row.children.every((c) => isLegacyHistoryLabRow(c))
             const latestDate = row.children.reduce((latest, c) => {
               const d = labTestReportDate(c) || ''
               return d > latest ? d : latest
@@ -245,6 +298,7 @@ export function LabTestDashboardCardTable({
             const firstPending = row.children.find(
               (c) => c.status === 'Pending Review' && !isLegacyHistoryLabRow(c),
             )
+            const groupStatus = groupStatusSummary(row.children)
             return (
               <Fragment key={row.key}>
                 <tr className="bg-indigo-50/80 hover:bg-indigo-50 border-l-4 border-indigo-400">
@@ -296,7 +350,9 @@ export function LabTestDashboardCardTable({
                       </button>
                     </div>
                   </td>
-                  <td className="px-2 py-2 align-top text-xs text-indigo-500 italic">— group —</td>
+                  <td className="px-2 py-2 align-top">
+                    <StatusPill status={groupStatus.status} color={groupStatus.color} />
+                  </td>
                   <td className="px-2 py-2 align-top text-xs text-indigo-400 italic">—</td>
                   {isDoctor && <td className="px-2 py-2 align-top text-slate-300 text-xs">—</td>}
                   <td className="px-2 py-2 text-slate-500 whitespace-nowrap align-top text-xs">
@@ -304,37 +360,58 @@ export function LabTestDashboardCardTable({
                   </td>
                   {isDoctor && (
                     <td className="px-2 py-2 align-top text-right">
-                      {pendingCount > 0 && (onReviewGroup || onReview) ? (
+                      <div className="inline-flex flex-wrap items-center justify-end gap-1">
                         <button
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation()
-                            if (onReviewGroup) {
-                              onReviewGroup({
-                                serviceRequest: (row.children[0]?.service_request || '').trim(),
-                                groupLabel: row.label,
-                                children: row.children,
-                              })
-                              return
-                            }
-                            if (firstPending && onReview) onReview(resolveDocName(firstPending))
+                            printLabTestOrGroup(row.children)
                           }}
-                          className="rounded border border-emerald-600 px-2 py-0.5 text-[10px] font-medium text-emerald-700 hover:bg-emerald-50"
-                          title="Review all pending tests in this group"
+                          className="inline-flex items-center justify-center rounded border border-slate-300 p-1 text-slate-600 hover:bg-slate-50"
+                          title={
+                            isLegacyGroup
+                              ? 'Print Laboratory Report (Legacy Import)'
+                              : 'Print Laboratory Report'
+                          }
+                          aria-label="Print"
                         >
-                          Review
+                          <Printer className="h-3.5 w-3.5" />
                         </button>
-                      ) : (
+                        {pendingCount > 0 && !isLegacyGroup && (onReviewGroup || onReview) ? (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              if (onReviewGroup) {
+                                onReviewGroup({
+                                  serviceRequest: (row.children[0]?.service_request || '').trim(),
+                                  groupLabel: row.label,
+                                  children: row.children,
+                                })
+                                return
+                              }
+                              if (firstPending && onReview) onReview(resolveDocName(firstPending))
+                            }}
+                            className="rounded border border-emerald-600 px-2 py-0.5 text-[10px] font-medium text-emerald-700 hover:bg-emerald-50"
+                            title="Review all pending tests in this group"
+                          >
+                            Review
+                          </button>
+                        ) : null}
                         <button
                           type="button"
-                          onClick={() =>
-                            setExpanded((prev) => ({ ...prev, [row.key]: !prev[row.key] }))
-                          }
-                          className="rounded border border-slate-300 px-2 py-0.5 text-[10px] font-medium text-slate-600 hover:bg-slate-50"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            const target = firstPending || row.children[0]
+                            if (target) onOpen(resolveDocName(target))
+                          }}
+                          className="inline-flex items-center justify-center rounded border border-slate-300 p-1 text-slate-600 hover:bg-slate-50"
+                          title="View lab test details"
+                          aria-label="View"
                         >
-                          {isOpen ? 'Hide' : 'Show'}
+                          <Eye className="h-3.5 w-3.5" />
                         </button>
-                      )}
+                      </div>
                     </td>
                   )}
                 </tr>

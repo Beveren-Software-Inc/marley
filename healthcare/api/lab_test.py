@@ -727,6 +727,28 @@ _LAB_TEST_LINE_LIST_FIELDS = [
 ]
 
 
+def _legacy_lab_group_name(
+	group_code: str | None, group_name: str | None, template_info_cache: dict
+) -> str:
+	"""Human panel name for an imported LAB group (``LAB-001`` → ``CBC``).
+
+	Oracle rows often repeat the code in ``group_name`` (or leave it blank), so
+	the group code is resolved through ``Lab Test Template.lab_test_name``. When
+	the template is missing or its name is also just the code, return ``""`` and
+	let the UI fall back to the code.
+	"""
+	code = (group_code or "").strip()
+	name = (group_name or "").strip()
+	if name and name.upper() != code.upper():
+		return name
+	if not code:
+		return ""
+	resolved = _lab_test_template_name(code, template_info_cache)
+	if resolved and resolved.upper() != code.upper():
+		return resolved
+	return ""
+
+
 def _attach_legacy_lab_test_lines(lab_tests):
 	"""Attach LAB 00-04 child rows for legacy imports (list API)."""
 	legacy_names = [lt.name for lt in lab_tests if cint(lt.get("is_legacy_import"))]
@@ -748,6 +770,9 @@ def _attach_legacy_lab_test_lines(lab_tests):
 		sub_template = (row.get("lab_sub_num") or "").strip()
 		if sub_template:
 			row["lab_sub_template_name"] = _lab_test_template_name(sub_template, template_info_cache)
+		row["lab_group_name"] = _legacy_lab_group_name(
+			row.get("lab_group_num"), row.get("group_name"), template_info_cache
+		)
 		by_parent.setdefault(parent, []).append(row)
 
 	for lab_test in lab_tests:
@@ -1221,11 +1246,17 @@ def _lab_test_display_key(lt):
 	return f"lt:{lt.name}"
 
 
-def _paginate_lab_tests_by_display_unit(filters, or_filters, limit, offset):
+def _paginate_lab_tests_by_display_unit(
+	filters, or_filters, limit, offset, prioritize_pending_review=False
+):
 	"""Page by visible list rows (1 group SR = 1 unit), not raw Lab Test child rows.
 
 	Without this, a large recent group (e.g. 36 urine lines) fills the whole first
 	page and the UI shows a single GROUP row even though thousands of tests exist.
+
+	When ``prioritize_pending_review`` is set, units that include any Pending Review
+	child are listed first (still newest-first within each bucket) so older pending
+	reports are not pushed off page 1 by newer reviewed ones.
 	"""
 	limit = max(cint(limit), 1)
 	offset = max(cint(offset), 0)
@@ -1234,7 +1265,7 @@ def _paginate_lab_tests_by_display_unit(filters, or_filters, limit, offset):
 		"Lab Test",
 		filters=filters,
 		or_filters=or_filters or None,
-		fields=["name", "creation", "service_request", "is_group_lab_test"],
+		fields=["name", "creation", "service_request", "is_group_lab_test", "status"],
 		order_by="creation desc",
 		limit=0,
 	)
@@ -1242,12 +1273,20 @@ def _paginate_lab_tests_by_display_unit(filters, or_filters, limit, offset):
 	# Preserve newest-first order; first occurrence of each display key wins.
 	ordered_keys = []
 	seen = set()
+	pending_keys = set()
 	for row in index_rows:
 		key = _lab_test_display_key(row)
+		if (row.get("status") or "").strip() == "Pending Review":
+			pending_keys.add(key)
 		if key in seen:
 			continue
 		seen.add(key)
 		ordered_keys.append(key)
+
+	if cint(prioritize_pending_review):
+		pending_first = [key for key in ordered_keys if key in pending_keys]
+		rest = [key for key in ordered_keys if key not in pending_keys]
+		ordered_keys = pending_first + rest
 
 	total_count = len(ordered_keys)
 	page_keys = ordered_keys[offset : offset + limit]
@@ -1305,6 +1344,7 @@ def get_lab_tests(
 	status=None,
 	pending_review=False,
 	pipeline_pending=False,
+	prioritize_pending_review=False,
 	is_outsourced=None,
 	is_legacy_import=None,
 	from_date=None,
@@ -1314,9 +1354,15 @@ def get_lab_tests(
 	practitioner=None,
 	by_nurse=None,
 ):
-	"""Get list of Lab Tests with optional filters (patient, status, date range, practitioner, template, outsourcing)."""
+	"""Get list of Lab Tests with optional filters (patient, status, date range, practitioner, template, outsourcing).
+
+	``prioritize_pending_review`` (doctor Reports soft default): do not filter to
+	Pending Review only — return every matching status, but page Pending Review
+	units first so they are not buried under newer reviewed reports.
+	"""
 	from healthcare.api.common import get_permitted_cost_centers
 	filters = {"docstatus": ["!=", 2]}  # Exclude cancelled
+	prioritize_pending = cint(prioritize_pending_review)
 
 	if patient:
 		filters["patient"] = patient
@@ -1392,12 +1438,24 @@ def get_lab_tests(
 		)
 		pending_rows = _expand_grouped_lab_test_siblings(pending_rows, filters)
 		pending_rows = _filter_pending_pipeline_lab_tests(pending_rows, status)
+		if prioritize_pending:
+			pending_first = [
+				row for row in pending_rows if (row.get("status") or "").strip() == "Pending Review"
+			]
+			rest = [
+				row for row in pending_rows if (row.get("status") or "").strip() != "Pending Review"
+			]
+			pending_rows = pending_first + rest
 		total_count = len(pending_rows)
 		lab_tests = pending_rows[cint(offset) : cint(offset) + cint(limit)]
 	else:
 		# Page by visible rows (group = 1) so a large group cannot monopolise the page.
 		lab_tests, total_count = _paginate_lab_tests_by_display_unit(
-			filters, or_filters, limit, offset
+			filters,
+			or_filters,
+			limit,
+			offset,
+			prioritize_pending_review=prioritize_pending,
 		)
 
 	template_cache = {}
@@ -2433,11 +2491,18 @@ def get_lab_test(name):
 		sub = (getattr(r, 'lab_sub_num', None) or '').strip()
 		tpl_info = _lab_test_template_info(sub, template_info_cache) if sub else {}
 		line_range_min, line_range_max = _template_reference_bounds(tpl_info, patient_sex)
+		group_code = (getattr(r, 'lab_group_num', None) or '').strip()
+		group_display_name = _legacy_lab_group_name(
+			group_code,
+			getattr(r, 'group_name', None),
+			template_info_cache,
+		)
 		out['lab_test_lines'].append(
 			{
 				'sr_num': getattr(r, 'sr_num', None) or '',
-				'lab_group_num': getattr(r, 'lab_group_num', None) or '',
+				'lab_group_num': group_code,
 				'group_name': getattr(r, 'group_name', None) or '',
+				'lab_group_name': group_display_name,
 				'lab_sub_num': sub,
 				'lab_sub_template_name': (tpl_info.get('name') or '').strip() if sub else '',
 				'lab_result_value': getattr(r, 'lab_result_value', None) or '',

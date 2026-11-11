@@ -3,11 +3,12 @@ import { useSearchParams } from 'react-router-dom'
 import { useCareContext } from '../providers/CareContextProvider'
 import { PatientCareHeader } from '../components/patients/PatientCareHeader'
 import { DashboardCard } from '../components/ui/DashboardCard'
-import { ClinicalNotesList } from '../components/clinicalNotes/ClinicalNotesList'
 import { CreateClinicalNoteModal } from '../components/clinicalNotes/CreateClinicalNoteModal'
+import { NotesCareViewCard } from '../components/clinicalNotes/NotesCareViewCard'
 import { AdmissionList } from '../components/admissions/AdmissionList'
 import { PatientVisitList } from '../components/patientVisits/PatientVisitList'
 import { TherapySessionPanel } from '../components/therapy/TherapySessionPanel'
+import { DEFAULT_NOTES_VIEW_STORAGE_KEYS } from '../hooks/useNotesViewPreference'
 
 /** Nutritionist role hub — surfaces the "Nutritionist Note" clinical notes that also
  * appear in the doctor/nurse workspaces. */
@@ -42,20 +43,18 @@ export const NutritionistPage = () => {
   )
 
   const notesCard = (opts?: { listingScreen?: string; fixedHeight?: boolean }) => (
-    <DashboardCard
+    <NotesCareViewCard
       title="Nutritionist Notes"
-      listingScreen={opts?.listingScreen}
-      fixedHeight={opts?.fixedHeight}
+      patient={selectedPatient}
+      clinicalNoteType="Nutritionist Note"
+      refreshKey={notesRefreshKey}
+      onPatientClick={handlePatientSelect}
       onAdd={() => guardClinicalCreate(() => setShowNoteModal(true))}
       addButtonTitle="Add Nutritionist Note"
-    >
-      <ClinicalNotesList
-        patient={selectedPatient}
-        clinicalNoteType="Nutritionist Note"
-        key={notesRefreshKey}
-        onPatientClick={handlePatientSelect}
-      />
-    </DashboardCard>
+      listingScreen={opts?.listingScreen}
+      fixedHeight={opts?.fixedHeight}
+      viewStorageKey={DEFAULT_NOTES_VIEW_STORAGE_KEYS.nutritionist}
+    />
   )
 
   const createModal = showNoteModal && (

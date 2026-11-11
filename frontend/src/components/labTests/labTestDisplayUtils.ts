@@ -32,6 +32,74 @@ export function sortLabRequestReviewGroups<
     }))
 }
 
+export type LabResultFlag = '' | 'Low' | 'High' | 'Critically Low' | 'Critically High' | 'Normal'
+
+/** Parse a reference range such as ``4 - 11``, ``4 – 11``, ``<200`` or ``>5``. */
+export function parseLabReferenceRange(raw?: string | null): {
+  min: number | null
+  max: number | null
+} {
+  if (raw == null) return { min: null, max: null }
+  const text = String(raw).replace(/[–—]/g, '-').replace(/,/g, '').trim()
+  if (!text) return { min: null, max: null }
+
+  const between = text.match(/^(-?\d+(?:\.\d+)?)\s*(?:-|to)\s*(-?\d+(?:\.\d+)?)$/i)
+  if (between) return { min: Number(between[1]), max: Number(between[2]) }
+
+  const upper = text.match(/^[<≤]\s*=?\s*(-?\d+(?:\.\d+)?)$/)
+  if (upper) return { min: null, max: Number(upper[1]) }
+
+  const lower = text.match(/^[>≥]\s*=?\s*(-?\d+(?:\.\d+)?)$/)
+  if (lower) return { min: Number(lower[1]), max: null }
+
+  return { min: null, max: null }
+}
+
+function finiteRangeBound(value?: number | string | null): number | null {
+  if (value === null || value === undefined || String(value).trim() === '') return null
+  const num = Number(value)
+  return Number.isFinite(num) ? num : null
+}
+
+/**
+ * Result flag for a lab line, using the patient-specific bounds resolved by the
+ * detail API and falling back to the stored normal-range text.
+ */
+export function labResultFlag(
+  resultValue?: string | null,
+  rangeMin?: number | string | null,
+  rangeMax?: number | string | null,
+  normalRange?: string | null,
+): LabResultFlag {
+  const text = (resultValue || '').replace(/,/g, '').trim()
+  if (!text) return ''
+  const value = Number(text)
+  if (!Number.isFinite(value)) return ''
+
+  let min = finiteRangeBound(rangeMin)
+  let max = finiteRangeBound(rangeMax)
+  // Templates store an unset pair as 0 / 0; do not flag against it.
+  if (min === 0 && max === 0) {
+    min = null
+    max = null
+  }
+  if (min == null || max == null) {
+    const parsed = parseLabReferenceRange(normalRange)
+    if (min == null) min = parsed.min
+    if (max == null) max = parsed.max
+  }
+  if (min == null && max == null) return ''
+
+  // Match the list/critical-value convention used elsewhere in the lab UI.
+  if (min != null && max != null) {
+    if (value > max * 2) return 'Critically High'
+    if (value < min * 0.5) return 'Critically Low'
+  }
+  if (max != null && value > max) return 'High'
+  if (min != null && value < min) return 'Low'
+  return 'Normal'
+}
+
 /** Open the parent Lab Test document from a flattened legacy line row. */
 export function resolveLabTestDocName(lt: LabTest): string {
   return lt.legacy_parent_name || lt.name
@@ -100,7 +168,25 @@ export function expandLegacyLabTestsForDisplay(labTests: LabTest[]): LabTest[] {
       const line = sorted[index]
       const sub = (line.lab_sub_num || '').trim()
       const subTemplateName = (line.lab_sub_template_name || '').trim()
-      const group = (line.group_name || line.lab_group_num || '').trim()
+      // Preserve the imported panel code/name so the report list can group
+      // legacy child lines under a panel header (like current CBC groups).
+      const groupCode = (line.lab_group_num || '').trim()
+      const groupName = (line.group_name || '').trim()
+      const group = groupName || groupCode || ''
+      // Prefer the panel name resolved by the API (LAB-001 → CBC). Older API
+      // responses only carry the code, so also use the parent template name
+      // when this line belongs to the parent's primary panel.
+      const resolvedGroupName = (line.lab_group_name || '').trim()
+      const parentTemplate = (parent.template || '').trim()
+      const parentGroupName =
+        groupCode && parentTemplate && groupCode.toUpperCase() === parentTemplate.toUpperCase()
+          ? (parent.lab_test_name || '').trim()
+          : ''
+      const groupDisplayName =
+        resolvedGroupName ||
+        (groupName && groupName.toUpperCase() !== groupCode.toUpperCase() ? groupName : '') ||
+        parentGroupName ||
+        (parent.lab_test_group_name || '').trim()
       const lineKey = `${parent.name}::${line.sr_num || index}::${sub || index}`
       const result = (line.lab_result_value || '').trim()
       const lineAmount =
@@ -119,7 +205,8 @@ export function expandLegacyLabTestsForDisplay(labTests: LabTest[]): LabTest[] {
         legacy_sub_template: sub || undefined,
         lab_test_name: subTemplateName || sub || group || parent.lab_test_name || parent.template || parent.name,
         template: sub || line.lab_group_num || parent.template,
-        lab_test_group: line.lab_group_num || parent.lab_test_group,
+        lab_test_group: groupCode || group || parent.lab_test_group,
+        lab_test_group_name: groupDisplayName || undefined,
         custom_result: result,
         results: result,
         result_flag: '',
@@ -140,6 +227,28 @@ export function expandLegacyLabTestsForDisplay(labTests: LabTest[]): LabTest[] {
 
 export function isLegacyHistoryLabRow(lt: LabTest): boolean {
   return Boolean(lt.is_legacy_line_row || (lt.is_legacy_import && !lt.legacy_parent_name))
+}
+
+/**
+ * Key used to group lab rows for display.
+ *
+ * Modern grouped requests use the Service Request + panel code. Legacy imports
+ * have no Service Request (their child lines are flattened for display), so the
+ * child lines are scoped to their legacy parent document + panel instead. This
+ * keeps an imported CBC's WBC/RBC/HGB/HCT lines under one group header without
+ * merging panels from different historical reports.
+ */
+export function labTestDisplayGroupKey(lt: LabTest): string | null {
+  const group = (lt.lab_test_group || '').trim()
+  if (lt.is_legacy_line_row) {
+    if (!group) return null
+    const legacyParent = (lt.legacy_parent_name || '').trim()
+    if (!legacyParent) return null
+    return `legacy::${legacyParent}::${group}`
+  }
+  if (!lt.is_group_lab_test || !lt.service_request) return null
+  const sr = (lt.service_request || '').trim()
+  return group ? `${sr}::${group}` : sr
 }
 
 /** Status pill colors — keep in sync with LabTestList / LabTestDetails. */
