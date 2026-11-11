@@ -6,6 +6,8 @@ import { DashboardCard } from '../components/ui/DashboardCard'
 import { TherapyNotesPanel } from '../components/therapy/TherapyNotesPanel'
 import { TherapySessionPanel } from '../components/therapy/TherapySessionPanel'
 import { ClinicalNotesList } from '../components/clinicalNotes/ClinicalNotesList'
+import { NotesCareViewCard } from '../components/clinicalNotes/NotesCareViewCard'
+import { DEFAULT_NOTES_VIEW_STORAGE_KEYS } from '../hooks/useNotesViewPreference'
 import { DoctorOrderList } from '../components/doctorOrder/DoctorOrderList'
 import { MainNursingNoteList } from '../components/nursing/MainNursingNoteList'
 import { AdmissionList } from '../components/admissions/AdmissionList'
@@ -109,20 +111,40 @@ export const TherapyPage = () => {
     )
   }
 
-  if (screen === 'th-psy-notes' || screen === 'th-psy-order' || screen === 'th-nut') {
-    const noteConfig = {
-      'th-psy-notes': { title: 'Psychology Notes', type: 'Psychologist Note' },
-      'th-psy-order': { title: 'Psychology Orders', type: 'Psychologist Order' },
-      'th-nut': { title: 'Nutrition Notes', type: 'Nutritionist Note' },
-    }[screen]
+  if (screen === 'th-psy-notes' || screen === 'th-nut') {
+    const isNutrition = screen === 'th-nut'
+    const viewStorageKey = isNutrition
+      ? DEFAULT_NOTES_VIEW_STORAGE_KEYS.therapyNutrition
+      : DEFAULT_NOTES_VIEW_STORAGE_KEYS.therapyPsychologist
     return (
       <div className="flex flex-col">
         {header}
         <div className="p-4">
-          <DashboardCard title={noteConfig.title} noHeightLimit>
+          <NotesCareViewCard
+            key={viewStorageKey}
+            title={isNutrition ? 'Nutrition Notes' : 'Psychology Notes'}
+            notesListTitle={isNutrition ? 'Nutritionist Notes' : 'Psychology Notes'}
+            patient={selectedPatient}
+            clinicalNoteType={isNutrition ? 'Nutritionist Note' : 'Psychologist Note'}
+            onPatientClick={handlePatientSelect}
+            addButtonTitle={isNutrition ? 'Add Nutritionist Note' : 'Add Psychologist Note'}
+            noHeightLimit
+            viewStorageKey={viewStorageKey}
+          />
+        </div>
+      </div>
+    )
+  }
+
+  if (screen === 'th-psy-order') {
+    return (
+      <div className="flex flex-col">
+        {header}
+        <div className="p-4">
+          <DashboardCard title="Psychology Orders" noHeightLimit>
             <ClinicalNotesList
               patient={selectedPatient}
-              clinicalNoteType={noteConfig.type}
+              clinicalNoteType="Psychologist Order"
               onPatientClick={handlePatientSelect}
             />
           </DashboardCard>

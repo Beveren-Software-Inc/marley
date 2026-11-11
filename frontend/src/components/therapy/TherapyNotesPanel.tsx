@@ -1,8 +1,8 @@
 import { useState } from 'react'
-import { ClinicalNotesList } from '../clinicalNotes/ClinicalNotesList'
 import { CreateClinicalNoteModal } from '../clinicalNotes/CreateClinicalNoteModal'
+import { NotesCareViewCard } from '../clinicalNotes/NotesCareViewCard'
 import { THERAPY_EXTRA_NOTE_TYPES } from '../clinicalNotes/noteTypeGroups'
-import { DashboardCard } from '../ui/DashboardCard'
+import { DEFAULT_NOTES_VIEW_STORAGE_KEYS } from '../../hooks/useNotesViewPreference'
 import { useCareContext } from '../../providers/CareContextProvider'
 
 interface TherapyNotesPanelProps {
@@ -27,36 +27,26 @@ export function TherapyNotesPanel({
   const { guardClinicalCreate } = useCareContext()
   const [showModal, setShowModal] = useState(false)
 
-  const list = (
-    <ClinicalNotesList
-      patient={patient}
-      clinicalNoteType="Therapist Note"
-      includeClinicalNoteTypes={THERAPY_EXTRA_NOTE_TYPES}
-      scopeToCareContext={false}
-      title="Therapy Notes"
-      key={refreshKey}
-      onPatientClick={onPatientClick}
-      onAdd={embedded ? () => guardClinicalCreate(() => setShowModal(true)) : undefined}
-      allowEditWithin24h
-    />
-  )
-
   return (
     <>
-      {embedded ? (
-        list
-      ) : (
-        <DashboardCard
-          title="Therapy Notes"
-          listingScreen={listingScreen}
-          onAdd={() => guardClinicalCreate(() => setShowModal(true))}
-          addButtonTitle="Add Therapy Note"
-          fixedHeight={fixedHeight}
-          noHeightLimit={!fixedHeight}
-        >
-          {list}
-        </DashboardCard>
-      )}
+      <NotesCareViewCard
+        title="Therapy Notes"
+        notesListTitle="Therapy Notes"
+        patient={patient}
+        clinicalNoteType="Therapist Note"
+        includeClinicalNoteTypes={THERAPY_EXTRA_NOTE_TYPES}
+        scopeToCareContext={false}
+        refreshKey={refreshKey}
+        onPatientClick={onPatientClick}
+        onAdd={() => guardClinicalCreate(() => setShowModal(true))}
+        addButtonTitle="Add Therapy Note"
+        listingScreen={listingScreen}
+        fixedHeight={fixedHeight}
+        noHeightLimit={!fixedHeight}
+        allowEditWithin24h
+        viewStorageKey={DEFAULT_NOTES_VIEW_STORAGE_KEYS.therapy}
+        embedded={embedded}
+      />
 
       {showModal && (
         <CreateClinicalNoteModal

@@ -12,7 +12,9 @@ import { PhysicalExaminationList } from '../components/physicalExam/PhysicalExam
 import { MedicalHistoryView } from '../components/medicalHistory/MedicalHistoryView'
 import { CreatePatientMedicalHistoryModal } from '../components/medicalHistory/CreatePatientMedicalHistoryModal'
 import { DashboardCard } from '../components/ui/DashboardCard'
+import { NotesCareViewCard } from '../components/clinicalNotes/NotesCareViewCard'
 import { TherapyNotesPanel } from '../components/therapy/TherapyNotesPanel'
+import { DEFAULT_NOTES_VIEW_STORAGE_KEYS } from '../hooks/useNotesViewPreference'
 import { TherapySessionPanel } from '../components/therapy/TherapySessionPanel'
 import { DoctorOrderList } from '../components/doctorOrder/DoctorOrderList'
 import { MainNursingNoteList } from '../components/nursing/MainNursingNoteList'
@@ -194,19 +196,18 @@ export const PsychologistPage = () => {
       <div className="flex flex-col">
         {header}
         <div className="p-4">
-          <DashboardCard
+          <NotesCareViewCard
+            key={DEFAULT_NOTES_VIEW_STORAGE_KEYS.psychologist}
             title="Psychologist Notes"
+            patient={selectedPatient}
+            clinicalNoteType="Psychologist Note"
+            refreshKey={clinicalNotesRefreshKey}
+            onPatientClick={handlePatientSelect}
             onAdd={() => guardClinicalCreate(() => setShowPsychNoteModal(true))}
             addButtonTitle="Add Psychologist Note"
             noHeightLimit
-          >
-            <ClinicalNotesList
-              patient={selectedPatient}
-              clinicalNoteType="Psychologist Note"
-              key={clinicalNotesRefreshKey}
-              onPatientClick={handlePatientSelect}
-            />
-          </DashboardCard>
+            viewStorageKey={DEFAULT_NOTES_VIEW_STORAGE_KEYS.psychologist}
+          />
         </div>
         {showPsychNoteModal && (
           <CreateClinicalNoteModal
@@ -279,15 +280,18 @@ export const PsychologistPage = () => {
       <div className="flex flex-col">
         {header}
         <div className="p-4">
-          <DashboardCard title="Nutrition Notes" noHeightLimit>
-            <ClinicalNotesList
-              patient={selectedPatient}
-              clinicalNoteType="Nutritionist Note"
-              key={clinicalNotesRefreshKey}
-              onPatientClick={handlePatientSelect}
-              onAdd={() => guardClinicalCreate(() => setShowNutritionNoteModal(true))}
-            />
-          </DashboardCard>
+          <NotesCareViewCard
+            key={DEFAULT_NOTES_VIEW_STORAGE_KEYS.psychologistNutrition}
+            title="Nutrition Notes"
+            patient={selectedPatient}
+            clinicalNoteType="Nutritionist Note"
+            refreshKey={clinicalNotesRefreshKey}
+            onPatientClick={handlePatientSelect}
+            onAdd={() => guardClinicalCreate(() => setShowNutritionNoteModal(true))}
+            addButtonTitle="Add Nutritionist Note"
+            noHeightLimit
+            viewStorageKey={DEFAULT_NOTES_VIEW_STORAGE_KEYS.psychologistNutrition}
+          />
         </div>
         {showNutritionNoteModal && (
           <CreateClinicalNoteModal
@@ -460,20 +464,19 @@ export const PsychologistPage = () => {
     <div className="flex flex-col">
       {header}
       <div className="p-4 space-y-4">
-        <DashboardCard
+        <NotesCareViewCard
+          key={DEFAULT_NOTES_VIEW_STORAGE_KEYS.psychologist}
           title="Psychologist Notes"
-          listingScreen="p-notes"
+          patient={selectedPatient}
+          clinicalNoteType="Psychologist Note"
+          refreshKey={clinicalNotesRefreshKey}
+          onPatientClick={handlePatientSelect}
           onAdd={() => guardClinicalCreate(() => setShowPsychNoteModal(true))}
           addButtonTitle="Add Psychologist Note"
+          listingScreen="p-notes"
           fixedHeight
-        >
-          <ClinicalNotesList
-            patient={selectedPatient}
-            clinicalNoteType="Psychologist Note"
-            key={clinicalNotesRefreshKey}
-            onPatientClick={handlePatientSelect}
-          />
-        </DashboardCard>
+          viewStorageKey={DEFAULT_NOTES_VIEW_STORAGE_KEYS.psychologist}
+        />
 
         <DashboardCard
           title="Psychologist Orders"
