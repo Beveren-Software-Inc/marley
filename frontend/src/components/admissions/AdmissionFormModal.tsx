@@ -1,11 +1,15 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
+import { AdmissionOtherServicesTab } from './AdmissionOtherServicesTab'
+import { useAuth } from '../../providers/AuthProvider'
+import { isAdmin, isReceptionRole } from '../../config/permissions'
+import { apiRequest } from '../../services/apiClient'
 import { fetchInpatientRecord, fetchServiceUnits, fetchBedNumbers, admitPatient, calculatePackagePrice, type ServiceUnit, type BedNoRecord, type InpatientPackage, createAdmissionQuotation, checkAdmissionQuotation, fetchCaseManagementTemplates, fetchMedicalSupervisionTemplates, fetchAdmissionBillingSettings, isNoPackage } from '../../services/inpatientRecords'
 import { uploadPatientFile, type PatientDocumentRow } from '../../services/patients'
 import { fetchDocumentTypes, fetchServiceUnitTypes, createDocumentType, type LinkFieldOption } from '../../services/common'
 import { DocumentTypeSelect } from '../ui/DocumentTypeSelect'
 import { SignaturePad, attachFileDisplayUrl } from '../ui/SignaturePad'
 import { toast } from '../../hooks/useToast'
-import { PenLine, X, BedDouble, Check } from 'lucide-react'
+import { PenLine, X, BedDouble, Check, FlaskConical, Eye } from 'lucide-react'
 import { toDatetimeLocalValue } from '../../utils/datetimeLocal'
 import { DateFilterInput } from '../ui/DateFilterInput'
 
@@ -237,7 +241,7 @@ interface AdmissionFormModalProps {
   onClose: () => void
 }
 
-type Tab = 'admission' | 'case_management' | 'medical_supervision' | 'documents' | 'signatures' | 'relatives'
+type Tab = 'admission' | 'other_services' | 'case_management' | 'medical_supervision' | 'documents' | 'signatures' | 'relatives'
 
 // Relationship options – must match IP Patient Relative doctype (same as Discharge)
 const RELATION_OPTIONS = [
@@ -294,9 +298,67 @@ export const AdmissionFormModal = ({
   admissionNo,
   selectedPackage,
   onComplete,
-  onClose
+  onClose,
 }: AdmissionFormModalProps) => {
   const skipPackage = isNoPackage(selectedPackage)
+  const packageName = selectedPackage.name
+  const [packageInclusions, setPackageInclusions] = useState<{
+    packageName: string
+    labTests: boolean
+    observation: boolean
+  } | null>(null)
+
+  useEffect(() => {
+    if (skipPackage || packageName === '__custom__') return
+    let cancelled = false
+    const params = new URLSearchParams({
+      doctype: 'Inpatient Package',
+      filters: JSON.stringify({ name: packageName }),
+      fieldname: JSON.stringify(['custom_include_lab_tests', 'custom_include_observation']),
+    })
+    apiRequest<{ custom_include_lab_tests?: number; custom_include_observation?: number }>(
+      `/api/method/frappe.client.get_value?${params.toString()}`,
+    ).then((fields) => {
+      if (!cancelled) setPackageInclusions({
+        packageName,
+        labTests: Number(fields.custom_include_lab_tests) === 1,
+        observation: Number(fields.custom_include_observation) === 1,
+      })
+    }).catch(() => {
+      if (!cancelled) setPackageInclusions(null)
+    })
+    return () => { cancelled = true }
+  }, [packageName, skipPackage])
+  const { user } = useAuth()
+  const userRoles = user?.roles?.length
+    ? user.roles
+    : ([user?.role, user?.role_profile_name].filter(Boolean) as string[])
+  const [enhancedWorkflow, setEnhancedWorkflow] = useState(false)
+  const showOtherServices = enhancedWorkflow && !skipPackage && (isAdmin(userRoles) || isReceptionRole(userRoles))
+  const canCheckQuotation = !skipPackage && (selectedPackage.name !== '__custom__' || enhancedWorkflow)
+  const servicesIdentity = JSON.stringify([admissionNo, selectedPackage.name])
+  const [selectedOtherServices, setSelectedOtherServices] = useState<string[]>([])
+  const [otherServicesHydrated, setOtherServicesHydrated] = useState<string | null>(null)
+  const [otherServicesRefresh, setOtherServicesRefresh] = useState(0)
+  const quotationLookup = useRef<{
+    identity: string
+    request: ReturnType<typeof checkAdmissionQuotation>
+  } | null>(null)
+  const loadInitialQuotation = useCallback(() => {
+    if (quotationLookup.current?.identity !== servicesIdentity) {
+      quotationLookup.current = {
+        identity: servicesIdentity,
+        request: checkAdmissionQuotation(admissionNo, selectedPackage.name),
+      }
+    }
+    return quotationLookup.current.request
+  }, [admissionNo, selectedPackage.name, servicesIdentity])
+
+  useEffect(() => {
+    setSelectedOtherServices([])
+    setOtherServicesHydrated(null)
+  }, [servicesIdentity])
+
   const [activeTab, setActiveTab] = useState<Tab>('admission')
   const [record, setRecord] = useState<any>(null)
   const [roomTypes, setRoomTypes] = useState<LinkFieldOption[]>([])
@@ -687,6 +749,7 @@ export const AdmissionFormModal = ({
         ])
 
         setRecord(recordData)
+        setEnhancedWorkflow(billingSettings.enable_enhanced_workflow)
         let docTypes = fetchedDocTypes
         const hasSignatureType = docTypes.some((t) => {
           const name = (t.name || '').trim().toLowerCase()
@@ -810,10 +873,9 @@ export const AdmissionFormModal = ({
 
   useEffect(() => {
     const checkQuotation = async () => {
-      if (skipPackage || selectedPackage.name === '__custom__') return
       try {
         setCheckingQuotation(true)
-        const result = await checkAdmissionQuotation(admissionNo, selectedPackage.name)
+        const result = await loadInitialQuotation()
         if (result.exists && result.quotation_name) {
           setExistingQuotation(result.quotation_name)
           setSalesOrderCreated(result.quotation_name)
@@ -824,8 +886,8 @@ export const AdmissionFormModal = ({
         setCheckingQuotation(false)
       }
     }
-    if (admissionNo && selectedPackage.name && !skipPackage) checkQuotation()
-  }, [admissionNo, selectedPackage.name, skipPackage])
+    if (admissionNo && selectedPackage.name && canCheckQuotation) checkQuotation()
+  }, [admissionNo, selectedPackage.name, canCheckQuotation, loadInitialQuotation])
 
   // ── Service unit toggle (FIX: no longer replaces query on select) ─────────
 
@@ -1024,12 +1086,17 @@ export const AdmissionFormModal = ({
               amount: caseManagementTotal,
             }
           : undefined,
-        selectedRoomType.name
+        selectedRoomType.name,
+        enhancedWorkflow
+          ? Array.from(new Set(selectedOtherServices.filter(Boolean)))
+          : undefined
       )
       const quotationName = (result as any).quotation_name || (result as any).sales_order_name || null
       if (quotationName) {
         setSalesOrderCreated(quotationName)
         setExistingQuotation(quotationName)
+        quotationLookup.current = null
+        setOtherServicesRefresh((value) => value + 1)
       }
       const includedCm = Boolean((result as any).case_management_included)
       toast.success(
@@ -1194,6 +1261,7 @@ export const AdmissionFormModal = ({
 
   const tabs: { id: Tab; label: string; badge?: number }[] = [
     { id: 'admission', label: 'Admission Details' },
+    ...(showOtherServices ? [{ id: 'other_services' as const, label: 'Other Services' }] : []),
     { id: 'case_management', label: 'Admission Assessment Fee' },
     { id: 'medical_supervision', label: 'Medical Supervision' },
     { id: 'documents', label: 'Documents', badge: documents.length || undefined },
@@ -1205,10 +1273,10 @@ export const AdmissionFormModal = ({
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] flex flex-col">
+      <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full min-w-0 mx-4 h-[90vh] supports-[height:100dvh]:h-[90dvh] flex flex-col">
 
         {/* Header */}
-        <div className="p-6 border-b border-slate-200 shrink-0">
+        <div className="p-4 sm:p-6 border-b border-slate-200 shrink-0">
           <div className="flex items-center justify-between">
             <h2 className="text-xl font-semibold text-slate-900">
               {skipPackage ? 'Admit without Package' : 'Admit Patient'}
@@ -1221,13 +1289,13 @@ export const AdmissionFormModal = ({
           </div>
 
           {/* Tabs */}
-          <div className="flex mt-4 border-b border-slate-200 -mb-6">
+          <div className="flex overflow-x-auto mt-4 border-b border-slate-200 -mb-4 sm:-mb-6">
             {tabs.map((tab) => (
               <button
                 key={tab.id}
                 type="button"
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-2 px-5 py-3 text-sm font-medium transition-colors border-b-2 -mb-px ${
+                className={`flex shrink-0 items-center gap-2 whitespace-nowrap px-3 sm:px-5 py-3 text-sm font-medium transition-colors border-b-2 -mb-px ${
                   activeTab === tab.id
                     ? 'border-primary text-primary'
                     : 'border-transparent text-slate-500 hover:text-slate-700'
@@ -1247,7 +1315,7 @@ export const AdmissionFormModal = ({
         </div>
 
         <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
-          <div className="overflow-y-auto p-6 space-y-4 flex-1">
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain [scrollbar-gutter:stable] p-4 sm:p-6 space-y-4">
 
             {/* ── TAB: ADMISSION DETAILS ── */}
             {activeTab === 'admission' && (
@@ -1302,6 +1370,25 @@ export const AdmissionFormModal = ({
                             Day {dp.from_day}{dp.to_day ? ` - ${dp.to_day}` : '+'} = {dp.amount.toLocaleString()} BHD
                           </div>
                         ))}
+                      </div>
+                    </div>
+                  )}
+                  {packageInclusions?.packageName === packageName && (packageInclusions.labTests || packageInclusions.observation) && (
+                    <div className="mt-3 border-t border-slate-200 pt-3">
+                      <p className="mb-2 text-xs font-medium text-slate-700">Package Includes</p>
+                      <div className="flex flex-wrap gap-2">
+                        {packageInclusions.labTests && (
+                          <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700">
+                            <FlaskConical className="h-3.5 w-3.5" aria-hidden />
+                            Lab Tests Included
+                          </span>
+                        )}
+                        {packageInclusions.observation && (
+                          <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700">
+                            <Eye className="h-3.5 w-3.5" aria-hidden />
+                            Observation Included
+                          </span>
+                        )}
                       </div>
                     </div>
                   )}
@@ -1560,6 +1647,22 @@ export const AdmissionFormModal = ({
                   </div>
                 )}
               </>
+            )}
+
+            {showOtherServices && (
+              <div hidden={activeTab !== 'other_services'}>
+                <AdmissionOtherServicesTab
+                  key={servicesIdentity}
+                  admissionName={admissionNo}
+                  selectedPackage={selectedPackage}
+                  selectedServices={selectedOtherServices}
+                  onSelectedServicesChange={setSelectedOtherServices}
+                  refreshKey={otherServicesRefresh}
+                  otherServicesHydrated={otherServicesHydrated}
+                  setOtherServicesHydrated={setOtherServicesHydrated}
+                  loadInitialQuotation={loadInitialQuotation}
+                />
+              </div>
             )}
 
             {/* ── TAB: ADMISSION ASSESSMENT FEE ── */}
@@ -2226,13 +2329,13 @@ export const AdmissionFormModal = ({
           </div>
 
           {/* Footer */}
-          <div className="shrink-0 border-t border-slate-200 px-6 py-4 flex justify-between items-center bg-white gap-3">
-            {activeTab === 'admission' && !skipPackage && !existingQuotation && !salesOrderCreated && (
+          <div className="shrink-0 border-t border-slate-200 px-3 sm:px-6 py-3 sm:py-4 flex justify-between items-center bg-white gap-2 sm:gap-3">
+            {!skipPackage && !existingQuotation && !salesOrderCreated && (
               <button
                 type="button"
                 onClick={handleCreateSalesOrder}
-                disabled={creatingSalesOrder || checkingQuotation || !calculatedPrice || calculatedPrice <= 0}
-                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={activeTab !== 'admission' || creatingSalesOrder || checkingQuotation || !calculatedPrice || calculatedPrice <= 0}
+                className={`px-2 sm:px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed ${activeTab !== 'admission' ? 'invisible' : ''}`}
               >
                 {creatingSalesOrder ? 'Creating Quotation...' : checkingQuotation ? 'Checking...' : 'Create Quotation'}
               </button>
@@ -2245,9 +2348,9 @@ export const AdmissionFormModal = ({
               {skipPackage && (
                 <p className="text-[11px] text-emerald-700">No package — room and signatures required to admit</p>
               )}
-              <div className="flex gap-3">
+              <div className="flex gap-2 sm:gap-3">
                 <button type="button" onClick={onClose}
-                  className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50">
+                  className="px-2 sm:px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50">
                   Cancel
                 </button>
                 <button
@@ -2262,7 +2365,7 @@ export const AdmissionFormModal = ({
                       ? 'Create a quotation first'
                       : undefined
                   }
-                  className="px-4 py-2 text-sm font-medium text-white bg-primary rounded-md hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-2 sm:px-4 py-2 text-sm font-medium text-white bg-primary rounded-md hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {submitting ? 'Admitting...' : 'Admit Patient'}
                 </button>

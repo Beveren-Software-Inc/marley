@@ -10,7 +10,9 @@
  "engine": "InnoDB",
  "field_order": [
   "room_category_name",
-  "rates"
+  "rates",
+  "custom_does_it_include_medical_supervision",
+  "custom_medical_supervision_rate"
  ],
  "fields": [
   {
@@ -26,6 +28,17 @@
    "fieldname": "rates",
    "fieldtype": "Currency",
    "label": "Rates"
+  },
+  {
+   "fieldname": "custom_does_it_include_medical_supervision",
+   "fieldtype": "Check",
+   "label": "Does it include Medical Supervision?"
+  },
+  {
+   "depends_on": "eval:doc.custom_does_it_include_medical_supervision",
+   "fieldname": "custom_medical_supervision_rate",
+   "fieldtype": "Currency",
+   "label": "Medical Supervision Rate"
   }
  ],
  "index_web_pages_for_search": 1,

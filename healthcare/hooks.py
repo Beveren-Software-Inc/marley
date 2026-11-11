@@ -64,6 +64,10 @@ fixtures = [
                     "Sales Order Item-custom_prescription_frequency",
                     "Quotation-custom_inpatient_admission",
                     "Quotation-custom_package",
+                    "Quotation-custom_additional_services",
+                    "Quotation Other Service-custom_service_name",
+                    "Quotation-custom_include_lab_tests",
+                    "Quotation-custom_include_observation",
                     "Sales Order-custom_healthcare_reference",
                     "Sales Order-custom_reference_type",
                     "Sales Order-custom_column_break_rq7zb",
@@ -144,13 +148,7 @@ fixtures = [
 
                    "Mode of Payment-custom_cost_center",
 
-                   #Room Category
-                   "Room Category-custom_does_it_include_medical_supervision",
-                   "Room Category-custom_medical_supervision_rate",
 
-				   #Healthcare Service Template
-				   "Healthcare Service Template-custom_therapy",
-				   "Healthcare Service Template-custom_consultation"
                 ),
             ]
         ],

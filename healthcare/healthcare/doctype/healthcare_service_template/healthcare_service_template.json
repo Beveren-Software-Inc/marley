@@ -22,6 +22,8 @@
   "is_case_management",
   "is_medical_supervision",
   "default_medical_supervision",
+  "custom_consultation",
+  "custom_therapy",
   "section_break_gxzz",
   "display_name",
   "sg_no",
@@ -189,6 +191,16 @@
    "fieldname": "default_medical_supervision",
    "fieldtype": "Check",
    "label": "Default Medical Supervision"
+  },
+  {
+   "fieldname": "custom_consultation",
+   "fieldtype": "Check",
+   "label": "Is Consultation"
+  },
+  {
+   "fieldname": "custom_therapy",
+   "fieldtype": "Check",
+   "label": "Is Therapy"
   }
  ],
  "links": [],

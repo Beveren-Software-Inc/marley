@@ -31,6 +31,7 @@
   "create_pending_given_medicine_on_discharge",
   "create_pending_room_charges_on_discharge",
   "return_active_medicines_on_discharge",
+  "enable_enhanced_workflow",
   "inpatient_settings_section",
   "allow_discharge_despite_unbilled_services",
   "block_clinical_records_on_discharged_ip",
@@ -1275,11 +1276,18 @@
    "fieldname": "hide_note_with_no_visit",
    "fieldtype": "Check",
    "label": "Hide Note with No Visit"
+  },
+  {
+   "default": "0",
+   "description": "Enable enhanced patient package workflow. When disabled, the legacy inpatient workflow is followed.",
+   "fieldname": "enable_enhanced_workflow",
+   "fieldtype": "Check",
+   "label": "Enable Enhanced Workflow"
   }
  ],
  "issingle": 1,
  "links": [],
- "modified": "2026-11-09 02:51:48.071723",
+ "modified": "2026-11-11 12:14:03.816587",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Healthcare Settings",

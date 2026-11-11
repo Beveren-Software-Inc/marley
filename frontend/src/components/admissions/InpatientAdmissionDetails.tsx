@@ -6,6 +6,8 @@ import {
   ADMISSION_UI_STATUS_DISCHARGE_IN_PROGRESS,
   type InpatientRecord,
   type InpatientPackage,
+  fetchAdmissionPackageDetails,
+  fetchAdmissionBillingSettings,
   NO_PACKAGE,
 } from '../../services/inpatientRecords'
 import { StatusPill } from '../ui/StatusPill'
@@ -1260,6 +1262,7 @@ export const InpatientAdmissionDetails = ({ admissionName, onUpdate }: Inpatient
   // Action modal state
   const [showPackages, setShowPackages] = useState(false)
   const [showAdmissionForm, setShowAdmissionForm] = useState(false)
+  const [enhancedWorkflow, setEnhancedWorkflow] = useState(false)
   const [selectedPackage, setSelectedPackage] = useState<InpatientPackage | null>(null)
   const [showScheduleDischarge, setShowScheduleDischarge] = useState(false)
   const [showMedicalSupervision, setShowMedicalSupervision] = useState(false)
@@ -1315,6 +1318,31 @@ export const InpatientAdmissionDetails = ({ admissionName, onUpdate }: Inpatient
     setSelectedPackage(null)
     loadRecord()
     onUpdate?.()
+  }
+
+  const handleStartAdmission = async () => {
+    const billingSettings = await fetchAdmissionBillingSettings().catch(() => null)
+    const enabled = billingSettings?.enable_enhanced_workflow === true
+    setEnhancedWorkflow(enabled)
+    if (!enabled) {
+      setShowPackages(true)
+      return
+    }
+    if (selectedPackage) {
+      setShowAdmissionForm(true)
+      return
+    }
+    try {
+      const packageDetails = await fetchAdmissionPackageDetails(admissionName)
+      if (packageDetails.active_package) {
+        setSelectedPackage(packageDetails.active_package)
+        setShowAdmissionForm(true)
+      } else {
+        setShowPackages(true)
+      }
+    } catch {
+      setShowPackages(true)
+    }
   }
 
   const handleDischargeScheduled = () => {
@@ -1423,7 +1451,7 @@ export const InpatientAdmissionDetails = ({ admissionName, onUpdate }: Inpatient
             {record.status === 'Admission Scheduled' && (
               <>
                 <button
-                  onClick={() => setShowPackages(true)}
+                  onClick={() => void handleStartAdmission()}
                   className="px-4 py-2 bg-primary text-white text-sm font-medium rounded-md hover:bg-primary/90 transition-colors"
                 >
                   Admit Patient
@@ -1585,7 +1613,10 @@ export const InpatientAdmissionDetails = ({ admissionName, onUpdate }: Inpatient
           admissionNo={record.name}
           selectedPackage={selectedPackage}
           onComplete={handleAdmissionComplete}
-          onClose={() => { setShowAdmissionForm(false); setSelectedPackage(null) }}
+          onClose={() => {
+            setShowAdmissionForm(false)
+            if (!enhancedWorkflow) setSelectedPackage(null)
+          }}
         />
       )}
 

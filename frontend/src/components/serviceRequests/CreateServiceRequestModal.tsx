@@ -754,10 +754,13 @@ export const CreateServiceRequestModal = ({
 
       if (created?.auto_booked && isLabRequest) {
         const n = created.lab_tests_count ?? created.lab_tests?.length ?? 0
+        const billingMessage = created.covered_by_package
+          ? 'Lab Test included in package'
+          : 'payment confirmed'
         toast.success(
           n > 0
-            ? `Lab request created — payment confirmed and ${n} test${n === 1 ? '' : 's'} booked to the lab`
-            : 'Lab request created — payment confirmed and booked to the lab',
+            ? `Lab request created — ${billingMessage} and ${n} test${n === 1 ? '' : 's'} booked to the lab`
+            : `Lab request created — ${billingMessage} and booked to the lab`,
         )
       } else if (created?.auto_book_error && isLabRequest) {
         toast.success('Lab request created')

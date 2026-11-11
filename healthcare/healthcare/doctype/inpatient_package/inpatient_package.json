@@ -18,6 +18,8 @@
   "is_daily_default",
   "cost_center",
   "active",
+  "custom_include_lab_tests",
+  "custom_include_observation",
   "duration_section",
   "duration_pricing",
   "services_section",
@@ -87,6 +89,16 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Active"
+  },
+  {
+   "fieldname": "custom_include_lab_tests",
+   "fieldtype": "Check",
+   "label": "Include Lab Tests"
+  },
+  {
+   "fieldname": "custom_include_observation",
+   "fieldtype": "Check",
+   "label": "Include Observation"
   },
   {
    "fieldname": "services_section",

@@ -196,6 +196,7 @@ def get_observations(
 	# Enrich patient / practitioner names
 	for obs in observations:
 		_enrich_observation_row(obs)
+		obs["covered_by_package"] = _observation_is_package_covered(obs)
 	
 	return observations
 
@@ -348,6 +349,7 @@ def create_observation(data):
 		'duration': observation.duration,
 		'company': observation.company,
 		'room': observation.room,
+		'covered_by_package': _observation_is_package_covered(observation),
 	}
 
 
@@ -552,6 +554,34 @@ def _resolve_observation_billing_item(obs, lvl):
 	return item_code, billing_rate, display_name
 
 
+def _observation_is_package_covered(obs) -> bool:
+	ref_dt, admission_name = _observation_visit_admission_refs(obs)
+	if ref_dt != "Inpatient Admission":
+		return False
+
+	from healthcare.api.inpatient_admission import _resolve_admission_package, is_enhanced_workflow_enabled
+
+	if not is_enhanced_workflow_enabled():
+		return False
+
+	admission = frappe.get_doc("Inpatient Admission", admission_name)
+	if admission.patient != obs.get("patient"):
+		return False
+	package, source = _resolve_admission_package(admission)
+	if not package and source != "custom":
+		return False
+	return bool(cint(frappe.db.get_value(
+		"Quotation",
+		{
+			"custom_inpatient_admission": admission_name,
+			"custom_package": package if package else ["is", "not set"],
+			"docstatus": ["<", 2],
+		},
+		"custom_include_observation",
+		order_by="modified desc",
+	)))
+
+
 def _create_observation_sales_order(
 	obs,
 	billing_date=None,
@@ -562,6 +592,13 @@ def _create_observation_sales_order(
 	"""Create (or return) a submitted Sales Order for one observation billing day."""
 	billing_date = getdate(billing_date or nowdate())
 	observation_name = obs.name
+
+	if _observation_is_package_covered(obs):
+		return {
+			"covered_by_package": True,
+			"billing_date": str(billing_date),
+			"message": _("Observation is already included in the package. No separate bill is required."),
+		}
 
 	existing = _existing_observation_sales_order_for_date(observation_name, billing_date)
 	if existing:
@@ -703,6 +740,9 @@ def create_daily_observation_sales_orders(billing_date=None):
 
 		try:
 			result = _create_observation_sales_order(obs, billing_date=billing_date)
+			if result.get("covered_by_package"):
+				skipped.append(row.name)
+				continue
 			created.append(result)
 			frappe.logger().info(
 				f"Created observation sales order {result['sales_order']} for {row.name} on {billing_date}"

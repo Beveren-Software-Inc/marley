@@ -155,9 +155,12 @@ export const CreateObservationModal = ({ onClose, onSuccess, initialPatient }: C
         payload.patient_visit = formData.patient_visit
       }
 
-      await createObservation(payload)
+      const observation = await createObservation(payload)
       
       toast.success('Observation created successfully')
+      if (observation.covered_by_package) {
+        toast.success('Observation is already included in the package. No separate bill is required.')
+      }
       
       if (onSuccess) {
         onSuccess()
