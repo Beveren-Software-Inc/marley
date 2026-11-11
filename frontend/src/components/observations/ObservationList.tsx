@@ -520,7 +520,7 @@ export const ObservationList = ({ patient, refreshKey, onPatientClick }: Observa
                               >
                                 Open Sales Order
                               </button>
-                            ) : (
+                            ) : !obs.covered_by_package ? (
                               <button
                                 type="button"
                                 disabled={!canBillObservation(obs)}
@@ -539,7 +539,7 @@ export const ObservationList = ({ patient, refreshKey, onPatientClick }: Observa
                               >
                                 Create Service Bill
                               </button>
-                            )}
+                            ) : null}
                           </PortalActionsMenu>
                         </div>
                       </div>

@@ -25,6 +25,7 @@ export interface Observation {
   amount?: number
   duration?: string
   order_created?: string
+  covered_by_package?: boolean
   reference_doctype?: string
   reference_docname?: string
   company?: string
@@ -161,9 +162,12 @@ export interface CreateObservationSalesOrderOptions {
 export async function createObservationSalesOrder(
   observationName: string,
   options?: CreateObservationSalesOrderOptions
-): Promise<{ sales_order: string; status: string; existing?: boolean }> {
+): Promise<
+  | { covered_by_package: true; message: string }
+  | { covered_by_package?: false; sales_order: string; status: string; existing?: boolean }
+> {
   const { apiRequest } = await import('./apiClient')
-  return apiRequest<{ sales_order: string; status: string; existing?: boolean }>(
+  return apiRequest(
     '/api/method/healthcare.api.observation.create_sales_order_from_observation',
     {
       method: 'POST',

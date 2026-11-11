@@ -663,7 +663,7 @@ export async function createAdmissionQuotation(
         case_management_services: caseManagement?.services?.length
           ? caseManagement.services
           : null,
-        other_services: Array.from(new Set((otherServices || []).filter(Boolean))),
+        other_services: otherServices && Array.from(new Set(otherServices.filter(Boolean))),
       })
     }
   )
@@ -689,6 +689,7 @@ export async function updateAdmissionQuotationOtherServices(
   admissionName: string,
   packageName: string,
   otherServices: string[],
+  settings?: { include_lab_tests: number; include_observation: number },
 ): Promise<{ success: boolean; quotation_name: string; other_services: string[]; message: string }> {
   return await apiRequest(
     '/api/method/healthcare.api.inpatient_admission.update_admission_quotation_other_services',
@@ -698,6 +699,7 @@ export async function updateAdmissionQuotationOtherServices(
         admission_name: admissionName,
         package_name: packageName,
         other_services: Array.from(new Set(otherServices)),
+        ...settings,
       }),
     },
   )
@@ -711,6 +713,8 @@ export async function checkAdmissionQuotation(
   quotation_name?: string
   docstatus?: number
   other_services?: string[]
+  include_lab_tests?: number
+  include_observation?: number
 }> {
   const params = new URLSearchParams()
   params.append('admission_name', admissionName)
@@ -762,6 +766,7 @@ export async function fetchMedicalSupervisionTemplates(search?: string): Promise
 }
 
 export async function fetchAdmissionBillingSettings(): Promise<{
+  enable_enhanced_workflow: boolean
   combine_admission_fee_and_case_management: number
   mendatory_admission_assessment_fee: number
 }> {
@@ -770,6 +775,7 @@ export async function fetchAdmissionBillingSettings(): Promise<{
   )
   const resData = await response.json()
   return {
+    enable_enhanced_workflow: Number(resData?.message?.enable_enhanced_workflow) === 1,
     combine_admission_fee_and_case_management: Number(
       resData?.message?.combine_admission_fee_and_case_management || 0
     ),

@@ -114,6 +114,11 @@ export function CreateObservationServiceBillModal({
         discountPercentage: discountType === 'Percentage' ? discountValue : 0,
         discountAmount: discountType === 'Amount' ? discountValue : 0,
       })
+      if (res.covered_by_package) {
+        toast.success(res.message)
+        onClose()
+        return
+      }
       toast.success(
         res.existing
           ? `Sales Order ${res.sales_order} already linked`

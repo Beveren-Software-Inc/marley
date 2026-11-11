@@ -4066,12 +4066,21 @@ def get_medical_supervision_templates(search=None, limit=50):
 	return rows
 
 
+def is_enhanced_workflow_enabled():
+	settings = "Healthcare Settings"
+	fieldname = "enable_enhanced_workflow"
+	if not frappe.get_meta(settings).has_field(fieldname):
+		return False
+	return cint(frappe.db.get_single_value(settings, fieldname)) == 1
+
+
 @frappe.whitelist()
 def get_admission_billing_settings():
 	"""Settings that affect admission quotation / case management billing."""
 	return {
 		"combine_admission_fee_and_case_management": _combine_admission_and_case_management(),
 		"mendatory_admission_assessment_fee": _mandatory_admission_assessment_fee(),
+		"enable_enhanced_workflow": is_enhanced_workflow_enabled(),
 	}
 
 
@@ -4420,6 +4429,7 @@ def create_admission_quotation(
 	# Get package details
 	is_custom = package_name == '__custom__'
 	package = None if is_custom else frappe.get_doc('Inpatient Package', package_name)
+	enhanced_workflow = is_enhanced_workflow_enabled()
 
 	# Re-use the admission/package quotation. Only Draft quotations may be updated.
 	existing_name = frappe.db.get_value(
@@ -4431,7 +4441,7 @@ def create_admission_quotation(
 		},
 		"name",
 		order_by="modified desc",
-	)
+	) if enhanced_workflow else None
 	if existing_name:
 		existing_quotation = frappe.get_doc("Quotation", existing_name)
 		if existing_quotation.docstatus == 1:
@@ -4471,6 +4481,9 @@ def create_admission_quotation(
 	quotation.transaction_date = getdate()
 	quotation.valid_till = getdate()
 	quotation.custom_package = package_name if not is_custom else None
+	if enhanced_workflow:
+		quotation.custom_include_lab_tests = cint(package.get("custom_include_lab_tests")) if package else 0
+		quotation.custom_include_observation = cint(package.get("custom_include_observation")) if package else 0
 	quotation.custom_inpatient_admission= admission_name
 	quotation.custom_reference_type = "Inpatient Admission"
 	quotation.custom_reference_name = admission_name
@@ -4517,9 +4530,10 @@ def create_admission_quotation(
 		item_row.cost_center = package.cost_center
 
 	# Additional services are stored only in the custom child table, never as quotation items.
-	_set_quotation_additional_services(
-		quotation, _parse_admission_other_services(other_services, package=package)
-	)
+	if enhanced_workflow:
+		_set_quotation_additional_services(
+			quotation, _parse_admission_other_services(other_services, package=package)
+		)
 
 	# Optional Case Management line(s) on the same quotation
 	cm_total = 0
@@ -4564,7 +4578,7 @@ def create_admission_quotation(
 	}
 
 @frappe.whitelist()
-def update_admission_quotation_other_services(admission_name, package_name, other_services):
+def update_admission_quotation_other_services(admission_name, package_name, other_services, include_lab_tests=None, include_observation=None):
     """Replace only additional-service metadata on an existing Draft quotation."""
     if not admission_name or not package_name:
         frappe.throw(_("Admission and package are required"))
@@ -4596,6 +4610,10 @@ def update_admission_quotation_other_services(admission_name, package_name, othe
 
     services = _parse_admission_other_services(other_services, package=package)
     _set_quotation_additional_services(quotation, services)
+    if include_lab_tests is not None:
+        quotation.custom_include_lab_tests = 1 if cint(include_lab_tests) else 0
+    if include_observation is not None:
+        quotation.custom_include_observation = 1 if cint(include_observation) else 0
     quotation.save()
 
     return {
@@ -4635,6 +4653,8 @@ def check_admission_quotation(admission_name, package_name):
             "exists": True,
             "quotation_name": existing.name,
             "docstatus": existing.docstatus,
+            "include_lab_tests": cint(quotation.get("custom_include_lab_tests")),
+            "include_observation": cint(quotation.get("custom_include_observation")),
             "other_services": [
                 row.healthcare_service_template
                 for row in (quotation.get("custom_additional_services") or [])

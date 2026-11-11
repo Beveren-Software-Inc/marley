@@ -10,14 +10,17 @@ import {
 import {
   type LinkFieldOption,
 } from '../../services/common'
+import { apiRequest } from '../../services/apiClient'
 
 interface AdmissionOtherServicesTabProps {
   admissionName: string
   selectedPackage: InpatientPackage | null
-  onResolvedPackageChange: (pkg: InpatientPackage | null) => void
+  onResolvedPackageChange?: (pkg: InpatientPackage | null) => void
+  loadInitialQuotation?: () => ReturnType<typeof checkAdmissionQuotation>
   selectedServices: string[]
   onSelectedServicesChange: (services: string[]) => void
   refreshKey: number
+  requireExistingQuotation?: boolean
   otherServicesHydrated: string | null
   setOtherServicesHydrated: (hydrated: string | null) => void
 }
@@ -26,15 +29,21 @@ export const AdmissionOtherServicesTab = ({
   admissionName,
   selectedPackage,
   onResolvedPackageChange,
+  loadInitialQuotation,
   selectedServices,
   onSelectedServicesChange,
   refreshKey,
+  requireExistingQuotation = false,
   otherServicesHydrated,
   setOtherServicesHydrated,
 }: AdmissionOtherServicesTabProps) => {
   const [packageData, setPackageData] =
     useState<AdmissionPackageDetailsResponse | null>(null)
   const [submitted, setSubmitted] = useState(false)
+  const [quotationSettings, setQuotationSettings] = useState({ include_lab_tests: 0, include_observation: 0 })
+  const [savedSettings, setSavedSettings] = useState({ include_lab_tests: 0, include_observation: 0 })
+  const settingsIdentityRef = useRef<string | null>(null)
+
   const [quotationName, setQuotationName] = useState<string | null>(null)
   const [savedServices, setSavedServices] = useState<string[]>([])
   const [updating, setUpdating] = useState(false)
@@ -48,6 +57,27 @@ export const AdmissionOtherServicesTab = ({
   const [searchError, setSearchError] = useState('')
   const [loadingOptions, setLoadingOptions] = useState(false)
   const [pickerOpen, setPickerOpen] = useState(false)
+  const [serviceLabels, setServiceLabels] = useState<Record<string, string>>({})
+
+  useEffect(() => {
+    let cancelled = false
+    if (!selectedServices.length) return
+    const params = new URLSearchParams({
+      doctype: 'Healthcare Service Template',
+      fields: JSON.stringify(['name', 'service_name']),
+      filters: JSON.stringify([['name', 'in', selectedServices]]),
+      limit_page_length: String(selectedServices.length),
+    })
+    apiRequest<Array<{ name: string; service_name?: string }>>(
+      `/api/method/frappe.client.get_list?${params.toString()}`,
+    ).then((templates) => {
+      if (!cancelled) setServiceLabels((current) => ({
+        ...current,
+        ...Object.fromEntries(templates.map((template) => [template.name, template.service_name || template.name])),
+      }))
+    }).catch(() => { /* Keep IDs visible if labels are unavailable. */ })
+    return () => { cancelled = true }
+  }, [selectedServices])
 
 
   const activePackage = selectedPackage || packageData?.active_package || null
@@ -61,6 +91,7 @@ export const AdmissionOtherServicesTab = ({
     ? JSON.stringify([admissionName, activePackage.name, quotationName])
     : null
   const selectionReady = !loading && !error && selectionIdentity === otherServicesHydrated
+    && (!requireExistingQuotation || Boolean(quotationName))
 
 
   const includedTemplates = useMemo(
@@ -77,7 +108,7 @@ export const AdmissionOtherServicesTab = ({
     [activePackage?.services],
   )
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (useInitialQuotation = false) => {
     const generation = ++loadGeneration.current
     try {
       setLoading(true)
@@ -91,25 +122,34 @@ export const AdmissionOtherServicesTab = ({
         selectedPackage?.name || details.active_package?.name
 
       if (!packageName) {
-        onResolvedPackageChange(details.active_package)
+        onResolvedPackageChange?.(details.active_package)
         setSubmitted(false)
         setQuotationName(null)
         setSavedServices([])
         return
       }
 
-      const quotation = await checkAdmissionQuotation(
-        admissionName,
-        packageName,
-      )
+      const quotation = await (useInitialQuotation && loadInitialQuotation
+        ? loadInitialQuotation()
+        : checkAdmissionQuotation(admissionName, packageName))
 
       if (generation !== loadGeneration.current) return
-      onResolvedPackageChange(details.active_package)
+      onResolvedPackageChange?.(details.active_package)
       setSubmitted(quotation.docstatus === 1)
       setQuotationName(quotation.exists ? quotation.quotation_name || null : null)
       setSavedServices(Array.from(new Set(quotation.other_services || [])))
 
       const identity = JSON.stringify([admissionName, packageName, quotation.quotation_name || null])
+      const settings = {
+        include_lab_tests: Number(quotation.include_lab_tests) === 1 ? 1 : 0,
+        include_observation: Number(quotation.include_observation) === 1 ? 1 : 0,
+      }
+      setSavedSettings(settings)
+      if (settingsIdentityRef.current !== identity || quotation.docstatus === 1) {
+        setQuotationSettings(settings)
+        settingsIdentityRef.current = identity
+      }
+
       if (quotation.docstatus === 1 || otherServicesHydratedRef.current !== identity) {
         onSelectedServicesChange(Array.from(new Set(quotation.other_services || [])))
         setOtherServicesHydrated(identity)
@@ -129,6 +169,7 @@ export const AdmissionOtherServicesTab = ({
   }, [
     admissionName,
     onResolvedPackageChange,
+    loadInitialQuotation,
     onSelectedServicesChange,
     refreshKey,
     setOtherServicesHydrated,
@@ -136,7 +177,7 @@ export const AdmissionOtherServicesTab = ({
   ])
 
   useEffect(() => {
-    void load()
+    void load(true)
   }, [load])
 
   useEffect(() => {
@@ -223,7 +264,11 @@ export const AdmissionOtherServicesTab = ({
     setQuery('')
   }
 
-  const servicesChanged = selectedServices.length !== savedServices.length
+  const settingsChanged = requireExistingQuotation && (
+    quotationSettings.include_lab_tests !== savedSettings.include_lab_tests
+    || quotationSettings.include_observation !== savedSettings.include_observation
+  )
+  const servicesChanged = settingsChanged || selectedServices.length !== savedServices.length
     || selectedServices.some((name) => !savedServices.includes(name))
 
   const updateQuotation = async () => {
@@ -234,7 +279,9 @@ export const AdmissionOtherServicesTab = ({
       setUpdateMessage('')
       const result = await updateAdmissionQuotationOtherServices(
         admissionName, activePackage.name, selectedServices,
+        requireExistingQuotation ? quotationSettings : undefined,
       )
+      if (requireExistingQuotation) setSavedSettings(quotationSettings)
       setSavedServices(result.other_services)
       onSelectedServicesChange(result.other_services)
       setUpdateMessage(result.message)
@@ -247,6 +294,7 @@ export const AdmissionOtherServicesTab = ({
   }
 
   const removeService = (name: string) => {
+    if (requireExistingQuotation && (!selectionReady || submitted)) return
     onSelectedServicesChange(
       selectedServices.filter((service) => service !== name),
     )
@@ -263,7 +311,7 @@ export const AdmissionOtherServicesTab = ({
           </h3>
           <p className="text-xs text-slate-500">
             Additional services will be saved with the package quotation
-            when Create Quotation is clicked.
+            {requireExistingQuotation ? 'when Update Quotation is clicked.' : 'when Create Quotation is clicked.'}
           </p>
         </div>
 
@@ -283,6 +331,27 @@ export const AdmissionOtherServicesTab = ({
         </p>
       )}
 
+      {requireExistingQuotation && (
+        <div className="flex flex-wrap gap-4 text-sm text-slate-700">
+          <label className="inline-flex items-center gap-2">
+            <input type="checkbox" disabled={!selectionReady || submitted || updating}
+              checked={quotationSettings.include_lab_tests === 1}
+              onChange={(event) => setQuotationSettings((current) => ({ ...current, include_lab_tests: event.target.checked ? 1 : 0 }))}
+              className="h-4 w-4 rounded border-slate-300" />
+            Include Lab Tests
+          </label>
+          <label className="inline-flex items-center gap-2">
+            <input type="checkbox" disabled={!selectionReady || submitted || updating}
+              checked={quotationSettings.include_observation === 1}
+              onChange={(event) => setQuotationSettings((current) => ({ ...current, include_observation: event.target.checked ? 1 : 0 }))}
+              className="h-4 w-4 rounded border-slate-300" />
+            Include Observation
+          </label>
+        </div>
+      )}
+      {requireExistingQuotation && !loading && !error && !quotationName && (
+        <p role="alert" className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">No existing quotation is available for this admission and package. Additional services cannot be modified.</p>
+      )}
       {!activePackage ? (
         <p className="rounded-lg border border-dashed border-slate-300 p-4 text-center text-sm text-slate-500">
           Select a package first, then add its additional services here.
@@ -359,14 +428,14 @@ export const AdmissionOtherServicesTab = ({
                     key={service}
                     className="inline-flex items-center gap-1 rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs text-blue-800"
                   >
-                    {service}
+                    {serviceLabels[service] || service}
 
                     {!submitted && (
                       <button
                         type="button"
                         onClick={() => removeService(service)}
                         className="rounded-full px-1 hover:bg-blue-100"
-                        aria-label={`Remove ${service}`}
+                        aria-label={`Remove ${serviceLabels[service] || service}`}
                       >
                         ×
                       </button>

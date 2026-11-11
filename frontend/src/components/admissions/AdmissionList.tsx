@@ -13,6 +13,7 @@ import { AdmissionFormModal } from './AdmissionFormModal'
 import { ScheduleDischargeModal } from './ScheduleDischargeModal'
 import { TransferCostCenterModal } from './TransferCostCenterModal'
 import { ModifyMedicalSupervisionModal } from './ModifyMedicalSupervisionModal'
+import { ModifyPackageModal } from './ModifyPackageModal'
 import { InpatientAdmissionDetails } from './InpatientAdmissionDetails'
 import { AddVisitorModal } from './AddVisitorModal'
 import { SuicidalPatientAssessmentModal } from './SuicidalPatientAssessmentModal'
@@ -197,6 +198,7 @@ export const AdmissionList = ({
   const [actionLoading, setActionLoading] = useState<string | null>(null)
   const [diagnosisModalAdmission, setDiagnosisModalAdmission] = useState<InpatientRecord | null>(null)
   const [editAdmissionName, setEditAdmissionName] = useState<string | null>(null)
+  const [modifyPackageAdmission, setModifyPackageAdmission] = useState<string | null>(null)
   const [uploadDocumentsAdmission, setUploadDocumentsAdmission] = useState<InpatientRecord | null>(null)
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState<PageSize>(DEFAULT_PAGE_SIZE)
@@ -856,6 +858,18 @@ export const AdmissionList = ({
                                   Edit
                                 </button>
                               )}
+                              {record.status === 'Admitted' && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setModifyPackageAdmission(record.name)
+                                    setOpenActionRow(null)
+                                  }}
+                                  className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
+                                >
+                                  Modify Package
+                                </button>
+                              )}
 
                               {(record.status === 'Admission Scheduled' || record.status === 'Admitted') && (
                                 <button
@@ -1411,6 +1425,14 @@ export const AdmissionList = ({
               setDetailAdmission(editAdmissionName)
             }
           }}
+        />
+      )}
+
+      {modifyPackageAdmission && (
+        <ModifyPackageModal
+          key={modifyPackageAdmission}
+          admissionName={modifyPackageAdmission}
+          onClose={() => setModifyPackageAdmission(null)}
         />
       )}
 

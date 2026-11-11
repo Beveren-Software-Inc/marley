@@ -1542,8 +1542,11 @@ def create_lab_test_from_service_request(service_request):
 	if service_request_doc.template_dt != "Lab Test Template":
 		frappe.throw(_("Only Lab Test Template service requests can create lab tests."))
 
-	# book_lab_and_forward requires patient_accepted_cost; allow direct create from API otherwise
-	if not service_request_doc.patient_accepted_cost:
+	from healthcare.api.inpatient_admission import is_enhanced_workflow_enabled
+
+	if is_enhanced_workflow_enabled():
+		confirm_payment(service_request)
+	elif not service_request_doc.patient_accepted_cost:
 		service_request_doc.db_set("patient_accepted_cost", 1)
 
 	result = book_lab_and_forward(service_request)
@@ -1595,7 +1598,7 @@ def _auto_confirm_and_book_ip_lab(service_request_name: str) -> dict:
 	"""Confirm payment (Sales Order) and book lab tests for an IP lab request."""
 	from healthcare.healthcare.doctype.service_request.service_request import book_lab_and_forward
 
-	confirm_payment(service_request_name)
+	payment = confirm_payment(service_request_name)
 	booking = book_lab_and_forward(service_request_name)
 	out = {
 		"auto_booked": True,
@@ -1605,6 +1608,8 @@ def _auto_confirm_and_book_ip_lab(service_request_name: str) -> dict:
 			"Service Request", service_request_name, "reference_document_name"
 		),
 	}
+	if payment.get("covered_by_package"):
+		out["covered_by_package"] = True
 	if booking.get("count"):
 		out["lab_tests_count"] = booking["count"]
 		out["lab_tests"] = booking.get("lab_tests") or []
@@ -2304,6 +2309,9 @@ def _recreate_lab_request_sales_order(service_request_name: str) -> dict:
 	sr = frappe.get_doc("Service Request", service_request_name)
 	if (getattr(sr, "template_dt", None) or "") != "Lab Test Template":
 		return {"sales_order_recreated": False}
+	if _inpatient_lab_tests_included(sr):
+		# Inclusion changes must never retire existing charges automatically.
+		return {"sales_order_recreated": False, **confirm_payment(service_request_name)}
 
 	try:
 		retired = _retire_lab_request_sales_order(sr)
@@ -2457,21 +2465,93 @@ def _lab_request_sales_order_specs(sr):
 	return specs, general_discount
 
 
+def _inpatient_lab_tests_included(sr) -> bool:
+	"""Patient-specific lab coverage comes exclusively from the admission quotation."""
+	if sr.get("template_dt") != "Lab Test Template" or not sr.get("inpatient_record"):
+		return False
+	from healthcare.healthcare.care_episode_guard import resolve_inpatient_admission_name
+	from healthcare.api.inpatient_admission import _resolve_admission_package, is_enhanced_workflow_enabled
+
+	if not is_enhanced_workflow_enabled():
+		return False
+
+	admission_name = resolve_inpatient_admission_name(sr.inpatient_record, sr.get("patient"))
+	if not admission_name:
+		return False
+	admission = frappe.get_doc("Inpatient Admission", admission_name)
+	if admission.patient != sr.get("patient"):
+		return False
+	package, source = _resolve_admission_package(admission)
+	if not package and source != "custom":
+		return False
+	quotation = frappe.db.get_value(
+		"Quotation",
+		{"custom_inpatient_admission": admission_name,
+		 "custom_package": package if package else ["is", "not set"],
+		 "docstatus": ["<", 2]},
+		["custom_include_lab_tests"], order_by="modified desc", as_dict=True,
+	)
+	return bool(quotation and cint(quotation.custom_include_lab_tests))
+
+
+def _active_lab_request_sales_order(sr):
+	"""Find existing billing even when the acceptance flag is inconsistent."""
+	if sr.get("reference_document_type") == "Sales Order" and sr.get("reference_document_name"):
+		if frappe.db.get_value("Sales Order", {"name": sr.reference_document_name, "docstatus": ["<", 2]}, "name", for_update=True):
+			return sr.reference_document_name
+	base_type, base_name = _service_request_base_doc_refs(sr)
+	# Booking can change the base reference after the original request was billed.
+	candidates = [("Service Request", sr.name), (base_type, base_name)]
+	candidates.extend(("Lab Test", name) for name in frappe.get_all(
+		"Lab Test", filters={"service_request": sr.name}, pluck="name"
+	))
+	for reference_type, reference_name in candidates:
+		name = frappe.db.get_value(
+			"Sales Order",
+			{"custom_base_reference": reference_type, "custom_base_reference_name": reference_name,
+			 "docstatus": ["<", 2]},
+			"name", order_by="modified desc", for_update=True,
+		)
+		if name:
+			return name
+	return None
+
+
 @frappe.whitelist()
 def confirm_payment(service_request_name):
 
 	if not service_request_name:
 		frappe.throw(_("Service Request name is required"))
 
-	sr = frappe.get_doc("Service Request", service_request_name)
+	from healthcare.api.inpatient_admission import is_enhanced_workflow_enabled
 
-	# Prevent duplicate execution
-	if sr.patient_accepted_cost:
+	# Serialize enhanced lab confirmation to avoid duplicate orders.
+	is_lab = (
+		is_enhanced_workflow_enabled()
+		and frappe.db.get_value("Service Request", service_request_name, "template_dt") == "Lab Test Template"
+	)
+	if is_lab:
+		frappe.db.sql("select name from `tabService Request` where name=%s for update", (service_request_name,))
+	sr = frappe.get_doc("Service Request", service_request_name, for_update=is_lab)
+
+	# Preserve legacy confirmation for all requests outside enhanced lab billing.
+	if not is_lab and sr.patient_accepted_cost:
 		return {"ok": True, "patient_accepted_cost": 1}
 
 	# Validate dynamic template
 	if not sr.template_dt or not sr.template_dn:
 		frappe.throw(_("Template is required"))
+
+	if is_lab:
+		existing_order = _active_lab_request_sales_order(sr)
+		if existing_order:
+			sr.db_set("patient_accepted_cost", 1)
+			return {"ok": True, "patient_accepted_cost": 1, "sales_order": existing_order,
+				"message": _("Existing Sales Order retained; no new charges created")}
+		if _inpatient_lab_tests_included(sr):
+			sr.db_set("patient_accepted_cost", 1)
+			return {"ok": True, "patient_accepted_cost": 1, "covered_by_package": True,
+				"sales_order": None, "message": _("Lab Tests are included in the admission package")}
 
 	delivery_date = sr.expected_date or nowdate()
 

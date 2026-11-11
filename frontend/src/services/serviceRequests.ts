@@ -47,6 +47,7 @@ export interface ServiceRequest {
   }>
   /** Set when IP auto-book ran on create (Healthcare Settings). */
   auto_booked?: boolean
+  covered_by_package?: boolean
   auto_book_error?: string
   lab_tests_count?: number
   lab_tests?: string[]
@@ -510,7 +511,7 @@ export async function createServiceRequest(data: CreateServiceRequestData): Prom
 }
 
 /** Confirm payment (patient accepted cost). Required before Book Lab for Lab Test Template. */
-export async function confirmPayment(serviceRequestName: string): Promise<{ ok: boolean; patient_accepted_cost: number }> {
+export async function confirmPayment(serviceRequestName: string): Promise<{ ok: boolean; patient_accepted_cost: number; covered_by_package?: boolean; message?: string }> {
   const { ensureCSRF } = await import('./apiClient')
   const csrf = await ensureCSRF()
   const response = await fetch(
