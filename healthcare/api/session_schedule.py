@@ -48,8 +48,32 @@ def _attach_sales_orders(schedules):
 		):
 			by_schedule.setdefault(row.custom_base_reference_name, row.name)
 
+	# invoice_no may still point at a cancelled SO — only reuse if still active.
+	stale_invoice_nos = []
 	for row in schedules:
-		row["sales_order"] = by_schedule.get(row["name"]) or row.get("invoice_no")
+		if by_schedule.get(row["name"]):
+			continue
+		invoice_no = (row.get("invoice_no") or "").strip()
+		if invoice_no:
+			stale_invoice_nos.append(invoice_no)
+
+	active_invoice_nos = set()
+	if stale_invoice_nos:
+		active_invoice_nos = set(
+			frappe.get_all(
+				"Sales Order",
+				filters={"name": ["in", list(set(stale_invoice_nos))], "docstatus": ["!=", 2]},
+				pluck="name",
+			)
+		)
+
+	for row in schedules:
+		so_name = by_schedule.get(row["name"])
+		if not so_name:
+			invoice_no = (row.get("invoice_no") or "").strip()
+			if invoice_no and invoice_no in active_invoice_nos:
+				so_name = invoice_no
+		row["sales_order"] = so_name
 	return schedules
 
 

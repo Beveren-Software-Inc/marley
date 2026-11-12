@@ -233,19 +233,19 @@ export const SessionScheduleList = ({ refreshKey, patient, admissionNumber, embe
     window.open(`/app/sales-order/${encodeURIComponent(salesOrder)}`, '_blank')
   }
 
-  const handleBill = async (schedule: SessionSchedule) => {
+  const handleCompleteAndBill = async (schedule: SessionSchedule) => {
     setActionLoading(schedule.name)
     try {
       const res = await createSessionScheduleSalesOrder(schedule.name)
       toast.success(
         res.existing
           ? `Already billed — ${res.sales_order}`
-          : `Billed — ${res.sales_order}`,
+          : `Completed & billed — ${res.sales_order}`,
       )
       setOpenActionRow(null)
       setRefreshTrigger((k) => k + 1)
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to bill session')
+      toast.error(err instanceof Error ? err.message : 'Failed to complete & bill session')
     } finally {
       setActionLoading(null)
     }
@@ -531,17 +531,6 @@ export const SessionScheduleList = ({ refreshKey, patient, admissionNumber, embe
                               In Progress
                             </button>
                           )}
-                          {(schedule.transaction_status === 'Draft' ||
-                            schedule.transaction_status === 'In Progress') && (
-                            <button
-                              type="button"
-                              disabled={isRowBusy(schedule)}
-                              onClick={() => handleStatusUpdate(schedule, 'Completed')}
-                              className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100 disabled:opacity-40"
-                            >
-                              Complete
-                            </button>
-                          )}
                           {schedule.sales_order ? (
                             <button
                               type="button"
@@ -550,17 +539,17 @@ export const SessionScheduleList = ({ refreshKey, patient, admissionNumber, embe
                             >
                               View Bill
                             </button>
-                          ) : (
+                          ) : schedule.transaction_status !== 'Cancelled' ? (
                             <button
                               type="button"
                               disabled={!canBill(schedule) || isRowBusy(schedule)}
                               title={billDisabledReason(schedule)}
-                              onClick={() => handleBill(schedule)}
+                              onClick={() => handleCompleteAndBill(schedule)}
                               className="block w-full text-left px-3 py-2 text-sm text-primary hover:bg-primary/5 disabled:opacity-40 disabled:cursor-not-allowed"
                             >
-                              Bill
+                              Complete &amp; Bill
                             </button>
-                          )}
+                          ) : null}
                           {schedule.transaction_status !== 'Cancelled' &&
                             schedule.transaction_status !== 'Submitted' && (
                               <button
