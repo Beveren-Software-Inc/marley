@@ -266,7 +266,7 @@ function resultRange(
 /**
  * Result value with its reference range always shown
  * (Healthcare Settings → Show Ranges on History Lab Tests):
- * small font, minimum on the left and maximum (high) on the right.
+ * centered directly below the result value.
  * The range text enlarges on hover.
  */
 function RangeResult({
@@ -277,25 +277,26 @@ function RangeResult({
 }: {
   value: string
   direction?: 'high' | 'low' | null
-  min: string
-  max: string
+  min?: string | number | null
+  max?: string | number | null
 }) {
   const body = (
     <span className="inline-flex max-w-full items-center justify-center gap-0.5">
-      <span className="truncate">{value}</span>
+      <span className="truncate font-semibold">{value}</span>
       {cellDirectionArrow(direction)}
     </span>
   )
-  if (!min && !max) return body
+  const hasMin = min != null && min !== ''
+  const hasMax = max != null && max !== ''
+  if (!hasMin && !hasMax) return body
   return (
     <div
-      className="group block w-full"
-      title={`Reference range${min ? ` · min ${min}` : ''}${max ? ` · max ${max}` : ''}`}
+      className="group block w-full text-center"
+      title={`Reference range${hasMin ? ` · min ${min}` : ''}${hasMax ? ` · max ${max}` : ''}`}
     >
       {body}
-      <span className="mt-0.5 flex items-baseline justify-between gap-2 text-[10px] font-normal leading-tight tabular-nums opacity-80 transition-all duration-150 group-hover:text-[13px] group-hover:font-semibold group-hover:opacity-100">
-        <span title="Minimum">{min || '—'}</span>
-        <span title="Maximum">{max || '—'}</span>
+      <span className="mt-0.5 block text-[10px] font-normal leading-tight tabular-nums opacity-80 transition-all duration-150 group-hover:text-[13px] group-hover:font-semibold group-hover:opacity-100">
+        [{hasMin ? min : '—'} - {hasMax ? max : '—'}]
       </span>
     </div>
   )
@@ -829,7 +830,7 @@ export const LabTestHistory = ({
                 </table>
               )
             ) : (
-            <table className="border-collapse w-auto table-fixed">
+            <table className="w-auto table-fixed border-separate border-spacing-x-0 border-spacing-y-0.5">
               <colgroup>
                 <col style={{ width: `${TEST_COLUMN_WIDTH_PX}px` }} />
                 {displayColumns.map((col) => (
@@ -866,7 +867,7 @@ export const LabTestHistory = ({
                   })}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody>
                 {groupedMatrixRows.length === 0 ? (
                   <tr>
                     <td
@@ -926,6 +927,7 @@ export const LabTestHistory = ({
                     </td>
                     {displayColumns.map((col) => {
                       const cell = row.cells[col.key]
+                      const hasValue = cell?.value != null && String(cell.value) !== ''
                       const isPad = col.key.startsWith('__pad_')
                       return (
                         <td
@@ -941,7 +943,7 @@ export const LabTestHistory = ({
                             maxWidth: `${DATE_COLUMN_MAX_WIDTH_PX}px`,
                           }}
                           title={
-                            cell?.value
+                            hasValue
                               ? `${cell.value}${cell.direction === 'high' ? ' (High)' : cell.direction === 'low' ? ' (Low)' : ''}`
                               : cell?.lab_test
                                 ? `Lab Test: ${cell.lab_test}`
@@ -955,10 +957,10 @@ export const LabTestHistory = ({
                               row.min,
                               row.max,
                             )
-                            if (!showRanges || !available || !cell?.value) {
+                            if (!showRanges || !available || !hasValue) {
                               return (
                                 <span className="inline-flex items-center justify-center gap-0.5 max-w-full">
-                                  <span className="truncate">{cell?.value ?? ''}</span>
+                                  <span className="truncate font-semibold">{cell?.value ?? ''}</span>
                                   {cellDirectionArrow(cell?.direction)}
                                 </span>
                               )
