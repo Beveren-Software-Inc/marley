@@ -280,6 +280,8 @@ export const CreateHealthInsuranceModal = ({ onClose, onSuccess }: Props) => {
     try {
       const payload: Record<string, any> = {}
       Object.entries(form).forEach(([k, v]) => { if (v !== '') payload[k] = v })
+      // Visible on the Health Insurance UI page (filtered by allows_hospital).
+      payload.allows_hospital = 1
 
       // Child tables
       if (inclusiveItems.length) {

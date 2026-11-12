@@ -8,7 +8,10 @@ import frappe
 from frappe import _
 from frappe.utils import now_datetime
 
-from healthcare.api.common import _enrich_diagnosis_display
+from healthcare.api.common import (
+	_enrich_diagnosis_display,
+	get_current_user_healthcare_practitioner,
+)
 
 ALLOWED_PARENT_DOCTYPES = ("Patient Visit", "Inpatient Admission")
 
@@ -174,36 +177,63 @@ def list_all_entries(limit=200, offset=0, patient=None) -> list[dict]:
 	return results
 
 
-def _parent_context_defaults(parent_doctype: str, parent_name: str) -> dict:
-	"""Default practitioner and cost center from the linked visit or admission."""
-	if not parent_name:
+def _current_practitioner_defaults() -> dict:
+	"""Logged-in user's linked Healthcare Practitioner (the diagnosing doctor)."""
+	practitioner = get_current_user_healthcare_practitioner()
+	if not practitioner:
 		return {}
+	practitioner_name = (
+		frappe.db.get_value("Healthcare Practitioner", practitioner, "practitioner_name") or ""
+	)
+	return {
+		"practitioner": practitioner,
+		"practitioner_name": practitioner_name or practitioner,
+	}
+
+
+def _parent_context_defaults(parent_doctype: str, parent_name: str) -> dict:
+	"""Cost center from visit/admission; practitioner prefers the logged-in doctor.
+
+	The visit/admission doctor is only a fallback when the current user has no
+	linked Healthcare Practitioner — new diagnosis rows belong to the person
+	entering them (e.g. 414), not whoever was booked on the encounter.
+	"""
+	if not parent_name:
+		return dict(_current_practitioner_defaults())
 	if parent_doctype == "Patient Visit":
 		row = frappe.db.get_value(
 			"Patient Visit",
 			parent_name,
 			["cost_center", "practitioner", "practitioner_name"],
 			as_dict=True,
-		)
-		return row or {}
+		) or {}
+	else:
+		row = frappe.db.get_value(
+			"Inpatient Admission",
+			parent_name,
+			["cost_center", "primary_practitioner", "admission_practitioner"],
+			as_dict=True,
+		) or {}
+		practitioner = row.get("primary_practitioner") or row.get("admission_practitioner")
+		practitioner_name = ""
+		if practitioner:
+			practitioner_name = (
+				frappe.db.get_value("Healthcare Practitioner", practitioner, "practitioner_name")
+				or ""
+			)
+		row = {
+			"cost_center": row.get("cost_center"),
+			"practitioner": practitioner,
+			"practitioner_name": practitioner_name,
+		}
 
-	row = frappe.db.get_value(
-		"Inpatient Admission",
-		parent_name,
-		["cost_center", "primary_practitioner", "admission_practitioner"],
-		as_dict=True,
-	) or {}
-	practitioner = row.get("primary_practitioner") or row.get("admission_practitioner")
-	practitioner_name = ""
-	if practitioner:
-		practitioner_name = (
-			frappe.db.get_value("Healthcare Practitioner", practitioner, "practitioner_name")
-			or ""
-		)
+	current = _current_practitioner_defaults()
 	return {
 		"cost_center": row.get("cost_center"),
-		"practitioner": practitioner,
-		"practitioner_name": practitioner_name,
+		"practitioner": current.get("practitioner") or row.get("practitioner"),
+		"practitioner_name": current.get("practitioner_name")
+		or row.get("practitioner_name")
+		or "",
 	}
 
 
@@ -256,6 +286,7 @@ def _row_to_doc_fields(row: dict, parent_doctype: str, parent_name: str, patient
 	diagnoses_time = row.get("diagnoses_time") or posting
 	defaults = _parent_context_defaults(parent_doctype, parent_name)
 
+	# Explicit row value wins; otherwise logged-in practitioner (via defaults), then visit/admission.
 	practitioner = (row.get("practitioner") or defaults.get("practitioner") or "").strip()
 	practitioner_name = (row.get("practitioner_name") or defaults.get("practitioner_name") or "").strip()
 	if practitioner and not practitioner_name:

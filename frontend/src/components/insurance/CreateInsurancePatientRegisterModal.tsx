@@ -166,7 +166,7 @@ export const CreateInsurancePatientRegisterModal = ({
         status: resolvedStatus,
         insurance_provider: selectedInsurance.name,
         approval_id: approvalId.trim() || null,
-        approval_validitydays: approvalValidityDays ? parseInt(approvalValidityDays, 10) : null,
+        approval_validitydays: approvalValidityDays ? parseInt(approvalValidityDays, 10) : 0,
         no_of_visits: noOfVisits.trim() || null,
         patient: existingPatient && selectedPatient ? selectedPatient.name : null,
       })

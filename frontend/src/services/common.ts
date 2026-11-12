@@ -1636,6 +1636,8 @@ export interface InsuranceClaimRow {
   authorization_no?: string
   remark?: string
   vch_status?: string
+  /** 1 when imported from the legacy insurance system */
+  legacy?: number | boolean
 }
 
 export interface InsuranceClaimFilters {
@@ -1777,6 +1779,8 @@ export interface InsuranceClaimDetail {
   claim_date: string | null
   status: string
   sales_invoice: string | null
+  /** All invoices linked on this claim (header + line items). */
+  sales_invoices?: string[]
   reference_doctype: string | null
   reference_name: string | null
   authorization_no: string | null
@@ -1788,6 +1792,7 @@ export interface InsuranceClaimDetail {
     service_type: string
     item_name: string
     description: string
+    sales_invoice?: string | null
     sales_invoice_item?: string
     gross_amount: number
     covered_amount: number
@@ -1815,6 +1820,8 @@ export interface SaveInsuranceClaimPayload {
   patient_insurance_coverage?: string | null
   insurance_payor?: string | null
   sales_invoice?: string | null
+  /** One or more Sales Invoices included in this claim. */
+  sales_invoices?: string[]
   reference_doctype?: string | null
   reference_name?: string | null
   authorization_no?: string | null
@@ -1830,6 +1837,7 @@ export interface SaveInsuranceClaimPayload {
     non_covered_amount: number
     patient_liability: number
     paid_amount: number
+    sales_invoice?: string
     sales_invoice_item?: string
   }>
 }
@@ -2201,6 +2209,8 @@ export interface HealthInsuranceRow {
   insurance_coverage_: number
   mode_of_payment: string
   insurance_no: string
+  /** When set, the plan is shown on the Health Insurance UI page. */
+  allows_hospital?: number
 }
 
 export interface HealthInsuranceDetail {

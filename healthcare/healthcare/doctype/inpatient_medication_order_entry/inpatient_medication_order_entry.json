@@ -84,6 +84,7 @@
    "allow_on_submit": 1,
    "fieldname": "drug",
    "fieldtype": "Link",
+   "ignore_user_permissions": 1,
    "in_list_view": 1,
    "label": "Drug",
    "options": "Item"
@@ -120,14 +121,17 @@
    "label": "No. of Days"
   },
   {
+   "allow_on_submit": 1,
    "default": "Tablet",
    "fieldname": "dosage_form",
    "fieldtype": "Link",
+   "ignore_user_permissions": 1,
    "in_list_view": 1,
    "label": "Dosage Form",
    "options": "Pharmaceutical Form"
   },
   {
+   "allow_on_submit": 1,
    "fieldname": "quantity",
    "fieldtype": "Float",
    "in_list_view": 1,
@@ -153,6 +157,7 @@
    "label": "Time"
   },
   {
+   "allow_on_submit": 1,
    "default": "0",
    "fieldname": "is_completed",
    "fieldtype": "Check",
@@ -188,6 +193,7 @@
    "allow_on_submit": 1,
    "fieldname": "uom",
    "fieldtype": "Link",
+   "ignore_user_permissions": 1,
    "label": "UOM",
    "options": "UOM"
   },
@@ -226,6 +232,7 @@
    "label": "End Date"
   },
   {
+   "allow_on_submit": 1,
    "fieldname": "route_of_administration",
    "fieldtype": "Link",
    "ignore_user_permissions": 1,
@@ -244,10 +251,12 @@
    "description": "Set when this order entry is transferred to a follow-up visit prescription on discharge reconciliation.",
    "fieldname": "transferred_to_visit",
    "fieldtype": "Link",
+   "ignore_user_permissions": 1,
    "label": "Transferred to Visit",
    "options": "Patient Visit"
   },
   {
+   "allow_on_submit": 1,
    "default": "0",
    "fieldname": "returned_to_store",
    "fieldtype": "Check",
@@ -301,6 +310,7 @@
    "label": "Medication"
   },
   {
+   "allow_on_submit": 1,
    "fieldname": "dose_term",
    "fieldtype": "Data",
    "label": "Dose Term"
@@ -336,21 +346,25 @@
    "label": "Redundancy Type"
   },
   {
+   "allow_on_submit": 1,
    "fieldname": "dc",
    "fieldtype": "Data",
    "label": "DC"
   },
   {
+   "allow_on_submit": 1,
    "fieldname": "medicine_no",
    "fieldtype": "Data",
    "label": "Medicine No"
   },
   {
+   "allow_on_submit": 1,
    "fieldname": "written_frequency",
    "fieldtype": "Data",
    "label": "Written Frequency"
   },
   {
+   "allow_on_submit": 1,
    "fieldname": "duration",
    "fieldtype": "Data",
    "label": "Duration"
@@ -384,6 +398,7 @@
    "options": "IP Admission Medicine"
   },
   {
+   "allow_on_submit": 1,
    "fieldname": "username",
    "fieldtype": "Data",
    "label": "Username"
@@ -418,16 +433,19 @@
    "label": "Alternative Medicine Name"
   },
   {
+   "allow_on_submit": 1,
    "fieldname": "old_route",
    "fieldtype": "Data",
    "label": "Old Route"
   },
   {
+   "allow_on_submit": 1,
    "fieldname": "strength",
    "fieldtype": "Data",
    "label": "Strength"
   },
   {
+   "allow_on_submit": 1,
    "fieldname": "old_unit",
    "fieldtype": "Data",
    "label": "Old Unit"
@@ -470,12 +488,15 @@
    "fieldtype": "Section Break"
   },
   {
+   "allow_on_submit": 1,
    "fieldname": "healthcare_practitioner",
    "fieldtype": "Link",
+   "ignore_user_permissions": 1,
    "label": "Healthcare Practitioner",
    "options": "Healthcare Practitioner"
   },
   {
+   "allow_on_submit": 1,
    "fetch_from": "healthcare_practitioner.practitioner_name",
    "fieldname": "healthcare_practitioner_name",
    "fieldtype": "Data",
@@ -505,13 +526,16 @@
    "fieldtype": "Section Break"
   },
   {
+   "allow_on_submit": 1,
    "fieldname": "total_dose",
    "fieldtype": "Data",
    "label": "Total Dose"
   },
   {
+   "allow_on_submit": 1,
    "fieldname": "total_dose_per",
    "fieldtype": "Link",
+   "ignore_user_permissions": 1,
    "label": "Total Dose Per",
    "options": "Dose Frequency"
   }
@@ -519,7 +543,7 @@
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2026-11-12 01:26:38.299749",
+ "modified": "2026-11-12 02:03:12.540292",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Inpatient Medication Order Entry",

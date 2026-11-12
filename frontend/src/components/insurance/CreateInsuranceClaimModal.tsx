@@ -16,8 +16,14 @@ import {
 } from '../ui/CreateModalChrome'
 import { Plus, Trash2, FileText, AlertCircle } from 'lucide-react'
 import { fetchHealthcareInsurance, fetchInsuranceClaimDetail, saveInsuranceClaim, type LinkFieldOption, type InvoiceNeedingClaimRow } from '../../services/common'
-import { searchPatients, fetchPatients, type PatientListItem } from '../../services/patients'
-import { fetchPatientDoc, type PatientInsuranceCoverageRow } from '../../services/patients'
+import {
+  searchPatients,
+  fetchPatients,
+  fetchPatientById,
+  fetchPatientDoc,
+  type PatientListItem,
+  type PatientInsuranceCoverageRow,
+} from '../../services/patients'
 import {
   linkComboboxDropdownClassShort,
   linkComboboxInputClassCompact,
@@ -43,6 +49,7 @@ interface ClaimItemRow {
   non_covered_amount: string
   patient_liability: string
   paid_amount: string
+  sales_invoice?: string
   sales_invoice_item?: string
 }
 
@@ -122,27 +129,40 @@ function LinkField({
   )
 }
 
-// ─── Invoice dropdown ──────────────────────────────────────────────────────────
+// ─── Multi invoice picker ──────────────────────────────────────────────────────
 
-interface InvoiceDropdownProps {
+interface InvoiceMultiSelectProps {
   invoices: InvoiceOption[]
-  selected: InvoiceOption | null
+  selected: InvoiceOption[]
   loading: boolean
   patientSelected: boolean
-  onSelect: (inv: InvoiceOption | null) => void
+  onToggle: (inv: InvoiceOption) => void
+  onClear: () => void
 }
 
-function InvoiceDropdown({ invoices, selected, loading, patientSelected, onSelect }: InvoiceDropdownProps) {
-  const [open, setOpen] = useState(false)
-
+function InvoiceMultiSelect({
+  invoices, selected, loading, patientSelected, onToggle, onClear,
+}: InvoiceMultiSelectProps) {
+  const selectedNames = new Set(selected.map(s => s.name))
   const fmtCurrency = (v: number) =>
     v.toLocaleString('en-US', { minimumFractionDigits: 3, maximumFractionDigits: 3 })
+  const totalOutstanding = selected.reduce(
+    (s, inv) => s + (inv.remaining_claimable ?? inv.outstanding_amount ?? 0),
+    0,
+  )
 
   return (
     <div onClick={e => e.stopPropagation()}>
-      <label className="block text-xs font-medium text-slate-700 mb-1">
-        Sales Invoice <span className="text-slate-400 font-normal">(unpaid / partly paid)</span>
-      </label>
+      <div className="flex items-center justify-between mb-1">
+        <label className="block text-xs font-medium text-slate-700">
+          Sales Invoices <span className="text-slate-400 font-normal">(select one or more)</span>
+        </label>
+        {selected.length > 0 && (
+          <button type="button" onClick={onClear} className="text-xs text-slate-500 hover:text-slate-700">
+            Clear all
+          </button>
+        )}
+      </div>
 
       {!patientSelected ? (
         <div className="rounded border border-dashed border-slate-300 bg-slate-50 px-3 py-2 text-xs text-slate-400 flex items-center gap-2">
@@ -159,86 +179,71 @@ function InvoiceDropdown({ invoices, selected, loading, patientSelected, onSelec
           No unpaid invoices found for this patient
         </div>
       ) : (
-        <div className="relative">
-          <button
-            type="button"
-            onClick={() => setOpen(v => !v)}
-            className="w-full text-left rounded border border-slate-300 px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-slate-900 flex items-center justify-between transition-colors"
-          >
-            {selected ? (
-              <span>
-                <span className="font-medium">{selected.name}</span>
-                <span className="text-slate-500 ml-2 text-xs">{selected.posting_date}</span>
-                <span className={`ml-2 text-xs font-medium ${selected.status === 'Unpaid' ? 'text-red-600' : 'text-amber-600'}`}>
-                  {selected.status}
-                </span>
-              </span>
-            ) : (
-              <span className="text-slate-400">Select invoice…</span>
-            )}
-            <svg className={`w-4 h-4 text-slate-400 transition-transform ${open ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-            </svg>
-          </button>
-
-          {selected && (
-            <button type="button" onClick={() => { onSelect(null); setOpen(false) }}
-              className="absolute right-8 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs z-10 transition-colors">✕</button>
-          )}
-
-          {open && (
-            <div className="absolute z-20 w-full mt-1 bg-white border border-slate-300 rounded shadow-lg max-h-56 overflow-y-auto">
-              {invoices.map(inv => (
-                <button key={inv.name} type="button"
-                  onClick={() => { onSelect(inv); setOpen(false) }}
-                  className={`w-full text-left px-3 py-2.5 text-sm hover:bg-slate-50 border-b border-slate-100 last:border-0 transition-colors ${selected?.name === inv.name ? 'bg-blue-50' : ''}`}
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="font-medium text-slate-800">{inv.name}</span>
-                    <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${inv.status === 'Unpaid' ? 'bg-red-50 text-red-600' : 'bg-amber-50 text-amber-600'}`}>
+        <div className="rounded border border-slate-300 bg-white max-h-56 overflow-y-auto divide-y divide-slate-100">
+          {invoices.map(inv => {
+            const checked = selectedNames.has(inv.name)
+            return (
+              <label
+                key={inv.name}
+                className={`flex items-start gap-2.5 px-3 py-2.5 cursor-pointer hover:bg-slate-50 transition-colors ${checked ? 'bg-blue-50/70' : ''}`}
+              >
+                <input
+                  type="checkbox"
+                  checked={checked}
+                  onChange={() => onToggle(inv)}
+                  className="mt-0.5 w-4 h-4 rounded border-slate-300 text-primary focus:ring-primary"
+                />
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-medium text-slate-800 text-sm">{inv.name}</span>
+                    <span className={`text-xs font-medium px-1.5 py-0.5 rounded shrink-0 ${inv.status === 'Unpaid' ? 'bg-red-50 text-red-600' : 'bg-amber-50 text-amber-600'}`}>
                       {inv.status}
                     </span>
                   </div>
-                  <div className="flex items-center gap-3 mt-0.5 text-xs text-slate-500">
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-0.5 text-xs text-slate-500">
                     <span>{inv.posting_date}</span>
                     <span>Total: <strong className="text-slate-700">{fmtCurrency(inv.grand_total)}</strong></span>
-                    <span>Outstanding: <strong className="text-orange-600">{fmtCurrency(inv.outstanding_amount)}</strong></span>
+                    <span>Claimable: <strong className="text-orange-600">{fmtCurrency(inv.remaining_claimable ?? inv.outstanding_amount)}</strong></span>
                     {inv.custom_base_reference && (
                       <span className="text-blue-500">{inv.custom_base_reference}: {inv.custom_base_reference_name}</span>
                     )}
                   </div>
-                </button>
-              ))}
-            </div>
-          )}
+                </div>
+              </label>
+            )
+          })}
         </div>
       )}
 
-      {/* Selected invoice detail card */}
-      {selected && (
+      {selected.length > 0 && (
         <div className="mt-2 rounded-lg border border-blue-100 bg-blue-50 p-3 space-y-2">
-          <div className="grid grid-cols-3 gap-2 text-center">
-            <div>
-              <div className="text-xs text-slate-500">Grand Total</div>
-              <div className="font-semibold text-slate-800 text-sm">{fmtCurrency(selected.grand_total)}</div>
-            </div>
-            <div>
-              <div className="text-xs text-slate-500">Discount</div>
-              <div className="font-semibold text-green-700 text-sm">{fmtCurrency(selected.discount_amount)}</div>
-            </div>
-            <div>
-              <div className="text-xs text-slate-500">Outstanding</div>
-              <div className="font-semibold text-orange-600 text-sm">{fmtCurrency(selected.outstanding_amount)}</div>
-            </div>
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-slate-600">
+              <strong>{selected.length}</strong> invoice{selected.length === 1 ? '' : 's'} selected
+            </span>
+            <span className="text-slate-600">
+              Combined claimable:{' '}
+              <strong className="text-orange-700">{fmtCurrency(totalOutstanding)}</strong>
+            </span>
           </div>
-          {selected.custom_base_reference && (
-            <div className="text-xs text-slate-600 border-t border-blue-100 pt-2 flex items-center gap-1.5">
-              <span className="font-medium text-blue-700">{selected.custom_base_reference}</span>
-              <span className="text-slate-400">→</span>
-              <span className="font-mono text-slate-700">{selected.custom_base_reference_name}</span>
-              <span className="text-slate-400 ml-1">(will be saved as Reference)</span>
-            </div>
-          )}
+          <div className="flex flex-wrap gap-1.5">
+            {selected.map(inv => (
+              <span
+                key={inv.name}
+                className="inline-flex items-center gap-1 rounded-full bg-white border border-blue-200 px-2 py-0.5 text-xs text-slate-700"
+              >
+                {inv.name}
+                <button
+                  type="button"
+                  onClick={() => onToggle(inv)}
+                  className="text-slate-400 hover:text-slate-600"
+                  aria-label={`Remove ${inv.name}`}
+                >
+                  ✕
+                </button>
+              </span>
+            ))}
+          </div>
         </div>
       )}
     </div>
@@ -328,10 +333,28 @@ export const CreateInsuranceClaimModal = ({
   const [patientOpen, setPatientOpen] = useState(false)
   const [patientLoading, setPatientLoading] = useState(false)
 
-  // Invoice
+  // Navbar only passes the patient id — resolve the display name.
+  useEffect(() => {
+    if (!initialPatient || initialInvoice || editClaimName) return
+    let cancelled = false
+    fetchPatientById(initialPatient)
+      .then((match) => {
+        if (cancelled || !match) return
+        setSelectedPatient(match)
+        setPatientQuery(match.patient_name || match.name)
+      })
+      .catch(() => {
+        /* keep id fallback */
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [initialPatient, initialInvoice, editClaimName])
+
+  // Invoices (multi-select)
   const [invoices, setInvoices] = useState<InvoiceOption[]>([])
   const [invoicesLoading, setInvoicesLoading] = useState(false)
-  const [selectedInvoice, setSelectedInvoice] = useState<InvoiceOption | null>(null)
+  const [selectedInvoices, setSelectedInvoices] = useState<InvoiceOption[]>([])
 
   // Claim items
   const [items, setItems] = useState<ClaimItemRow[]>([newRow()])
@@ -410,64 +433,112 @@ export const CreateInsuranceClaimModal = ({
     }
   }, [])
 
-  const loadInvoiceItems = useCallback(async (invoiceName: string) => {
+  const mapInvoiceLines = useCallback((
+    invoiceName: string,
+    msgItems: Array<{
+      item_code: string
+      item_name: string
+      description: string
+      qty: number
+      rate: number
+      amount: number
+      net_amount: number
+      discount_percentage: number
+      discount_amount: number
+    }>,
+    claimableAmount: number,
+  ): ClaimItemRow[] => {
+    const mapped: ClaimItemRow[] = msgItems.map(item => ({
+      id: ++_itemId,
+      service_type: 'OP',
+      item_name: item.item_name || '',
+      description: item.description || '',
+      qty: String(item.qty ?? ''),
+      rate: String(item.rate ?? ''),
+      discount_percentage: String(item.discount_percentage ?? ''),
+      discount_amount: String(item.discount_amount ?? ''),
+      net_amount: String(item.net_amount ?? item.amount ?? ''),
+      gross_amount: String(item.net_amount ?? item.amount ?? ''),
+      covered_amount: String(item.net_amount ?? item.amount ?? ''),
+      co_pay_amount: '',
+      non_covered_amount: '',
+      patient_liability: '',
+      paid_amount: '',
+      sales_invoice: invoiceName,
+      sales_invoice_item: item.item_code || '',
+    }))
+    return distributeClaimAmount(mapped, to3(claimableAmount || 0))
+  }, [])
+
+  const fetchInvoiceLines = useCallback(async (invoiceName: string) => {
+    const res = await fetch(
+      `/api/method/healthcare.api.common.get_sales_invoice_with_items?invoice_name=${encodeURIComponent(invoiceName)}`
+    )
+    const data = await res.json()
+    return data?.message || null
+  }, [])
+
+  const syncClaimAmountFromInvoices = useCallback((list: InvoiceOption[]) => {
+    const total = list.reduce(
+      (sum, inv) => sum + (inv.remaining_claimable ?? inv.outstanding_amount ?? 0),
+      0,
+    )
+    const normalized = to3(total)
+    setClaimAmount(normalized ? normalized.toFixed(3) : '')
+  }, [])
+
+  const toggleInvoice = useCallback(async (inv: InvoiceOption) => {
+    const already = selectedInvoices.some(s => s.name === inv.name)
+    if (already) {
+      const next = selectedInvoices.filter(s => s.name !== inv.name)
+      setSelectedInvoices(next)
+      setItems(prev => {
+        const remaining = prev.filter(r => r.sales_invoice !== inv.name)
+        return remaining.length ? remaining : [newRow()]
+      })
+      syncClaimAmountFromInvoices(next)
+      return
+    }
+
+    const next = [...selectedInvoices, inv]
+    setSelectedInvoices(next)
     try {
-      const res = await fetch(
-        `/api/method/healthcare.api.common.get_sales_invoice_with_items?invoice_name=${encodeURIComponent(invoiceName)}`
-      )
-      const data = await res.json()
-      const msg = data?.message
-      if (!msg) return
-
-      // Auto-fill items
-      if (msg.items?.length) {
-        const mapped: ClaimItemRow[] = msg.items.map(
-          (item: {
-            item_code: string
-            item_name: string
-            description: string
-            qty: number
-            rate: number
-            amount: number
-            net_amount: number
-            discount_percentage: number
-            discount_amount: number
-          }) => ({
-            id: ++_itemId,
-            service_type: 'OP',
-            item_name: item.item_name || '',
-            description: item.description || '',
-            qty: String(item.qty ?? ''),
-            rate: String(item.rate ?? ''),
-            discount_percentage: String(item.discount_percentage ?? ''),
-            discount_amount: String(item.discount_amount ?? ''),
-            net_amount: String(item.net_amount ?? item.amount ?? ''),
-            gross_amount: String(item.net_amount ?? item.amount ?? ''),
-            covered_amount: String(item.net_amount ?? item.amount ?? ''),
-            co_pay_amount: '',
-            non_covered_amount: '',
-            patient_liability: '',
-            paid_amount: '',
-            sales_invoice_item: item.item_code || '',
-          })
-        )
-        const baseAmount =
-          selectedInvoice?.remaining_claimable ??
-          selectedInvoice?.outstanding_amount ??
-          msg.items.reduce((sum: number, item: { net_amount: number; amount: number }) => sum + (item.net_amount ?? item.amount ?? 0), 0)
-        const normalizedAmount = to3(baseAmount || 0)
-        setClaimAmount(normalizedAmount ? normalizedAmount.toFixed(3) : '')
-        setItems(distributeClaimAmount(mapped, normalizedAmount))
+      const msg = await fetchInvoiceLines(inv.name)
+      if (msg?.items?.length) {
+        const claimable =
+          inv.remaining_claimable ??
+          inv.outstanding_amount ??
+          msg.items.reduce(
+            (sum: number, item: { net_amount: number; amount: number }) =>
+              sum + (item.net_amount ?? item.amount ?? 0),
+            0,
+          )
+        const mapped = mapInvoiceLines(inv.name, msg.items, claimable)
+        setItems(prev => {
+          const withoutEmptyManual = prev.filter(
+            r => r.sales_invoice || r.item_name.trim() || r.gross_amount,
+          )
+          const base = withoutEmptyManual.some(r => r.sales_invoice || r.item_name.trim())
+            ? withoutEmptyManual
+            : []
+          return [...base.filter(r => r.sales_invoice !== inv.name), ...mapped]
+        })
       }
-
-      // Auto-fill health insurance from invoice if not already chosen
-      if (msg.custom_health_insurance && !selectedIns) {
+      if (msg?.custom_health_insurance && !selectedIns) {
         setSelectedIns({ name: msg.custom_health_insurance, label: msg.custom_health_insurance })
         setInsQuery(msg.custom_health_insurance)
       }
     } catch { /* ignore */ }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedIns])
+    syncClaimAmountFromInvoices(next)
+  }, [
+    selectedInvoices, fetchInvoiceLines, mapInvoiceLines, selectedIns, syncClaimAmountFromInvoices,
+  ])
+
+  const clearInvoices = useCallback(() => {
+    setSelectedInvoices([])
+    setItems([newRow()])
+    setClaimAmount('')
+  }, [])
 
   // Load invoices when patient changes
   useEffect(() => {
@@ -476,7 +547,7 @@ export const CreateInsuranceClaimModal = ({
       loadPatientCoverages(selectedPatient.name)
     } else {
       setInvoices([])
-      setSelectedInvoice(null)
+      setSelectedInvoices([])
       setPatientCoverages([])
       setSelectedCoverageId('')
     }
@@ -509,13 +580,20 @@ export const CreateInsuranceClaimModal = ({
       setSelectedPatient({ name: initialInvoice.patient, patient_name: initialInvoice.patient_name || initialInvoice.patient } as PatientListItem)
       setPatientQuery(initialInvoice.patient_name || initialInvoice.patient)
     }
-    setSelectedInvoice(inv)
+    setSelectedInvoices([inv])
     if (initialInvoice.custom_health_insurance) {
       setSelectedIns({ name: initialInvoice.custom_health_insurance, label: initialInvoice.custom_health_insurance })
       setInsQuery(initialInvoice.custom_health_insurance)
     }
     const baseAmount = initialInvoice.remaining_claimable ?? initialInvoice.outstanding_amount
     setClaimAmount(baseAmount ? to3(baseAmount).toFixed(3) : '')
+    // Load lines for the pre-selected invoice
+    fetchInvoiceLines(inv.name)
+      .then(msg => {
+        if (!msg?.items?.length) return
+        setItems(mapInvoiceLines(inv.name, msg.items, baseAmount || 0))
+      })
+      .catch(() => { /* ignore */ })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialInvoice])
 
@@ -539,19 +617,24 @@ export const CreateInsuranceClaimModal = ({
         if (detail.patient_insurance_coverage) {
           setSelectedCoverageId(detail.patient_insurance_coverage)
         }
-        if (detail.sales_invoice) {
-          setSelectedInvoice({
-            name: detail.sales_invoice,
+        const invNames = Array.from(new Set([
+          ...(detail.sales_invoices || []),
+          detail.sales_invoice || '',
+          ...(detail.claim_items || []).map(ci => ci.sales_invoice || ''),
+        ].filter(Boolean))) as string[]
+        if (invNames.length) {
+          setSelectedInvoices(invNames.map((name, idx) => ({
+            name,
             posting_date: '',
-            grand_total: detail.total_claimed,
+            grand_total: idx === 0 ? detail.total_claimed : 0,
             discount_amount: 0,
             outstanding_amount: 0,
-            claimed_amount: detail.total_claimed,
-            remaining_claimable: detail.total_claimed,
+            claimed_amount: idx === 0 ? detail.total_claimed : 0,
+            remaining_claimable: idx === 0 ? detail.total_claimed : 0,
             status: '',
-            custom_base_reference: detail.reference_doctype,
-            custom_base_reference_name: detail.reference_name,
-          })
+            custom_base_reference: idx === 0 ? detail.reference_doctype : null,
+            custom_base_reference_name: idx === 0 ? detail.reference_name : null,
+          })))
         }
         if (detail.claim_items?.length) {
           setClaimAmount((detail.total_claimed ?? 0).toFixed(3))
@@ -566,6 +649,7 @@ export const CreateInsuranceClaimModal = ({
             non_covered_amount: String(ci.non_covered_amount ?? ''),
             patient_liability: String(ci.patient_liability ?? ''),
             paid_amount: String(ci.paid_amount ?? ''),
+            sales_invoice: ci.sales_invoice || detail.sales_invoice || undefined,
             sales_invoice_item: ci.sales_invoice_item,
           })))
         }
@@ -574,15 +658,6 @@ export const CreateInsuranceClaimModal = ({
       .finally(() => { if (!cancelled) setLoadingClaim(false) })
     return () => { cancelled = true }
   }, [editClaimName])
-
-  // Auto-populate items when invoice is selected
-  useEffect(() => {
-    if (selectedInvoice?.name) {
-      loadInvoiceItems(selectedInvoice.name)
-    } else {
-      setItems([newRow()])
-    }
-  }, [selectedInvoice?.name, loadInvoiceItems])
 
   useEffect(() => {
     if (!selectedCoverageId) return
@@ -617,6 +692,8 @@ export const CreateInsuranceClaimModal = ({
 
   // ─── Submit ───────────────────────────────────────────────────────────────
 
+  const primaryInvoice = selectedInvoices[0] || null
+
   const buildPayload = (submit: boolean) => ({
     ...(editClaimId ? { name: editClaimId } : {}),
     patient: selectedPatient!.name,
@@ -624,9 +701,10 @@ export const CreateInsuranceClaimModal = ({
     status: submit ? 'Submitted' : 'Draft',
     health_insurance: selectedIns?.name || null,
     patient_insurance_coverage: selectedCoverageId || null,
-    sales_invoice: selectedInvoice?.name || null,
-    reference_doctype: selectedInvoice?.custom_base_reference || null,
-    reference_name: selectedInvoice?.custom_base_reference_name || null,
+    sales_invoice: primaryInvoice?.name || null,
+    sales_invoices: selectedInvoices.map(inv => inv.name),
+    reference_doctype: primaryInvoice?.custom_base_reference || null,
+    reference_name: primaryInvoice?.custom_base_reference_name || null,
     submit,
     claim_items: items
       .filter(r => r.item_name.trim() || r.gross_amount)
@@ -640,6 +718,7 @@ export const CreateInsuranceClaimModal = ({
         non_covered_amount: parseFloat(r.non_covered_amount) || 0,
         patient_liability: parseFloat(r.patient_liability) || 0,
         paid_amount: parseFloat(r.paid_amount) || 0,
+        ...(r.sales_invoice ? { sales_invoice: r.sales_invoice } : {}),
         ...(r.sales_invoice_item ? { sales_invoice_item: r.sales_invoice_item } : {}),
       })),
   })
@@ -665,7 +744,7 @@ export const CreateInsuranceClaimModal = ({
     await handleSave(true)
   }
 
-  const itemsFromInvoice = items.some(r => r.sales_invoice_item)
+  const itemsFromInvoice = items.some(r => r.sales_invoice_item || r.sales_invoice)
 
   const tabs = [
     { id: 'info' as const, label: 'Claim Info' },
@@ -720,7 +799,13 @@ export const CreateInsuranceClaimModal = ({
                     <div className="relative">
                       <input
                         type="text"
-                        value={selectedPatient ? (selectedPatient.patient_name || selectedPatient.name) : patientQuery}
+                        value={
+                          selectedPatient
+                            ? selectedPatient.patient_name && selectedPatient.patient_name !== selectedPatient.name
+                              ? `${selectedPatient.patient_name} (${selectedPatient.name})`
+                              : (selectedPatient.patient_name || selectedPatient.name)
+                            : patientQuery
+                        }
                         onChange={e => {
                           setSelectedPatient(null)
                           setPatientQuery(e.target.value)
@@ -728,6 +813,7 @@ export const CreateInsuranceClaimModal = ({
                         }}
                         onFocus={() => setPatientOpen(true)}
                         placeholder="Search patient…"
+                        title={selectedPatient?.name || undefined}
                         className="w-full rounded border border-slate-300 bg-white text-slate-900 px-2.5 py-1.5 text-sm placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
                       />
                       {patientOpen && (
@@ -797,13 +883,14 @@ export const CreateInsuranceClaimModal = ({
 
                 {/* Invoice selection card */}
                 <div className={`${MODAL_SECTION_CLASS} space-y-3`}>
-                  <h3 className={MODAL_SECTION_TITLE_CLASS}>Invoice</h3>
-                  <InvoiceDropdown
+                  <h3 className={MODAL_SECTION_TITLE_CLASS}>Invoices</h3>
+                  <InvoiceMultiSelect
                     invoices={invoices}
-                    selected={selectedInvoice}
+                    selected={selectedInvoices}
                     loading={invoicesLoading}
                     patientSelected={!!selectedPatient}
-                    onSelect={setSelectedInvoice}
+                    onToggle={toggleInvoice}
+                    onClear={clearInvoices}
                   />
                 </div>
 
@@ -834,10 +921,17 @@ export const CreateInsuranceClaimModal = ({
                       />
                     </div>
                   </div>
-                  {selectedInvoice && (
+                  {selectedInvoices.length > 0 && (
                     <p className="text-xs text-slate-500">
-                      Remaining claimable for this invoice:{' '}
-                      <strong>{fmtCurrency(selectedInvoice.remaining_claimable ?? selectedInvoice.outstanding_amount ?? 0)}</strong>
+                      Remaining claimable across selected invoice{selectedInvoices.length === 1 ? '' : 's'}:{' '}
+                      <strong>
+                        {fmtCurrency(
+                          selectedInvoices.reduce(
+                            (s, inv) => s + (inv.remaining_claimable ?? inv.outstanding_amount ?? 0),
+                            0,
+                          ),
+                        )}
+                      </strong>
                     </p>
                   )}
                 </div>
@@ -868,7 +962,13 @@ export const CreateInsuranceClaimModal = ({
                 {itemsFromInvoice && (
                   <div className="rounded-md bg-blue-50 border border-blue-200 px-3 py-2 text-xs text-blue-700 flex items-center gap-2">
                     <FileText className="w-3.5 h-3.5 shrink-0" />
-                    Items loaded from invoice <strong>{selectedInvoice?.name}</strong>. Review qty, rate, discounts, and claim amounts below.
+                    Items loaded from{' '}
+                    <strong>
+                      {selectedInvoices.length > 1
+                        ? `${selectedInvoices.length} invoices`
+                        : (selectedInvoices[0]?.name || 'invoice')}
+                    </strong>
+                    . Review qty, rate, discounts, and claim amounts below.
                   </div>
                 )}
                 {itemsFromInvoice && items.some(r => r.qty) && (
@@ -876,6 +976,9 @@ export const CreateInsuranceClaimModal = ({
                     <table className="min-w-full text-xs">
                       <thead>
                         <tr className="bg-slate-50 text-left">
+                          {selectedInvoices.length > 1 && (
+                            <th className="px-2 py-1.5 font-semibold text-slate-600">Invoice</th>
+                          )}
                           <th className="px-2 py-1.5 font-semibold text-slate-600">Item</th>
                           <th className="px-2 py-1.5 font-semibold text-slate-600 text-right">Qty</th>
                           <th className="px-2 py-1.5 font-semibold text-slate-600 text-right">Rate</th>
@@ -887,6 +990,9 @@ export const CreateInsuranceClaimModal = ({
                       <tbody>
                         {items.filter(r => r.item_name.trim()).map(row => (
                           <tr key={row.id} className="border-t border-slate-100">
+                            {selectedInvoices.length > 1 && (
+                              <td className="px-2 py-1.5 text-slate-500 font-mono">{row.sales_invoice || '—'}</td>
+                            )}
                             <td className="px-2 py-1.5">{row.item_name}</td>
                             <td className="px-2 py-1.5 text-right font-mono">{row.qty || '—'}</td>
                             <td className="px-2 py-1.5 text-right font-mono">{row.rate || '—'}</td>
@@ -913,8 +1019,15 @@ export const CreateInsuranceClaimModal = ({
 
                 {items.map((row, idx) => (
                   <div key={row.id} className="rounded-lg border border-slate-200 bg-slate-50 p-4 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-semibold text-slate-500">Item #{idx + 1}</span>
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="text-xs font-semibold text-slate-500">Item #{idx + 1}</span>
+                        {row.sales_invoice && (
+                          <span className="truncate rounded bg-blue-100 text-blue-700 px-1.5 py-0.5 text-[10px] font-medium">
+                            {row.sales_invoice}
+                          </span>
+                        )}
+                      </div>
                       {items.length > 1 && (
                         <button type="button" onClick={() => removeItem(row.id)}
                           className="text-red-400 hover:text-red-600 p-1 rounded transition-colors">

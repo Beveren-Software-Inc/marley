@@ -334,6 +334,14 @@ export const HealthInsuranceList = ({ refreshKey = 0, showFilters = true }: Prop
                       <Field label="Insurance No" value={detailRow.insurance_no} />
                       <Field label="Default Mode of Payment" value={detailRow.mode_of_payment} />
                       <Field label="Coverage %" value={detailRow.insurance_coverage_ ? `${detailRow.insurance_coverage_}%` : undefined} />
+                      <Field
+                        label="Allows Hospital"
+                        value={
+                          (detail?.doc?.allows_hospital ?? detailRow.allows_hospital)
+                            ? 'Yes'
+                            : 'No'
+                        }
+                      />
                     </div>
                   </div>
                   <div>

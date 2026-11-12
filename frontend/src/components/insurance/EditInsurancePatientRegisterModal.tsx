@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react'
-import { Pencil } from 'lucide-react'
+import { Pencil, X } from 'lucide-react'
 import {
   CM_BTN_CANCEL,
   CM_BTN_PRIMARY,
@@ -16,6 +16,7 @@ import {
 } from '../ui/CreateModalChrome'
 import {
   fetchHealthcareInsurance,
+  fetchPatientOptions,
   updateInsurancePatientRegister,
   type InsurancePatientRegisterRow,
   type LinkFieldOption,
@@ -25,10 +26,16 @@ import { useRejectEditModeWhenLocked } from '../../hooks/useRejectEditModeWhenLo
 import { useBlockIfEditingLocked } from '../../hooks/useBlockIfEditingLocked'
 import {
   linkComboboxDropdownClass,
+  linkComboboxEmptyPanelClass,
   linkComboboxInputWithClearClass,
   linkComboboxOptionClassCompact,
 } from '../ui/linkComboboxStyles'
 import { DateFilterInput } from '../ui/DateFilterInput'
+
+function patientOptionLabel(name: string, patientName?: string | null): string {
+  const label = (patientName || '').trim()
+  return label ? `${label} (${name})` : name
+}
 
 const STATUS_OPTIONS = ['Unused', 'Active', 'Exhausted', 'Expired', 'Cancelled']
 
@@ -59,6 +66,21 @@ export const EditInsurancePatientRegisterModal = ({
     register.approval_validitydays != null ? String(register.approval_validitydays) : ''
   )
   const [noOfVisits, setNoOfVisits] = useState(register.no_of_visits || '')
+  const [selectedPatient, setSelectedPatient] = useState<LinkFieldOption | null>(
+    register.patient
+      ? {
+          name: register.patient,
+          label: patientOptionLabel(register.patient, register.patient_name),
+        }
+      : null,
+  )
+  const [patientOpts, setPatientOpts] = useState<LinkFieldOption[]>([])
+  const [patientOpen, setPatientOpen] = useState(false)
+  const [patientQuery, setPatientQuery] = useState(
+    register.patient
+      ? patientOptionLabel(register.patient, register.patient_name)
+      : '',
+  )
 
   const [insuranceOpts, setInsuranceOpts] = useState<LinkFieldOption[]>([])
   const [insuranceOpen, setInsuranceOpen] = useState(false)
@@ -77,11 +99,43 @@ export const EditInsurancePatientRegisterModal = ({
     setInsuranceOpts(opts)
   }, [])
 
+  const loadPatients = useCallback(async (q?: string) => {
+    const opts = await fetchPatientOptions(q)
+    setPatientOpts(opts)
+  }, [])
+
   useEffect(() => {
     void loadInsurance()
   }, [loadInsurance])
 
-  const closeDropdowns = () => setInsuranceOpen(false)
+  useEffect(() => {
+    const t = setTimeout(() => {
+      if (!patientOpen) return
+      void loadPatients(patientQuery || undefined)
+    }, patientQuery.trim() === '' ? 0 : 300)
+    return () => clearTimeout(t)
+  }, [patientOpen, patientQuery, loadPatients])
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (!(e.target as HTMLElement).closest('[data-ipr-edit-patient-field]')) {
+        setPatientOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  const closeDropdowns = () => {
+    setInsuranceOpen(false)
+    setPatientOpen(false)
+  }
+
+  const clearLinkedPatient = () => {
+    setSelectedPatient(null)
+    setPatientQuery('')
+    setPatientOpts([])
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -110,10 +164,17 @@ export const EditInsurancePatientRegisterModal = ({
         status,
         insurance_provider: selectedInsurance.name,
         approval_id: approvalId.trim() || null,
-        approval_validitydays: approvalValidityDays ? parseInt(approvalValidityDays, 10) : null,
+        approval_validitydays: approvalValidityDays ? parseInt(approvalValidityDays, 10) : 0,
         no_of_visits: noOfVisits.trim() || null,
+        // Explicit null clears; a name links / replaces the linked patient.
+        patient: selectedPatient?.name || null,
       })
-      toast.success(`Register ${register.name} updated`, 3000)
+      toast.success(
+        selectedPatient?.name
+          ? `Register ${register.name} updated`
+          : `Register ${register.name} updated · patient unlinked`,
+        3000,
+      )
       onSuccess?.(updated)
       onClose()
     } catch (err) {
@@ -191,14 +252,61 @@ export const EditInsurancePatientRegisterModal = ({
                   />
                 </div>
 
-                <div>
+                <div data-ipr-edit-patient-field onClick={(e) => e.stopPropagation()}>
                   <label className={MODAL_LABEL_CLASS}>Linked Patient</label>
-                  <input
-                    type="text"
-                    value={register.patient || 'Not linked'}
-                    readOnly
-                    className={`${MODAL_FIELD_CLASS} bg-slate-50 text-slate-600`}
-                  />
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={selectedPatient ? selectedPatient.label : patientQuery}
+                      onChange={(e) => {
+                        setPatientQuery(e.target.value)
+                        setSelectedPatient(null)
+                        setPatientOpen(true)
+                      }}
+                      onFocus={() => {
+                        setPatientOpen(true)
+                        void loadPatients(patientQuery || undefined)
+                      }}
+                      placeholder="Search patient by name…"
+                      className={linkComboboxInputWithClearClass}
+                      title={selectedPatient?.name || undefined}
+                    />
+                    {(selectedPatient || patientQuery) && (
+                      <button
+                        type="button"
+                        onClick={clearLinkedPatient}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-slate-400 hover:bg-slate-200/70 hover:text-slate-700"
+                        title="Clear linked patient"
+                        aria-label="Clear linked patient"
+                      >
+                        <X className="h-3.5 w-3.5" strokeWidth={2.25} />
+                      </button>
+                    )}
+                    {patientOpen && patientOpts.length > 0 && (
+                      <div className={linkComboboxDropdownClass}>
+                        {patientOpts.map((opt) => (
+                          <button
+                            key={opt.name}
+                            type="button"
+                            onClick={() => {
+                              setSelectedPatient(opt)
+                              setPatientQuery(opt.label)
+                              setPatientOpen(false)
+                            }}
+                            className={linkComboboxOptionClassCompact}
+                          >
+                            {opt.label}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    {patientOpen && patientOpts.length === 0 && patientQuery.trim() && !selectedPatient && (
+                      <div className={linkComboboxEmptyPanelClass}>NO PATIENTS FOUND</div>
+                    )}
+                  </div>
+                  <p className="mt-1 text-[11px] text-slate-500">
+                    Search to link another patient, or clear and save to unlink.
+                  </p>
                 </div>
 
                 <div>

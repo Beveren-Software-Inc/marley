@@ -63,11 +63,17 @@ function deriveStatus(approved: number, totalClaimed: number, isRejected: boolea
   return 'Partially Paid'
 }
 
+const LEGACY_STATUS_OPTIONS = ['Submitted', 'Partially Paid', 'Paid', 'Rejected']
+
 function UpdateClaimModal({ row, currency, onClose, onSuccess }: UpdateClaimModalProps) {
   const { userCostCenter } = useCareContext()
+  const isLegacy = Boolean(row.legacy)
   const [totalApproved, setTotalApproved] = useState(String(row.total_approved || ''))
   const [totalRejected, setTotalRejected] = useState(String(row.total_rejected || ''))
   const [isRejected, setIsRejected] = useState(row.status === 'Rejected')
+  const [manualStatus, setManualStatus] = useState(
+    LEGACY_STATUS_OPTIONS.includes(row.status) ? row.status : 'Submitted',
+  )
   const [authNo, setAuthNo] = useState(row.authorization_no || '')
   const [remark, setRemark] = useState(row.remark || '')
   const [modeOfPayment, setModeOfPayment] = useState('')
@@ -80,17 +86,20 @@ function UpdateClaimModal({ row, currency, onClose, onSuccess }: UpdateClaimModa
   const approved = parseFloat(totalApproved) || 0
   const previousApproved = Number(row.total_approved || 0)
   const paymentDelta = Math.max(0, approved - previousApproved)
-  const needsPayment = !isRejected && paymentDelta > 0
-  const previewStatus = deriveStatus(approved, row.total_claimed || 0, isRejected)
+  const needsPayment = !isLegacy && !isRejected && paymentDelta > 0
+  const previewStatus = isLegacy
+    ? manualStatus
+    : deriveStatus(approved, row.total_claimed || 0, isRejected)
 
   useEffect(() => {
+    if (isLegacy) return
     fetchModeOfPayments(userCostCenter)
       .then((modes) => {
         setPaymentModes(modes)
         setModeOfPayment((prev) => (prev && !modes.includes(prev) ? modes[0] || '' : prev))
       })
       .catch(() => setPaymentModes([]))
-  }, [userCostCenter])
+  }, [userCostCenter, isLegacy])
 
   const handleSave = async () => {
     setSaving(true)
@@ -101,7 +110,11 @@ function UpdateClaimModal({ row, currency, onClose, onSuccess }: UpdateClaimModa
       }
       const params = new URLSearchParams({
         claim_name: row.name,
-        ...(isRejected ? { status: 'Rejected' } : {}),
+        ...(isLegacy
+          ? { status: manualStatus }
+          : isRejected
+            ? { status: 'Rejected' }
+            : {}),
         ...(totalApproved !== '' ? { total_approved: totalApproved } : {}),
         ...(totalRejected !== '' ? { total_rejected: totalRejected } : {}),
         authorization_no: authNo,
@@ -144,7 +157,10 @@ function UpdateClaimModal({ row, currency, onClose, onSuccess }: UpdateClaimModa
         <div className="px-5 py-4 border-b border-slate-200 flex items-center justify-between">
           <div>
             <h2 className="text-sm font-semibold text-slate-900">Update Claim — {row.name}</h2>
-            <p className="text-xs text-slate-500 mt-0.5">{row.patient_name || row.patient}</p>
+            <p className="text-xs text-slate-500 mt-0.5">
+              {row.patient_name || row.patient}
+              {isLegacy ? <span className="ml-1.5 text-amber-700">· Legacy</span> : null}
+            </p>
           </div>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600 p-1">
             <X className="w-4 h-4" />
@@ -165,13 +181,33 @@ function UpdateClaimModal({ row, currency, onClose, onSuccess }: UpdateClaimModa
             </div>
           </div>
 
-          {/* Status preview — auto-derived */}
-          <div className="flex items-center justify-between rounded-lg border border-slate-200 px-4 py-2.5">
-            <span className="text-xs text-slate-500">Status will be set to</span>
-            <span className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-semibold ${statusColor}`}>
-              {previewStatus}
-            </span>
-          </div>
+          {isLegacy ? (
+            <div>
+              <label className="block text-xs font-medium text-slate-700 mb-1">Status</label>
+              <select
+                value={manualStatus}
+                onChange={e => {
+                  setManualStatus(e.target.value)
+                  setIsRejected(e.target.value === 'Rejected')
+                }}
+                className="w-full rounded border border-slate-300 px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white"
+              >
+                {LEGACY_STATUS_OPTIONS.map(opt => (
+                  <option key={opt} value={opt}>{opt}</option>
+                ))}
+              </select>
+              <p className="mt-1.5 text-xs text-slate-500">
+                Legacy claims can be marked Paid without recording a payment.
+              </p>
+            </div>
+          ) : (
+            <div className="flex items-center justify-between rounded-lg border border-slate-200 px-4 py-2.5">
+              <span className="text-xs text-slate-500">Status will be set to</span>
+              <span className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-semibold ${statusColor}`}>
+                {previewStatus}
+              </span>
+            </div>
+          )}
 
           {/* Amounts */}
           <div className="grid grid-cols-2 gap-3">
@@ -180,7 +216,10 @@ function UpdateClaimModal({ row, currency, onClose, onSuccess }: UpdateClaimModa
               <input
                 type="number"
                 value={totalApproved}
-                onChange={e => { setTotalApproved(e.target.value); setIsRejected(false) }}
+                onChange={e => {
+                  setTotalApproved(e.target.value)
+                  if (!isLegacy) setIsRejected(false)
+                }}
                 placeholder="0.000" step="0.001" min="0"
                 className="w-full rounded border border-slate-300 px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
               />
@@ -197,7 +236,7 @@ function UpdateClaimModal({ row, currency, onClose, onSuccess }: UpdateClaimModa
             </div>
           </div>
 
-          {!isRejected && (
+          {!isLegacy && !isRejected && (
             <div className="rounded-lg border border-blue-200 bg-blue-50/60 p-3 space-y-3">
               <div>
                 <label className="block text-xs font-medium text-slate-700 mb-1">
@@ -253,16 +292,18 @@ function UpdateClaimModal({ row, currency, onClose, onSuccess }: UpdateClaimModa
             </div>
           )}
 
-          {/* Reject toggle */}
-          <label className="flex items-center gap-2 cursor-pointer select-none">
-            <input
-              type="checkbox"
-              checked={isRejected}
-              onChange={e => setIsRejected(e.target.checked)}
-              className="w-4 h-4 rounded border-slate-300 text-red-600 focus:ring-red-500"
-            />
-            <span className="text-xs font-medium text-red-700">Mark entire claim as Rejected</span>
-          </label>
+          {/* Reject toggle — non-legacy only; legacy uses Status dropdown */}
+          {!isLegacy && (
+            <label className="flex items-center gap-2 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={isRejected}
+                onChange={e => setIsRejected(e.target.checked)}
+                className="w-4 h-4 rounded border-slate-300 text-red-600 focus:ring-red-500"
+              />
+              <span className="text-xs font-medium text-red-700">Mark entire claim as Rejected</span>
+            </label>
+          )}
 
           {/* Authorization No */}
           <div>
@@ -437,7 +478,7 @@ export const InsuranceClaimList = ({
           className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
           onClick={() => { guardClinicalEdit(() => setUpdateTarget(row)); setOpenActionRow(null) }}
         >
-          Update Status &amp; Payment
+          {row.legacy ? 'Update Status' : 'Update Status & Payment'}
         </button>
         {(row.docstatus === 0 || row.status === 'Draft') && onEditDraft && (
           <button

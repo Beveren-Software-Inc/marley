@@ -1,11 +1,11 @@
 """Shared TRICARE / Health Insurance pricing helpers.
 
 - Inclusive Item Detail.price overrides template rate when set
-- Discount applies only to a matching Inclusive Item row
+- Discount applies only to a matching Inclusive Item row with a positive OP/IP %
 - Patient Visit / OP context → that row's outpatient_discount
 - Inpatient Admission / IP context → that row's inpatient_discount
 - Items not on the inclusive list get no insurance discount
-- 0% discount means no discount calculation
+- 0% / blank channel discount means no discount (Discount Apply alone is not required)
 - Category multiplier skipped for insured patients when Healthcare Settings
   Apply Multiplier on Insurance is unticked
 """
@@ -114,12 +114,16 @@ def resolve_item_code_for_template(template_dt: str | None, template_dn: str | N
 
 
 def get_inclusive_discount_pct(insurance_doc, inclusive_row, context: str) -> float:
-	"""Discount % for an Inclusive Item row. Items not on that list get 0."""
+	"""Discount % for an Inclusive Item row. Items not on that list get 0.
+
+	Uses the row's outpatient / inpatient % when set. ``discount_apply`` is honored
+	when the channel % is blank (legacy gate), but a filled % always applies — many
+	imported TRICARE rows have OP/IP % set with Discount Apply left unticked, and
+	the portal UI does not expose that checkbox.
+	"""
 	if not insurance_doc or not inclusive_row:
 		return 0.0
 
-	if not cint(getattr(inclusive_row, "discount_apply", 0)):
-		return 0.0
 	if context == "outpatient":
 		value = getattr(inclusive_row, "outpatient_discount", None)
 	else:
@@ -127,6 +131,7 @@ def get_inclusive_discount_pct(insurance_doc, inclusive_row, context: str) -> fl
 	# Explicit 0 (or blank) on the row → no discount; do not fall back to the plan %
 	if value in (None, ""):
 		return 0.0
+	# Positive channel % applies even when Discount Apply is unticked (common on imports).
 	return flt(value)
 
 
