@@ -57,23 +57,37 @@ def get_file_no_charge_preview() -> dict:
 
 
 def _ensure_patient_customer(patient_name: str) -> str:
+	"""Return a real Customer for billing; heal missing/stale Patient.customer links.
+
+	Some imported patients point at a Customer ID that was never created (or was
+	deleted). Returning that name causes Sales Order insert to fail with
+	"Could not find Customer: …". Always verify existence and recreate/relink
+	to Patient File No when needed.
+	"""
+	if not patient_name:
+		frappe.throw(_("Patient is required"))
+
 	customer = frappe.db.get_value("Patient", patient_name, "customer")
-	if customer:
+	if customer and frappe.db.exists("Customer", customer):
 		return customer
 
-	if frappe.db.get_single_value("Healthcare Settings", "link_customer_to_patient"):
-		from healthcare.healthcare.doctype.patient.patient import create_customer
+	from healthcare.healthcare.doctype.patient.patient import create_customer
 
-		patient_doc = frappe.get_doc("Patient", patient_name)
-		create_customer(patient_doc)
-		patient_doc.reload()
-		customer = patient_doc.customer
+	patient_doc = frappe.get_doc("Patient", patient_name)
+	# Clear broken link so create_customer can assign Customer ID = File No.
+	if customer and not frappe.db.exists("Customer", customer):
+		frappe.db.set_value(
+			"Patient", patient_name, "customer", None, update_modified=False
+		)
+		patient_doc.customer = None
 
-	if not customer:
+	create_customer(patient_doc)
+	patient_doc.reload()
+	customer = patient_doc.customer
+
+	if not customer or not frappe.db.exists("Customer", customer):
 		frappe.throw(
-			_("Patient {0} has no Customer. Enable Link Customer to Patient in Healthcare Settings.").format(
-				patient_name
-			)
+			_("Could not create or link a Customer for Patient {0}.").format(patient_name)
 		)
 	return customer
 
