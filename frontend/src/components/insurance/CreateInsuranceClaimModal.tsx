@@ -391,7 +391,7 @@ export const CreateInsuranceClaimModal = ({
   const loadInvoices = useCallback(async (patientName: string) => {
     setInvoicesLoading(true)
     setInvoices([])
-    setSelectedInvoice(null)
+    setSelectedInvoices([])
     try {
       const res = await fetch(
         `/api/method/healthcare.api.common.get_patient_unpaid_invoices?patient=${encodeURIComponent(patientName)}`
