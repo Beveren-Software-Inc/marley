@@ -2053,6 +2053,9 @@ def get_lab_test_history_matrix(
 	template_cache: dict[str, dict] = {}
 	template_info_cache: dict[str, dict] = {}
 
+	def _result_text(value):
+		return "" if value is None else str(value).strip()
+
 	def _ensure_row(
 		row_key,
 		label,
@@ -2200,7 +2203,7 @@ def get_lab_test_history_matrix(
 					min_value=line_min,
 					max_value=line_max,
 				)
-				value = (line.get("lab_result_value") or "").strip()
+				value = _result_text(line.get("lab_result_value"))
 				if value:
 					cell_eval = _matrix_cell_eval_from_template_info(value, patient_gender, tpl_info)
 					rows_map[row_key]["cells"][col_key] = _matrix_history_cell(value, lt.name, cell_eval)
@@ -2247,7 +2250,7 @@ def get_lab_test_history_matrix(
 					max_value=item_max,
 					normal_range=item.normal_range or "",
 				)
-				value = (item.result_value or "").strip()
+				value = _result_text(item.result_value)
 				if value:
 					cell_eval = _matrix_cell_eval_from_template_info(
 						value, patient_gender, tpl_info, item.normal_range
@@ -2279,7 +2282,7 @@ def get_lab_test_history_matrix(
 				min_value=branch_min,
 				max_value=branch_max,
 			)
-			value = (lt.custom_result or lt.results or "").strip()
+			value = _result_text(lt.custom_result) or _result_text(lt.results)
 			if value:
 				cell_eval = _matrix_cell_eval_from_template_info(value, patient_gender, tpl_info)
 				if cell_eval["flag"] == "neutral" and lt.result_flag:
@@ -2291,7 +2294,7 @@ def get_lab_test_history_matrix(
 				rows_map[row_key]["cells"][col_key] = _matrix_history_cell(value, lt.name, cell_eval)
 
 	rows = sorted(
-		rows_map.values(),
+		(row for row in rows_map.values() if row["cells"]),
 		key=lambda r: (
 			(r.get("group_label") or r.get("group_key") or "\uffff").lower(),
 			(r.get("label") or "").lower(),
