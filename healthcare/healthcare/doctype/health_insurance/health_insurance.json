@@ -19,6 +19,7 @@
   "deductable_amount",
   "outpatient_discount",
   "inpatient_discount",
+  "allows_hospital",
   "discounts_section",
   "special_note",
   "section_break_nmng",
@@ -148,12 +149,18 @@
    "fieldname": "discount_effective_from",
    "fieldtype": "Date",
    "label": "Discount Effective From"
+  },
+  {
+   "default": "0",
+   "fieldname": "allows_hospital",
+   "fieldtype": "Check",
+   "label": "Allows Hospital"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-06-30 23:22:24.171629",
+ "modified": "2026-11-12 02:06:09.466143",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Health Insurance",

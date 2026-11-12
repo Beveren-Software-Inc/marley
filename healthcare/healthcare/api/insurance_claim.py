@@ -73,6 +73,7 @@ def create_insurance_claim_from_invoice(sales_invoice: str) -> str:
             row.reference_doctype = si_item.reference_dt
             row.reference_name = si_item.reference_dn
 
+        row.sales_invoice = inv.name
         row.sales_invoice_item = si_item.item_code
         row.item_name = si_item.item_name or si_item.item_code
 
@@ -130,8 +131,19 @@ def update_insurance_claim_payment(
 		frappe.throw(_("Mode of Payment is required"))
 
 	claim = frappe.get_doc("Insurance Claim", name)
-	inv_name = claim.sales_invoice
-	if not inv_name:
+
+	# Prefer per-line invoices (multi-invoice claims); fall back to header link.
+	invoice_shares = {}
+	for row in claim.claim_items or []:
+		inv = (getattr(row, "sales_invoice", None) or "").strip() or (claim.sales_invoice or "")
+		if not inv:
+			continue
+		invoice_shares[inv] = flt(invoice_shares.get(inv)) + flt(
+			getattr(row, "covered_amount", None) or getattr(row, "gross_amount", None) or 0
+		)
+	if not invoice_shares and claim.sales_invoice:
+		invoice_shares[claim.sales_invoice] = flt(claim.total_claimed or 0)
+	if not invoice_shares:
 		frappe.throw(_("Insurance Claim {0} is not linked to a Sales Invoice").format(claim.name))
 
 	new_total_paid = flt(paid_amount)
@@ -146,27 +158,42 @@ def update_insurance_claim_payment(
 			frappe.throw(_("Reference No and Reference Date are required for bank/cheque payments"))
 
 	pe_name = None
+	pe_names = []
 	if delta > 0:
 		from healthcare.api.payment_entry import create_payment_entry
 
-		pe_payload = {
-			"reference_doctype": "Sales Invoice",
-			"reference_name": inv_name,
-			"paid_amount": delta,
-			"mode_of_payment": mode_of_payment,
-			"patient": claim.patient,
-			"custom_insurance_claim": claim.name,
-			"remarks": _("Insurance Claim {0} payment update").format(claim.name),
-		}
-		if claim.health_insurance:
-			pe_payload["custom_insurance_company"] = claim.health_insurance
-		if reference_no:
-			pe_payload["reference_no"] = reference_no.strip()
-		if reference_date:
-			pe_payload["reference_date"] = reference_date
+		share_total = sum(flt(v) for v in invoice_shares.values()) or flt(delta)
+		allocated = 0.0
+		invoice_names = list(invoice_shares.keys())
+		for idx, inv_name in enumerate(invoice_names):
+			if idx == len(invoice_names) - 1:
+				portion = flt(delta) - allocated
+			else:
+				portion = flt(delta) * (flt(invoice_shares[inv_name]) / share_total)
+				portion = flt(portion)
+				allocated += portion
+			if portion <= 0:
+				continue
+			pe_payload = {
+				"reference_doctype": "Sales Invoice",
+				"reference_name": inv_name,
+				"paid_amount": portion,
+				"mode_of_payment": mode_of_payment,
+				"patient": claim.patient,
+				"custom_insurance_claim": claim.name,
+				"remarks": _("Insurance Claim {0} payment update").format(claim.name),
+			}
+			if claim.health_insurance:
+				pe_payload["custom_insurance_company"] = claim.health_insurance
+			if reference_no:
+				pe_payload["reference_no"] = reference_no.strip()
+			if reference_date:
+				pe_payload["reference_date"] = reference_date
 
-		pe_info = create_payment_entry(pe_payload)
-		pe_name = pe_info.get("name")
+			pe_info = create_payment_entry(pe_payload)
+			if pe_info.get("name"):
+				pe_names.append(pe_info["name"])
+		pe_name = pe_names[0] if pe_names else None
 	elif delta < 0:
 		frappe.throw(
 			_("Reducing approved amount is not supported from payment update. Current approved: {0}").format(
@@ -191,6 +218,7 @@ def update_insurance_claim_payment(
 	return {
 		"insurance_claim": claim.name,
 		"payment_entry": pe_name,
+		"payment_entries": pe_names,
 		"total_approved": flt(claim.total_approved),
 		"status": claim.status,
 	}
