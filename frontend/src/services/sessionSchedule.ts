@@ -3,6 +3,7 @@ export interface SessionSchedule {
   date?: string
   admission_number?: string
   patient_num?: string
+  patient_name?: string | null
   patient_visit?: string
   session_type?: string
   session_name?: string

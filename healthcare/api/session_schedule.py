@@ -498,6 +498,18 @@ def get_session_schedules(
 
 	fill_missing_practitioner_names(schedules, SESSION_SCHEDULE_PRACTITIONER_NAME_FIELDS)
 
+	patient_ids = {row["patient_num"] for row in schedules if row.get("patient_num")}
+	if patient_ids and frappe.has_permission("Patient", "read"):
+		patients = frappe.get_list(
+			"Patient",
+			filters={"name": ["in", sorted(patient_ids)]},
+			fields=["name", "patient_name"],
+			limit_page_length=len(patient_ids),
+		)
+		patient_names = {row["name"]: row["patient_name"] for row in patients}
+		for row in schedules:
+			row["patient_name"] = patient_names.get(row.get("patient_num"))
+
 	return {
 		"data": _attach_sales_orders(schedules),
 		"total_count": int(total_count or 0),

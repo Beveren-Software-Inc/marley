@@ -413,6 +413,7 @@ export const SessionScheduleList = ({ refreshKey, patient, admissionNumber, embe
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Session ID</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Patient</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Session Name</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Service Template</th>
                 <th className="px-4 py-3 text-right text-xs font-semibold text-slate-600 uppercase">Amount</th>
@@ -434,6 +435,10 @@ export const SessionScheduleList = ({ refreshKey, patient, admissionNumber, embe
                 >
                   <td className="px-4 py-3 text-sm font-medium text-primary hover:underline">
                     {schedule.name}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-slate-700">
+                    <div className="font-medium">{schedule.patient_name || '—'}</div>
+                    {schedule.patient_num && <div className="text-xs text-slate-500">{schedule.patient_num}</div>}
                   </td>
                   <td className="px-4 py-3 text-sm text-slate-700">
                     {schedule.session_name || '—'}
