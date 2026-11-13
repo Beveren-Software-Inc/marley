@@ -76,7 +76,7 @@ from healthcare.api.op_prescription_cleanup import (
 	_normalize_code,
 	_resolve_import_patients,
 )
-from healthcare.api.oracle_excel_source import excel_source, normalize_files
+from healthcare.api.oracle_excel_source import current_source, excel_source, normalize_files
 from healthcare.api.oracle_sync import _fetch_rows, _in_clause, _oracle_schema, _query
 from healthcare.api.patient_info_import import _require_admin
 from healthcare.api.patient_medication_order_import import (
@@ -542,16 +542,56 @@ def _erp_patients_for_keys(patient_keys: list[str]) -> list[str]:
 	return sorted(names)
 
 
+def _source_has_column(table: str, column: str) -> bool:
+	"""True when Oracle live (assume full CLINIC2), or the Excel sheet actually has the column.
+
+	Partial Excel exports often omit PATIENT_NUM / PATIENT_FILE_NO; patient filtering
+	must then fall back to ERPNext visit / admission numbers matched by VISIT_CD /
+	ADMISSION_NUM instead of throwing ``no such column``.
+	"""
+	column = (column or "").strip().upper()
+	if not column:
+		return False
+	source = current_source()
+	if source is None:
+		return True
+	return column in {(name or "").upper() for name in source.columns(table)}
+
+
+def _oracle_keys_in_chunks(
+	table: str, column: str, candidates: list[str], *, extra_where: str = ""
+) -> set[str]:
+	"""Intersect candidate keys with rows that exist in the Oracle / Excel table."""
+	found: set[str] = set()
+	chunk_size = 200
+	extra = f" {extra_where}" if extra_where else ""
+	for i in range(0, len(candidates), chunk_size):
+		chunk = candidates[i : i + chunk_size]
+		if not chunk:
+			continue
+		rows = _query(
+			f"select distinct {column} from {_oracle_schema()}.{table} "
+			f"where {column} in ({_in_clause(chunk)}){extra}"
+		)
+		found.update(_clean_oracle_num(row.get(column)) for row in rows or [])
+	return {key for key in found if key}
+
+
 def _visit_keys_for_patient(patient_keys: list[str]) -> list[str]:
 	"""Oracle OP + HIS visit numbers for this patient (plus ERPNext visits that still have Oracle rows)."""
 	keys: set[str] = set()
-	where = f"PATIENT_FILE_NO in ({_in_clause(patient_keys)}) and VISIT_CD is not null"
+	# Prefer PATIENT_FILE_NO when the source has it (live Oracle / full Excel export).
 	for table, extra in ((OP_TABLE, ""), (HS_TABLE, " and MEDICINE_CD is not null")):
+		if not _source_has_column(table, "PATIENT_FILE_NO"):
+			continue
 		rows = _query(
-			f"select distinct VISIT_CD from {_oracle_schema()}.{table} where {where}{extra}"
+			f"select distinct VISIT_CD from {_oracle_schema()}.{table} "
+			f"where PATIENT_FILE_NO in ({_in_clause(patient_keys)}) "
+			f"and VISIT_CD is not null{extra}"
 		)
 		keys.update(_clean_oracle_num(row.get("VISIT_CD")) for row in rows or [])
 
+	# Excel sheets often omit PATIENT_FILE_NO — resolve visits from ERPNext instead.
 	erp_patients = _erp_patients_for_keys(patient_keys)
 	if erp_patients:
 		erp_visits = frappe.get_all(
@@ -561,15 +601,12 @@ def _visit_keys_for_patient(patient_keys: list[str]) -> list[str]:
 			limit_page_length=0,
 		)
 		erp_visit_keys = [_clean_oracle_num(v) or v for v in erp_visits if v]
-		chunk_size = 200
-		for i in range(0, len(erp_visit_keys), chunk_size):
-			chunk = erp_visit_keys[i : i + chunk_size]
-			for table, extra in ((OP_TABLE, ""), (HS_TABLE, " and MEDICINE_CD is not null")):
-				found = _query(
-					f"select distinct VISIT_CD from {_oracle_schema()}.{table} "
-					f"where VISIT_CD in ({_in_clause(chunk)}){extra}"
+		for table, extra in ((OP_TABLE, ""), (HS_TABLE, " and MEDICINE_CD is not null")):
+			keys.update(
+				_oracle_keys_in_chunks(
+					table, "VISIT_CD", erp_visit_keys, extra_where=extra.lstrip()
 				)
-				keys.update(_clean_oracle_num(row.get("VISIT_CD")) for row in found or [])
+			)
 
 	return sorted((key for key in keys if key), key=_numeric_sort_key)
 
@@ -577,11 +614,14 @@ def _visit_keys_for_patient(patient_keys: list[str]) -> list[str]:
 def _admission_keys_for_patient(patient_keys: list[str]) -> list[str]:
 	"""Oracle IP admission numbers for this patient (plus ERPNext admissions that still have Oracle rows)."""
 	keys: set[str] = set()
-	rows = _query(
-		f"select distinct ADMISSION_NUM from {_oracle_schema()}.{IP_TABLE} "
-		f"where PATIENT_NUM in ({_in_clause(patient_keys)}) and ADMISSION_NUM is not null"
-	)
-	keys.update(_clean_oracle_num(row.get("ADMISSION_NUM")) for row in rows or [])
+	# Prefer PATIENT_NUM when present; partial Excel exports of IP_ADMISSION_MEDICINE
+	# often only carry ADMISSION_NUM + MEDICINE_NUM.
+	if _source_has_column(IP_TABLE, "PATIENT_NUM"):
+		rows = _query(
+			f"select distinct ADMISSION_NUM from {_oracle_schema()}.{IP_TABLE} "
+			f"where PATIENT_NUM in ({_in_clause(patient_keys)}) and ADMISSION_NUM is not null"
+		)
+		keys.update(_clean_oracle_num(row.get("ADMISSION_NUM")) for row in rows or [])
 
 	erp_patients = _erp_patients_for_keys(patient_keys)
 	if erp_patients:
@@ -592,16 +632,7 @@ def _admission_keys_for_patient(patient_keys: list[str]) -> list[str]:
 			limit_page_length=0,
 		)
 		erp_adm_keys = [_clean_oracle_num(a) or a for a in erp_admissions if a]
-		if erp_adm_keys:
-			# Prefer a targeted Oracle lookup over loading every admission key.
-			chunk_size = 200
-			for i in range(0, len(erp_adm_keys), chunk_size):
-				chunk = erp_adm_keys[i : i + chunk_size]
-				found = _query(
-					f"select distinct ADMISSION_NUM from {_oracle_schema()}.{IP_TABLE} "
-					f"where ADMISSION_NUM in ({_in_clause(chunk)})"
-				)
-				keys.update(_clean_oracle_num(row.get("ADMISSION_NUM")) for row in found or [])
+		keys.update(_oracle_keys_in_chunks(IP_TABLE, "ADMISSION_NUM", erp_adm_keys))
 
 	return sorted((key for key in keys if key), key=_numeric_sort_key)
 
