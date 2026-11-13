@@ -4,8 +4,8 @@ This is the prescription counterpart of ``healthcare.api.oracle_sync`` (the
 ``IP Admission`` button): it reads the legacy prescriptions straight from the
 Oracle database that is already configured for the site, compares them with the
 Patient Medication Orders in ERPNext and repairs whatever does not match. No
-workbook has to be uploaded and no patient has to be picked - one click, the
-whole site, in the background.
+workbook has to be uploaded. Leave Patient empty to compare the whole site, or
+pick one patient to repair only that patient's OP / HIS / IP prescriptions.
 
 What one run does
 -----------------
@@ -492,20 +492,137 @@ def _build_work_limit(
 	return visits, admissions
 
 
-def _build_work(limit: int = 0) -> dict:
-	visits = sorted(
-		set(_distinct_keys(OP_TABLE, "VISIT_CD")) | set(_hs_visit_keys()),
-		key=_numeric_sort_key,
+def _resolve_patient_keys(patient: str | None) -> list[str] | None:
+	"""Patient id variants for Oracle PATIENT_FILE_NO / PATIENT_NUM, or None for all patients."""
+	patient = (patient or "").strip()
+	if not patient:
+		return None
+	keys: set[str] = set()
+	cleaned = _clean_oracle_num(patient)
+	if cleaned:
+		keys.add(cleaned)
+	if frappe.db.exists("Patient", patient):
+		keys.add(_clean_oracle_num(patient) or patient)
+		file_no = frappe.db.get_value("Patient", patient, "file_no")
+		if file_no:
+			keys.add(_clean_oracle_num(file_no) or str(file_no).strip())
+	else:
+		for row in frappe.get_all(
+			"Patient",
+			filters={"file_no": patient},
+			fields=["name", "file_no"],
+			limit=5,
+		):
+			if row.name:
+				keys.add(_clean_oracle_num(row.name) or row.name)
+			if row.file_no:
+				keys.add(_clean_oracle_num(row.file_no) or str(row.file_no).strip())
+	return sorted(k for k in keys if k) or None
+
+
+def _erp_patients_for_keys(patient_keys: list[str]) -> list[str]:
+	"""ERPNext Patient names matching the Oracle patient key variants."""
+	names: set[str] = set()
+	for key in patient_keys or []:
+		if frappe.db.exists("Patient", key):
+			names.add(key)
+	if patient_keys:
+		for name in frappe.get_all(
+			"Patient",
+			filters={"file_no": ["in", list(patient_keys)]},
+			pluck="name",
+		):
+			names.add(name)
+		for name in frappe.get_all(
+			"Patient",
+			filters={"name": ["in", list(patient_keys)]},
+			pluck="name",
+		):
+			names.add(name)
+	return sorted(names)
+
+
+def _visit_keys_for_patient(patient_keys: list[str]) -> list[str]:
+	"""Oracle OP + HIS visit numbers for this patient (plus ERPNext visits that still have Oracle rows)."""
+	keys: set[str] = set()
+	where = f"PATIENT_FILE_NO in ({_in_clause(patient_keys)}) and VISIT_CD is not null"
+	for table, extra in ((OP_TABLE, ""), (HS_TABLE, " and MEDICINE_CD is not null")):
+		rows = _query(
+			f"select distinct VISIT_CD from {_oracle_schema()}.{table} where {where}{extra}"
+		)
+		keys.update(_clean_oracle_num(row.get("VISIT_CD")) for row in rows or [])
+
+	erp_patients = _erp_patients_for_keys(patient_keys)
+	if erp_patients:
+		erp_visits = frappe.get_all(
+			"Patient Visit",
+			filters={"patient": ["in", erp_patients]},
+			pluck="name",
+			limit_page_length=0,
+		)
+		erp_visit_keys = [_clean_oracle_num(v) or v for v in erp_visits if v]
+		chunk_size = 200
+		for i in range(0, len(erp_visit_keys), chunk_size):
+			chunk = erp_visit_keys[i : i + chunk_size]
+			for table, extra in ((OP_TABLE, ""), (HS_TABLE, " and MEDICINE_CD is not null")):
+				found = _query(
+					f"select distinct VISIT_CD from {_oracle_schema()}.{table} "
+					f"where VISIT_CD in ({_in_clause(chunk)}){extra}"
+				)
+				keys.update(_clean_oracle_num(row.get("VISIT_CD")) for row in found or [])
+
+	return sorted((key for key in keys if key), key=_numeric_sort_key)
+
+
+def _admission_keys_for_patient(patient_keys: list[str]) -> list[str]:
+	"""Oracle IP admission numbers for this patient (plus ERPNext admissions that still have Oracle rows)."""
+	keys: set[str] = set()
+	rows = _query(
+		f"select distinct ADMISSION_NUM from {_oracle_schema()}.{IP_TABLE} "
+		f"where PATIENT_NUM in ({_in_clause(patient_keys)}) and ADMISSION_NUM is not null"
 	)
-	visits, admissions = _build_work_limit(
-		visits,
-		_distinct_keys(IP_TABLE, "ADMISSION_NUM"),
-		cint(limit),
-	)
+	keys.update(_clean_oracle_num(row.get("ADMISSION_NUM")) for row in rows or [])
+
+	erp_patients = _erp_patients_for_keys(patient_keys)
+	if erp_patients:
+		erp_admissions = frappe.get_all(
+			"Inpatient Admission",
+			filters={"patient": ["in", erp_patients]},
+			pluck="name",
+			limit_page_length=0,
+		)
+		erp_adm_keys = [_clean_oracle_num(a) or a for a in erp_admissions if a]
+		if erp_adm_keys:
+			# Prefer a targeted Oracle lookup over loading every admission key.
+			chunk_size = 200
+			for i in range(0, len(erp_adm_keys), chunk_size):
+				chunk = erp_adm_keys[i : i + chunk_size]
+				found = _query(
+					f"select distinct ADMISSION_NUM from {_oracle_schema()}.{IP_TABLE} "
+					f"where ADMISSION_NUM in ({_in_clause(chunk)})"
+				)
+				keys.update(_clean_oracle_num(row.get("ADMISSION_NUM")) for row in found or [])
+
+	return sorted((key for key in keys if key), key=_numeric_sort_key)
+
+
+def _build_work(limit: int = 0, patient: str | None = None) -> dict:
+	patient_keys = _resolve_patient_keys(patient)
+	if patient_keys:
+		visits = _visit_keys_for_patient(patient_keys)
+		admissions = _admission_keys_for_patient(patient_keys)
+	else:
+		visits = sorted(
+			set(_distinct_keys(OP_TABLE, "VISIT_CD")) | set(_hs_visit_keys()),
+			key=_numeric_sort_key,
+		)
+		admissions = _distinct_keys(IP_TABLE, "ADMISSION_NUM")
+	visits, admissions = _build_work_limit(visits, admissions, cint(limit))
 	return {
 		"visits": visits,
 		"admissions": admissions,
 		"limit": limit,
+		"patient": (patient or "").strip() or None,
 		"built_at": str(now_datetime()),
 	}
 
@@ -699,31 +816,45 @@ def _queue_next(token: str, files: Any = None) -> None:
 
 
 def _run(
-	token: str, resume: int, limit: int, dry_run: int = 0, files: Any = None
+	token: str,
+	resume: int,
+	limit: int,
+	dry_run: int = 0,
+	files: Any = None,
+	patient: str | None = None,
 ) -> dict[str, Any]:
 	"""Read Oracle live, or from the uploaded Excel export, then reconcile."""
 	progress = _load_progress() if resume else None
 	files = normalize_files(files) or (progress or {}).get("files") or None
+	patient = (patient or "").strip() or (progress or {}).get("patient") or None
 	with excel_source(files, tables=ORACLE_TABLES):
-		return _run_with_source(token, resume, limit, dry_run, files)
+		return _run_with_source(token, resume, limit, dry_run, files, patient=patient)
 
 
 def _run_with_source(
-	token: str, resume: int, limit: int, dry_run: int = 0, files: Any = None
+	token: str,
+	resume: int,
+	limit: int,
+	dry_run: int = 0,
+	files: Any = None,
+	patient: str | None = None,
 ) -> dict[str, Any]:
 	started = time.monotonic()
+	patient = (patient or "").strip() or None
 	if resume:
 		progress = _load_progress() or _new_progress()
 		work = _load_work()
+		patient = patient or progress.get("patient") or (work or {}).get("patient")
 	else:
 		progress = _new_progress()
 		progress["dry_run"] = cint(dry_run)
-		work = _build_work(limit)
+		progress["patient"] = patient
+		work = _build_work(limit, patient=patient)
 		_set_work(work)
 
 	if not work:
 		# The work list expired (cache cleared) - rebuild it instead of doing nothing.
-		work = _build_work(limit)
+		work = _build_work(limit, patient=patient or progress.get("patient"))
 		_set_work(work)
 
 	visits: list[str] = work.get("visits") or []
@@ -787,6 +918,10 @@ def _run_with_source(
 def _summary_message(progress: dict) -> str:
 	lines = [
 		_("Reconcile Prescriptions finished."),
+	]
+	if progress.get("patient"):
+		lines.append(_("Patient: {0}").format(progress.get("patient")))
+	lines.extend([
 		"",
 		_("OP - PATIENT_VISIT_PRESCRIPTION"),
 		_("Visits checked: {0} (complete: {1})").format(
@@ -835,7 +970,7 @@ def _summary_message(progress: dict) -> str:
 		_("Admissions not found in ERPNext: {0}").format(
 			cint(progress.get("ip_unresolved_admissions"))
 		),
-	]
+	])
 	if progress.get("dry_run"):
 		lines.insert(1, _("DRY RUN - nothing was changed."))
 	if progress.get("failed"):
@@ -856,10 +991,17 @@ def _summary_message(progress: dict) -> str:
 
 
 @frappe.whitelist()
-def start_prescription_reconcile(limit: int = 0, dry_run: int = 0, files=None) -> dict[str, Any]:
-	"""Queue one reconciliation of every OP and IP prescription (button entry point)."""
+def start_prescription_reconcile(
+	limit: int = 0, dry_run: int = 0, files=None, patient: str | None = None
+) -> dict[str, Any]:
+	"""Queue one reconciliation of OP / HIS / IP prescriptions (button entry point).
+
+	Leave ``patient`` empty to compare the whole site; pass a Patient name or
+	file number to repair only that patient's prescriptions.
+	"""
 	_require_admin()
 	files = normalize_files(files)
+	patient = (patient or "").strip() or None
 	if _lock_held():
 		return {
 			"queued": False,
@@ -872,12 +1014,22 @@ def start_prescription_reconcile(limit: int = 0, dry_run: int = 0, files=None) -
 	progress["state"] = "queued"
 	progress["dry_run"] = cint(dry_run)
 	progress["limit"] = cint(limit)
+	progress["patient"] = patient
 	progress["files"] = files
-	progress["message"] = (
-		_("Queued. The uploaded Excel export is read in the background.")
-		if files
-		else _("Queued. Oracle is read in the background.")
-	)
+	if patient:
+		progress["message"] = (
+			_("Queued for patient {0}. The uploaded Excel export is read in the background.").format(
+				patient
+			)
+			if files
+			else _("Queued for patient {0}. Oracle is read in the background.").format(patient)
+		)
+	else:
+		progress["message"] = (
+			_("Queued. The uploaded Excel export is read in the background.")
+			if files
+			else _("Queued. Oracle is read in the background.")
+		)
 	_set_progress(progress)
 
 	frappe.enqueue(
@@ -887,6 +1039,7 @@ def start_prescription_reconcile(limit: int = 0, dry_run: int = 0, files=None) -
 		limit=cint(limit),
 		dry_run=cint(dry_run),
 		files=files,
+		patient=patient,
 	)
 	return {"queued": True, "job_key": JOB_KEY, "status": progress}
 
@@ -910,6 +1063,7 @@ def run_prescription_reconcile(
 	token: str | None = None,
 	dry_run: int = 0,
 	files: Any = None,
+	patient: str | None = None,
 ) -> dict[str, Any]:
 	"""Background entry point (also callable inline from the bench console)."""
 	if cint(resume):
@@ -928,7 +1082,14 @@ def run_prescription_reconcile(
 
 	outcome: dict[str, Any] = {}
 	try:
-		outcome = _run(token, cint(resume), cint(limit), cint(dry_run), files)
+		outcome = _run(
+			token,
+			cint(resume),
+			cint(limit),
+			cint(dry_run),
+			files,
+			patient=patient,
+		)
 	except Exception:
 		progress = _load_progress() or _new_progress()
 		progress["state"] = "failed"

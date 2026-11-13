@@ -9935,14 +9935,14 @@ function oracle_sync_escape(value) {
  * own transaction (patient_visit_prescription_his). HIS lines that also exist on
  * PATIENT_VISIT_PRESCRIPTION are kept and flagged Is Deduplicate on the child
  * (Hide Deduplicate Prescription on Healthcare Settings hides them on the UI).
- * The work runs in a background job.
+ * Leave Patient empty for the whole site, or pick one patient. Runs in the background.
  */
 function open_prescription_reconcile(frm) {
 	ask_oracle_source({
 		title: __('Reconcile Prescriptions'),
 		entity: 'prescriptions',
 		intro: `<p class="text-muted small">${__(
-			'Reads the legacy OP, HIS and IP prescriptions and repairs the Patient Medication Orders in ERPNext: creates the prescription of every visit that never imported, adds the medicine lines missing on an existing prescription, imports every PATIENT_VISIT_PRESCRIPTION_HIS row as a transaction and creates the missing inpatient lines.'
+			'Reads the legacy OP, HIS and IP prescriptions and repairs the Patient Medication Orders in ERPNext: creates the prescription of every visit that never imported, adds the medicine lines missing on an existing prescription, imports every PATIENT_VISIT_PRESCRIPTION_HIS row as a transaction and creates the missing inpatient lines. Leave Patient empty for the whole site, or pick one patient.'
 		)}</p>`,
 		on_direct: () => show_prescription_reconcile_help(frm),
 		on_excel: (files) => show_prescription_reconcile_help(frm, files),
@@ -9981,28 +9981,43 @@ function show_prescription_reconcile_help(frm, files) {
 					+ '</li></ul>'
 					+ '<p class="text-muted small">'
 					+ __(
-						'No patient has to be picked: the whole site is compared in the background. HIS duplicates are no longer deleted. Running it again only finds what is still missing.'
+						'Leave Patient empty to compare the whole site in the background. Pick a patient to repair only that patient. HIS duplicates are no longer deleted. Running it again only finds what is still missing.'
 					)
 					+ '</p>',
+			},
+			{
+				fieldtype: 'Link',
+				fieldname: 'patient',
+				label: __('Patient'),
+				options: 'Patient',
+				description: __('Leave empty to reconcile every patient.'),
 			},
 		],
 		primary_action_label: __('Start'),
 		primary_action() {
+			const patient = dialog.get_value('patient') || '';
 			dialog.hide();
-			start_prescription_reconcile(frm, files);
+			start_prescription_reconcile(frm, files, patient);
 		},
 	});
 	dialog.show();
 }
 
-function start_prescription_reconcile(frm, files) {
+function start_prescription_reconcile(frm, files, patient) {
+	const args = {};
+	if (files) {
+		args.files = JSON.stringify(files);
+	}
+	if (patient) {
+		args.patient = patient;
+	}
 	frappe.call({
 		method: 'healthcare.api.prescription_sync.start_prescription_reconcile',
-		args: files ? { files: JSON.stringify(files) } : {},
+		args: args,
 		callback(r) {
 			const result = r.message || {};
 			if (result.queued || result.running) {
-				track_prescription_reconcile(frm);
+				track_prescription_reconcile(frm, patient);
 				return;
 			}
 			frappe.msgprint({
@@ -10014,9 +10029,11 @@ function start_prescription_reconcile(frm, files) {
 	});
 }
 
-function track_prescription_reconcile(frm) {
+function track_prescription_reconcile(frm, patient) {
 	let polls = 0;
-	const title = __('Reconciling prescriptions from Oracle');
+	const title = patient
+		? __('Reconciling prescriptions for {0}', [patient])
+		: __('Reconciling prescriptions from Oracle');
 	frappe.show_progress(title, 0, 100, __('Reading Oracle…'));
 
 	const timer = setInterval(() => {
