@@ -606,12 +606,14 @@
    "fieldname": "nationality",
    "fieldtype": "Link",
    "label": "Nationality",
-   "options": "Nationality"
+   "options": "Nationality",
+   "reqd": 1
   },
   {
    "fieldname": "id_number",
    "fieldtype": "Data",
-   "label": "CPR/Passport/ID Number"
+   "label": "CPR/Passport/ID Number",
+   "reqd": 1
   },
   {
    "fieldname": "section_break_zota",
@@ -1205,7 +1207,7 @@
   }
  ],
  "max_attachments": 50,
- "modified": "2026-08-23 19:05:50.474466",
+ "modified": "2026-11-19 12:25:57.480881",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Patient",

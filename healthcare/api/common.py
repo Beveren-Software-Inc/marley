@@ -890,7 +890,7 @@ def get_lead_sources(search=None):
 	filters = {}
 	
 	if search:
-		filters['source_name'] = ['like', f'%{search}%']
+		filters['source'] = ['like', f'%{search}%']
 	
 	sources = frappe.get_all(
 		'Patient Source',

@@ -459,6 +459,16 @@ export const CreatePatientModal = ({ onClose, onSuccess, initialName, initialMob
       setActiveTab('details')
       return
     }
+    if (!(formData.id_number || '').trim()) {
+      setError('CPR / ID / Passport No. is required')
+      setActiveTab('details')
+      return
+    }
+    if (!(formData.nationality || '').trim()) {
+      setError('Please select a nationality')
+      setActiveTab('details')
+      return
+    }
     if (!formData.mobile && !formData.phone) {
       setError('At least one Contact No. (Mobile or Phone) is required')
       setActiveTab('details')
@@ -700,18 +710,28 @@ export const CreatePatientModal = ({ onClose, onSuccess, initialName, initialMob
   }, [])
 
   useEffect(() => {
+    const query = sourceQuery.trim()
+    if (query.length === 1) {
+      setSourceOptions([])
+      return
+    }
     if (!sourceOpen) return
+    let cancelled = false
+    setSourceOptions([])
     const search = async () => {
       try {
-        const results = await fetchLeadSources(sourceQuery)
-        setSourceOptions(results)
+        const results = await fetchLeadSources(query || undefined)
+        if (!cancelled) setSourceOptions(results)
       } catch (err) {
         console.error('Failed to search sources:', err)
-        setSourceOptions([])
+        if (!cancelled) setSourceOptions([])
       }
     }
-    const timeoutId = setTimeout(() => { search() }, sourceQuery.trim() === '' ? 0 : 300)
-    return () => clearTimeout(timeoutId)
+    const timeoutId = setTimeout(() => { search() }, query === '' ? 0 : 300)
+    return () => {
+      cancelled = true
+      clearTimeout(timeoutId)
+    }
   }, [sourceQuery, sourceOpen])
 
   const handleSourceSelect = (source: LinkFieldOption) => {
@@ -993,13 +1013,13 @@ export const CreatePatientModal = ({ onClose, onSuccess, initialName, initialMob
                   <h3 className="text-xs font-bold uppercase tracking-widest text-blue-600 mb-3 mt-2">Identification</h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">CPR / ID / Passport No.</label>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">CPR / ID / Passport No. <span className="text-red-500">*</span></label>
                       <input type="text" value={formData.id_number} onChange={(e) => handleChange('id_number', e.target.value)}
                         placeholder="CPR / ID / Passport (unlimited digits)"
                         className="w-full rounded-md border border-slate-300 bg-white text-slate-900 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">Nationality</label>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Nationality <span className="text-red-500">*</span></label>
                       <div className="relative flex items-center">
                         <input type="text"
                           value={selectedNationality ? selectedNationality.label : nationalityQuery}
@@ -1078,7 +1098,7 @@ export const CreatePatientModal = ({ onClose, onSuccess, initialName, initialMob
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                           </svg>
                         </button>
-                        {sourceOpen && sourceOptions.length > 0 && (
+                        {sourceOpen && sourceQuery.trim().length !== 1 && sourceOptions.length > 0 && (
                           <div className="absolute z-10 w-full mt-1 bg-white text-slate-900 border border-slate-300 rounded-md shadow-lg max-h-60 overflow-y-auto top-full">
                             {sourceOptions.map((source) => (
                               <button key={source.name} type="button" onClick={() => handleSourceSelect(source)}
