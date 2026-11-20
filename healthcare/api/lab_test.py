@@ -2293,11 +2293,39 @@ def get_lab_test_history_matrix(
 						pass
 				rows_map[row_key]["cells"][col_key] = _matrix_history_cell(value, lt.name, cell_eval)
 
+	# Template child idx is the configured clinical sequence, for both compound
+	# analytes and grouped child templates (including legacy template-ID rows).
+	group_orders = {}
+	for row in rows_map.values():
+		group = row.get("group_key")
+		if not group or group in group_orders:
+			continue
+		order = {}
+		for child in frappe.get_all(
+			"Lab Test Group Template",
+			filters={"parent": group, "parenttype": "Lab Test Template"},
+			fields=["lab_test_template"],
+			order_by="idx asc",
+		):
+			template_id = (child.lab_test_template or "").strip()
+			if not template_id:
+				continue
+			position = len(order)
+			order.setdefault(template_id.lower(), position)
+			label = _lab_test_template_name(template_id, template_info_cache)
+			if label:
+				order.setdefault(label.lower(), position)
+		for event in _template_analyte_cache(group, template_cache)["events"]:
+			order.setdefault(event, len(order))
+		group_orders[group] = order
+
 	rows = sorted(
 		(row for row in rows_map.values() if row["cells"]),
 		key=lambda r: (
 			(r.get("group_label") or r.get("group_key") or "\uffff").lower(),
-			(r.get("label") or "").lower(),
+			group_orders.get(r.get("group_key"), {}).get(r["key"], float("inf"))
+			if r.get("group_key") else 0,
+			"" if r.get("group_key") else (r.get("label") or "").lower(),
 		),
 	)
 	columns = sorted(columns_by_date.values(), key=lambda c: c["date"])
