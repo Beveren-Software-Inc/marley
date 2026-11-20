@@ -207,10 +207,8 @@ function buildGroupedMatrixRows(rows: LabHistoryMatrixRow[]): MatrixDisplayRow[]
   )
   for (const [gk, g] of groupEntries) {
     out.push({ kind: 'group', key: `group::${gk}`, label: g.label })
-    const children = [...g.children].sort((a, b) =>
-      a.label.localeCompare(b.label, undefined, { sensitivity: 'base' }),
-    )
-    for (const child of children) {
+    // The API orders child results by their Lab Test Template sequence.
+    for (const child of g.children) {
       out.push({ kind: 'test', row: child, indented: true })
     }
   }
