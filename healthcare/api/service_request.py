@@ -6,14 +6,14 @@ import json
 
 import frappe
 from frappe import _
-from frappe.utils import cint, cstr, flt, nowdate, strip_html
+from frappe.utils import cint, cstr, flt, get_datetime, now_datetime, nowdate, strip_html
 
 from healthcare.api.portal_errors import portal_mandatory_message, portal_validation_message
 from healthcare.api.sales_order_cost_center import (
 	apply_cost_center_to_sales_order,
 	cost_center_from_service_request,
 )
-from healthcare.healthcare.editing_lock import assert_editing_allowed
+from healthcare.healthcare.editing_lock import EDIT_WINDOW_HOURS, assert_editing_allowed
 
 LAB_SERVICE_REQUEST_ALLOWED_ROLES = {
 	"Doctor",
@@ -837,6 +837,7 @@ def get_service_requests(
 			'occurrence_date', 'occurrence_time', 'medical_department',
 			'billing_status', 'priority', 'intent', 'patient_accepted_cost',
 			'booked', 'order_group', 'cost', 'grand_total', 'amount', 'cost_center',
+			'creation', 'docstatus',
 		],
 		limit=limit,
 		limit_start=offset,
@@ -3475,3 +3476,62 @@ def delete_legacy_duplicate_lab_service_requests(cutoff_date: str | None = None)
 		"deleted": deleted,
 		"errors": errors,
 	}
+
+
+OTHER_SERVICE_DELETE_WINDOW_HOURS = EDIT_WINDOW_HOURS
+
+
+@frappe.whitelist()
+def delete_other_service_request(name: str | None = None) -> dict:
+	"""Delete a draft nursing Other Services (Healthcare Service Template) request within 24h.
+
+	Other Services stay in draft on the nurse portal — this only deletes drafts.
+	Retires any linked Sales Order / Sales Invoice first.
+	"""
+	from datetime import timedelta
+
+	name = (name or "").strip()
+	if not name:
+		frappe.throw(_("Service Request is required"))
+	if not frappe.db.exists("Service Request", name):
+		frappe.throw(_("Service Request {0} not found").format(name))
+
+	assert_editing_allowed()
+
+	sr = frappe.get_doc("Service Request", name)
+	if (sr.template_dt or "").strip() != "Healthcare Service Template":
+		frappe.throw(_("Only Other Services requests can be deleted here."))
+
+	if cint(sr.docstatus) != 0:
+		frappe.throw(_("Only draft Other Services can be deleted."))
+
+	created_dt = get_datetime(sr.creation)
+	if created_dt and now_datetime() - created_dt > timedelta(hours=OTHER_SERVICE_DELETE_WINDOW_HOURS):
+		frappe.throw(
+			_(
+				"This Other Service can no longer be deleted. Deletion is only "
+				"allowed within {0} hours of creation."
+			).format(OTHER_SERVICE_DELETE_WINDOW_HOURS)
+		)
+
+	if not frappe.has_permission("Service Request", "delete", doc=sr) and not frappe.has_permission(
+		"Service Request", "write", doc=sr
+	):
+		frappe.throw(_("Not permitted to delete this Service Request"), frappe.PermissionError)
+
+	billing = _retire_lab_request_sales_order(sr)
+	frappe.delete_doc("Service Request", name, ignore_permissions=True, force=1)
+	frappe.db.commit()
+	return {
+		"ok": True,
+		"service_request": name,
+		"deleted": True,
+		"previous_sales_order": billing.get("previous_sales_order"),
+		"cancelled_sales_invoices": billing.get("cancelled_sales_invoices") or [],
+	}
+
+
+# Back-compat alias for any callers still using the old name.
+@frappe.whitelist()
+def cancel_other_service_request(name: str | None = None) -> dict:
+	return delete_other_service_request(name)

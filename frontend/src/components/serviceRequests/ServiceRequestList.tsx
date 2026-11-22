@@ -5,8 +5,10 @@ import {
   bookLabAndForward,
   confirmSessionPayment,
   bookSession,
+  deleteOtherServiceRequest,
   type ServiceRequest
 } from '../../services/serviceRequests'
+import { isEditableWithin24hFromCreation } from '../../constants/nursingShift'
 import {
   fetchLabRequestActions,
   deleteDraftLabRequest,
@@ -40,6 +42,7 @@ import {
 } from '../ui/dashboardCardListing'
 import {
   HEALTHCARE_SERVICE_TEMPLATE,
+  isOtherServiceRequest,
   serviceRequestPractitionerLabel,
 } from '../../utils/serviceRequestLabels'
 
@@ -498,6 +501,29 @@ export const ServiceRequestList = ({
       onLabTestCreated?.()
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to cancel sample handling')
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
+  const canDeleteOtherService = (sr: ServiceRequest) => {
+    if (!isOtherServiceRequest(sr.template_dt)) return false
+    if (Number(sr.docstatus) !== 0) return false
+    return isEditableWithin24hFromCreation(sr.creation, true)
+  }
+
+  const handleDeleteOtherService = async (sr: ServiceRequest) => {
+    if (!window.confirm(`Delete Other Service ${sr.name}? This can only be done within 24 hours of creation.`)) {
+      return
+    }
+    setOpenActionRow(null)
+    setActionLoading(sr.name)
+    try {
+      await deleteOtherServiceRequest(sr.name)
+      toast.success('Other Service deleted')
+      doRefetch()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to delete other service')
     } finally {
       setActionLoading(null)
     }
@@ -1070,6 +1096,17 @@ export const ServiceRequestList = ({
                             className="block w-full text-left px-3 py-2 text-sm text-amber-800 hover:bg-amber-50 disabled:opacity-50"
                           >
                             Cancel Sample Handling
+                          </button>
+                        )}
+
+                        {canDeleteOtherService(sr) && (
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteOtherService(sr)}
+                            disabled={loadingThis}
+                            className="block w-full text-left px-3 py-2 text-sm text-red-700 hover:bg-red-50 disabled:opacity-50"
+                          >
+                            Delete
                           </button>
                         )}
 
