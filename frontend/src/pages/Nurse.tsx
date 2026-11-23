@@ -1429,6 +1429,7 @@ export const NursePage = () => {
             <ServiceRequestList
               patient={selectedPatient}
               refreshKey={serviceRequestRefreshKey}
+              template_dt="Healthcare Service Template"
               onPatientClick={handlePatientSelect}
               practitionerFieldLabel="Nurse"
             />

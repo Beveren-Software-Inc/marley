@@ -26,6 +26,11 @@ export interface PackageChargePreview {
   to_date?: string | null
   service_unit?: string | null
   can_charge?: boolean
+  /** Missing daily IP Medical Supervision days through today */
+  medical_supervision_days_to_charge?: number
+  medical_supervision_amount?: number
+  medical_supervision_amount_per_day?: number
+  medical_supervision_template?: string | null
 }
 
 interface PackageChargeToTodayModalProps {
@@ -98,6 +103,7 @@ export function PackageChargeToTodayModal({
 }: PackageChargeToTodayModalProps) {
   const formatMoney = useFormatMoney()
   const days = Math.max(0, Number(preview?.days_to_charge || 0))
+  const msDays = Math.max(0, Number(preview?.medical_supervision_days_to_charge || 0))
   const packageTitle = preview?.package_name || preview?.package || DASH
   const showPackageCode = Boolean(
     preview?.package_name && preview?.package && preview.package_name !== preview.package,
@@ -109,6 +115,12 @@ export function PackageChargeToTodayModal({
     preview?.from_date || preview?.to_date
       ? `${formatDate(preview?.from_date)} → ${formatDate(preview?.to_date)}`
       : `${formatCount(preview?.days_elapsed)} day(s) elapsed`
+  const confirmParts: string[] = []
+  if (days > 0) confirmParts.push(`${days} package day${days === 1 ? '' : 's'}`)
+  if (msDays > 0) confirmParts.push(`${msDays} medical supervision day${msDays === 1 ? '' : 's'}`)
+  const confirmLabel = confirmParts.length
+    ? `Charge ${confirmParts.join(' + ')}`
+    : 'Charge'
 
   return (
     <ConfirmActionModal
@@ -118,7 +130,7 @@ export function PackageChargeToTodayModal({
       icon={<ReceiptText className="h-5 w-5" aria-hidden />}
       tone="primary"
       loading={loading}
-      confirmLabel={`Charge ${days} day${days === 1 ? '' : 's'}`}
+      confirmLabel={confirmLabel}
       cancelLabel="Not now"
       onClose={onClose}
       onConfirm={onConfirm}
@@ -179,33 +191,61 @@ export function PackageChargeToTodayModal({
             <SummaryTile label="Remaining after" value={formatCount(preview.remaining_days_after)} />
           </div>
 
-          <div className="overflow-hidden rounded-xl border border-emerald-200 bg-emerald-50/70">
-            <div className="flex items-center justify-between gap-3 px-4 py-2.5 text-sm">
-              <span className="text-emerald-900/80">Amount per day</span>
-              <span className="font-semibold text-emerald-950 tabular-nums">
-                {formatMoney(Number(preview.amount_per_day || 0))}
-              </span>
+          {days > 0 ? (
+            <div className="overflow-hidden rounded-xl border border-emerald-200 bg-emerald-50/70">
+              <div className="flex items-center justify-between gap-3 px-4 py-2.5 text-sm">
+                <span className="text-emerald-900/80">Package / room per day</span>
+                <span className="font-semibold text-emerald-950 tabular-nums">
+                  {formatMoney(Number(preview.amount_per_day || 0))}
+                </span>
+              </div>
+              <div className="flex items-center justify-between gap-3 border-t border-emerald-200/80 bg-white/60 px-4 py-3">
+                <span className="text-sm font-medium text-emerald-950">
+                  Package now · {days} day{days === 1 ? '' : 's'}
+                </span>
+                <span className="text-lg font-semibold text-emerald-700 tabular-nums">
+                  {formatMoney(Number(preview.amount || 0))}
+                </span>
+              </div>
             </div>
-            <div className="flex items-center justify-between gap-3 border-t border-emerald-200/80 bg-white/60 px-4 py-3">
-              <span className="text-sm font-medium text-emerald-950">
-                Charge now · {days} day{days === 1 ? '' : 's'}
-              </span>
-              <span className="text-lg font-semibold text-emerald-700 tabular-nums">
-                {formatMoney(Number(preview.amount || 0))}
-              </span>
+          ) : null}
+
+          {msDays > 0 ? (
+            <div className="overflow-hidden rounded-xl border border-violet-200 bg-violet-50/70">
+              <div className="flex items-center justify-between gap-3 px-4 py-2.5 text-sm">
+                <span className="text-violet-900/80">
+                  IP Medical Supervision per day
+                  {preview.medical_supervision_template
+                    ? ` · ${preview.medical_supervision_template}`
+                    : ''}
+                </span>
+                <span className="font-semibold text-violet-950 tabular-nums">
+                  {formatMoney(Number(preview.medical_supervision_amount_per_day || 0))}
+                </span>
+              </div>
+              <div className="flex items-center justify-between gap-3 border-t border-violet-200/80 bg-white/60 px-4 py-3">
+                <span className="text-sm font-medium text-violet-950">
+                  Medical Supervision now · {msDays} day{msDays === 1 ? '' : 's'}
+                </span>
+                <span className="text-lg font-semibold text-violet-700 tabular-nums">
+                  {formatMoney(Number(preview.medical_supervision_amount || 0))}
+                </span>
+              </div>
             </div>
-          </div>
+          ) : null}
 
           <div className="flex gap-2.5 rounded-lg border border-sky-200 bg-sky-50/80 px-3 py-2.5 text-sm text-sky-900">
             <Info className="mt-0.5 h-4 w-4 shrink-0 text-sky-600" aria-hidden />
             <p className="leading-relaxed">
-              {preview.is_daily_package
-                ? preview.quotation
-                  ? 'Daily room package: charges unbilled stay days at the room rate. Uses remaining Quotation qty first, then a standalone Sales Order for any days beyond the Quotation.'
-                  : 'Daily room package: posts a standalone Sales Order at the admission room rate for unbilled stay days.'
-                : preview.quotation
-                  ? 'Creates a partial Sales Order from the existing Quotation for the unbilled stay days. No new Quotation is created and the package assignment stays the same.'
-                  : "No Quotation exists for the current package (for example after a package change). The charge is posted as a standalone Sales Order at the admission's current package rate."}
+              {msDays > 0
+                ? 'Also posts one Sales Order for missing IP Medical Supervision days (qty = days at the daily rate). If some days were already billed, only the remaining days are charged on a new Sales Order.'
+                : preview.is_daily_package
+                  ? preview.quotation
+                    ? 'Daily room package: charges unbilled stay days at the room rate. Uses remaining Quotation qty first, then a standalone Sales Order for any days beyond the Quotation.'
+                    : 'Daily room package: posts a standalone Sales Order at the admission room rate for unbilled stay days.'
+                  : preview.quotation
+                    ? 'Creates a partial Sales Order from the existing Quotation for the unbilled stay days. No new Quotation is created and the package assignment stays the same.'
+                    : "No Quotation exists for the current package (for example after a package change). The charge is posted as a standalone Sales Order at the admission's current package rate."}
             </p>
           </div>
         </>

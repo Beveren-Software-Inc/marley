@@ -52,6 +52,9 @@ export interface ServiceRequest {
   lab_tests_count?: number
   lab_tests?: string[]
   sales_order?: string
+  /** Creation timestamp — used for 24h Other Services cancel window. */
+  creation?: string
+  docstatus?: number
 }
 
 const GROUP_FINISHED_SR_STATUS = 'completed-Request Status'
@@ -589,6 +592,42 @@ export async function bookSession(serviceRequestName: string, appointment?: stri
   const resData = await response.json()
   if (resData?.message?.ok) return resData.message
   throw new Error(resData?.exc || 'Failed to book session')
+}
+
+/** Delete draft nursing Other Services request within 24 hours of creation. */
+export async function deleteOtherServiceRequest(
+  serviceRequestName: string
+): Promise<{ ok: boolean; deleted?: boolean; service_request?: string }> {
+  const { ensureCSRF } = await import('./apiClient')
+  const csrf = await ensureCSRF()
+  const response = await fetch('/api/method/healthcare.api.service_request.delete_other_service_request', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(csrf ? { 'X-Frappe-CSRF-Token': csrf } : {}),
+    },
+    credentials: 'include',
+    body: JSON.stringify({ name: serviceRequestName }),
+  })
+  const resData = await response.json()
+  if (resData?.message?.ok) return resData.message
+  const serverMsg =
+    (typeof resData?.message === 'string' && resData.message) ||
+    (Array.isArray(resData?._server_messages)
+      ? resData._server_messages
+          .map((raw: string) => {
+            try {
+              const parsed = JSON.parse(raw)
+              return parsed?.message || raw
+            } catch {
+              return raw
+            }
+          })
+          .join(' ')
+      : '') ||
+    resData?.exc ||
+    'Failed to delete other service'
+  throw new Error(typeof serverMsg === 'string' ? serverMsg.replace(/<[^>]+>/g, ' ').trim() : 'Failed to delete other service')
 }
 
 

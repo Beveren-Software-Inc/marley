@@ -50,8 +50,9 @@ export const ServiceInvoicesList = ({
   invoiceRefreshKey = 0,
   onAfterInvoiceMutation,
 }: ServiceInvoicesListProps) => {
-  const { mode, activeAdmission, activeVisit } = useCareContext()
+  const { mode, activeAdmission, activeVisit, userCostCenter } = useCareContext()
   const formatCurrency = useFormatMoney()
+  const branchFilter = (userCostCenter || '').trim() || undefined
   const [invoices, setInvoices] = useState<ServiceInvoice[]>([])
   const [summary, setSummary] = useState<InvoiceSummary | null>(null)
   const [loading, setLoading] = useState(true)
@@ -228,7 +229,8 @@ export const ServiceInvoicesList = ({
           fromDate,
           toDate,
           debouncedCaseSearch || undefined,
-          filterByOpenShift
+          filterByOpenShift,
+          branchFilter,
         ),
         fetchInvoiceSummary(
           hasCaseSearch ? undefined : scopedReferenceType,
@@ -237,7 +239,8 @@ export const ServiceInvoicesList = ({
           fromDate,
           toDate,
           debouncedCaseSearch || undefined,
-          filterByOpenShift
+          filterByOpenShift,
+          branchFilter,
         ),
       ])
       if (isStale?.()) return
@@ -260,7 +263,7 @@ export const ServiceInvoicesList = ({
     return () => {
       cancelled = true
     }
-  }, [effectivePatient, scopedReferenceName, statusFilter, invoiceRefreshKey, fromDate, toDate, debouncedCaseSearch, hasCaseSearch, scopedReferenceType, filterByOpenShift])
+  }, [effectivePatient, scopedReferenceName, statusFilter, invoiceRefreshKey, fromDate, toDate, debouncedCaseSearch, hasCaseSearch, scopedReferenceType, filterByOpenShift, branchFilter])
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {

@@ -716,13 +716,18 @@ export function ReceptionReports() {
         `/api/method/healthcare.api.package_charge_to_today.preview_package_charge_to_today?admission=${encodeURIComponent(resolvedAdmission)}`,
       )
       if (!preview?.can_charge) {
+        const msPending = Number(preview?.medical_supervision_days_to_charge || 0)
         if (Number(preview?.days_to_charge || 0) > 0) {
           toast.error(
             'Package days are available but no billable package/room Item is linked to this admission.',
           )
+        } else if (msPending > 0) {
+          // Backend should mark can_charge when MS days are pending; keep as safety net.
+          setPackagePreview(preview)
+          return
         } else {
           toast.error(
-            `No unbilled package days. Elapsed ${preview?.days_elapsed ?? 0}, already billed ${preview?.days_already_billed ?? 0}, package ${
+            `No unbilled package or Medical Supervision days. Elapsed ${preview?.days_elapsed ?? 0}, already billed ${preview?.days_already_billed ?? 0}, package ${
               preview?.is_daily_package ? 'daily / open' : `${preview?.program_days ?? '—'} days`
             }${preview?.quotation ? ` (Quotation ${preview.quotation}).` : '.'}`,
           )

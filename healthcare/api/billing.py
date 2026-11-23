@@ -2184,6 +2184,15 @@ def create_payment_entry(
                 "message": _("Add at least one mode of payment with an amount greater than zero"),
             }
 
+        from healthcare.api.payment_entry import _require_billing_cost_center
+
+        try:
+            cost_center = _require_billing_cost_center(cost_center)
+        except frappe.ValidationError as e:
+            return {"success": False, "message": str(e)}
+        except frappe.PermissionError as e:
+            return {"success": False, "message": str(e)}
+
         seen = set()
         for row in modes:
             if row["mode_of_payment"] in seen:
@@ -2247,8 +2256,7 @@ def create_payment_entry(
             payment_entry.department = department
             payment_entry.paid_from = paid_from_account
             payment_entry.paid_to = paid_to_account
-            if cost_center:
-                payment_entry.cost_center = cost_center
+            payment_entry.cost_center = cost_center
             payment_entry.currency = company.default_currency
             if group_identity:
                 payment_entry.custom_unique_identity = group_identity

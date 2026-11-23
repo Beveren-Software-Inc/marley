@@ -415,6 +415,7 @@ def _create_single_payment_entry(data: dict) -> dict:
     reference_name = data["reference_name"]
     paid_amount = frappe.utils.flt(data["paid_amount"])
     mode_of_payment = data["mode_of_payment"]
+    cost_center = _require_billing_cost_center(data.get("cost_center"))
 
     # Re-fetch so subsequent modes see reduced outstanding after prior PEs.
     ref_doc = _get_reference_doc(reference_doctype, reference_name)
@@ -444,6 +445,7 @@ def _create_single_payment_entry(data: dict) -> dict:
     pe.source_exchange_rate = 1
     pe.target_exchange_rate = 1
     pe.difference_amount = 0
+    pe.cost_center = cost_center
     pe.remarks = _build_remarks(
         reference_doctype,
         reference_name,
@@ -645,6 +647,24 @@ def _split_allocations_across_modes(modes: list[dict], allocations: list[dict]) 
 	return out
 
 
+def _require_billing_cost_center(cost_center) -> str:
+	"""Reception billing payments must always carry a branch (Cost Center)."""
+	cc = (cost_center or "").strip() if isinstance(cost_center, str) else ""
+	if not cc:
+		frappe.throw(_("Branch (Cost Center) is required to create a payment."))
+	if not frappe.db.exists("Cost Center", cc):
+		frappe.throw(_("Branch {0} was not found.").format(frappe.bold(cc)))
+	from healthcare.api.common import get_permitted_cost_centers
+
+	permitted = get_permitted_cost_centers()
+	if permitted is not None and cc not in permitted:
+		frappe.throw(
+			_("You do not have permission for branch {0}.").format(frappe.bold(cc)),
+			frappe.PermissionError,
+		)
+	return cc
+
+
 def _new_receive_payment_entry(
 	customer: str,
 	company: str,
@@ -654,6 +674,7 @@ def _new_receive_payment_entry(
 	reference_no: str | None = None,
 	reference_date: str | None = None,
 	party_account: str | None = None,
+	cost_center: str | None = None,
 ) -> "frappe.model.document.Document":
 	paid_from, paid_to = _resolve_accounts(
 		company, mode_of_payment, party_account=party_account
@@ -682,6 +703,7 @@ def _new_receive_payment_entry(
 	pe.remarks = remarks
 	pe.reference_no = (reference_no or "").strip() or remarks[:140]
 	pe.reference_date = reference_date or frappe.utils.today()
+	pe.cost_center = _require_billing_cost_center(cost_center)
 	return pe
 
 
@@ -842,6 +864,7 @@ def create_patient_advance_payment(data: dict) -> dict:
 	modes = _parse_payment_modes(data)
 	customer = _patient_customer(patient)
 	company = _resolve_company_for_patient(patient, data.get("company"))
+	cost_center = _require_billing_cost_center(data.get("cost_center"))
 	remarks_parts = [f"Patient advance payment — {patient}"]
 	if data.get("remarks"):
 		remarks_parts.append(data["remarks"])
@@ -858,6 +881,7 @@ def create_patient_advance_payment(data: dict) -> dict:
 			remarks,
 			mode.get("reference_no") or data.get("reference_no"),
 			data.get("reference_date"),
+			cost_center=cost_center,
 		)
 		_apply_advance_case_fields(pe, data)
 		_apply_unique_identity(pe, group_identity)
@@ -915,6 +939,7 @@ def create_multi_invoice_payment(data: dict) -> dict:
 
 	customer = _patient_customer(patient)
 	company = _resolve_company_for_patient(patient, data.get("company"))
+	cost_center = _require_billing_cost_center(data.get("cost_center"))
 	remarks_base = [f"Multi-invoice payment — Patient: {patient}"]
 	if data.get("remarks"):
 		remarks_base.append(data["remarks"])
@@ -934,6 +959,7 @@ def create_multi_invoice_payment(data: dict) -> dict:
 			mp.get("reference_no") or data.get("reference_no"),
 			data.get("reference_date"),
 			party_account=party_account,
+			cost_center=cost_center,
 		)
 		for row in mp.get("allocations") or []:
 			invoice_name = row.get("reference_name")
@@ -983,6 +1009,7 @@ def create_patient_refund(data: dict) -> dict:
 
 	customer = _patient_customer(patient)
 	company = _resolve_company_for_patient(patient, data.get("company"))
+	cost_center = _require_billing_cost_center(data.get("cost_center"))
 	credit_balance = _money(_get_patient_credit_balance(customer, company))
 	if _money_gt(refund_amount, credit_balance):
 		frappe.throw(
@@ -1019,6 +1046,7 @@ def create_patient_refund(data: dict) -> dict:
 		pe.source_exchange_rate = 1
 		pe.target_exchange_rate = 1
 		pe.difference_amount = 0
+		pe.cost_center = cost_center
 		pe.remarks = remarks
 		pe.reference_no = (
 			(mode.get("reference_no") or data.get("reference_no") or "").strip()

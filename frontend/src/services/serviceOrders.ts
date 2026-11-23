@@ -241,7 +241,8 @@ export async function fetchServiceInvoices(
   fromDate?: string,
   toDate?: string,
   search?: string,
-  filterByOpenShift?: boolean
+  filterByOpenShift?: boolean,
+  costCenter?: string,
 ): Promise<ServiceInvoice[]> {
   const params = new URLSearchParams()
   if (referenceType) params.append('reference_type', referenceType)
@@ -252,6 +253,7 @@ export async function fetchServiceInvoices(
   if (toDate) params.append('to_date', toDate)
   if (search?.trim()) params.append('search', search.trim())
   if (filterByOpenShift) params.append('filter_by_open_shift', '1')
+  if (costCenter?.trim()) params.append('cost_center', costCenter.trim())
 
   const response = await fetch(
     `/api/method/healthcare.api.sales_invoice.get_service_invoices?${params.toString()}`
@@ -269,7 +271,8 @@ export async function fetchInvoiceSummary(
   fromDate?: string,
   toDate?: string,
   search?: string,
-  filterByOpenShift?: boolean
+  filterByOpenShift?: boolean,
+  costCenter?: string,
 ): Promise<InvoiceSummary> {
   const params = new URLSearchParams()
   if (referenceType) params.append('reference_type', referenceType)
@@ -279,6 +282,7 @@ export async function fetchInvoiceSummary(
   if (toDate) params.append('to_date', toDate)
   if (search?.trim()) params.append('search', search.trim())
   if (filterByOpenShift) params.append('filter_by_open_shift', '1')
+  if (costCenter?.trim()) params.append('cost_center', costCenter.trim())
 
   const response = await fetch(
     `/api/method/healthcare.api.sales_invoice.get_invoice_summary?${params.toString()}`
