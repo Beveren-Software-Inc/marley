@@ -395,6 +395,35 @@ def _charge_window(admission, package, as_of=None, *, through_discharge=False) -
 	}
 
 
+def _ms_catch_up_window(admission, as_of=None) -> dict:
+	"""Missing daily IP Medical Supervision from admission start through as_of."""
+	from healthcare.api.medical_supervision import preview_medical_supervision_catch_up
+
+	start = _admission_start_date(admission)
+	to_date = getdate(as_of or today())
+	if admission.get("discharge_datetime"):
+		discharge = getdate(admission.discharge_datetime)
+		if discharge and discharge < to_date:
+			to_date = discharge
+	return preview_medical_supervision_catch_up(
+		admission.name,
+		from_date=str(start) if start else None,
+		to_date=str(to_date),
+	)
+
+
+def _attach_ms_preview(preview: dict, admission, as_of=None) -> dict:
+	ms = _ms_catch_up_window(admission, as_of=as_of)
+	preview["medical_supervision"] = ms
+	preview["medical_supervision_days_to_charge"] = cint(ms.get("days_to_charge") or 0)
+	preview["medical_supervision_amount"] = flt(ms.get("amount") or 0)
+	preview["medical_supervision_amount_per_day"] = flt(ms.get("amount_per_day") or 0)
+	preview["medical_supervision_template"] = ms.get("template")
+	# Allow confirm when room/package days and/or missing MS days need charging.
+	preview["can_charge"] = bool(preview.get("can_charge")) or cint(ms.get("days_to_charge") or 0) > 0
+	return preview
+
+
 @frappe.whitelist()
 def preview_package_charge_to_today(admission: str, as_of: str | None = None) -> dict:
 	"""Preview unbilled package days from admission start through today (or as_of)."""
@@ -405,7 +434,8 @@ def preview_package_charge_to_today(admission: str, as_of: str | None = None) ->
 	adm = frappe.get_doc("Inpatient Admission", admission)
 	package_name = _resolve_package_name(adm)
 	package = frappe.get_doc("Inpatient Package", package_name)
-	return _charge_window(adm, package, as_of=as_of)
+	preview = _charge_window(adm, package, as_of=as_of)
+	return _attach_ms_preview(preview, adm, as_of=as_of)
 
 
 def _package_charge_item(admission, quotation=None, service_unit: str | None = None) -> dict | None:
@@ -590,7 +620,11 @@ def _charge_package_days(
 	# stays linked to already-billed days. With no Quotation for the new package,
 	# fall through to a standalone Sales Order at the admission's current rate.
 
-	if not preview.get("can_charge"):
+	ms_preview = _ms_catch_up_window(adm, as_of=as_of)
+	ms_days = cint(ms_preview.get("days_to_charge") or 0)
+	package_can_charge = bool(preview.get("can_charge"))
+
+	if not package_can_charge and ms_days <= 0:
 		if not throw_if_nothing:
 			return None
 		if cint(preview.get("days_to_charge") or 0) <= 0:
@@ -611,7 +645,7 @@ def _charge_package_days(
 			_("No package/room Item found to charge stay days for admission {0}.").format(admission)
 		)
 
-	days_to_charge = cint(preview["days_to_charge"])
+	days_to_charge = cint(preview["days_to_charge"]) if package_can_charge else 0
 	per_day = flt(preview["amount_per_day"])
 	default_note = note or _(
 		"Package charge to {0}: {1} day(s) @ {2} = {3}."
@@ -619,7 +653,7 @@ def _charge_package_days(
 		preview.get("to_date"),
 		days_to_charge,
 		per_day,
-		preview.get("amount"),
+		flt(per_day) * days_to_charge,
 	)
 
 	def _standalone(days: int, from_date, to_date, so_note: str) -> str:
@@ -671,87 +705,141 @@ def _charge_package_days(
 	use_standalone = through_discharge or not quotation or (is_daily and quote_remaining <= 0)
 
 	sales_orders: list[str] = []
-	if use_standalone:
-		sales_order = _standalone(
-			days_to_charge,
-			preview.get("from_date"),
-			preview.get("to_date"),
-			default_note,
-		)
-		if not sales_order:
-			return None
-		sales_orders.append(sales_order)
-		_ledger(sales_order, days_to_charge, preview.get("from_date"), preview.get("to_date"))
-	else:
-		# Submit draft quotation without auto full-SO (we create a partial SO below)
-		if cint(quotation.docstatus) == 0:
-			frappe.flags.healthcare_skip_package_auto_so = True
-			try:
-				quotation.flags.ignore_permissions = True
-				quotation.flags.ignore_mandatory = True
-				quotation.submit()
-			finally:
-				frappe.flags.healthcare_skip_package_auto_so = False
-			quotation.reload()
-
-		days_from_quote = days_to_charge
-		days_beyond_quote = 0
-		if is_daily and quote_remaining >= 0 and days_to_charge > quote_remaining:
-			days_from_quote = quote_remaining
-			days_beyond_quote = days_to_charge - quote_remaining
-
-		if days_from_quote > 0:
-			from_date = preview.get("from_date")
-			to_date = (
-				str(add_days(getdate(from_date), days_from_quote - 1))
-				if from_date
-				else preview.get("to_date")
-			)
-			sales_order = _make_partial_package_sales_order(
-				quotation,
-				days_to_charge=days_from_quote,
-				amount_per_day=per_day,
-				note=note
-				or _(
-					"Package charge to {0}: {1} day(s) @ {2} = {3} (partial from Quotation {4})."
-				).format(
-					to_date,
-					days_from_quote,
-					per_day,
-					flt(per_day) * days_from_quote,
-					quotation.name,
-				),
-			)
-			sales_orders.append(sales_order)
-			_ledger(sales_order, days_from_quote, from_date, to_date)
-
-		if days_beyond_quote > 0:
-			from_date = (
-				str(add_days(getdate(preview.get("from_date")), days_from_quote))
-				if preview.get("from_date")
-				else preview.get("from_date")
-			)
-			to_date = preview.get("to_date")
+	if package_can_charge and days_to_charge > 0:
+		if use_standalone:
 			sales_order = _standalone(
-				days_beyond_quote,
-				from_date,
-				to_date,
-				_(
-					"Daily room charge beyond Quotation {0}: {1} day(s) @ {2} ({3} to {4})."
-				).format(
-					quotation.name if quotation else _("(none)"),
+				days_to_charge,
+				preview.get("from_date"),
+				preview.get("to_date"),
+				default_note,
+			)
+			if not sales_order:
+				if ms_days <= 0:
+					return None
+			else:
+				sales_orders.append(sales_order)
+				_ledger(sales_order, days_to_charge, preview.get("from_date"), preview.get("to_date"))
+		else:
+			# Submit draft quotation without auto full-SO (we create a partial SO below)
+			if cint(quotation.docstatus) == 0:
+				frappe.flags.healthcare_skip_package_auto_so = True
+				try:
+					quotation.flags.ignore_permissions = True
+					quotation.flags.ignore_mandatory = True
+					quotation.submit()
+				finally:
+					frappe.flags.healthcare_skip_package_auto_so = False
+				quotation.reload()
+
+			days_from_quote = days_to_charge
+			days_beyond_quote = 0
+			if is_daily and quote_remaining >= 0 and days_to_charge > quote_remaining:
+				days_from_quote = quote_remaining
+				days_beyond_quote = days_to_charge - quote_remaining
+
+			if days_from_quote > 0:
+				from_date = preview.get("from_date")
+				to_date = (
+					str(add_days(getdate(from_date), days_from_quote - 1))
+					if from_date
+					else preview.get("to_date")
+				)
+				sales_order = _make_partial_package_sales_order(
+					quotation,
+					days_to_charge=days_from_quote,
+					amount_per_day=per_day,
+					note=note
+					or _(
+						"Package charge to {0}: {1} day(s) @ {2} = {3} (partial from Quotation {4})."
+					).format(
+						to_date,
+						days_from_quote,
+						per_day,
+						flt(per_day) * days_from_quote,
+						quotation.name,
+					),
+				)
+				sales_orders.append(sales_order)
+				_ledger(sales_order, days_from_quote, from_date, to_date)
+
+			if days_beyond_quote > 0:
+				from_date = (
+					str(add_days(getdate(preview.get("from_date")), days_from_quote))
+					if preview.get("from_date")
+					else preview.get("from_date")
+				)
+				to_date = preview.get("to_date")
+				sales_order = _standalone(
 					days_beyond_quote,
-					per_day,
 					from_date,
 					to_date,
-				),
+					_(
+						"Daily room charge beyond Quotation {0}: {1} day(s) @ {2} ({3} to {4})."
+					).format(
+						quotation.name if quotation else _("(none)"),
+						days_beyond_quote,
+						per_day,
+						from_date,
+						to_date,
+					),
+				)
+				sales_orders.append(sales_order)
+				_ledger(sales_order, days_beyond_quote, from_date, to_date)
+
+	# IP Medical Supervision is a daily rate — catch up every missing day through as_of
+	# (same window as "Days Charged" on SOA), not only the first admission day.
+	ms_result = None
+	if ms_days > 0 or ms_preview.get("applicable"):
+		from healthcare.api.medical_supervision import catch_up_medical_supervision_charges
+
+		try:
+			ms_result = catch_up_medical_supervision_charges(
+				admission,
+				from_date=ms_preview.get("from_date"),
+				to_date=ms_preview.get("to_date") or preview.get("to_date"),
+				template=ms_preview.get("template"),
+				amount=ms_preview.get("amount_per_day"),
+				commit=False,
 			)
-			sales_orders.append(sales_order)
-			_ledger(sales_order, days_beyond_quote, from_date, to_date)
+		except Exception:
+			frappe.log_error(
+				title=f"Medical Supervision catch-up failed: {admission}",
+				message=frappe.get_traceback(),
+			)
+			if throw_if_nothing and not sales_orders:
+				raise
+			ms_result = {
+				"created": [],
+				"skipped": [],
+				"days_charged": 0,
+				"amount": 0,
+				"message": _("Medical Supervision catch-up failed — see Error Log"),
+			}
+
+	if not sales_orders and not (ms_result and cint(ms_result.get("days_charged") or 0) > 0):
+		if not throw_if_nothing:
+			return None
+		frappe.throw(_("Nothing to charge for package days or Medical Supervision."))
 
 	billed_after = _days_already_billed(admission, package_name)
 	quotation_name = quotation.name if quotation else None
 	primary_so = sales_orders[-1] if sales_orders else None
+	ms_charged = cint((ms_result or {}).get("days_charged") or 0)
+	ms_amount = flt((ms_result or {}).get("amount") or 0)
+
+	msg_parts = []
+	if days_to_charge > 0 and sales_orders:
+		msg_parts.append(
+			_("Charged {0} package day(s) for {1} via Sales Order {2}.").format(
+				days_to_charge,
+				flt(per_day) * days_to_charge,
+				", ".join(sales_orders),
+			)
+		)
+	if ms_charged > 0:
+		msg_parts.append(
+			_("Charged {0} Medical Supervision day(s) for {1}.").format(ms_charged, ms_amount)
+		)
 
 	return {
 		"ok": True,
@@ -769,13 +857,10 @@ def _charge_package_days(
 		),
 		"from_date": preview.get("from_date"),
 		"to_date": preview.get("to_date"),
-		"message": _(
-			"Charged {0} package day(s) for {1} via Sales Order {2}."
-		).format(
-			days_to_charge,
-			flt(per_day) * days_to_charge,
-			", ".join(sales_orders),
-		),
+		"medical_supervision": ms_result,
+		"medical_supervision_days_charged": ms_charged,
+		"medical_supervision_amount": ms_amount,
+		"message": " ".join(msg_parts) if msg_parts else _("No charges posted."),
 	}
 
 
