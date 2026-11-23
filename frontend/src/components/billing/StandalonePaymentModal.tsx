@@ -28,6 +28,7 @@ import { useCareContext } from '../../providers/CareContextProvider'
 import {
   fetchPatientVisits,
   fetchInpatientAdmissionOptions,
+  fetchBranchOptions,
   type LinkFieldOption,
 } from '../../services/common'
 import {
@@ -224,6 +225,8 @@ export function StandalonePaymentModal({
 
   const [paymentModes, setPaymentModes] = useState<string[]>([])
   const [modeLines, setModeLines] = useState<PaymentModeLine[]>([newPaymentModeLine()])
+  const [branchOptions, setBranchOptions] = useState<LinkFieldOption[]>([])
+  const [costCenter, setCostCenter] = useState(() => userCostCenter || '')
   const [remarks, setRemarks] = useState('')
   const [loading, setLoading] = useState(false)
   const [invoiceLoading, setInvoiceLoading] = useState(false)
@@ -241,7 +244,17 @@ export function StandalonePaymentModal({
   const effectivePatient = selectedPatient?.name
 
   useEffect(() => {
-    fetchModeOfPayments(userCostCenter)
+    if (userCostCenter) setCostCenter(userCostCenter)
+  }, [userCostCenter])
+
+  useEffect(() => {
+    fetchBranchOptions()
+      .then((rows) => setBranchOptions(rows))
+      .catch(() => setBranchOptions([]))
+  }, [])
+
+  useEffect(() => {
+    fetchModeOfPayments(costCenter || userCostCenter)
       .then((modes) => {
         setPaymentModes(modes)
         setModeLines((prev) => {
@@ -257,7 +270,7 @@ export function StandalonePaymentModal({
         })
       })
       .catch(() => setPaymentModes([]))
-  }, [userCostCenter])
+  }, [costCenter, userCostCenter])
 
   useEffect(() => {
     if (!patientOpen || effectivePatient) return
@@ -568,6 +581,11 @@ export function StandalonePaymentModal({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
+    if (!costCenter.trim()) {
+      toast.error('Please select a branch')
+      return
+    }
+
     if (!effectivePatient && paymentMode !== 'single') {
       toast.error('Please select a patient')
       return
@@ -580,6 +598,7 @@ export function StandalonePaymentModal({
     }
     const modesPayload = paymentModesPayload(modeLines)
     const primaryMode = modesPayload[0]
+    const branch = costCenter.trim()
 
     setLoading(true)
     try {
@@ -598,6 +617,7 @@ export function StandalonePaymentModal({
           mode_of_payment: primaryMode.mode_of_payment,
           payment_modes: modesPayload,
           remarks: remarks.trim() || undefined,
+          cost_center: branch,
           custom_op_or_ip: advanceOpIp || undefined,
           custom_case_no: advanceCase?.name || undefined,
         })
@@ -629,6 +649,7 @@ export function StandalonePaymentModal({
           payment_modes: modesPayload,
           allocations,
           remarks: remarks.trim() || undefined,
+          cost_center: branch,
         })
         toast.success(result.server_message || `Payment ${result.name} recorded`)
       } else if (paymentMode === 'refund') {
@@ -650,6 +671,7 @@ export function StandalonePaymentModal({
           mode_of_payment: primaryMode.mode_of_payment,
           payment_modes: modesPayload,
           remarks: remarks.trim() || undefined,
+          cost_center: branch,
         })
         toast.success(
           result.server_message ||
@@ -677,6 +699,7 @@ export function StandalonePaymentModal({
               payment_modes: modesPayload,
               remarks: remarks.trim() || undefined,
               patient: scopedPatient,
+              cost_center: branch,
             })
             toast.success(result.server_message || `Payment entry ${result.name} created successfully`)
           } else {
@@ -708,6 +731,7 @@ export function StandalonePaymentModal({
               payment_modes: modesPayload,
               allocations,
               remarks: remarks.trim() || undefined,
+              cost_center: branch,
             })
             toast.success(result.server_message || `Payment ${result.name} recorded`)
           }
@@ -728,6 +752,7 @@ export function StandalonePaymentModal({
             payment_modes: modesPayload,
             remarks: remarks.trim() || undefined,
             patient: scopedPatient,
+            cost_center: branch,
           })
           toast.success(result.server_message || `Payment entry ${result.name} created successfully`)
         }
@@ -742,6 +767,7 @@ export function StandalonePaymentModal({
 
   const submitDisabled =
     loading ||
+    !costCenter.trim() ||
     (paymentMode === 'single' &&
       referenceType === 'Sales Invoice' &&
       pickedInvoiceCount === 0) ||
@@ -798,6 +824,25 @@ export function StandalonePaymentModal({
                 </button>
               ))}
             </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1.5">
+              Branch <span className="text-red-500">*</span>
+            </label>
+            <select
+              value={costCenter}
+              onChange={(e) => setCostCenter(e.target.value)}
+              required
+              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm bg-white"
+            >
+              <option value="">Select branch…</option>
+              {branchOptions.map((b) => (
+                <option key={b.name} value={b.name}>
+                  {b.label || b.name}
+                </option>
+              ))}
+            </select>
           </div>
 
           {!initialPatient && (

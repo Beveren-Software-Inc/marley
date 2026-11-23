@@ -116,6 +116,12 @@ export const AppointmentPaymentModal = ({
       return
     }
 
+    const branch = (userCostCenter || '').trim()
+    if (!branch) {
+      toast.error('Select a branch in the top navbar before recording payment')
+      return
+    }
+
     setLoading(true)
     setError(null)
     try {
@@ -128,6 +134,7 @@ export const AppointmentPaymentModal = ({
         patient: appointment.patient,
         appointment: appointment.name,
         remarks: remarks.trim() || undefined,
+        cost_center: branch,
       })
       toast.success(result.server_message || `Payment ${result.name} recorded`)
       onSuccess()

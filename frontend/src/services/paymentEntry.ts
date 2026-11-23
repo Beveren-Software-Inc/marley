@@ -19,6 +19,8 @@ export interface CreatePaymentEntryData {
   patient?: string
   /** Bank/card transaction reference shown on the Payment Entry. */
   reference_no?: string
+  /** Required branch (Cost Center) for reception billing payments. */
+  cost_center: string
 }
 
 export interface SalesInvoiceSummary {
@@ -219,6 +221,8 @@ export async function createPatientAdvancePayment(data: {
   mode_of_payment: string
   payment_modes?: PaymentModePayload[]
   remarks?: string
+  /** Required branch (Cost Center). */
+  cost_center: string
   /** OP / IP / Patient Visit / Inpatient Admission — optional reporting tag */
   custom_op_or_ip?: string
   /** Visit or admission name — optional Dynamic Link case */
@@ -237,6 +241,8 @@ export async function createMultiInvoicePayment(data: {
   payment_modes?: PaymentModePayload[]
   allocations: InvoiceAllocationRow[]
   remarks?: string
+  /** Required branch (Cost Center). */
+  cost_center: string
 }): Promise<CreatePaymentEntryResult> {
   return paymentApiRequest<CreatePaymentEntryResult>(
     'healthcare.api.payment_entry.create_multi_invoice_payment',
@@ -250,6 +256,8 @@ export async function createPatientRefund(data: {
   mode_of_payment: string
   payment_modes?: PaymentModePayload[]
   remarks?: string
+  /** Required branch (Cost Center). */
+  cost_center: string
 }): Promise<CreatePaymentEntryResult> {
   return paymentApiRequest<CreatePaymentEntryResult>(
     'healthcare.api.payment_entry.create_patient_refund',

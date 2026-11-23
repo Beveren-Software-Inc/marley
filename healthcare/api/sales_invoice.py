@@ -46,6 +46,7 @@ def get_service_invoices(
     offset=0,
     receptionist_shift=None,
     filter_by_open_shift=None,
+    cost_center=None,
 ):
     """Get list of Sales Invoices for services"""
     from healthcare.api.billing_search import billing_search_or_filters
@@ -88,13 +89,16 @@ def get_service_invoices(
         if frappe.get_meta("Sales Invoice").has_field(SHIFT_LINK_FIELD):
             filters[SHIFT_LINK_FIELD] = shift_filter
 
-    # Get permitted cost centers
-    from healthcare.api.common import get_permitted_cost_centers
-    permitted_cc = get_permitted_cost_centers()
-    if permitted_cc is not None:
-        if not permitted_cc:
-            return []
-        filters['cost_center'] = ['in', permitted_cc]
+    # Portal branch (navbar) + User Permission scope
+    from healthcare.api.common import resolve_cost_center_filter
+
+    resolved_cc = resolve_cost_center_filter(cost_center)
+    if resolved_cc is False:
+        return []
+    if isinstance(resolved_cc, str):
+        filters["cost_center"] = resolved_cc
+    elif isinstance(resolved_cc, (list, tuple)):
+        filters["cost_center"] = ["in", list(resolved_cc)]
     # frappe.throw(str(filters))
     list_kwargs = dict(
         doctype='Sales Invoice',
@@ -171,6 +175,7 @@ def get_invoice_summary(
     search=None,
     receptionist_shift=None,
     filter_by_open_shift=None,
+    cost_center=None,
 ):
     """Get summary of invoices for a reference"""
     from healthcare.api.billing_search import billing_search_or_filters
@@ -194,40 +199,36 @@ def get_invoice_summary(
 
     from healthcare.api.receptionist_shift import resolve_receptionist_shift_filter, SHIFT_LINK_FIELD
 
+    empty_summary = {
+        'total_invoices': 0,
+        'total_amount': 0,
+        'total_paid': 0,
+        'total_outstanding': 0,
+        'paid': {'count': 0, 'amount': 0},
+        'unpaid': {'count': 0, 'amount': 0},
+        'overdue': {'count': 0, 'amount': 0},
+        'partially_paid': {'count': 0, 'amount': 0},
+    }
+
     shift_filter = resolve_receptionist_shift_filter(
         receptionist_shift=receptionist_shift,
         filter_by_open_shift=filter_by_open_shift,
     )
     if shift_filter is not None:
         if not shift_filter:
-            return {
-                'total_invoices': 0,
-                'total_amount': 0,
-                'total_paid': 0,
-                'total_outstanding': 0,
-                'paid': {'count': 0, 'amount': 0},
-                'unpaid': {'count': 0, 'amount': 0},
-                'overdue': {'count': 0, 'amount': 0},
-                'partially_paid': {'count': 0, 'amount': 0},
-            }
+            return empty_summary
         if frappe.get_meta("Sales Invoice").has_field(SHIFT_LINK_FIELD):
             filters[SHIFT_LINK_FIELD] = shift_filter
 
-    from healthcare.api.common import get_permitted_cost_centers
-    permitted_cc = get_permitted_cost_centers()
-    if permitted_cc is not None:
-        if not permitted_cc:
-            return {
-                'total_invoices': 0,
-                'total_amount': 0,
-                'total_paid': 0,
-                'total_outstanding': 0,
-                'paid': {'count': 0, 'amount': 0},
-                'unpaid': {'count': 0, 'amount': 0},
-                'overdue': {'count': 0, 'amount': 0},
-                'partially_paid': {'count': 0, 'amount': 0},
-            }
-        filters['cost_center'] = ['in', permitted_cc]
+    from healthcare.api.common import resolve_cost_center_filter
+
+    resolved_cc = resolve_cost_center_filter(cost_center)
+    if resolved_cc is False:
+        return empty_summary
+    if isinstance(resolved_cc, str):
+        filters["cost_center"] = resolved_cc
+    elif isinstance(resolved_cc, (list, tuple)):
+        filters["cost_center"] = ["in", list(resolved_cc)]
 
     summary_kwargs = dict(
         doctype='Sales Invoice',

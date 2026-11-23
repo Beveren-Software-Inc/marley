@@ -225,6 +225,12 @@ export const CreatePaymentModal = ({
       return
     }
 
+    const branch = (userCostCenter || '').trim()
+    if (!branch) {
+      toast.error('Select a branch in the top navbar before recording payment')
+      return
+    }
+
     setLoading(true)
     try {
       const result = await createPaymentEntry({
@@ -236,6 +242,7 @@ export const CreatePaymentModal = ({
         payment_modes: modesPayload,
         remarks: remarks.trim() || undefined,
         patient,
+        cost_center: branch,
       })
       toast.success(result.server_message || `Payment entry ${result.name} created successfully`)
       onSuccess()
