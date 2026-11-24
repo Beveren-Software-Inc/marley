@@ -202,6 +202,11 @@ def _resolve_correct_frequency(lam_row):
 
 
 def _next_run_after_fix(lam_name, start_date, frequency):
+	"""Forward ``next_run_date`` after a frequency correction.
+
+	``next_run_date`` always points ahead (start + interval, or last give-out +
+	interval). First Give Out eligibility is separate and uses ``start_date``.
+	"""
 	interval = _long_acting_frequency_interval_days(frequency)
 	filters = {"parent": lam_name}
 	if frappe.db.has_column("Long Acting Medicine Give Out", "is_cancelled"):

@@ -99,6 +99,36 @@ function upload_practitioner_name_list(on_done) {
 	});
 }
 
+function compose_practitioner_name(frm) {
+	return [frm.doc.first_name, frm.doc.middle_name, frm.doc.last_name]
+		.map((part) => (part || '').trim())
+		.filter(Boolean)
+		.join(' ');
+}
+
+function remember_auto_practitioner_name(frm) {
+	const composed = compose_practitioner_name(frm);
+	const current = (frm.doc.practitioner_name || '').trim();
+	frm.__auto_practitioner_name = composed && current === composed ? composed : null;
+}
+
+function sync_practitioner_name(frm) {
+	const composed = compose_practitioner_name(frm);
+	if (!composed) {
+		return;
+	}
+
+	const current = (frm.doc.practitioner_name || '').trim();
+	// Keep a manually typed full name; only fill it in when it is empty or
+	// still holds the value auto-generated from the previous name parts.
+	if (current && current !== frm.__auto_practitioner_name) {
+		return;
+	}
+
+	frm.set_value('practitioner_name', composed);
+	frm.__auto_practitioner_name = composed;
+}
+
 frappe.ui.form.on('Healthcare Practitioner', {
 	setup: function(frm) {
 		frm.set_query('account', 'accounts', function(doc, cdt, cdn) {
@@ -148,6 +178,18 @@ frappe.ui.form.on('Healthcare Practitioner', {
 		}
 	},
 
+	first_name: function(frm) {
+		sync_practitioner_name(frm);
+	},
+
+	middle_name: function(frm) {
+		sync_practitioner_name(frm);
+	},
+
+	last_name: function(frm) {
+		sync_practitioner_name(frm);
+	},
+
 	supplier: function (frm) {
 		if (frm.doc.supplier) {
 			frappe.call({
@@ -169,6 +211,8 @@ frappe.ui.form.on('Healthcare Practitioner', {
 	},
 
 	refresh: function(frm) {
+		remember_auto_practitioner_name(frm);
+
 		frappe.dynamic_link = {doc: frm.doc, fieldname: 'name', doctype: 'Healthcare Practitioner'};
 
 		if (!frm.is_new()) {
