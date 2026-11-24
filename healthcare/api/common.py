@@ -1926,7 +1926,6 @@ def create_healthcare_practitioner(data):
 		'doctype': 'Healthcare Practitioner',
 		'doctors_id': get_next_transaction_number('Healthcare Practitioner', fieldname='doctors_id'),
 		'first_name': first_name,
-		'practitioner_name': first_name,
 		'gender': data.get('gender') or None,
 		'status': data.get('status') or 'Active',
 		'mobile_phone': data.get('mobile_phone') or None,
@@ -1935,7 +1934,12 @@ def create_healthcare_practitioner(data):
 		'medical_role': data.get('medical_role') or None,
 	}
 
-	if not full_name:
+	if full_name:
+		# The whole typed value is the full name; keep it exactly as entered.
+		doc_data['practitioner_name'] = full_name
+	else:
+		# No full name given: let Healthcare Practitioner.set_full_name()
+		# compose it from the individual name parts on save.
 		doc_data['middle_name'] = data.get('middle_name') or ''
 		doc_data['last_name'] = data.get('last_name') or ''
 
@@ -7193,12 +7197,29 @@ def get_patient_assessment_templates(search=None):
 	return [{"name": r.name, "label": r.assessment_name or r.name} for r in rows]
 
 
+_DEFAULT_ASSESSMENT_SELECT_OPTIONS = ("By Walk", "By Wheel Chair", "With Support")
+
+
+def _parse_assessment_select_options(raw) -> list[str]:
+	"""Split Options Available into clean choices (newline / comma separated)."""
+	text = cstr(raw or "").strip()
+	if not text:
+		return list(_DEFAULT_ASSESSMENT_SELECT_OPTIONS)
+	parts: list[str] = []
+	for chunk in text.replace("\r\n", "\n").replace("\r", "\n").split("\n"):
+		for piece in chunk.split(","):
+			opt = piece.strip()
+			if opt and opt not in parts:
+				parts.append(opt)
+	return parts or list(_DEFAULT_ASSESSMENT_SELECT_OPTIONS)
+
+
 @frappe.whitelist()
 def get_assessment_template_parameters(template_name):
 	"""Return the parameter list for a Patient Assessment Template.
 
 	Used by the frontend to pre-fill the Assessment Sheet tab when a template is selected.
-	Returns list of {parameter, parameter_label, scale_min, scale_max}.
+	Includes ``is_select`` / ``select_options`` when the template row is marked Is select.
 	"""
 	if not template_name:
 		return []
@@ -7206,9 +7227,13 @@ def get_assessment_template_parameters(template_name):
 		tmpl = frappe.get_doc("Patient Assessment Template", template_name)
 		params = []
 		for p in (tmpl.parameters or []):
+			is_select = cint(getattr(p, "is_select", 0) or 0)
+			select_options = _parse_assessment_select_options(getattr(p, "options_available", None)) if is_select else []
 			params.append({
 				"parameter": p.assessment_parameter,
 				"parameter_label": p.assessment_parameter,
+				"is_select": 1 if is_select else 0,
+				"select_options": select_options,
 			})
 		return {
 			"parameters": params,

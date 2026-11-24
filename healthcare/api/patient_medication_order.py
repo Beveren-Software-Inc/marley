@@ -1293,9 +1293,14 @@ def _create_long_acting_medicine_for_entries(pmo_doc, only_entry_names=None):
 		# Only copy End Date when the prescription line has one — do not fall back to
 		# the PMO header end_date (often auto-filled from start/line dates).
 		end_dt = getdate(entry.end_date) if getattr(entry, "end_date", None) else None
-		# First dose is due on the start date (give out same day). After give-out,
-		# next_run advances by frequency; the next cycle requires a new doctor order.
-		next_run = start_dt
+		# First Give Out is allowed from start_date. next_run_date always points
+		# forward (start + frequency) — the following cycle after that first dose.
+		from healthcare.healthcare.doctype.long_acting_medicine.long_acting_medicine import (
+			_long_acting_frequency_interval_days,
+		)
+
+		interval_days = _long_acting_frequency_interval_days(frequency)
+		next_run = add_days(start_dt, interval_days) if start_dt else None
 
 		lam = frappe.new_doc('Long Acting Medicine')
 		lam.naming_series = 'SMP-.YYYY.-'

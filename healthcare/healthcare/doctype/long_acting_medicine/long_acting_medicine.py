@@ -85,6 +85,15 @@ def _safe_getdate(value):
 		return None
 
 
+def _first_dose_due_date(start_date=None, next_run_date=None):
+	"""When the plan has never been given out, first Give Out is due on start_date.
+
+	``next_run_date`` stays forward (next cycle) and is not used for first-dose
+	eligibility — only as a fallback when start_date is missing.
+	"""
+	return _safe_getdate(start_date) or _safe_getdate(next_run_date)
+
+
 LONG_ACTING_GIVE_OUT_FIELDS = [
 	"name",
 	"date",
@@ -407,10 +416,11 @@ def enrich_long_acting_medicine_row(doc):
 	# Give out only for the first dose on this document. Later due dates require a
 	# new doctor order via Duplicate (nurse must not give from the old order).
 	has_prior_give_out = bool(give_outs)
+	first_due = _first_dose_due_date(data.get("start_date"), next_run)
 	data["can_give_out"] = bool(
 		user_can_give_out_long_acting_medicine()
-		and next_run
-		and next_run <= today
+		and first_due
+		and first_due <= today
 		and not has_prior_give_out
 		and not data["is_given_out_for_current_run"]
 		and _active_long_acting_status(data.get("status"))
@@ -593,10 +603,11 @@ def enrich_long_acting_medicine_list_rows(rows):
 		if not _normalize_injection_given_on(item.get("injection_given_on")):
 			item["injection_given_on"] = last_side
 		item["is_given_out_for_current_run"] = is_given
+		first_due = _first_dose_due_date(item.get("start_date"), next_run)
 		item["can_give_out"] = bool(
 			can_give
-			and next_run
-			and next_run <= today
+			and first_due
+			and first_due <= today
 			and not has_prior_give_out
 			and not is_given
 			and _active_long_acting_status(item.get("status"))
@@ -671,15 +682,10 @@ def record_long_acting_medicine_give_out(
 	if doc.docstatus == 2:
 		frappe.throw(_("Cannot give out a cancelled Long Acting Medicine"))
 
-	if not doc.next_run_date:
-		frappe.throw(_("Next Run Date is not set on this long acting medicine"))
-
-	scheduled_run_date = getdate(doc.next_run_date)
 	today = getdate()
-	if scheduled_run_date > today:
-		frappe.throw(_("This dose is not due yet"))
+	has_prior_give_out = bool(doc.get("give_outs"))
 
-	if doc.get("give_outs"):
+	if has_prior_give_out:
 		frappe.throw(
 			_(
 				"This long acting medicine was already given. "
@@ -687,6 +693,14 @@ def record_long_acting_medicine_give_out(
 			)
 		)
 
+	# First Give Out is due from start_date. next_run_date stays forward (next cycle).
+	start = getdate(doc.start_date) if doc.start_date else None
+	if not start:
+		frappe.throw(_("Start Date is not set on this long acting medicine"))
+	if start > today:
+		frappe.throw(_("This dose is not due yet (starts on {0})").format(start))
+
+	scheduled_run_date = start
 	if _has_give_out_for_scheduled_date(doc, scheduled_run_date):
 		frappe.throw(_("This scheduled run has already been given out"))
 
@@ -713,8 +727,12 @@ def record_long_acting_medicine_give_out(
 	doc.append("give_outs", give_out_row)
 	doc.injection_given_on = injection_side
 
+	# Keep next_run_date forward: start + frequency (or bump if it was behind).
 	interval_days = _long_acting_frequency_interval_days(doc.frequency)
-	doc.next_run_date = add_days(scheduled_run_date, interval_days)
+	forward = add_days(scheduled_run_date, interval_days)
+	current_next = getdate(doc.next_run_date) if doc.next_run_date else None
+	if not current_next or current_next <= scheduled_run_date:
+		doc.next_run_date = forward
 	if doc.status in (None, "", "Draft"):
 		doc.status = "Active"
 

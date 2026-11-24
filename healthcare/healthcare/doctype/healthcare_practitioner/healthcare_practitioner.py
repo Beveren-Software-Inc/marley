@@ -31,7 +31,7 @@ class HealthcarePractitioner(Document):
 	# 		self.name = append_number_if_name_exists("Contact", self.name)
 
 	def validate(self):
-		# self.set_full_name()
+		self.set_full_name()
 		validate_party_accounts(self)
 		if self.inpatient_visit_charge_item:
 			validate_service_item(
@@ -98,10 +98,37 @@ class HealthcarePractitioner(Document):
 		# that user's permissions to this document.
 
 	def set_full_name(self):
-		if self.last_name:
-			self.practitioner_name = " ".join(filter(None, [self.first_name, self.last_name]))
-		else:
-			self.practitioner_name = self.first_name
+		"""Keep ``practitioner_name`` (Full Name) in sync with the name parts.
+
+		The full name is composed from first, middle and last name. A full name
+		typed in by hand is preserved: the field is only filled when empty, or
+		refreshed when it still holds the value that was auto-generated from the
+		previous name parts (so editing a name part updates it again).
+		"""
+		composed = " ".join(
+			part.strip()
+			for part in (self.first_name, self.middle_name, self.last_name)
+			if (part or "").strip()
+		)
+		if not composed:
+			return
+
+		current = (self.practitioner_name or "").strip()
+		if not current:
+			self.practitioner_name = composed
+			return
+
+		previous = self.get_doc_before_save()
+		if not previous:
+			return
+
+		previous_composed = " ".join(
+			part.strip()
+			for part in (previous.first_name, previous.middle_name, previous.last_name)
+			if (part or "").strip()
+		)
+		if previous_composed and current == previous_composed:
+			self.practitioner_name = composed
 
 	def validate_practitioner_schedules(self):
 		for practitioner_schedule in self.practitioner_schedules:

@@ -40,13 +40,39 @@ export interface AssessmentSheetRow {
   time?: string
   comments?: string
   yes?: boolean
+  /** From template: show an inline select; chosen value is stored in comments. */
+  is_select?: boolean
+  select_options?: string[]
+}
+
+export interface TemplateParameterRow {
+  parameter: string
+  parameter_label: string
+  is_select?: number | boolean
+  select_options?: string[]
 }
 
 export interface TemplateParameters {
-  parameters: { parameter: string; parameter_label: string }[]
+  parameters: TemplateParameterRow[]
   scale_min: number
   scale_max: number
 }
+
+function mapTemplateParameterToSheetRow(p: TemplateParameterRow): AssessmentSheetRow {
+  const options = Array.isArray(p.select_options)
+    ? p.select_options.map((o) => String(o).trim()).filter(Boolean)
+    : []
+  return {
+    parameter: p.parameter,
+    score: 0,
+    time: '',
+    comments: '',
+    is_select: Boolean(p.is_select) && options.length > 0,
+    select_options: options,
+  }
+}
+
+export { mapTemplateParameterToSheetRow }
 
 export interface CreatePatientAssessmentInput {
   patient: string

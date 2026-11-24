@@ -835,6 +835,7 @@ import {
   fetchPatientAssessment,
   fetchTemplateParameters,
   fetchAssessmentParameters,
+  mapTemplateParameterToSheetRow,
   type AssessmentSheetRow,
   type AssessmentTemplateOption,
   type PatientAssessmentDoc,
@@ -1181,12 +1182,7 @@ export const CreatePatientAssessmentModal = ({
         setLoadingTemplate(true)
         const data = await fetchTemplateParameters(defaultTmpl.name)
         if (cancelled) return
-        const rows = data.parameters.map((p) => ({
-          parameter: p.parameter,
-          score: 0,
-          time: '',
-          comments: '',
-        }))
+        const rows = data.parameters.map(mapTemplateParameterToSheetRow)
         setSheetRows(rows)
         setParamQuery(Object.fromEntries(rows.map((r, i) => [i, r.parameter])))
         setExpandedRows(new Set(rows.map((_, i) => i)))
@@ -1281,7 +1277,7 @@ export const CreatePatientAssessmentModal = ({
     setLoadingTemplate(true)
     try {
       const data = await fetchTemplateParameters(tmpl.name)
-      const rows = data.parameters.map((p) => ({ parameter: p.parameter, score: 0, time: '', comments: '' }))
+      const rows = data.parameters.map(mapTemplateParameterToSheetRow)
       setSheetRows(rows)
       setParamQuery(Object.fromEntries(rows.map((r, i) => [i, r.parameter])))
       setExpandedRows(new Set(rows.map((_, i) => i)))
@@ -1728,14 +1724,36 @@ export const CreatePatientAssessmentModal = ({
                                   </div>
                                 </div>
 
-                                {/* Row 3: Comments (tall textarea) */}
+                                {/* Row 3: Result — select dropdown when template Is select, else free text */}
                                 <div>
-                                  <label className="block text-xs font-medium text-slate-600 mb-1">Comments</label>
-                                  <textarea rows={3} value={row.comments || ''}
-                                    onChange={(e) => updateRow(idx, 'comments', e.target.value)}
-                                    placeholder="Observations, notes, or remarks for this parameter…"
-                                    className="w-full rounded-md border border-slate-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary resize-y min-h-[80px]"
-                                  />
+                                  {row.is_select && (row.select_options?.length || 0) > 0 ? (
+                                    <>
+                                      <label className="block text-xs font-medium text-slate-600 mb-1">
+                                        Result <span className="text-slate-400 font-normal">(select)</span>
+                                      </label>
+                                      <select
+                                        value={row.comments || ''}
+                                        onChange={(e) => updateRow(idx, 'comments', e.target.value)}
+                                        className="w-full rounded-md border border-slate-300 px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary"
+                                      >
+                                        <option value="">Select…</option>
+                                        {row.select_options!.map((opt) => (
+                                          <option key={opt} value={opt}>
+                                            {opt}
+                                          </option>
+                                        ))}
+                                      </select>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <label className="block text-xs font-medium text-slate-600 mb-1">Comments</label>
+                                      <textarea rows={3} value={row.comments || ''}
+                                        onChange={(e) => updateRow(idx, 'comments', e.target.value)}
+                                        placeholder="Observations, notes, or remarks for this parameter…"
+                                        className="w-full rounded-md border border-slate-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary resize-y min-h-[80px]"
+                                      />
+                                    </>
+                                  )}
                                 </div>
                               </div>
                             )}
