@@ -10,11 +10,36 @@ import { StatusPill } from '../ui/StatusPill'
 import { labTestStatusColor } from '../labTests/labTestDisplayUtils'
 import { labBriefingChildPreview, labBriefingDisplayRows, labBriefingTestLabel } from '../../utils/labBriefingGroups'
 
+/** Decode HTML entities / strip tags so staff never see `<br>`, `&gt;`, `&amp;`. */
 function stripHtml(html: string | undefined): string {
   if (!html) return ''
+  const withBreaks = html
+    .replace(/<\s*br\s*\/?\s*>/gi, '\n')
+    .replace(/&lt;\s*br\s*\/?\s*&gt;/gi, '\n')
   const tmp = document.createElement('div')
-  tmp.innerHTML = html
-  return (tmp.textContent || tmp.innerText || '').trim().replace(/\s+/g, ' ')
+  tmp.innerHTML = withBreaks
+  return (tmp.textContent || tmp.innerText || '')
+    .replace(/\u00a0/g, ' ')
+    .replace(/[ \t]+/g, ' ')
+    .replace(/\n\s+/g, '\n')
+    .replace(/\n{2,}/g, '\n')
+    .trim()
+}
+
+function clinicalTextLines(html: string | undefined): string[] {
+  const plain = stripHtml(html)
+  if (!plain) return []
+  const seen = new Set<string>()
+  const lines: string[] = []
+  for (const raw of plain.split(/\n+|(?:\s*;\s*)/)) {
+    const line = raw.replace(/^[-•]\s*/, '').trim()
+    if (!line) continue
+    const key = line.toLowerCase()
+    if (seen.has(key)) continue
+    seen.add(key)
+    lines.push(line)
+  }
+  return lines
 }
 
 function BriefingModalShell({
@@ -108,8 +133,15 @@ export function NurseAdmissionsBriefingModal({
         <div className="grid gap-3 sm:grid-cols-2">
           {admissions.map((admission) => {
             const warnings = admission.warnings ?? []
-            const hasAllergies = Boolean((admission.allergy_summary || '').trim())
-            const hasWarnings = warnings.length > 0
+            const allergyLines = clinicalTextLines(admission.allergy_summary)
+            const warningLines = warnings
+              .map((warning) => ({
+                name: warning.name,
+                text: stripHtml(warning.high_risk_text || warning.warning) || warning.name,
+              }))
+              .filter((w) => w.text)
+            const hasAllergies = allergyLines.length > 0
+            const hasWarnings = warningLines.length > 0
             return (
               <button
                 key={admission.name}
@@ -148,24 +180,30 @@ export function NurseAdmissionsBriefingModal({
                           <AlertTriangle className="h-3.5 w-3.5" />
                           Allergies
                         </div>
-                        <p className="mt-1 text-xs text-amber-800">{admission.allergy_summary}</p>
+                        <ul className="mt-1 list-disc space-y-1 pl-4">
+                          {allergyLines.map((line) => (
+                            <li key={line} className="text-xs text-amber-800">
+                              {line}
+                            </li>
+                          ))}
+                        </ul>
                       </div>
                     ) : null}
                     {hasWarnings ? (
                       <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2">
                         <div className="flex items-center gap-1.5 text-xs font-semibold text-red-900">
                           <AlertTriangle className="h-3.5 w-3.5" />
-                          Warnings ({warnings.length})
+                          Warnings ({warningLines.length})
                         </div>
-                        <ul className="mt-1 space-y-1">
-                          {warnings.slice(0, 3).map((warning) => (
-                            <li key={warning.name} className="text-xs text-red-800 line-clamp-2">
-                              {stripHtml(warning.high_risk_text || warning.warning) || warning.name}
+                        <ul className="mt-1 list-disc space-y-1 pl-4">
+                          {warningLines.slice(0, 3).map((warning) => (
+                            <li key={warning.name} className="text-xs text-red-800 line-clamp-3">
+                              {warning.text}
                             </li>
                           ))}
-                          {warnings.length > 3 ? (
-                            <li className="text-xs font-medium text-red-700">
-                              +{warnings.length - 3} more
+                          {warningLines.length > 3 ? (
+                            <li className="list-none text-xs font-medium text-red-700">
+                              +{warningLines.length - 3} more
                             </li>
                           ) : null}
                         </ul>
