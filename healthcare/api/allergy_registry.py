@@ -41,7 +41,11 @@ _NEGATIVE_PHRASE = re.compile(
 		n\.?\s*f\.?\s*d\.?\s*a\.?|
 		mkfda|nkfda|mkda|nkda|nfda|nka|
 		not\s+known\s+(?:to\s+have\s+)?(?:any\s+)?(?:drug\s+|food\s+)*(?:allerg\w*|alerg\w*)|
+		# "no food or drug allergies" / "no drug or food allergy" (or between food/drug)
+		(?:no|not)\s+(?:known\s+)?(?:any\s+)?(?:(?:drug|food)\s+(?:or\s+)?)+allerg\w*|
+		(?:no|not)\s+(?:known\s+)?(?:any\s+)?(?:(?:drug|food)\s+(?:or\s+)?)+alerg\w*|
 		(?:no|not)\s+(?:known\s+)?(?:any\s+)?(?:drug\s+|food\s+)*(?:allerg\w*|alerg\w*)|
+		no\s+(?:known\s+)?(?:food|drug)\s*/\s*(?:food|drug)\s+(?:allerg\w*|alerg\w*)|
 		no\s+known|
 		not\s+allergic|
 		denies(?:\s+any)?(?:\s+known)?(?:\s+drug)?\s+(?:allerg\w*|alerg\w*)|
@@ -66,7 +70,7 @@ _QUALIFIER = re.compile(
 	re.I,
 )
 
-_TRAILING_PUNCT = re.compile(r"^[\s,;:./\\-]+|[\s,;:./\\-]+$")
+_TRAILING_PUNCT = re.compile(r"^[\s,;:./\\!?()-]+|[\s,;:./\\!?()-]+$")
 
 
 def _clean(value: str | None) -> str:

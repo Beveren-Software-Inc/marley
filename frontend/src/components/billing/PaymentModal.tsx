@@ -13,6 +13,7 @@ import {
   type PaymentModeLine,
 } from './PaymentModeLines'
 import { useFormatMoney, useMoneyInputConfig } from '../../hooks/useFormatMoney'
+import { useCareContext } from '../../providers/CareContextProvider'
 import {
   CreateModalHeader,
   CREATE_MODAL_BODY_GRADIENT,
@@ -52,11 +53,13 @@ export const PaymentModal = ({
   defaultDepartment,
   onPaymentSuccess,
 }: PaymentModalProps) => {
+  /** Navbar branch — fallback when the invoice itself carries no branch. */
+  const { userCostCenter } = useCareContext()
   const [paymentModes, setPaymentModes] = useState<string[]>([])
   const [modeLines, setModeLines] = useState<PaymentModeLine[]>([
     { ...newPaymentModeLine(), amount: outstandingAmount > 0 ? String(outstandingAmount) : '' },
   ])
-  const [costCenter, setCostCenter] = useState(defaultCostCenter || '')
+  const [costCenter, setCostCenter] = useState(defaultCostCenter || userCostCenter || '')
   const [company, setCompany] = useState(defaultCompany || '')
   const [department, setDepartment] = useState(defaultDepartment || '')
   const [loading, setLoading] = useState(false)
@@ -184,7 +187,8 @@ export const PaymentModal = ({
       setCostCenter(defaultCostCenter)
       setCostCenterQuery('')
     } else {
-      setCostCenter('')
+      // Invoice with no branch → fall back to the branch chosen in the navbar.
+      setCostCenter(userCostCenter || '')
       setCostCenterQuery('')
     }
     if (defaultDepartment) {
@@ -194,7 +198,7 @@ export const PaymentModal = ({
       setDepartment('')
       setDepartmentQuery('')
     }
-  }, [isOpen, outstandingAmount, defaultCompany, defaultCostCenter, defaultDepartment])
+  }, [isOpen, outstandingAmount, defaultCompany, defaultCostCenter, defaultDepartment, userCostCenter])
 
   if (!isOpen) return null
 

@@ -230,8 +230,8 @@ export function DoctorBriefingModals({
         onClose={onAdvance}
         onAdmissionSelect={onAdmissionSelect}
         closeLabel={admissionsOnly ? 'Close' : 'Next: Pending lab review'}
-        subtitle="Warnings and allergies for admitted patients across all branches."
-        emptyMessage="No admitted patients with allergies or clinical warnings."
+        subtitle="Warnings and allergies for admitted patients in your branch."
+        emptyMessage="No admitted patients with allergies or clinical warnings for your branch."
       />
     )
   }

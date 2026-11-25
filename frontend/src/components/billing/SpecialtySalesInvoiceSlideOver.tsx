@@ -517,7 +517,7 @@ export function SpecialtySalesInvoiceSlideOver({
         partyLabel={partyLabel}
         outstandingAmount={detail?.outstanding_amount ?? 0}
         defaultCompany={detail?.company}
-        defaultCostCenter={detail?.custom_created_at || undefined}
+        defaultCostCenter={detail?.custom_created_at || detail?.cost_center || undefined}
         onPaymentSuccess={() => {
           setShowPayment(false)
           void load()

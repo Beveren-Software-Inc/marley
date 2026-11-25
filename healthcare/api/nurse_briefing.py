@@ -4,10 +4,11 @@
 from __future__ import annotations
 
 import re
+from html import unescape
 
 import frappe
 from frappe import _
-from frappe.utils import cint, flt
+from frappe.utils import cint, flt, strip_html
 
 from healthcare.api.common import get_permitted_cost_centers
 from healthcare.api.nursing_inventory import get_stock_ledger
@@ -84,15 +85,24 @@ def _require_nurse_briefing_access() -> None:
 
 
 def _resolve_cost_center(cost_center: str | None) -> str | None:
+	"""Honour the portal branch filter when provided.
+
+	The desk branch picker is UI-only (localStorage). Do **not** silently replace
+	an OP-only branch with the first User-Permission cost centre — that wrongly
+	surfaces Active Inpatient Admissions for OP-only sites like British Medical Center.
+	"""
 	cc = (cost_center or "").strip() or None
+	if cc:
+		if frappe.db.exists("Cost Center", cc):
+			return cc
+		return None
+
 	permitted = get_permitted_cost_centers()
 	if permitted is not None:
 		if not permitted:
 			return None
-		if cc and cc in permitted:
-			return cc
 		return permitted[0]
-	return cc
+	return None
 
 
 def _cost_center_filters(cost_center: str | None) -> dict | None:
@@ -119,8 +129,27 @@ def _is_non_actionable_briefing_text(value: str | None) -> bool:
 	return bool(_NON_ACTIONABLE_HISTORY_NOTE.match(cleaned))
 
 
+def _plain_clinical_text(value: str | None) -> str:
+	"""Turn stored HTML / entities into readable plain text for briefing popups.
+
+	Staff should see ``-->`` and line breaks, never ``&gt;`` / ``<br>`` / ``&amp;``.
+	"""
+	if not (value or "").strip():
+		return ""
+	text = unescape(value)
+	text = re.sub(r"(?i)<br\s*/?>", "\n", text)
+	text = strip_html(text or "")
+	text = unescape(text)
+	lines: list[str] = []
+	for raw_line in text.replace("\r\n", "\n").split("\n"):
+		line = " ".join(raw_line.split()).strip(" ;")
+		if line and line not in lines:
+			lines.append(line)
+	return "\n".join(lines)
+
+
 def _warning_text(row: dict) -> str:
-	return (row.get("high_risk_text") or row.get("warning") or "").strip()
+	return _plain_clinical_text(row.get("high_risk_text") or row.get("warning") or "")
 
 
 def _is_actionable_admission_warning(row: dict) -> bool:
@@ -224,9 +253,30 @@ def _warnings_for_patients(patient_ids: list[str]) -> dict[str, list[dict]]:
 	return grouped
 
 
-def _active_admissions(cost_center: str | None, *, all_branches: bool = False) -> list[dict]:
-	# all_branches: ignore the selected branch; still limited to permitted cost centers.
-	cc_filters = _cost_center_filters(None if all_branches else cost_center)
+def _cost_center_allows_inpatient(cost_center: str | None) -> bool:
+	"""False when the branch (Cost Center) is tagged OP Only — it has no inpatient side."""
+	if not cost_center:
+		return True
+	try:
+		if not frappe.get_meta("Cost Center").has_field("custom_patient_care_type"):
+			return True
+		care_type = frappe.get_cached_value(
+			"Cost Center", cost_center, "custom_patient_care_type"
+		)
+	except Exception:
+		return True
+	normalized = " ".join((care_type or "").split()).strip().lower()
+	# Match Select option "OP Only" plus common variants ("Only OP", "OP", …).
+	if normalized in {"op only", "only op", "op", "outpatient only", "out-patient only"}:
+		return False
+	return True
+
+
+def _active_admissions(cost_center: str | None) -> list[dict]:
+	# OP-only branches have no inpatient admissions — never list them there.
+	if not _cost_center_allows_inpatient(cost_center):
+		return []
+	cc_filters = _cost_center_filters(cost_center)
 	if cc_filters is None:
 		return []
 
@@ -281,19 +331,43 @@ def _active_admissions(cost_center: str | None, *, all_branches: bool = False) -
 			record["primary_practitioner_name"] = practitioner_names.get(
 				record["primary_practitioner"], record["primary_practitioner"]
 			)
-		allergy_summary = (record.get("allergies") or "").strip()
-		has_real_allergy = bool(allergy_summary) and not _is_non_actionable_briefing_text(allergy_summary)
-		allergy_parts = [allergy_summary] if has_real_allergy else []
+		allergy_summary = _plain_clinical_text(record.get("allergies") or "")
+		# Drop NKDA-style lines ("no food or drug allergies", etc.) — patients with
+		# only those notes must not appear in the Active Inpatient Admissions popup.
+		allergy_parts: list[str] = [
+			part
+			for part in allergy_summary.split("\n")
+			if part and not _is_non_actionable_briefing_text(part)
+		]
 		for row in warnings_by_patient.get(patient or "", []):
 			if not cint(row.get("is_allergy")):
 				continue
 			body = _warning_text(row)
 			if body and not _is_non_actionable_briefing_text(body):
-				allergy_parts.append(body)
-		record["allergy_summary"] = "; ".join(dict.fromkeys(allergy_parts))
-		record["warnings"] = [
-			row for row in warnings_by_patient.get(patient or "", []) if _is_actionable_admission_warning(row)
-		]
+				for part in body.split("\n"):
+					if part and part not in allergy_parts and not _is_non_actionable_briefing_text(part):
+						allergy_parts.append(part)
+		# Deduplicate case-insensitively while preserving order.
+		seen_allergy: set[str] = set()
+		unique_allergies: list[str] = []
+		for part in allergy_parts:
+			key = part.casefold()
+			if key in seen_allergy:
+				continue
+			seen_allergy.add(key)
+			unique_allergies.append(part)
+		record["allergy_summary"] = "\n".join(unique_allergies)
+		cleaned_warnings = []
+		for row in warnings_by_patient.get(patient or "", []):
+			if not _is_actionable_admission_warning(row):
+				continue
+			plain = _warning_text(row)
+			cleaned = dict(row)
+			if plain:
+				cleaned["warning"] = plain
+				cleaned["high_risk_text"] = plain
+			cleaned_warnings.append(cleaned)
+		record["warnings"] = cleaned_warnings
 
 	return [
 		record

@@ -528,6 +528,8 @@ export interface InvoiceDetails {
   outstanding_amount: number
   status: string
   cost_center?: string | null
+  /** Branch the invoice was created at (collection cost center). */
+  custom_created_at?: string | null
   items: InvoiceItem[]
   company: string
   department?: string | null

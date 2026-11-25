@@ -88,6 +88,12 @@ interface CareContextValue {
   costCenterPatientCareType?: string
   /** Normalized scope derived from {@link costCenterPatientCareType} */
   costCenterCareScope: CostCenterCareScope
+  /**
+   * True after the first branch metadata refresh finishes.
+   * Until then, care scope defaults to "both" — briefing popups must wait so
+   * OP-only branches do not briefly show Active Inpatient Admissions.
+   */
+  costCenterCareScopeReady: boolean
   /** Current user's roles */
   userRole?: string[]
   /** Current user object */
@@ -199,6 +205,7 @@ export const CareContextProvider = ({ children }: { children: ReactNode }) => {
   }, [])
   const [costCenterCompany, setCostCenterCompany] = useState<string | undefined>(undefined)
   const [costCenterPatientCareType, setCostCenterPatientCareType] = useState<string | undefined>(undefined)
+  const [costCenterCareScopeReady, setCostCenterCareScopeReady] = useState(false)
 
   const costCenterCareScope = careScopeFromCostCenterField(costCenterPatientCareType)
   const [userRole, setUserRole] = useState<string[] | undefined>(undefined)
@@ -297,6 +304,15 @@ export const CareContextProvider = ({ children }: { children: ReactNode }) => {
     try {
       const portal = getPortalBranch()
       setUserCostCenterState(portal || undefined)
+
+      // All Branches: do not inherit Employee cost-center care type (would wrongly
+      // show IP-only or OP-only popups while viewing every branch).
+      if (!portal && isAllBranchesSelected()) {
+        setCostCenterCompany(undefined)
+        setCostCenterPatientCareType('')
+        return
+      }
+
       const qs = portal ? `?cost_center=${encodeURIComponent(portal)}` : ''
       const response = await fetch(
         `/api/method/healthcare.api.nursing_inventory.get_default_warehouse_and_cost_center${qs}`,
@@ -319,9 +335,14 @@ export const CareContextProvider = ({ children }: { children: ReactNode }) => {
             ? msg.cost_center_patient_care_type
             : ''
         )
+      } else {
+        setCostCenterPatientCareType((prev) => (prev === undefined ? '' : prev))
       }
     } catch (error) {
       console.warn('Failed to refresh user cost center:', error)
+      setCostCenterPatientCareType((prev) => (prev === undefined ? '' : prev))
+    } finally {
+      setCostCenterCareScopeReady(true)
     }
   }, [])
 
@@ -560,6 +581,7 @@ export const CareContextProvider = ({ children }: { children: ReactNode }) => {
       costCenterCompany,
       costCenterPatientCareType,
       costCenterCareScope,
+      costCenterCareScopeReady,
       userRole,
       user,
       companyCurrency,
@@ -597,6 +619,7 @@ export const CareContextProvider = ({ children }: { children: ReactNode }) => {
       costCenterCompany,
       costCenterPatientCareType,
       costCenterCareScope,
+      costCenterCareScopeReady,
       userRole,
       user,
       companyCurrency,

@@ -61,6 +61,18 @@ export interface PaymentReferenceOption {
   customer_name?: string
   patient?: string
   patient_name?: string
+  /** Branch the invoice belongs to (Sales Invoice.custom_created_at). */
+  custom_created_at?: string | null
+  /** Header cost center — only used when {@link custom_created_at} is empty. */
+  cost_center?: string | null
+}
+
+/** Branch carried by an invoice row: collection cost center first, cost center fallback. */
+export function invoiceRowBranch(row?: {
+  custom_created_at?: string | null
+  cost_center?: string | null
+} | null): string {
+  return ((row?.custom_created_at || row?.cost_center || '') as string).trim()
 }
 
 // ─── Service ──────────────────────────────────────────────────────────────────

@@ -64,6 +64,8 @@ export function NurseBriefingProvider({ children }: { children: ReactNode }) {
     activeAdmission,
     userCostCenter,
     userRole,
+    costCenterCareScope,
+    costCenterCareScopeReady,
     setSelectedPatient,
     setMode,
     setActiveAdmission,
@@ -74,10 +76,14 @@ export function NurseBriefingProvider({ children }: { children: ReactNode }) {
   const patientFromUrl = searchParams.get('patient')
   const onNurseRoute = location.pathname === '/nurse'
   const isNurse = isNurseRole(userRole)
+  /** OP-only branches (e.g. British Medical Center) have no inpatient side. */
+  const admissionsAllowed = costCenterCareScope !== 'op_only'
 
   const [step, setStep] = useState<NurseBriefingStep | null>(null)
   const [briefing, setBriefing] = useState<NurseShiftBriefing>(EMPTY_BRIEFING)
   const [loading, setLoading] = useState(false)
+  /** Landing check runs silently — the modal only appears once a step has data. */
+  const [landingHold, setLandingHold] = useState(false)
   const completedForLandingRef = useRef(wasShiftBriefingShown('nurse'))
   const lastRouteRef = useRef(location.pathname)
   const loadedSectionsRef = useRef({ admissions: false, lab_tests: false, low_stock: false })
@@ -95,12 +101,15 @@ export function NurseBriefingProvider({ children }: { children: ReactNode }) {
     onNurseRoute &&
     !careSelected &&
     !authLoading &&
+    // Wait for branch Patient Care Type so OP-only sites never flash the IP popup.
+    costCenterCareScopeReady &&
     !wasShiftBriefingShown('nurse')
 
   const clearBriefingUi = useCallback(() => {
     setStep(null)
     setBriefing(EMPTY_BRIEFING)
     setLoading(false)
+    setLandingHold(false)
     loadedSectionsRef.current = { admissions: false, lab_tests: false, low_stock: false }
     completedForLandingRef.current = wasShiftBriefingShown('nurse')
   }, [])
@@ -139,6 +148,8 @@ export function NurseBriefingProvider({ children }: { children: ReactNode }) {
           }))
           if (data.active_admissions.length === 0) {
             setStep('lab_tests')
+          } else {
+            setLandingHold(false)
           }
         } else if (section === 'lab_tests') {
           const data = await fetchNurseBriefingLabTests(userCostCenter)
@@ -147,6 +158,12 @@ export function NurseBriefingProvider({ children }: { children: ReactNode }) {
             ...prev,
             pending_sample_lab_tests: data.pending_sample_lab_tests,
           }))
+          // Nothing to collect — move on to the inventory step.
+          if (data.pending_sample_lab_tests.length === 0) {
+            setStep('low_stock')
+          } else {
+            setLandingHold(false)
+          }
         } else {
           const data = await fetchNurseBriefingLowStock(userCostCenter)
           loadedSectionsRef.current.low_stock = true
@@ -154,10 +171,20 @@ export function NurseBriefingProvider({ children }: { children: ReactNode }) {
             ...prev,
             low_stock_items: data.low_stock_items,
           }))
+          // Nothing to brief on at all — no popup.
+          if (data.low_stock_items.length === 0) {
+            markShiftBriefingShown('nurse')
+            completedForLandingRef.current = true
+            setStep(null)
+          }
+          setLandingHold(false)
         }
       } catch (err) {
         console.error(`Failed to load nurse briefing (${section}):`, err)
         loadedSectionsRef.current[section] = true
+        // Stay silent rather than show an empty popup.
+        setLandingHold(false)
+        setStep(null)
       } finally {
         setLoading(false)
       }
@@ -168,13 +195,22 @@ export function NurseBriefingProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!shouldOfferBriefing || step) return
     markShiftBriefingShown('nurse')
-    setStep('admissions')
-  }, [shouldOfferBriefing, step])
+    // Check first, then reveal: OP-only branches never see the admissions step.
+    setLandingHold(true)
+    setStep(admissionsAllowed ? 'admissions' : 'lab_tests')
+  }, [shouldOfferBriefing, step, admissionsAllowed])
+
+  // If branch metadata resolves to OP-only after admissions was queued, skip it.
+  useEffect(() => {
+    if (!costCenterCareScopeReady || admissionsAllowed) return
+    if (step === 'admissions') setStep('lab_tests')
+  }, [costCenterCareScopeReady, admissionsAllowed, step])
 
   useEffect(() => {
     if (!step || completedForLandingRef.current) return
+    if (step === 'admissions' && !admissionsAllowed) return
     void loadSection(step)
-  }, [step, loadSection])
+  }, [step, loadSection, admissionsAllowed])
 
   const handleAdvance = useCallback(() => {
     setStep((current) => {
@@ -241,20 +277,25 @@ export function NurseBriefingProvider({ children }: { children: ReactNode }) {
     ],
   )
 
+  /** OP-only branch: never render the active inpatient admission popup. */
+  const visibleStep: NurseBriefingStep | null =
+    step === 'admissions' && !admissionsAllowed ? null : step
+  const showBriefing = Boolean(visibleStep) && !landingHold
+
   const value = useMemo(
     () => ({
-      briefingActive: Boolean(step),
-      step,
+      briefingActive: showBriefing,
+      step: visibleStep,
     }),
-    [step],
+    [showBriefing, visibleStep],
   )
 
   return (
     <NurseBriefingContext.Provider value={value}>
       {children}
-      {step ? (
+      {showBriefing && visibleStep ? (
         <NurseBriefingModals
-          step={step}
+          step={visibleStep}
           briefing={briefing}
           loading={loading}
           onAdvance={handleAdvance}
