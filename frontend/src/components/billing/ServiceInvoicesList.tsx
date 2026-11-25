@@ -15,6 +15,7 @@ import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 import { PortalActionsMenu } from '../ui/PortalActionsMenu'
 import { PaymentModal } from './PaymentModal'
 import { StandalonePaymentModal } from './StandalonePaymentModal'
+import { invoiceRowBranch } from '../../services/paymentEntry'
 import { cancelOrDeleteSalesInvoice, submitSalesInvoiceDoc } from '../../services/billingSpecialty'
 import {
   canRecordPaymentAgainstSalesInvoice,
@@ -206,6 +207,8 @@ export const ServiceInvoicesList = ({
         outstanding_amount: Number(inv.outstanding_amount) || 0,
         patient: inv.patient,
         patient_name: inv.patient_name,
+        // Branch carried by the invoice → standalone payment defaults to it.
+        custom_created_at: inv.custom_created_at || inv.cost_center || null,
       })),
     [selectedPayable]
   )
@@ -670,7 +673,7 @@ export const ServiceInvoicesList = ({
         customerName={paymentFor?.customer_name || paymentFor?.customer || ''}
         outstandingAmount={paymentFor?.outstanding_amount ?? 0}
         defaultCompany={paymentFor?.company}
-        defaultCostCenter={paymentFor?.custom_created_at || undefined}
+        defaultCostCenter={invoiceRowBranch(paymentFor) || undefined}
         onPaymentSuccess={() => {
           setPaymentFor(null)
           void loadData()

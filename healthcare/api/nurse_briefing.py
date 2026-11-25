@@ -84,15 +84,24 @@ def _require_nurse_briefing_access() -> None:
 
 
 def _resolve_cost_center(cost_center: str | None) -> str | None:
+	"""Honour the portal branch filter when provided.
+
+	The desk branch picker is UI-only (localStorage). Do **not** silently replace
+	an OP-only branch with the first User-Permission cost centre — that wrongly
+	surfaces Active Inpatient Admissions for OP-only sites like British Medical Center.
+	"""
 	cc = (cost_center or "").strip() or None
+	if cc:
+		if frappe.db.exists("Cost Center", cc):
+			return cc
+		return None
+
 	permitted = get_permitted_cost_centers()
 	if permitted is not None:
 		if not permitted:
 			return None
-		if cc and cc in permitted:
-			return cc
 		return permitted[0]
-	return cc
+	return None
 
 
 def _cost_center_filters(cost_center: str | None) -> dict | None:
@@ -224,9 +233,30 @@ def _warnings_for_patients(patient_ids: list[str]) -> dict[str, list[dict]]:
 	return grouped
 
 
-def _active_admissions(cost_center: str | None, *, all_branches: bool = False) -> list[dict]:
-	# all_branches: ignore the selected branch; still limited to permitted cost centers.
-	cc_filters = _cost_center_filters(None if all_branches else cost_center)
+def _cost_center_allows_inpatient(cost_center: str | None) -> bool:
+	"""False when the branch (Cost Center) is tagged OP Only — it has no inpatient side."""
+	if not cost_center:
+		return True
+	try:
+		if not frappe.get_meta("Cost Center").has_field("custom_patient_care_type"):
+			return True
+		care_type = frappe.get_cached_value(
+			"Cost Center", cost_center, "custom_patient_care_type"
+		)
+	except Exception:
+		return True
+	normalized = " ".join((care_type or "").split()).strip().lower()
+	# Match Select option "OP Only" plus common variants ("Only OP", "OP", …).
+	if normalized in {"op only", "only op", "op", "outpatient only", "out-patient only"}:
+		return False
+	return True
+
+
+def _active_admissions(cost_center: str | None) -> list[dict]:
+	# OP-only branches have no inpatient admissions — never list them there.
+	if not _cost_center_allows_inpatient(cost_center):
+		return []
+	cc_filters = _cost_center_filters(cost_center)
 	if cc_filters is None:
 		return []
 

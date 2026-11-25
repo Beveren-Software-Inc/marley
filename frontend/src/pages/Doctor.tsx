@@ -2516,12 +2516,14 @@ export const DoctorPage = () => {
         onOpenVisitInHeader={returnToDoctorHome}
       />
 
-      <InpatientAdmissionsCard
-        listingScreen="admission"
-        patient={selectedPatient || undefined}
-        onPatientSelect={handlePatientSelect}
-        onAdmissionActivate={handleAdmissionActivate}
-      />
+      {costCenterCareScope !== 'op_only' && (
+        <InpatientAdmissionsCard
+          listingScreen="admission"
+          patient={selectedPatient || undefined}
+          onPatientSelect={handlePatientSelect}
+          onAdmissionActivate={handleAdmissionActivate}
+        />
+      )}
 
       <DashboardCard
         fixedHeight

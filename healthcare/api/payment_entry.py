@@ -108,6 +108,9 @@ def search_sales_invoices_for_payment(search=None, patient=None, limit=30):
 				"posting_date",
 				"custom_reference_type",
 				"custom_reference_name",
+				# Branch carried by the invoice so the payment can default to it.
+				"custom_created_at",
+				"cost_center",
 			],
 			limit=limit,
 			order_by="modified desc",
@@ -124,6 +127,9 @@ def search_sales_invoices_for_payment(search=None, patient=None, limit=30):
 				"outstanding_amount",
 				"grand_total",
 				"posting_date",
+				# Branch carried by the invoice so the payment can default to it.
+				"custom_created_at",
+				"cost_center",
 			],
 			limit=limit,
 			order_by="posting_date desc, modified desc",
@@ -137,6 +143,8 @@ def search_sales_invoices_for_payment(search=None, patient=None, limit=30):
 			"customer_name": row.customer_name,
 			"patient": row.patient,
 			"patient_name": row.patient_name,
+			"custom_created_at": row.custom_created_at,
+			"cost_center": row.cost_center,
 		}
 		for row in rows
 	]
@@ -829,6 +837,9 @@ def list_patient_outstanding_invoices(patient: str, limit=50):
 			"posting_date",
 			"custom_reference_type",
 			"custom_reference_name",
+			# Branch carried by the invoice so the payment can default to it.
+			"custom_created_at",
+			"cost_center",
 		],
 		limit=limit,
 		order_by="posting_date desc, modified desc",
@@ -842,6 +853,8 @@ def list_patient_outstanding_invoices(patient: str, limit=50):
 			"posting_date": row.posting_date,
 			"patient": row.patient,
 			"patient_name": row.patient_name,
+			"custom_created_at": row.custom_created_at,
+			"cost_center": row.cost_center,
 		}
 		for row in rows
 	]

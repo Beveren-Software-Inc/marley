@@ -609,7 +609,8 @@ const handleMakePayment = async (
       customer_name: customerName,
       outstanding_amount: Number(target.outstanding_amount) || outstandingAmount,
       company: invoiceDetails?.company || '',
-      cost_center: invoiceDetails?.cost_center || '',
+      // Branch the invoice was created at (collection cost center); header cost center as fallback.
+      cost_center: invoiceDetails?.custom_created_at || invoiceDetails?.cost_center || '',
       department:invoiceDetails?.department || '',
     })
     setShowPaymentModal(true)

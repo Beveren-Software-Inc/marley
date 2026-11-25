@@ -69,12 +69,13 @@ def get_doctor_shift_briefing(cost_center=None, section=None):
 	result = {"cost_center": cc}
 
 	if section_key == "admissions":
-		# First doctor popup: warnings/allergies across all branches (not the auto-selected one).
-		result["active_admissions"] = _active_admissions(cc, all_branches=True)
+		# Warnings/allergies for admitted patients in the selected branch only.
+		# OP-only branches never see this popup (frontend + _active_admissions guard).
+		result["active_admissions"] = _active_admissions(cc)
 	elif section_key == "lab_tests":
 		result["pending_review_lab_tests"] = _pending_review_lab_tests(cc)
 	else:
-		result["active_admissions"] = _active_admissions(cc, all_branches=True)
+		result["active_admissions"] = _active_admissions(cc)
 		result["pending_review_lab_tests"] = _pending_review_lab_tests(cc)
 
 	return result

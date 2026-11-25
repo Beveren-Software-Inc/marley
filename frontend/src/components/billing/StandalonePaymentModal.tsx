@@ -16,6 +16,7 @@ import {
   fetchSalesInvoiceSummary,
   fetchPatientBillingBalance,
   fetchPatientOutstandingInvoices,
+  invoiceRowBranch,
   type PatientBillingBalance,
   type PaymentReferenceOption,
 } from '../../services/paymentEntry'
@@ -161,6 +162,8 @@ type PickedInvoice = {
   label: string
   outstanding: number
   patient?: string
+  /** Branch carried by the invoice (Cost Center). */
+  branch?: string
 }
 
 export function StandalonePaymentModal({
@@ -190,6 +193,8 @@ export function StandalonePaymentModal({
 
   const initialAllocationsRef = useRef(initialAllocations)
   const initialInvoicesRef = useRef(initialInvoices)
+  /** True once the user picks a branch in the modal — stop auto-defaulting it. */
+  const branchManuallyChosenRef = useRef(false)
 
   const [paymentMode, setPaymentMode] = useState<PaymentMode>(initialMode)
   const [referenceType, setReferenceType] = useState<ReferenceType>('Sales Invoice')
@@ -244,6 +249,9 @@ export function StandalonePaymentModal({
   const effectivePatient = selectedPatient?.name
 
   useEffect(() => {
+    // Navbar branch → default branch for the standalone payment.
+    // Keep a manual choice in the modal (or a branch carried by picked invoices).
+    if (branchManuallyChosenRef.current) return
     if (userCostCenter) setCostCenter(userCostCenter)
   }, [userCostCenter])
 
@@ -333,6 +341,19 @@ export function StandalonePaymentModal({
           })
         }
         setMultiSelected(initial)
+        // Default the branch to the invoices being settled when they share one branch.
+        if (!branchManuallyChosenRef.current) {
+          const branches = new Set(
+            merged
+              .filter((row) => initial[row.name] != null)
+              .map((row) => invoiceRowBranch(row))
+              .filter(Boolean)
+          )
+          if (branches.size === 1) {
+            const onlyBranch = [...branches][0]
+            if (onlyBranch) setCostCenter(onlyBranch)
+          }
+        }
         const total = Object.values(initial).reduce((s, v) => s + (v || 0), 0)
         if (total > 0) {
           const amt = String(total)
@@ -371,6 +392,7 @@ export function StandalonePaymentModal({
           label: opt.label,
           outstanding: opt.outstanding_amount || 0,
           patient: opt.patient,
+          branch: invoiceRowBranch(opt) || undefined,
         }
       }
       syncAmountFromPicked(next)
@@ -517,6 +539,29 @@ export function StandalonePaymentModal({
     [pickedInvoices]
   )
   const pickedInvoiceCount = Object.keys(pickedInvoices).length
+
+  /** Branch carried by the picked invoices (empty when they disagree). */
+  const pickedInvoicesBranch = useMemo(() => {
+    const branches = new Set(
+      Object.values(pickedInvoices)
+        .map((row) => (row.branch || '').trim())
+        .filter(Boolean)
+    )
+    if (branches.size !== 1) return ''
+    return [...branches][0] || ''
+  }, [pickedInvoices])
+
+  // Invoice → payment: the invoice's branch wins over the navbar default (still editable).
+  useEffect(() => {
+    if (!pickedInvoicesBranch || branchManuallyChosenRef.current) return
+    setCostCenter((prev) => (prev === pickedInvoicesBranch ? prev : pickedInvoicesBranch))
+  }, [pickedInvoicesBranch])
+
+  /** Keep the resolved branch selectable even when it is outside the navbar allowlist. */
+  const branchSelectOptions = useMemo(() => {
+    if (!costCenter || branchOptions.some((b) => b.name === costCenter)) return branchOptions
+    return [...branchOptions, { name: costCenter, label: costCenter }]
+  }, [branchOptions, costCenter])
 
   const parsedAmount = sumPaymentModeLines(modeLines)
   const creditBalance = billingBalance?.credit_balance ?? 0
@@ -832,17 +877,24 @@ export function StandalonePaymentModal({
             </label>
             <select
               value={costCenter}
-              onChange={(e) => setCostCenter(e.target.value)}
+              onChange={(e) => {
+                branchManuallyChosenRef.current = true
+                setCostCenter(e.target.value)
+              }}
               required
               className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm bg-white"
             >
               <option value="">Select branch…</option>
-              {branchOptions.map((b) => (
+              {branchSelectOptions.map((b) => (
                 <option key={b.name} value={b.name}>
                   {b.label || b.name}
                 </option>
               ))}
             </select>
+            <p className="mt-1 text-[11px] text-slate-400">
+              Defaults to the branch selected at the top. Payments created from an invoice default to
+              that invoice&apos;s branch.
+            </p>
           </div>
 
           {!initialPatient && (
@@ -1015,6 +1067,7 @@ export function StandalonePaymentModal({
                                   label: row.label,
                                   outstanding_amount: row.outstanding,
                                   patient: row.patient,
+                                  custom_created_at: row.branch || null,
                                 })
                               }
                               className="text-slate-400 hover:text-red-600"

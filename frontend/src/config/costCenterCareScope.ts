@@ -11,8 +11,26 @@ export type CostCenterCareScope = 'both' | 'op_only' | 'ip_only'
 
 export function careScopeFromCostCenterField(v: string | null | undefined): CostCenterCareScope {
   const s = (v || '').trim()
-  if (s === CARE_TYPE_OP_ONLY || /^op\s*only$/i.test(s)) return 'op_only'
-  if (s === CARE_TYPE_IP_ONLY || /^ip\s*only$/i.test(s)) return 'ip_only'
+  if (!s) return 'both'
+  // Accept Select options plus common variants (e.g. "Only OP", "OP").
+  if (
+    s === CARE_TYPE_OP_ONLY ||
+    /^op\s*only$/i.test(s) ||
+    /^only\s*op$/i.test(s) ||
+    /^out[- ]?patient\s*only$/i.test(s) ||
+    /^op$/i.test(s)
+  ) {
+    return 'op_only'
+  }
+  if (
+    s === CARE_TYPE_IP_ONLY ||
+    /^ip\s*only$/i.test(s) ||
+    /^only\s*ip$/i.test(s) ||
+    /^in[- ]?patient\s*only$/i.test(s) ||
+    /^ip$/i.test(s)
+  ) {
+    return 'ip_only'
+  }
   return 'both'
 }
 
@@ -24,6 +42,8 @@ const OP_ONLY_DOCTOR_SCREEN_IDS = new Set([
   'd-daily-med',
   'd-med-sheet',
   'single-prescription',
+  // Opens the "Active Inpatient Admissions" popup — inpatient-only.
+  'd-ip-warnings',
 ])
 
 /** Doctor screens hidden when the active mode is OP (regardless of branch scope) */
