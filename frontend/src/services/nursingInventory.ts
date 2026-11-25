@@ -294,7 +294,14 @@ export async function fetchSuppliers(search?: string): Promise<{ name: string; l
 export async function fetchInventoryItems(
   search?: string,
   warehouseContext: WarehouseContext = 'nurse'
-): Promise<{ code: string; name: string; uom: string; price: number }[]> {
+): Promise<{
+  code: string
+  name: string
+  uom: string
+  price: number
+  has_serial_no?: number
+  has_batch_no?: number
+}[]> {
   let url = withWarehouseContext('/api/method/healthcare.api.nursing_inventory.get_inventory_items', warehouseContext)
   if (search) url += `${url.includes('?') ? '&' : '?'}search=${encodeURIComponent(search)}`
   const response = await fetch(url)

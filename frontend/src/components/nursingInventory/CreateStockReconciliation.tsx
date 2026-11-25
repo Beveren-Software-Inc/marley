@@ -5,11 +5,19 @@ import {
   createModalShellClass,
 } from '../ui/CreateModalChrome'
 import { useCareContext } from '../../providers/CareContextProvider'
-import { fetchStockLedger, getWarehousesForCostCenter, createStockReconciliation, getItemBatches, getItemSerials, getBatchSerials } from '../../services/nursingInventory'
+import {
+  fetchStockLedger,
+  fetchInventoryItems,
+  getWarehousesForCostCenter,
+  createStockReconciliation,
+  getItemBatches,
+  getItemSerials,
+  getBatchSerials,
+} from '../../services/nursingInventory'
 import { useMiniWarehouseContext } from './MiniWarehouseInventoryContext'
 import { InventoryBranchField, useInventoryBranch } from './InventoryBranchField'
 import { toast } from '../../hooks/useToast'
-import { X, Save, Search, AlertTriangle, Plus, Minus } from 'lucide-react'
+import { X, Save, Search, AlertTriangle, Plus, Minus, Trash2 } from 'lucide-react'
 import { DateFilterInput } from '../ui/DateFilterInput'
 
 interface CreateStockReconciliationModalProps {
@@ -65,6 +73,11 @@ export const CreateStockReconciliationModal = ({
   const [scanInput, setScanInput] = useState('')
   const [selectedItemForSerial, setSelectedItemForSerial] = useState<ReconciliationItem | null>(null)
   const [serialInput, setSerialInput] = useState('')
+  const [addItemQuery, setAddItemQuery] = useState('')
+  const [addItemOptions, setAddItemOptions] = useState<
+    { code: string; name: string; has_serial_no?: number; has_batch_no?: number }[]
+  >([])
+  const [addItemOpen, setAddItemOpen] = useState(false)
 
   // Load warehouses
   useEffect(() => {
@@ -155,6 +168,108 @@ export const CreateStockReconciliationModal = ({
     } finally {
       setLoading(false)
     }
+  }
+
+  const searchItemsToAdd = async (search: string) => {
+    if (!search.trim()) {
+      setAddItemOptions([])
+      return
+    }
+    try {
+      const results = await fetchInventoryItems(search, warehouseContext)
+      setAddItemOptions(results as any)
+    } catch {
+      setAddItemOptions([])
+    }
+  }
+
+  const addChosenItem = async (picked: {
+    code: string
+    name: string
+    has_serial_no?: number
+    has_batch_no?: number
+  }) => {
+    if (items.some((i) => i.item_code === picked.code)) {
+      toast.error('Item already on the list')
+      setAddItemQuery('')
+      setAddItemOptions([])
+      setAddItemOpen(false)
+      return
+    }
+
+    const itemData: ReconciliationItem = {
+      item_code: picked.code,
+      item_name: picked.name,
+      current_qty: 0,
+      new_qty: 0,
+      difference: 0,
+      serial_nos: [],
+      batch_no: '',
+      has_serial_no: Boolean(picked.has_serial_no),
+      has_batch_no: Boolean(picked.has_batch_no),
+      available_batches: [],
+      isLoadingBatches: false,
+    }
+
+    if (picked.has_serial_no == null || picked.has_batch_no == null) {
+      try {
+        const response = await fetch(`/api/method/frappe.client.get_value`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            doctype: 'Item',
+            filters: { item_code: picked.code },
+            fieldname: ['has_serial_no', 'has_batch_no'],
+          }),
+        })
+        const result = await response.json()
+        if (result.message) {
+          itemData.has_serial_no = result.message.has_serial_no === 1
+          itemData.has_batch_no = result.message.has_batch_no === 1
+        }
+      } catch {
+        /* keep defaults */
+      }
+    }
+
+    if (itemData.has_batch_no && warehouse) {
+      try {
+        const batches = await getItemBatches(picked.code, warehouse)
+        itemData.available_batches = batches || []
+      } catch {
+        itemData.available_batches = []
+      }
+    }
+
+    const next = [...items, itemData]
+    setItems(next)
+    setFilteredItems(
+      searchTerm.trim()
+        ? next.filter(
+            (item) =>
+              item.item_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+              item.item_code.toLowerCase().includes(searchTerm.toLowerCase())
+          )
+        : next
+    )
+    setAddItemQuery('')
+    setAddItemOptions([])
+    setAddItemOpen(false)
+    toast.success(`Added ${picked.name} — set physical qty for opening stock`)
+  }
+
+  const removeItem = (itemCode: string) => {
+    const next = items.filter((i) => i.item_code !== itemCode)
+    setItems(next)
+    setFilteredItems(
+      searchTerm.trim()
+        ? next.filter(
+            (item) =>
+              item.item_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+              item.item_code.toLowerCase().includes(searchTerm.toLowerCase())
+          )
+        : next
+    )
   }
 
   // Load batches for an item and update the item in state
@@ -452,12 +567,15 @@ export const CreateStockReconciliationModal = ({
     }
 
     if (itemsWithDiscrepancy.length === 0) {
-      toast.error('No discrepancies found. Nothing to reconcile.')
+      toast.error(
+        'Add items and set physical quantities that differ from system qty (use this for opening stock).'
+      )
       return
     }
 
     setSubmitting(true)
     try {
+      const isOpening = itemsWithDiscrepancy.every((item) => item.current_qty === 0)
       await createStockReconciliation({
         cost_center: effectiveCostCenter,
         warehouse: warehouse,
@@ -475,7 +593,11 @@ export const CreateStockReconciliationModal = ({
         status: 'Draft',
         warehouse_context: warehouseContext,
       })
-      toast.success(`Stock reconciliation completed. ${itemsWithDiscrepancy.length} items adjusted.`)
+      toast.success(
+        isOpening
+          ? `Opening stock posted for ${itemsWithDiscrepancy.length} item(s).`
+          : `Stock reconciliation completed. ${itemsWithDiscrepancy.length} items adjusted.`
+      )
       onSuccess()
       onClose()
     } catch (error) {
@@ -486,6 +608,7 @@ export const CreateStockReconciliationModal = ({
   }
 
   const discrepanciesCount = items.filter(i => i.difference !== 0).length
+  const isOpeningStock = items.length > 0 && items.every((i) => i.current_qty === 0)
 
   return (
     <div className={CREATE_MODAL_OVERLAY}>
@@ -527,7 +650,13 @@ export const CreateStockReconciliationModal = ({
                 : 'border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-100'
             }`}
           >
-            Items ({discrepanciesCount > 0 ? `${discrepanciesCount} adjusted` : 'no changes'})
+            Items (
+              {discrepanciesCount > 0
+                ? `${discrepanciesCount} to post`
+                : items.length === 0
+                  ? 'add items'
+                  : 'no changes'}
+            )
           </button>
         </div>
 
@@ -626,12 +755,54 @@ export const CreateStockReconciliationModal = ({
                   )}
                 </div>
 
-                {/* Search */}
+                {/* Add item (opening stock / items not yet in warehouse) */}
+                <div className="relative rounded-lg border border-emerald-200 bg-emerald-50/60 p-3">
+                  <label className="block text-sm font-medium text-emerald-950 mb-1">
+                    Add item for opening / first count
+                  </label>
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                    <input
+                      type="text"
+                      value={addItemQuery}
+                      onChange={(e) => {
+                        const value = e.target.value
+                        setAddItemQuery(value)
+                        setAddItemOpen(true)
+                        void searchItemsToAdd(value)
+                      }}
+                      onFocus={() => setAddItemOpen(true)}
+                      placeholder="Search item code or name to add…"
+                      className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white"
+                    />
+                    {addItemOpen && addItemOptions.length > 0 && (
+                      <ul className="absolute z-20 mt-1 max-h-48 w-full overflow-y-auto rounded-md border border-slate-200 bg-white shadow-lg">
+                        {addItemOptions.map((opt) => (
+                          <li key={opt.code}>
+                            <button
+                              type="button"
+                              className="w-full px-3 py-2 text-left text-sm hover:bg-emerald-50"
+                              onClick={() => void addChosenItem(opt)}
+                            >
+                              <span className="font-mono text-xs text-slate-500">{opt.code}</span>
+                              <span className="ml-2 font-medium text-slate-900">{opt.name}</span>
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                  <p className="mt-1.5 text-xs text-slate-600">
+                    Choose items even when the warehouse has no stock yet, then set Physical Qty.
+                  </p>
+                </div>
+
+                {/* Filter list */}
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400" />
                   <input
                     type="text"
-                    placeholder="Search items by name or code..."
+                    placeholder="Filter listed items by name or code..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary"
@@ -646,6 +817,14 @@ export const CreateStockReconciliationModal = ({
                   </div>
                 ) : (
                   <>
+                    {filteredItems.length === 0 ? (
+                      <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-8 text-center">
+                        <p className="text-sm font-medium text-slate-800">No items on this count yet</p>
+                        <p className="mt-1 text-xs text-slate-500">
+                          Search above to add items and set opening quantities for this warehouse.
+                        </p>
+                      </div>
+                    ) : (
                     <div className="border border-slate-200 rounded-lg overflow-hidden max-h-[450px] overflow-y-auto">
                       <table className="w-full text-sm">
                         <thead className="bg-slate-50 sticky top-0">
@@ -657,6 +836,7 @@ export const CreateStockReconciliationModal = ({
                             <th className="px-3 py-2 text-center">Batch No</th>
                             <th className="px-3 py-2 text-center">Serials</th>
                             <th className="px-3 py-2 text-right">Difference</th>
+                            <th className="px-3 py-2 text-center w-10"></th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-200">
@@ -676,40 +856,35 @@ export const CreateStockReconciliationModal = ({
                               </td>
                               <td className="px-3 py-2">
                                 {item.has_batch_no && (
-                                  <div className="min-w-[150px]">
+                                  <div className="min-w-[150px] space-y-1">
                                     {item.isLoadingBatches ? (
                                       <div className="flex items-center gap-1 text-xs text-slate-500">
                                         <div className="inline-block animate-spin rounded-full h-3 w-3 border-b-2 border-primary"></div>
                                         <span>Loading...</span>
                                       </div>
-                                    ) : (
+                                    ) : item.available_batches && item.available_batches.length > 0 ? (
                                       <select
                                         value={item.batch_no}
                                         onChange={(e) => updateBatch(idx, e.target.value)}
                                         className="w-full px-2 py-1 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary text-sm"
                                       >
                                         <option value="">Select Batch</option>
-                                        {item.available_batches && item.available_batches.length > 0 ? (
-                                          item.available_batches.map((batch, i) => (
-                                            <option key={i} value={batch.batch_id || batch.batch_name}>
-                                              {batch.batch_id || batch.batch_name} 
-                                              (Qty: {batch.qty})
-                                              {batch.expiry_date && ` | Exp: ${batch.expiry_date}`}
-                                            </option>
-                                          ))
-                                        ) : (
-                                          <option value="" disabled>NO BATCHES AVAILABLE</option>
-                                        )}
+                                        {item.available_batches.map((batch, i) => (
+                                          <option key={i} value={batch.batch_id || batch.batch_name}>
+                                            {batch.batch_id || batch.batch_name}
+                                            (Qty: {batch.qty})
+                                            {batch.expiry_date && ` | Exp: ${batch.expiry_date}`}
+                                          </option>
+                                        ))}
                                       </select>
-                                    )}
-                                    {!item.isLoadingBatches && (!item.available_batches || item.available_batches.length === 0) && (
-                                      <button
-                                        type="button"
-                                        onClick={() => loadBatchesForItem(item.item_code)}
-                                        className="text-xs text-blue-600 mt-1 hover:underline"
-                                      >
-                                        Retry loading batches
-                                      </button>
+                                    ) : (
+                                      <input
+                                        type="text"
+                                        value={item.batch_no}
+                                        onChange={(e) => updateBatch(idx, e.target.value)}
+                                        placeholder="New batch id"
+                                        className="w-full px-2 py-1 border border-slate-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                                      />
                                     )}
                                   </div>
                                 )}
@@ -728,18 +903,33 @@ export const CreateStockReconciliationModal = ({
                               <td className={`px-3 py-2 text-right font-medium ${item.difference > 0 ? 'text-green-600' : item.difference < 0 ? 'text-red-600' : 'text-slate-400'}`}>
                                 {item.difference > 0 ? `+${item.difference}` : item.difference}
                               </td>
+                              <td className="px-3 py-2 text-center">
+                                {item.current_qty === 0 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => removeItem(item.item_code)}
+                                    className="text-slate-400 hover:text-red-600 p-1"
+                                    title="Remove"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                )}
+                              </td>
                             </tr>
                           ))}
                         </tbody>
                       </table>
                     </div>
+                    )}
 
                     {/* Summary */}
                     <div className="flex justify-between items-center p-3 bg-slate-50 rounded-lg border border-slate-200">
                       <div className="flex items-center gap-2">
                         <AlertTriangle className="w-4 h-4 text-amber-500" />
                         <span className="text-sm text-slate-600">
-                          Items with discrepancies: <span className="font-bold text-amber-600">{discrepanciesCount}</span>
+                          {isOpeningStock
+                            ? <>Opening stock lines to post: <span className="font-bold text-amber-600">{discrepanciesCount}</span></>
+                            : <>Items with discrepancies: <span className="font-bold text-amber-600">{discrepanciesCount}</span></>}
                         </span>
                       </div>
                       <button
@@ -748,7 +938,11 @@ export const CreateStockReconciliationModal = ({
                         className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-primary rounded-md hover:bg-primary/90 disabled:opacity-50 transition"
                       >
                         <Save className="w-4 h-4" />
-                        {submitting ? 'Processing...' : 'Complete Reconciliation'}
+                        {submitting
+                          ? 'Processing...'
+                          : isOpeningStock
+                            ? 'Post Opening Stock'
+                            : 'Complete Reconciliation'}
                       </button>
                     </div>
                   </>
