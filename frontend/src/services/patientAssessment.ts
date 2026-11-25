@@ -7,6 +7,9 @@ export interface PatientAssessmentRow {
   encounter: string | null
   healthcare_practitioner: string | null
   practitioner_name?: string | null
+  /** Frappe document owner — shown as Username when no practitioner is recorded. */
+  owner?: string | null
+  owner_name?: string | null
   assessment_datetime: string | null
   assessment_description: string | null
   total_score: number | null
@@ -28,10 +31,34 @@ export interface PatientAssessmentSheetLine {
   time?: string | null
   comments?: string | null
   yes?: number | boolean | null
+  /** From template: this parameter stores a single choice in comments. */
+  is_select?: number | boolean
+  select_options?: string[]
 }
 
 export type PatientAssessmentDoc = PatientAssessmentRow & {
   assessment_sheet?: PatientAssessmentSheetLine[]
+}
+
+/**
+ * Username shown in the UI: the practitioner name, else the practitioner id,
+ * else the document owner's full name — so saved assessments never show blank
+ * even when the Username field was left empty in the modal.
+ */
+export function patientAssessmentUsername(
+  row?: Pick<
+    PatientAssessmentRow,
+    'practitioner_name' | 'healthcare_practitioner' | 'owner_name' | 'owner'
+  > | null
+): string {
+  if (!row) return ''
+  return (
+    row.practitioner_name ||
+    row.healthcare_practitioner ||
+    row.owner_name ||
+    row.owner ||
+    ''
+  )
 }
 
 export interface AssessmentSheetRow {

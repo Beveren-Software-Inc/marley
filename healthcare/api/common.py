@@ -6948,6 +6948,7 @@ def get_patient_assessments(
 				"practitioner_name",
 				"assessment_datetime", "assessment_description",
 				"total_score", "total_score_obtained", "docstatus", "creation",
+				"owner",
 			],
 			order_by="creation desc",
 			limit_page_length=page_size,
@@ -6956,6 +6957,7 @@ def get_patient_assessments(
 		fill_missing_practitioner_names(
 			records, {"healthcare_practitioner": "practitioner_name"}
 		)
+		_fill_missing_owner_names(records)
 		total = frappe.db.count("Patient Assessment", filters=filters)
 		return {"success": True, "data": records, "page": page, "page_size": page_size, "total": total}
 	except Exception as e:
@@ -6986,6 +6988,65 @@ def _user_can_read_patient_assessment_portal() -> bool:
 	return bool(PATIENT_ASSESSMENT_PORTAL_READ_ROLES & set(frappe.get_roles(frappe.session.user)))
 
 
+def _user_display_name(user: str | None) -> str | None:
+	"""Full name of a document owner, used when no practitioner is recorded."""
+	if not user:
+		return None
+	return frappe.db.get_value("User", user, "full_name") or user
+
+
+def _fill_missing_owner_names(records):
+	"""Attach the owner's full name for rows that have no practitioner to show.
+
+	Portal-created assessments may be saved without a Healthcare Practitioner;
+	the UI then falls back to the document owner ("Username" column/tile).
+	"""
+	if not records:
+		return records
+	users = {
+		row.get("owner")
+		for row in records
+		if row.get("owner")
+		and not (row.get("practitioner_name") or row.get("healthcare_practitioner"))
+	}
+	if not users:
+		return records
+	name_map = {
+		user.name: (user.full_name or user.name)
+		for user in frappe.get_all(
+			"User",
+			filters={"name": ["in", list(users)]},
+			fields=["name", "full_name"],
+		)
+	}
+	for row in records:
+		if row.get("owner") and not (
+			row.get("practitioner_name") or row.get("healthcare_practitioner")
+		):
+			row["owner_name"] = name_map.get(row["owner"]) or row["owner"]
+	return records
+
+
+def _assessment_template_parameter_meta(template_name) -> dict:
+	"""Map parameter -> {is_select, select_options} from a template's detail rows."""
+	if not template_name:
+		return {}
+	try:
+		tmpl = frappe.get_doc("Patient Assessment Template", template_name)
+	except Exception:
+		return {}
+	meta = {}
+	for p in tmpl.parameters or []:
+		is_select = cint(getattr(p, "is_select", 0) or 0)
+		meta[p.assessment_parameter] = {
+			"is_select": is_select,
+			"select_options": _parse_assessment_select_options(getattr(p, "options_available", None))
+			if is_select
+			else [],
+		}
+	return meta
+
+
 def _serialize_patient_assessment(doc) -> dict:
 	row = doc.as_dict()
 	if row.get("patient") and not row.get("patient_name"):
@@ -6996,6 +7057,9 @@ def _serialize_patient_assessment(doc) -> dict:
 			row["healthcare_practitioner"],
 			"practitioner_name",
 		)
+	if not (row.get("practitioner_name") or row.get("healthcare_practitioner")):
+		row["owner_name"] = _user_display_name(row.get("owner"))
+	template_meta = _assessment_template_parameter_meta(row.get("assessment_template"))
 	sheet = []
 	for line in doc.get("assessment_sheet") or []:
 		param = line.parameter
@@ -7004,6 +7068,7 @@ def _serialize_patient_assessment(doc) -> dict:
 			if param
 			else None
 		) or param
+		meta = template_meta.get(param) or {}
 		sheet.append(
 			{
 				"parameter": param,
@@ -7012,6 +7077,8 @@ def _serialize_patient_assessment(doc) -> dict:
 				"time": line.time,
 				"comments": line.comments,
 				"yes": line.yes,
+				"is_select": 1 if meta.get("is_select") else 0,
+				"select_options": meta.get("select_options") or [],
 			}
 		)
 	row["assessment_sheet"] = sheet

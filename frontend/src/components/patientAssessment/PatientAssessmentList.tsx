@@ -4,6 +4,7 @@ import {
   fetchAssessmentTemplates,
   fetchDefaultPatientAssessmentTemplate,
   fetchPatientAssessments,
+  patientAssessmentUsername,
   type AssessmentTemplateOption,
   type PatientAssessmentRow,
 } from '../../services/patientAssessment'
@@ -419,7 +420,7 @@ export const PatientAssessmentList = ({
                     )}
                   </td>
                   <td className="px-3 py-2 text-slate-700">
-                    {r.practitioner_name || r.healthcare_practitioner || '—'}
+                    {patientAssessmentUsername(r) || '—'}
                   </td>
                   <td className="px-3 py-2">{scoreDisplay(r)}</td>
                   {/* stopPropagation prevents the row click (detail modal) from firing when the print button is clicked */}

@@ -12,6 +12,7 @@ import {
 } from 'lucide-react'
 import {
   fetchPatientAssessment,
+  patientAssessmentUsername,
   type PatientAssessmentDoc,
   type PatientAssessmentRow,
 } from '../../services/patientAssessment'
@@ -38,6 +39,16 @@ function formatDateTime(value?: string | null): string {
   } catch {
     return value
   }
+}
+
+/**
+ * Frappe Time values arrive as "10:22:42.734604" (seconds + microseconds).
+ * Show only HH:MM; anything that isn't a plain time is passed through.
+ */
+function formatTime(value?: string | null): string {
+  if (!value) return ''
+  const m = String(value).trim().match(/^(\d{1,2}):(\d{2})/)
+  return m ? `${m[1].padStart(2, '0')}:${m[2]}` : String(value)
 }
 
 function statusLabel(docstatus: number | undefined): { text: string; className: string } {
@@ -141,9 +152,6 @@ export function PatientAssessmentDetailPanel({
   }, [source, name])
 
   const sheet = doc?.assessment_sheet ?? []
-  const obtained = doc?.total_score_obtained ?? preview?.total_score_obtained ?? 0
-  const total = doc?.total_score ?? preview?.total_score ?? 0
-  const pct = total > 0 ? Math.round((obtained / total) * 100) : null
 
   return (
     <DetailSlideOver
@@ -183,43 +191,6 @@ export function PatientAssessmentDetailPanel({
             </span>
           </div>
 
-          {(total > 0 || obtained > 0) && (
-            <section className="rounded-xl border border-emerald-200/80 bg-white px-4 py-4 shadow-sm ring-1 ring-emerald-100/80 sm:px-5 sm:py-5">
-              <div className="mb-3 flex items-center gap-2 border-b border-emerald-100 pb-3">
-                <FileText className="h-5 w-5 text-emerald-600" strokeWidth={2} />
-                <h3 className="text-sm font-bold uppercase tracking-wide text-emerald-900">Score</h3>
-              </div>
-              <div className="flex items-end justify-center gap-6 py-2">
-                <div className="text-center">
-                  <div className="text-4xl font-bold text-emerald-700">{obtained}</div>
-                  <div className="text-xs font-medium uppercase tracking-wide text-slate-500 mt-1">
-                    Obtained
-                  </div>
-                </div>
-                <div className="text-2xl text-slate-300 pb-2">/</div>
-                <div className="text-center">
-                  <div className="text-4xl font-bold text-slate-400">{total}</div>
-                  <div className="text-xs font-medium uppercase tracking-wide text-slate-500 mt-1">
-                    Total
-                  </div>
-                </div>
-                {pct != null ? (
-                  <div
-                    className={`text-sm font-semibold px-3 py-1 rounded-full ${
-                      pct >= 70
-                        ? 'bg-emerald-100 text-emerald-800'
-                        : pct >= 40
-                          ? 'bg-amber-100 text-amber-800'
-                          : 'bg-red-100 text-red-800'
-                    }`}
-                  >
-                    {pct}%
-                  </div>
-                ) : null}
-              </div>
-            </section>
-          )}
-
           <section className="rounded-xl border border-emerald-200/80 bg-white px-4 py-4 shadow-sm ring-1 ring-emerald-100/80 sm:px-5 sm:py-5">
             <div className="mb-3 flex items-center gap-2 border-b border-emerald-100 pb-3">
               <ClipboardList className="h-5 w-5 text-emerald-600" strokeWidth={2} />
@@ -241,14 +212,16 @@ export function PatientAssessmentDetailPanel({
               <ul className="space-y-2.5">
                 {sheet.map((line, idx) => {
                   const label = line.parameter_label || line.parameter || `Item ${idx + 1}`
-                  const isYes = line.yes === 1 || line.yes === true
+                  const isSelectLine = Boolean(line.is_select)
+                  const selectedOption = isSelectLine ? (line.comments || '').trim() : ''
+                  const isYes = !isSelectLine && (line.yes === 1 || line.yes === true)
                   return (
                     <li
                       key={`${line.parameter}-${idx}`}
                       className="rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-3"
                     >
                       <div className="flex items-start gap-2">
-                        {line.yes != null ? (
+                        {!isSelectLine && line.yes != null ? (
                           isYes ? (
                             <Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" strokeWidth={2.5} />
                           ) : (
@@ -258,16 +231,23 @@ export function PatientAssessmentDetailPanel({
                         <div className="min-w-0 flex-1">
                           <p className="text-sm font-medium text-slate-900 leading-snug">{label}</p>
                           <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-600">
-                            {line.time ? <span>Time: {line.time}</span> : null}
-                            {line.score != null ? (
-                              <span>Score: {line.score}</span>
-                            ) : null}
-                            {isYes ? <span className="text-emerald-700 font-medium">Yes</span> : null}
-                            {line.yes != null && !isYes ? (
-                              <span className="text-slate-500">No</span>
-                            ) : null}
+                            {line.time ? <span>Time: {formatTime(line.time)}</span> : null}
+                            {isSelectLine ? (
+                              selectedOption ? (
+                                <span className="text-emerald-700 font-medium">Result: {selectedOption}</span>
+                              ) : (
+                                <span className="text-slate-400">No result selected</span>
+                              )
+                            ) : (
+                              <>
+                                {isYes ? <span className="text-emerald-700 font-medium">Yes</span> : null}
+                                {line.yes != null && !isYes ? (
+                                  <span className="text-slate-500">No</span>
+                                ) : null}
+                              </>
+                            )}
                           </div>
-                          {line.comments ? (
+                          {line.comments && !isSelectLine ? (
                             <p className="mt-2 text-sm text-slate-700 whitespace-pre-wrap leading-relaxed">
                               {line.comments}
                             </p>
@@ -323,9 +303,7 @@ export function PatientAssessmentDetailPanel({
                 icon={<Stethoscope className="h-4 w-4" strokeWidth={2} />}
                 label="Username"
                 value={displayValue(
-                  doc?.practitioner_name ||
-                    doc?.healthcare_practitioner ||
-                    preview?.healthcare_practitioner,
+                  patientAssessmentUsername(doc) || patientAssessmentUsername(preview),
                 )}
               />
               <InfoTile
@@ -338,13 +316,6 @@ export function PatientAssessmentDetailPanel({
                 label="Template"
                 value={displayValue(doc?.assessment_template || preview?.assessment_template)}
               />
-              {(doc?.therapy_session || preview?.therapy_session) ? (
-                <InfoTile
-                  icon={<Link2 className="h-4 w-4" strokeWidth={2} />}
-                  label="Healthcare Service"
-                  value={displayValue(doc?.therapy_session || preview?.therapy_session)}
-                />
-              ) : null}
               {(() => {
                 const referenceSource = doc ?? preview
                 const reference = referenceSource ? referenceLabel(referenceSource) : '—'

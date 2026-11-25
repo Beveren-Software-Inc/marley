@@ -681,7 +681,15 @@ def get_inventory_items(search=None, warehouse_context=None):
     when any lab groups are configured there.
     """
     filters = {"disabled": 0, "item_group": ["is", "set"]}
-    fields = ["item_code as code", "item_name as name", "stock_uom as uom", "valuation_rate as price", "item_group"]
+    fields = [
+        "item_code as code",
+        "item_name as name",
+        "stock_uom as uom",
+        "valuation_rate as price",
+        "item_group",
+        "has_serial_no",
+        "has_batch_no",
+    ]
 
     allowed_groups = _inventory_allowed_item_group_names(warehouse_context)
     if allowed_groups is not None and not allowed_groups:
@@ -703,6 +711,8 @@ def get_inventory_items(search=None, warehouse_context=None):
 
     for item in items:
         item.pop("item_group", None)
+        item["has_serial_no"] = 1 if item.get("has_serial_no") else 0
+        item["has_batch_no"] = 1 if item.get("has_batch_no") else 0
 
     return items
 
@@ -1235,15 +1245,97 @@ def create_stock_reconciliation():
                 )
             )
 
-        # Get expense account for the company
-        expense_account = frappe.db.get_value("Company", company, "default_expense_account")
-        
+        raw_items = data.get("items") or []
+        frappe.logger().info(f"Processing {len(raw_items)} items for reconciliation")
+
+        def _first_qty(*vals):
+            for v in vals:
+                if v is None or v == "":
+                    continue
+                return flt(v)
+            return None
+
+        parsed_rows = []
+        for idx, item in enumerate(raw_items):
+            item_code = (item.get("item_code") or "").strip()
+            physical_qty = _first_qty(
+                item.get("physical_quantity"),
+                item.get("physical_qty"),
+                item.get("qty"),
+                item.get("new_qty"),
+            )
+            system_qty = _first_qty(
+                item.get("system_quantity"),
+                item.get("system_qty"),
+                item.get("current_qty"),
+                item.get("old_qty"),
+            )
+            if system_qty is None:
+                system_qty = 0
+
+            frappe.logger().info(
+                f"Item {idx}: code={item_code}, physical_qty={physical_qty}, "
+                f"system_qty={system_qty}, difference="
+                f"{(physical_qty - system_qty) if physical_qty is not None else 'N/A'}"
+            )
+
+            # Opening stock / first count: allow chosen items even when system qty is 0.
+            if not item_code or physical_qty is None or flt(physical_qty) == flt(system_qty):
+                continue
+
+            parsed_rows.append(
+                {
+                    "item_code": item_code,
+                    "physical_qty": flt(physical_qty),
+                    "system_qty": flt(system_qty),
+                    "serial_nos": item.get("serial_nos") or item.get("serial_no") or [],
+                    "batch_no": (item.get("batch_no") or "").strip() or None,
+                }
+            )
+
+        if not parsed_rows:
+            frappe.throw(
+                _(
+                    "No items to reconcile. Add items and set a physical quantity "
+                    "(use this for opening stock when the warehouse is empty)."
+                )
+            )
+
+        # First-time / opening: every chosen line has no system qty yet.
+        is_opening = all(flt(row["system_qty"]) == 0 for row in parsed_rows)
+        purpose = "Opening Stock" if is_opening else "Stock Reconciliation"
+
+        expense_account = None
+        try:
+            from erpnext.stock.doctype.stock_reconciliation.stock_reconciliation import (
+                get_difference_account,
+            )
+
+            expense_account = get_difference_account(purpose, company)
+        except Exception:
+            expense_account = None
+
         if not expense_account:
-            expense_account = "Stock Adjustment - W"  # Default fallback
-        
+            if is_opening:
+                expense_account = frappe.db.get_value(
+                    "Account",
+                    {"is_group": 0, "company": company, "account_type": "Temporary"},
+                    "name",
+                )
+            if not expense_account:
+                expense_account = frappe.db.get_value("Company", company, "stock_adjustment_account")
+            if not expense_account:
+                expense_account = frappe.db.get_value("Company", company, "default_expense_account")
+
+        if not expense_account:
+            frappe.throw(
+                _("No difference / expense account found for company {0}").format(company)
+            )
+
         sr = frappe.new_doc("Stock Reconciliation")
-        sr.purpose = "Stock Reconciliation"
+        sr.purpose = purpose
         sr.posting_date = data.get("reconciliation_date", today())
+        sr.company = company
         sr.cost_center = cost_center
         sr.expense_account = expense_account
         _apply_mini_warehouse_metadata(
@@ -1251,124 +1343,126 @@ def create_stock_reconciliation():
             data.get("warehouse_context"),
             data.get("notes") or data.get("custom_notes"),
         )
-        
-        frappe.logger().info(f"Processing {len(data.get('items', []))} items for reconciliation")
-        
-        for idx, item in enumerate(data.get("items", [])):
-            item_code = item.get("item_code")
-            
-            # Get quantity values
-            physical_qty = (
-                item.get("physical_quantity") or 
-                item.get("physical_qty") or 
-                item.get("qty") or 
-                item.get("new_qty") or
-                None
-            )
-            
-            system_qty = (
-                item.get("system_quantity") or
-                item.get("system_qty") or
-                item.get("current_qty") or
-                item.get("old_qty") or
-                0
-            )
-            
+
+        for row in parsed_rows:
+            item_code = row["item_code"]
+            physical_qty = row["physical_qty"]
+            system_qty = row["system_qty"]
+            batch_no = row["batch_no"]
+            serial_nos = row["serial_nos"]
+
+            _assert_nhra_item_for_nursing_inventory(item_code, data.get("warehouse_context"))
             frappe.logger().info(
-                f"Item {idx}: code={item_code}, physical_qty={physical_qty}, "
-                f"system_qty={system_qty}, difference={physical_qty - system_qty if physical_qty is not None else 'N/A'}"
+                f"Adding item {item_code} with difference: {physical_qty - system_qty}"
             )
-            
-            # Only add if there's a difference and item_code is provided
-            if item_code and physical_qty is not None and physical_qty != system_qty:
-                _assert_nhra_item_for_nursing_inventory(item_code, data.get("warehouse_context"))
-                frappe.logger().info(f"Adding item {item_code} with difference: {physical_qty - system_qty}")
-                
-                # Get item details to check if it's serialized or batched
-                item_details = frappe.get_cached_value("Item", item_code, 
-                    ["has_serial_no", "has_batch_no", "stock_uom"], as_dict=1)
-                
-                item_data = {
-                    "item_code": item_code,
-                    "warehouse": warehouse,
-                    "qty": physical_qty,
-                    "current_qty": system_qty,
-                    "current_qty_as_per_serial_no": system_qty,  # Important for serial items
-                }
-                
-                # Handle serial/batch bundles for items with tracking
-                bundle_name = None
-                if (item_details and (item_details.has_serial_no or item_details.has_batch_no)) and physical_qty > 0:
-                    # Create Serial and Batch Bundle for new stock
-                    serial_nos = item.get("serial_nos") or item.get("serial_no") or []
-                    batch_no = item.get("batch_no")
-                    
-                    if isinstance(serial_nos, str):
-                        serial_nos = [s.strip() for s in serial_nos.split(',')]
-                    
-                    # Create bundle document
-                    bundle = frappe.get_doc({
+
+            item_details = frappe.get_cached_value(
+                "Item",
+                item_code,
+                ["has_serial_no", "has_batch_no", "stock_uom"],
+                as_dict=1,
+            )
+
+            item_data = {
+                "item_code": item_code,
+                "warehouse": warehouse,
+                "qty": physical_qty,
+                "current_qty": system_qty,
+                "current_qty_as_per_serial_no": system_qty,
+                "allow_zero_valuation_rate": 1,
+            }
+
+            if batch_no and item_details and item_details.has_batch_no:
+                batch_no = _ensure_batch_exists(item_code, batch_no)
+
+            if (item_details and (item_details.has_serial_no or item_details.has_batch_no)) and physical_qty > 0:
+                if isinstance(serial_nos, str):
+                    serial_nos = [s.strip() for s in serial_nos.split(",") if s.strip()]
+                elif not isinstance(serial_nos, (list, tuple)):
+                    serial_nos = []
+
+                bundle = frappe.get_doc(
+                    {
                         "doctype": "Serial and Batch Bundle",
                         "item_code": item_code,
                         "warehouse": warehouse,
-                        "bundle_type": "Inward",  # Always Inward for reconciliation adding stock
-                        "entries": []
-                    })
-                    
-                    # Add serial/batch entries
-                    if item_details.has_serial_no and serial_nos:
-                        for serial_no in serial_nos:
-                            bundle.append("entries", {
+                        "bundle_type": "Inward",
+                        "entries": [],
+                    }
+                )
+
+                if item_details.has_serial_no and serial_nos:
+                    for serial_no in serial_nos:
+                        bundle.append(
+                            "entries",
+                            {
                                 "serial_no": serial_no,
                                 "batch_no": batch_no if item_details.has_batch_no else None,
-                                "qty": 1
-                            })
-                    elif item_details.has_batch_no and batch_no:
-                        # Batch only item
-                        bundle.append("entries", {
+                                "qty": 1,
+                            },
+                        )
+                elif item_details.has_batch_no and batch_no:
+                    bundle.append(
+                        "entries",
+                        {
                             "batch_no": batch_no,
-                            "qty": physical_qty
-                        })
-                    
-                    if bundle.entries:
-                        bundle.insert()
-                        bundle_name = bundle.name
-                        item_data["serial_and_batch_bundle"] = bundle_name
-                        frappe.logger().info(f"Created Serial and Batch Bundle {bundle_name} for item {item_code}")
-                
-                # For decreasing stock with existing serials, specify serial_no directly
-                elif item_details and item_details.has_serial_no and physical_qty < system_qty:
-                    serial_nos = item.get("serial_nos") or item.get("serial_no")
-                    if serial_nos:
-                        if isinstance(serial_nos, list):
-                            serial_nos = ", ".join(serial_nos)
-                        item_data["serial_no"] = serial_nos
-                
-                # Handle batch for decreasing stock
-                if item_details and item_details.has_batch_no and physical_qty < system_qty:
-                    batch_no = item.get("batch_no")
-                    if batch_no:
-                        item_data["batch_no"] = batch_no
-                
-                sr.append("items", item_data)
-        
-        frappe.logger().info(f"Stock Reconciliation has {len(sr.items)} items with differences")
-        
-        if not sr.items:
-            frappe.logger().warn("No items with differences found")
-            frappe.throw(_("No items with quantity differences found"))
-        
+                            "qty": physical_qty,
+                        },
+                    )
+
+                if bundle.entries:
+                    bundle.insert()
+                    item_data["serial_and_batch_bundle"] = bundle.name
+                    frappe.logger().info(
+                        f"Created Serial and Batch Bundle {bundle.name} for item {item_code}"
+                    )
+
+            elif item_details and item_details.has_serial_no and physical_qty < system_qty:
+                if serial_nos:
+                    if isinstance(serial_nos, list):
+                        serial_nos = ", ".join(serial_nos)
+                    item_data["serial_no"] = serial_nos
+
+            if item_details and item_details.has_batch_no and physical_qty < system_qty and batch_no:
+                item_data["batch_no"] = batch_no
+
+            sr.append("items", item_data)
+
+        if frappe.get_meta("Stock Reconciliation Item").has_field("allow_zero_valuation_rate"):
+            for row in sr.items:
+                row.allow_zero_valuation_rate = 1
+
         sr.insert()
         sr.submit()
         frappe.db.commit()
-        
-        frappe.response["message"] = {"name": sr.name}
+
+        frappe.response["message"] = {"name": sr.name, "purpose": purpose}
         frappe.response["http_status_code"] = 200
-        
+
     except Exception as e:
         frappe.response["message"] = str(e)
         frappe.response["http_status_code"] = 400
         frappe.log_error(f"Error creating stock reconciliation: {str(e)}")
+
+
+def _ensure_batch_exists(item_code, batch_no):
+    """Create Batch for opening/new stock when nursing/lab UI supplies a new batch id."""
+    if not item_code or not batch_no:
+        return batch_no
+    if frappe.db.exists("Batch", batch_no):
+        return batch_no
+    existing = frappe.db.get_value("Batch", {"batch_id": batch_no, "item": item_code}, "name")
+    if existing:
+        return existing
+    batch = frappe.get_doc(
+        {
+            "doctype": "Batch",
+            "batch_id": batch_no,
+            "item": item_code,
+        }
+    )
+    batch.insert(ignore_permissions=True)
+    return batch.name
 
 @frappe.whitelist()
 def get_stock_reconciliations(cost_center, warehouse_context=None):

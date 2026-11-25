@@ -10,7 +10,32 @@ from frappe.model.mapper import get_mapped_doc
 
 class PatientAssessment(Document):
 	def validate(self):
+		self.set_default_practitioner()
 		self.set_total_score()
+
+	def set_default_practitioner(self):
+		"""Blank Username falls back to the practitioner linked to the record owner.
+
+		The portal lets users leave "Username" empty; instead of storing a blank
+		value (which hides who recorded the assessment), reuse the Healthcare
+		Practitioner linked to the document owner's user account.
+		"""
+		if self.healthcare_practitioner:
+			return
+
+		user = self.owner or frappe.session.user
+		if not user or user == "Guest":
+			return
+
+		practitioner = frappe.db.get_value("Healthcare Practitioner", {"user_id": user}, "name")
+		if not practitioner:
+			return
+
+		self.healthcare_practitioner = practitioner
+		if not self.practitioner_name:
+			self.practitioner_name = frappe.db.get_value(
+				"Healthcare Practitioner", practitioner, "practitioner_name"
+			)
 
 	def set_total_score(self):
 		total_score = 0

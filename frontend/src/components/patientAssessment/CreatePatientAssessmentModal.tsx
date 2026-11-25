@@ -847,7 +847,6 @@ import {
   fetchHealthcarePractitioners,
   type LinkFieldOption,
 } from '../../services/common'
-import { getHealthcareServiceTemplates } from '../../services/sessionSchedule'
 import { searchPatients, fetchPatients, type PatientListItem } from '../../services/patients'
 import { useCareContext } from '../../providers/CareContextProvider'
 import {
@@ -980,20 +979,12 @@ export const CreatePatientAssessmentModal = ({
   )
   const [assessmentDescription, setAssessmentDescription] = useState(editRow?.assessment_description || '')
   const [familyHistory, setFamilyHistory] = useState(editRow?.family_history || '')
-  const [therapySession, setTherapySession] = useState(editRow?.therapy_session || '')
-  const [therapyQuery, setTherapyQuery] = useState(editRow?.therapy_session || '')
-  const [therapyOpen, setTherapyOpen] = useState(false)
-  const [therapyOptions, setTherapyOptions] = useState<LinkFieldOption[]>([])
-  const [selectedTherapy, setSelectedTherapy] = useState<LinkFieldOption | null>(
-    editRow?.therapy_session
-      ? { name: editRow.therapy_session, label: editRow.therapy_session }
-      : null
-  )
 
   // ── Assessment sheet ─────────────────────────────────────────────────────────
   const [sheetRows, setSheetRows] = useState<AssessmentSheetRow[]>([])
   const [loadingTemplate, setLoadingTemplate] = useState(false)
   const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set())
+  const [attemptedSubmit, setAttemptedSubmit] = useState(false)
 
   // All available assessment parameters (loaded once)
   const [allParameters, setAllParameters] = useState<AssessmentTemplateOption[]>([])
@@ -1052,10 +1043,6 @@ export const CreatePatientAssessmentModal = ({
       if (editRow.healthcare_practitioner) {
         setPractQuery(editRow.practitioner_name || editRow.healthcare_practitioner)
       }
-      if (editRow.therapy_session) {
-        setTherapyQuery(editRow.therapy_session)
-        setSelectedTherapy({ name: editRow.therapy_session, label: editRow.therapy_session })
-      }
     }
     const patientToLoad = patient || contextPatient
     if (!patientToLoad) return
@@ -1086,23 +1073,35 @@ export const CreatePatientAssessmentModal = ({
         }
         setAssessmentDescription(doc.assessment_description || '')
         setFamilyHistory(doc.family_history || '')
-        if (doc.therapy_session) {
-          setTherapySession(doc.therapy_session)
-          setSelectedTherapy({ name: doc.therapy_session, label: doc.therapy_session })
-          setTherapyQuery(doc.therapy_session)
-        } else {
-          setTherapySession('')
-          setSelectedTherapy(null)
-          setTherapyQuery('')
-        }
         if (Array.isArray(doc.assessment_sheet)) {
-          const rows = doc.assessment_sheet.map((row) => ({
-            parameter: row.parameter || row.parameter_label || '',
-            score: Number(row.score || 0),
-            time: row.time || '',
-            comments: row.comments || '',
-            yes: Boolean(row.yes),
-          }))
+          // Merge template metadata so single-choice parameters keep their
+          // checkbox options (and hide Yes/No) while editing.
+          const templateMeta = new Map<string, AssessmentSheetRow>()
+          if (doc.assessment_template) {
+            try {
+              const templateData = await fetchTemplateParameters(doc.assessment_template)
+              if (cancelled) return
+              for (const param of templateData.parameters) {
+                templateMeta.set(param.parameter, mapTemplateParameterToSheetRow(param))
+              }
+            } catch {
+              // Template metadata is optional; rows still edit as free text.
+            }
+          }
+          const rows = doc.assessment_sheet.map((row) => {
+            const parameter = row.parameter || row.parameter_label || ''
+            const meta = templateMeta.get(parameter)
+            return {
+              parameter,
+              score: Number(row.score || 0),
+              // Frappe Time values come back as "10:22:42.734604"; <input type="time"> needs "HH:MM".
+              time: (row.time || '').slice(0, 5),
+              comments: row.comments || '',
+              yes: row.yes == null ? undefined : Boolean(row.yes),
+              is_select: meta?.is_select ?? false,
+              select_options: meta?.select_options ?? [],
+            }
+          })
           setSheetRows(rows)
           setParamQuery(Object.fromEntries(rows.map((r, i) => [i, r.parameter])))
           setExpandedRows(new Set(rows.map((_, i) => i)))
@@ -1246,29 +1245,6 @@ export const CreatePatientAssessmentModal = ({
     setPractQuery((q) => q.trim() || linkedPractitionerLabel || linkedPractitionerId)
   }, [isEditMode, linkedPractitionerId, linkedPractitionerLabel])
 
-  // ── Healthcare Service (therapy_session) options ───────────────────────────────
-  useEffect(() => {
-    if (!therapyOpen) return
-    let c = false
-    const careType: 'OP' | 'IP' | undefined = isIPMode ? 'IP' : isOPMode ? 'OP' : undefined
-    const t = setTimeout(async () => {
-      try {
-        const res = await getHealthcareServiceTemplates(therapyQuery || undefined, 50, careType)
-        if (!c) {
-          setTherapyOptions(
-            res.map((o) => ({
-              name: o.name,
-              label: o.service_name || o.name,
-            })),
-          )
-        }
-      } catch {
-        if (!c) setTherapyOptions([])
-      }
-    }, therapyQuery.trim() ? 300 : 0)
-    return () => { c = true; clearTimeout(t) }
-  }, [therapyQuery, therapyOpen, isIPMode, isOPMode])
-
   // ── Template selection: load parameters ──────────────────────────────────────
   const handleTemplateSelect = async (tmpl: AssessmentTemplateOption) => {
     setSelectedTemplate(tmpl)
@@ -1301,13 +1277,53 @@ export const CreatePatientAssessmentModal = ({
     setExpandedRows((prev) => { const n = new Set(prev); n.delete(idx); return n })
   }
 
-  const updateRow = (idx: number, field: keyof AssessmentSheetRow, value: string | boolean) =>
+  const updateRow = (idx: number, field: keyof AssessmentSheetRow, value: string | boolean | undefined) => {
     setSheetRows((prev) => prev.map((r, i) => (i === idx ? { ...r, [field]: value } : r)))
+    // Answering a parameter clears the stale "missing answer" banner; remaining
+    // unanswered rows stay highlighted until the sheet is complete.
+    if (field === 'yes' || field === 'comments') setError(null)
+  }
+
+  // "HH:MM" (24h) for the <input type="time"> field, taken from the device clock.
+  const currentTimeValue = () => {
+    const now = new Date()
+    return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
+  }
+
+  // Ticking Yes/No (or a single-choice result) stamps the moment the parameter
+  // was answered into Time, so the sheet records when each observation was made
+  // without the user typing it. The value stays editable afterwards.
+  const answerRow = (idx: number, field: 'yes' | 'comments', value: boolean | string) => {
+    setSheetRows((prev) =>
+      prev.map((r, i) => (i === idx ? { ...r, [field]: value, time: currentTimeValue() } : r)),
+    )
+    setError(null)
+  }
+
+  // Every parameter must be answered (Yes/No, or one of its select options)
+  // before the assessment can be saved.
+  const rowHasAnswer = (row: AssessmentSheetRow) => {
+    const hasSelect = Boolean(row.is_select) && (row.select_options?.length || 0) > 0
+    return hasSelect ? Boolean((row.comments || '').trim()) : row.yes === true || row.yes === false
+  }
+
+  // Picking a parameter manually resets template-only metadata so stale
+  // single-choice options never appear on an unrelated parameter.
+  const selectParameter = (idx: number, parameterName: string) => {
+    setSheetRows((prev) =>
+      prev.map((r, i) =>
+        i === idx ? { ...r, parameter: parameterName, is_select: false, select_options: [] } : r,
+      ),
+    )
+    setParamQuery((prev) => ({ ...prev, [idx]: parameterName }))
+    setParamOpen((prev) => ({ ...prev, [idx]: false }))
+  }
 
   const toggleExpanded = (idx: number) =>
     setExpandedRows((prev) => {
       const n = new Set(prev)
-      n.has(idx) ? n.delete(idx) : n.add(idx)
+      if (n.has(idx)) n.delete(idx)
+      else n.add(idx)
       return n
     })
 
@@ -1316,17 +1332,6 @@ export const CreatePatientAssessmentModal = ({
     const q = (paramQuery[idx] || '').toLowerCase()
     if (!q) return allParameters
     return allParameters.filter((p) => p.label.toLowerCase().includes(q))
-  }
-
-  // Get mode-specific help text
-  const getModeHelpText = () => {
-    if (isIPMode) {
-      return `Creating assessment for IP admission: ${encounterId || 'not selected yet'}`
-    }
-    if (isOPMode) {
-      return `Creating assessment for OP visit: ${encounterId || 'not selected yet'}`
-    }
-    return 'Select either IP or OP mode from the context switcher above'
   }
 
   // ── Submit ────────────────────────────────────────────────────────────────────
@@ -1339,6 +1344,29 @@ export const CreatePatientAssessmentModal = ({
       setError(isIPMode ? 'Please select an inpatient admission' : 'Please select a patient visit')
       return 
     }
+
+    // Block saving while any parameter is still unanswered
+    const unanswered = sheetRows
+      .map((row, idx) => ({ row, idx }))
+      .filter(({ row }) => Boolean(row.parameter.trim()) && !rowHasAnswer(row))
+    if (unanswered.length > 0) {
+      setAttemptedSubmit(true)
+      setActiveTab('sheet')
+      setExpandedRows((prev) => new Set([...prev, ...unanswered.map(({ idx }) => idx)]))
+      const missing = unanswered.slice(0, 3).map(({ row }) => `"${row.parameter}"`).join(', ')
+      const extra = unanswered.length > 3 ? ` and ${unanswered.length - 3} more` : ''
+      setError(
+        `Please select Yes or No (or a result) for every parameter before saving — still missing: ${missing}${extra}.`
+      )
+      requestAnimationFrame(() => {
+        document
+          .getElementById(`assessment-param-${unanswered[0].idx}`)
+          ?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      })
+      return
+    }
+    setAttemptedSubmit(false)
+
     setSaving(true); setError(null)
     try {
       const payload = {
@@ -1348,11 +1376,18 @@ export const CreatePatientAssessmentModal = ({
         reference_type: referenceType || undefined,
         encounter: encounterId || undefined,
         healthcare_practitioner: selectedPract?.name || undefined,
-        therapy_session: therapySession || undefined,
         assessment_datetime: assessmentDatetime,
         assessment_description: assessmentDescription || undefined,
         family_history: familyHistory || undefined,
-        assessment_sheet: sheetRows.filter((r) => r.parameter.trim()),
+        assessment_sheet: sheetRows
+          .filter((r) => r.parameter.trim())
+          .map((r) => ({
+            parameter: r.parameter,
+            score: r.score ?? 0,
+            time: r.time || '',
+            comments: r.comments || '',
+            yes: Boolean(r.yes),
+          })),
       }
       const result = editRow
         ? await updatePatientAssessment({ name: editRow.name, ...payload })
@@ -1371,13 +1406,13 @@ export const CreatePatientAssessmentModal = ({
 
   const closeAllDropdowns = () => {
     setPatientOpen(false); setTemplateOpen(false); setEncounterOpen(false)
-    setPractOpen(false); setTherapyOpen(false)
+    setPractOpen(false)
     setParamOpen({})
   }
 
   return (
     <div className={CREATE_MODAL_OVERLAY}>
-      <div className={createModalShellClass('max-w-3xl w-full max-h-[92vh] overflow-hidden')}>
+      <div className={createModalShellClass('max-w-3xl w-full h-[min(88vh,860px)] max-h-[92vh] overflow-hidden')}>
 
         {/* ── Header ───────────────────────────────────────────────────────── */}
         <div className="relative shrink-0 border-b border-emerald-100/60 bg-gradient-to-r from-emerald-100 via-teal-50 to-sky-100 px-5 py-4 sm:px-6 flex flex-shrink-0 items-center justify-between">
@@ -1386,7 +1421,7 @@ export const CreatePatientAssessmentModal = ({
             <p className="text-xs text-slate-500 mt-0.5">
               {isIPMode && <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded text-[10px] font-medium mr-2">IP Mode Active</span>}
               {isOPMode && <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-green-100 text-green-700 rounded text-[10px] font-medium mr-2">OP Mode Active</span>}
-              {getModeHelpText()}
+              {!isIPMode && !isOPMode && <span>Select IP or OP mode from the navbar to continue</span>}
             </p>
           </div>
           <button type="button" onClick={onClose} className="shrink-0 rounded-lg p-2 text-emerald-800/70 transition hover:bg-emerald-200/50 hover:text-emerald-950">
@@ -1418,21 +1453,6 @@ export const CreatePatientAssessmentModal = ({
           onClick={(e) => { if (!(e.target as HTMLElement).closest('.relative')) closeAllDropdowns() }}
         >
           <div className="flex-1 overflow-y-auto p-5 space-y-4 min-h-0">
-
-            {/* Mode indicator box */}
-            <div className="rounded-lg border border-primary/20 bg-primary/5 px-4 py-3">
-              <p className="text-xs font-semibold text-primary mb-1">
-                {isIPMode ? '🏥 Creating Assessment for Inpatient' : isOPMode ? '👤 Creating Assessment for Outpatient' : '📋 Select Context'}
-              </p>
-              <p className="text-xs text-slate-600">
-                {isIPMode 
-                  ? `The assessment will be linked to the selected inpatient admission. Make sure you have an admission selected below.`
-                  : isOPMode
-                  ? `The assessment will be linked to the selected outpatient visit. Make sure you have a visit selected below.`
-                  : 'Please select either IP or OP mode from the top navbar before creating an assessment.'
-                }
-              </p>
-            </div>
 
             {/* ═══ DETAILS TAB ════════════════════════════════════════════════ */}
             {activeTab === 'details' && (
@@ -1486,85 +1506,81 @@ export const CreatePatientAssessmentModal = ({
                   </div>
                 </div>
 
-                {/* Patient */}
-                <div className="relative">
-                  <label className="block text-sm font-medium text-slate-700 mb-1">
-                    Patient <span className="text-red-500">*</span>
-                  </label>
-                  <input type="text" value={patientQuery}
-                    onChange={(e) => { setPatientQuery(e.target.value); setPatientOpen(true); if (!e.target.value) { setPatientId(''); setPatientName('') } }}
-                    onFocus={() => setPatientOpen(true)}
-                    placeholder="Search patient…"
-                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                    disabled={Boolean(contextPatient)}
-                  />
-                  {contextPatient && <p className="text-xs text-slate-400 mt-1">Patient auto-selected from context</p>}
-                  {patientLoading && <span className="absolute right-3 top-9 text-xs text-slate-400">Loading…</span>}
-                  {patientOpen && !contextPatient && patientOptions.length > 0 && (
-                    <div className="absolute z-20 w-full mt-1 bg-white border border-slate-300 rounded-md shadow-lg max-h-48 overflow-y-auto top-full">
-                      {patientOptions.map((p) => (
-                        <button key={p.name} type="button"
-                          onClick={() => {
-                            setPatientId(p.name); setPatientQuery(p.patient_name); setPatientName(p.patient_name); setPatientOpen(false)
-                            setEncounterId(''); setEncounterQuery(''); setSelectedEncounter(null)
-                          }}
-                          className="w-full text-left px-3 py-2 text-sm hover:bg-slate-100"
-                        >
-                          <div className="font-medium">{p.patient_name}</div>
-                          {p.mobile && <div className="text-xs text-slate-500">{p.mobile}</div>}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                {/* Template */}
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Assessment Template</label>
-                  <div className="relative flex gap-2">
-                    <input type="text"
-                      value={templateOpen ? templateQuery : (selectedTemplate?.label ?? templateQuery)}
-                      onChange={(e) => { setTemplateQuery(e.target.value); setTemplateOpen(true); if (!e.target.value) { setSelectedTemplate(null); setSheetRows([]) } }}
-                      onFocus={() => setTemplateOpen(true)}
-                      placeholder="Search template…"
-                      className="flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                {/* Patient + Assessment Template — same row */}
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  {/* Patient */}
+                  <div className="relative">
+                    <label className="block text-sm font-medium text-slate-700 mb-1">
+                      Patient <span className="text-red-500">*</span>
+                    </label>
+                    <input type="text" value={patientQuery}
+                      onChange={(e) => { setPatientQuery(e.target.value); setPatientOpen(true); if (!e.target.value) { setPatientId(''); setPatientName('') } }}
+                      onFocus={() => setPatientOpen(true)}
+                      placeholder="Search patient…"
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                      disabled={Boolean(contextPatient)}
                     />
-                    {selectedTemplate && (
-                      <button type="button" onClick={() => setActiveTab('sheet')}
-                        className="flex-shrink-0 px-3 py-2 text-xs font-medium text-white bg-primary rounded-md hover:bg-primary/90 whitespace-nowrap"
-                      >
-                        Edit Sheet {loadingTemplate ? '…' : `(${sheetRows.length})`}
-                      </button>
-                    )}
-                    {templateOpen && templateOptions.length > 0 && (
-                      <div className="absolute z-20 w-full mt-1 bg-white border border-slate-300 rounded-md shadow-lg max-h-48 overflow-y-auto top-full left-0">
-                        {templateOptions.map((t) => (
-                          <button key={t.name} type="button" onClick={() => handleTemplateSelect(t)}
-                            className="w-full text-left px-3 py-2 text-sm hover:bg-slate-100">{t.label}</button>
+                    {contextPatient && <p className="text-xs text-slate-400 mt-1">Patient auto-selected from context</p>}
+                    {patientLoading && <span className="absolute right-3 top-9 text-xs text-slate-400">Loading…</span>}
+                    {patientOpen && !contextPatient && patientOptions.length > 0 && (
+                      <div className="absolute z-20 w-full mt-1 bg-white border border-slate-300 rounded-md shadow-lg max-h-48 overflow-y-auto top-full">
+                        {patientOptions.map((p) => (
+                          <button key={p.name} type="button"
+                            onClick={() => {
+                              setPatientId(p.name); setPatientQuery(p.patient_name); setPatientName(p.patient_name); setPatientOpen(false)
+                              setEncounterId(''); setEncounterQuery(''); setSelectedEncounter(null)
+                            }}
+                            className="w-full text-left px-3 py-2 text-sm hover:bg-slate-100"
+                          >
+                            <div className="font-medium">{p.patient_name}</div>
+                            {p.mobile && <div className="text-xs text-slate-500">{p.mobile}</div>}
+                          </button>
                         ))}
                       </div>
                     )}
                   </div>
-                  {selectedTemplate && (
-                    <p className="text-xs text-slate-500 mt-1">
-                      {loadingTemplate ? 'Loading parameters…' : `${sheetRows.length} parameter${sheetRows.length !== 1 ? 's' : ''} loaded — go to Assessment Sheet tab to enter details.`}
-                    </p>
-                  )}
+
+                  {/* Assessment Template */}
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Assessment Template</label>
+                    <div className="relative">
+                      <input type="text"
+                        value={templateOpen ? templateQuery : (selectedTemplate?.label ?? templateQuery)}
+                        onChange={(e) => { setTemplateQuery(e.target.value); setTemplateOpen(true); if (!e.target.value) { setSelectedTemplate(null); setSheetRows([]) } }}
+                        onFocus={() => setTemplateOpen(true)}
+                        placeholder="Search template…"
+                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                      />
+                      {templateOpen && templateOptions.length > 0 && (
+                        <div className="absolute z-20 w-full mt-1 bg-white border border-slate-300 rounded-md shadow-lg max-h-48 overflow-y-auto top-full left-0">
+                          {templateOptions.map((t) => (
+                            <button key={t.name} type="button" onClick={() => handleTemplateSelect(t)}
+                              className="w-full text-left px-3 py-2 text-sm hover:bg-slate-100">{t.label}</button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    {selectedTemplate && (
+                      <p className="text-xs text-slate-500 mt-1">
+                        {loadingTemplate ? 'Loading parameters…' : `${sheetRows.length} parameter${sheetRows.length !== 1 ? 's' : ''} loaded — open the Assessment Sheet tab to enter details.`}
+                      </p>
+                    )}
+                  </div>
                 </div>
 
-                {/* Assessment Date/Time */}
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">
-                    Assessment Date / Time <span className="text-red-500">*</span>
-                  </label>
-                  <input type="datetime-local" value={assessmentDatetime}
-                    onChange={(e) => setAssessmentDatetime(e.target.value)}
-                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                  />
-                </div>
+                {/* Assessment Date/Time + Username — same row */}
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">
+                      Assessment Date / Time <span className="text-red-500">*</span>
+                    </label>
+                    <input type="datetime-local" value={assessmentDatetime}
+                      onChange={(e) => setAssessmentDatetime(e.target.value)}
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                    />
+                  </div>
 
-                {/* Username + Healthcare Service */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Username */}
                   <Combo label="Username" placeholder="Search username…"
                     displayValue={practOpen ? practQuery : (selectedPract?.label ?? practQuery)}
                     onQueryChange={(q) => { setPractQuery(q); setPractOpen(true); if (!q) setSelectedPract(null) }}
@@ -1572,34 +1588,6 @@ export const CreatePatientAssessmentModal = ({
                     onSelect={(o) => { setSelectedPract(o); setPractQuery(o.label); setPractOpen(false) }}
                     readOnly={practFieldLocked}
                     renderOption={(o) => (<div><div className="font-medium">{o.label}</div><div className="text-xs text-slate-500">{o.name}</div></div>)}
-                  />
-                  <Combo
-                    label="Healthcare Service"
-                    placeholder="Search healthcare service…"
-                    displayValue={therapyOpen ? therapyQuery : (selectedTherapy?.label ?? therapyQuery)}
-                    onQueryChange={(q) => {
-                      setTherapyQuery(q)
-                      setTherapyOpen(true)
-                      if (!q) {
-                        setTherapySession('')
-                        setSelectedTherapy(null)
-                      }
-                    }}
-                    onOpen={() => setTherapyOpen(true)}
-                    open={therapyOpen}
-                    options={therapyOptions}
-                    onSelect={(o) => {
-                      setTherapySession(o.name)
-                      setSelectedTherapy(o)
-                      setTherapyQuery(o.label)
-                      setTherapyOpen(false)
-                    }}
-                    renderOption={(o) => (
-                      <div>
-                        <div className="font-medium">{o.label}</div>
-                        <div className="text-xs text-slate-500">{o.name}</div>
-                      </div>
-                    )}
                   />
                 </div>
 
@@ -1611,12 +1599,26 @@ export const CreatePatientAssessmentModal = ({
                     className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary resize-none"
                   />
                 </div>
+
+                {/* Context note — small, bottom of the Details tab only */}
+                <p className="text-[11px] leading-relaxed text-slate-400">
+                  {isIPMode
+                    ? 'The assessment will be linked to the selected inpatient admission. Make sure you have an admission selected.'
+                    : isOPMode
+                    ? 'The assessment will be linked to the selected outpatient visit. Make sure you have a visit selected.'
+                    : 'Select either IP or OP mode from the navbar before creating an assessment.'}
+                </p>
               </>
             )}
 
             {/* ═══ ASSESSMENT SHEET TAB ═══════════════════════════════════════ */}
             {activeTab === 'sheet' && (
               <div className="space-y-3">
+                {attemptedSubmit && sheetRows.some((r) => Boolean(r.parameter.trim()) && !rowHasAnswer(r)) && (
+                  <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-700">
+                    Every parameter needs an answer before this assessment can be saved. Highlighted rows below are missing a Yes or No selection.
+                  </div>
+                )}
                 {sheetRows.length === 0 ? (
                   <div className="text-center py-12 border border-dashed border-slate-300 rounded-lg">
                     <ClipboardList className="w-10 h-10 text-slate-300 mx-auto mb-3" />
@@ -1633,128 +1635,149 @@ export const CreatePatientAssessmentModal = ({
                       {sheetRows.map((row, idx) => {
                         const isExpanded = expandedRows.has(idx)
                         const filteredParams = paramOptionsFor(idx)
+                        const rowHasSelect =
+                          Boolean(row.is_select) && (row.select_options?.length || 0) > 0
+                        const missingAnswer = attemptedSubmit && Boolean(row.parameter.trim()) && !rowHasAnswer(row)
 
                         return (
-                          <div key={idx} className="border border-slate-200 rounded-lg bg-white shadow-sm overflow-visible">
-                            {/* Card header */}
-                            <button type="button" onClick={() => toggleExpanded(idx)}
-                              className="w-full flex items-center justify-between px-4 py-3 bg-slate-50 border-b border-slate-200 hover:bg-slate-100 transition-colors cursor-pointer"
-                            >
-                              <div className="flex items-center gap-2 text-sm font-medium text-slate-700">
-                                <ClipboardList className="w-4 h-4 text-primary" />
-                                <span>Parameter {idx + 1}</span>
-                                {row.parameter && (
-                                  <span className="text-slate-400 font-normal">— {row.parameter}</span>
-                                )}
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <button type="button" onClick={(e) => { e.stopPropagation(); removeSheetRow(idx) }}
-                                  className="p-1 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
-                                  title="Remove">
+                          <div key={idx} id={`assessment-param-${idx}`}
+                            className={`border rounded-lg bg-white shadow-sm overflow-visible ${missingAnswer ? 'border-red-400 ring-1 ring-red-200' : 'border-slate-200'}`}>
+                            {/* Card header — parameter name shown only here */}
+                            <div className={`flex items-start justify-between gap-2 px-3 py-2 border-b border-slate-200 ${missingAnswer ? 'bg-red-50' : 'bg-slate-50'}`}>
+                              <button type="button" onClick={() => toggleExpanded(idx)}
+                                className="flex min-w-0 flex-1 flex-wrap items-start gap-x-2 gap-y-1 text-left"
+                              >
+                                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[11px] font-semibold text-primary">
+                                  {idx + 1}
+                                </span>
+                                <span className={`min-w-0 break-words text-sm font-medium leading-6 ${row.parameter ? 'text-slate-800' : 'text-slate-400'}`}>
+                                  {row.parameter || 'Select parameter…'}
+                                </span>
+                                {rowHasSelect ? (
+                                  <span className={`break-words rounded-full px-2 py-0.5 text-[10px] font-semibold leading-4 ${
+                                    row.comments ? 'bg-sky-50 text-sky-700' : 'bg-slate-100 text-slate-500'
+                                  }`}>
+                                    {row.comments || 'Select result'}
+                                  </span>
+                                ) : row.yes === true ? (
+                                  <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide leading-4 text-emerald-700">Yes</span>
+                                ) : row.yes === false ? (
+                                  <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide leading-4 text-slate-500">No</span>
+                                ) : null}
+                              </button>
+                              <div className="flex shrink-0 items-center gap-1">
+                                <button type="button" onClick={() => removeSheetRow(idx)}
+                                  className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                                  title="Remove parameter">
                                   <Trash2 className="w-4 h-4" />
                                 </button>
-                                <div className="text-slate-400">
+                                <button type="button" onClick={() => toggleExpanded(idx)}
+                                  className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-200 rounded transition-colors"
+                                  title={isExpanded ? 'Collapse' : 'Expand'}>
                                   {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                                </div>
+                                </button>
                               </div>
-                            </button>
+                            </div>
 
                             {/* Expanded body */}
                             {isExpanded && (
                               <div className="p-4 space-y-4">
-                                {/* Row 1: Parameter (full width dropdown) */}
-                                <div>
-                                  <label className="block text-xs font-medium text-slate-600 mb-1">
-                                    Parameter <span className="text-red-500">*</span>
-                                  </label>
-                                  <div className="relative">
-                                    <input type="text"
-                                      value={paramOpen[idx] ? (paramQuery[idx] ?? row.parameter) : row.parameter}
-                                      onChange={(e) => {
-                                        setParamQuery((prev) => ({ ...prev, [idx]: e.target.value }))
-                                        setParamOpen((prev) => ({ ...prev, [idx]: true }))
-                                        if (!e.target.value) updateRow(idx, 'parameter', '')
-                                      }}
-                                      onFocus={() => {
-                                        setParamQuery((prev) => ({ ...prev, [idx]: '' }))
-                                        setParamOpen((prev) => ({ ...prev, [idx]: true }))
-                                      }}
-                                      placeholder="Search assessment parameter…"
-                                      className="w-full rounded-md border border-slate-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                                    />
-                                    {paramOpen[idx] && filteredParams.length > 0 && (
-                                      <div className="absolute z-30 w-full mt-1 bg-white border border-slate-300 rounded-md shadow-lg max-h-52 overflow-y-auto top-full">
-                                        {filteredParams.map((p) => (
-                                          <button key={p.name} type="button"
-                                            onClick={() => {
-                                              updateRow(idx, 'parameter', p.name)
-                                              setParamQuery((prev) => ({ ...prev, [idx]: p.label }))
-                                              setParamOpen((prev) => ({ ...prev, [idx]: false }))
-                                            }}
-                                            className="w-full text-left px-3 py-2.5 text-sm hover:bg-slate-100"
-                                          >{p.label}</button>
-                                        ))}
-                                      </div>
-                                    )}
-                                  </div>
-                                </div>
-
-                                {/* Row 2: Time + Yes */}
-                                <div className="grid grid-cols-2 gap-3">
+                                {/* Parameter picker only while the row has no parameter */}
+                                {!row.parameter.trim() && (
                                   <div>
                                     <label className="block text-xs font-medium text-slate-600 mb-1">
-                                      Yes/No
+                                      Parameter <span className="text-red-500">*</span>
                                     </label>
-                                    <div className="flex items-center h-[42px]">
-                                      <input
-                                        type="checkbox"
-                                        checked={!!(row as any).yes}
-                                        onChange={(e) => updateRow(idx, 'yes' as any, e.target.checked)}
-                                        className="w-5 h-5 rounded border-slate-300 text-primary focus:ring-primary cursor-pointer accent-primary"
+                                    <div className="relative">
+                                      <input type="text"
+                                        value={paramOpen[idx] ? (paramQuery[idx] ?? row.parameter) : row.parameter}
+                                        onChange={(e) => {
+                                          setParamQuery((prev) => ({ ...prev, [idx]: e.target.value }))
+                                          setParamOpen((prev) => ({ ...prev, [idx]: true }))
+                                          if (!e.target.value) updateRow(idx, 'parameter', '')
+                                        }}
+                                        onFocus={() => {
+                                          setParamQuery((prev) => ({ ...prev, [idx]: '' }))
+                                          setParamOpen((prev) => ({ ...prev, [idx]: true }))
+                                        }}
+                                        placeholder="Search assessment parameter…"
+                                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                                       />
-                                      <span className="ml-2 text-sm text-slate-600">{(row as any).yes ? 'Yes' : 'No'}</span>
+                                      {paramOpen[idx] && filteredParams.length > 0 && (
+                                        <div className="absolute z-30 w-full mt-1 bg-white border border-slate-300 rounded-md shadow-lg max-h-52 overflow-y-auto top-full">
+                                          {filteredParams.map((p) => (
+                                            <button key={p.name} type="button"
+                                              onClick={() => selectParameter(idx, p.name)}
+                                              className="w-full text-left px-3 py-2 text-sm hover:bg-slate-100"
+                                            >{p.label}</button>
+                                          ))}
+                                        </div>
+                                      )}
                                     </div>
+                                  </div>
+                                )}
+
+                                {/* Answer + Time — Yes/No is a single-choice radio group */}
+                                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                  <div>
+                                    <label className="block text-xs font-medium text-slate-600 mb-1">
+                                      {rowHasSelect ? 'Result' : 'Yes / No'}
+                                    </label>
+                                    <div role="radiogroup" aria-label={rowHasSelect ? 'Result' : 'Yes or No'}
+                                      className="flex flex-wrap items-start gap-x-5 gap-y-2 py-2">
+                                      {(rowHasSelect
+                                        ? row.select_options!.map((opt) => ({ label: opt, value: opt }))
+                                        : [{ label: 'Yes', value: 'yes' }, { label: 'No', value: 'no' }]
+                                      ).map((opt) => {
+                                        const current = rowHasSelect
+                                          ? (row.comments || '')
+                                          : row.yes === true ? 'yes' : row.yes === false ? 'no' : ''
+                                        const active = current === opt.value
+                                        return (
+                                          <label key={opt.label}
+                                            className="inline-flex cursor-pointer items-start gap-2 text-sm text-slate-700">
+                                            <input type="radio" name={`param-${rowHasSelect ? 'result' : 'answer'}-${idx}`}
+                                              className="mt-0.5 h-4 w-4 shrink-0 cursor-pointer accent-primary"
+                                              checked={active}
+                                              onChange={() => answerRow(
+                                                idx,
+                                                rowHasSelect ? 'comments' : 'yes',
+                                                rowHasSelect ? opt.value : opt.value === 'yes',
+                                              )}
+                                            />
+                                            <span className={`break-words ${active ? 'font-medium text-slate-900' : ''}`}>
+                                              {opt.label}
+                                            </span>
+                                          </label>
+                                        )
+                                      })}
+                                    </div>
+                                    {missingAnswer && (
+                                      <p className="mt-1 text-[11px] font-medium text-red-600">
+                                        {rowHasSelect ? 'Please select a result' : 'Please select Yes or No'}
+                                      </p>
+                                    )}
                                   </div>
                                   <div>
                                     <label className="block text-xs font-medium text-slate-600 mb-1">Time</label>
                                     <input type="time" value={row.time || ''}
                                       onChange={(e) => updateRow(idx, 'time', e.target.value)}
-                                      className="w-full rounded-md border border-slate-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                                     />
                                   </div>
                                 </div>
 
-                                {/* Row 3: Result — select dropdown when template Is select, else free text */}
-                                <div>
-                                  {row.is_select && (row.select_options?.length || 0) > 0 ? (
-                                    <>
-                                      <label className="block text-xs font-medium text-slate-600 mb-1">
-                                        Result <span className="text-slate-400 font-normal">(select)</span>
-                                      </label>
-                                      <select
-                                        value={row.comments || ''}
-                                        onChange={(e) => updateRow(idx, 'comments', e.target.value)}
-                                        className="w-full rounded-md border border-slate-300 px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary"
-                                      >
-                                        <option value="">Select…</option>
-                                        {row.select_options!.map((opt) => (
-                                          <option key={opt} value={opt}>
-                                            {opt}
-                                          </option>
-                                        ))}
-                                      </select>
-                                    </>
-                                  ) : (
-                                    <>
-                                      <label className="block text-xs font-medium text-slate-600 mb-1">Comments</label>
-                                      <textarea rows={3} value={row.comments || ''}
-                                        onChange={(e) => updateRow(idx, 'comments', e.target.value)}
-                                        placeholder="Observations, notes, or remarks for this parameter…"
-                                        className="w-full rounded-md border border-slate-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary resize-y min-h-[80px]"
-                                      />
-                                    </>
-                                  )}
-                                </div>
+                                {/* Comments — free-text parameters only */}
+                                {!rowHasSelect && (
+                                  <div>
+                                    <label className="block text-xs font-medium text-slate-600 mb-1">Comments</label>
+                                    <textarea rows={2} value={row.comments || ''}
+                                      onChange={(e) => updateRow(idx, 'comments', e.target.value)}
+                                      placeholder="Observations, notes, or remarks for this parameter…"
+                                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary resize-y min-h-[56px]"
+                                    />
+                                  </div>
+                                )}
                               </div>
                             )}
                           </div>
