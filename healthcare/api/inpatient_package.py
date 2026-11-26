@@ -379,6 +379,9 @@ def calculate_package_price(
 	service_unit_type=None,
 	service_unit=None,
 	room_multiplier=None,
+	pricing_mode=None,
+	company=None,
+	admission_name=None,
 ):
 	"""
 	Final Price = Program Price × Room Multiplier
@@ -392,6 +395,15 @@ def calculate_package_price(
 			frappe.throw(_("Number of days must be greater than 0"))
 	except (ValueError, TypeError):
 		frappe.throw(_("Invalid number of days"))
+
+	if pricing_mode:
+		from healthcare.api.room_package_pricing import resolve_room_package_price
+		if admission_name and pricing_mode == "Daily":
+			from healthcare.api.room_package_pricing import daily_room_package_price
+			admission = frappe.get_doc("Inpatient Admission", admission_name)
+			admission.check_permission("read")
+			return daily_room_package_price(admission.get("admission_service_unit_type"), days, admission.company)
+		return resolve_room_package_price(pricing_mode, package_name, days, company, service_unit_type)
 
 	package = frappe.get_doc("Inpatient Package", package_name)
 	program_price = calculate_program_price(package, days)

@@ -577,7 +577,7 @@ def create_sales_order_from_appointment(appointment_name, create_sales_invoice=0
 
 	create_sales_invoice = cint(create_sales_invoice)
 
-	appointment = frappe.get_doc("Patient Appointment", appointment_name)
+	appointment = frappe.get_doc("Patient Appointment", appointment_name, for_update=True)
 	if not appointment.patient:
 		frappe.throw(_("Register a patient on this appointment before billing."))
 	if appointment.status not in ("Patient Arrived", "Checked In", "Checked Out"):
@@ -588,6 +588,16 @@ def create_sales_order_from_appointment(appointment_name, create_sales_invoice=0
 
 	billing_amount = flt(amount)
 	existing_so = _find_appointment_sales_order(appointment_name)
+	from healthcare.api.package_service_coverage import appointment_coverage, covered_response, has_separate_billing, recorded_amount
+	coverage = appointment_coverage(appointment) if not existing_so else None
+	if coverage and has_separate_billing(appointment):
+		frappe.throw(_("An existing billing document is linked to this appointment. Use that document; no new bill was created."))
+	if coverage:
+		# Keep the same explicit amount save as the ordinary billing path.
+		if billing_amount > 0:
+			frappe.db.set_value("Patient Appointment", appointment.name, "paid_amount", billing_amount, update_modified=False)
+			appointment.paid_amount = billing_amount
+		return {**covered_response(appointment, coverage, recorded_amount(appointment, "paid_amount"), appointment.appointment_date), "invoiced": 0}
 	if not existing_so and billing_amount <= 0:
 		frappe.throw(
 			_("Enter a billing amount for this appointment."),

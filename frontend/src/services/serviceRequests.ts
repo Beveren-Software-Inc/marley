@@ -554,7 +554,7 @@ export async function bookLabAndForward(serviceRequestName: string): Promise<{ l
   throw new Error(resData?.exc || 'Failed to book lab')
 }
 
-export async function confirmSessionPayment(serviceRequestName: string): Promise<{ ok: boolean }> {
+export async function confirmSessionPayment(serviceRequestName: string): Promise<{ ok: boolean; covered_by_package?: boolean; message?: string }> {
   const { ensureCSRF } = await import('./apiClient')
   const csrf = await ensureCSRF()
   const response = await fetch(

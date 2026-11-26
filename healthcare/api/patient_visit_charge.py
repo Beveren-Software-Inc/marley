@@ -389,7 +389,7 @@ def create_patient_visit_charge_sales_order(
 	if not visit_name or not frappe.db.exists("Patient Visit", visit_name):
 		frappe.throw(_("Patient Visit not found"))
 
-	visit = frappe.get_doc("Patient Visit", visit_name)
+	visit = frappe.get_doc("Patient Visit", visit_name, for_update=True)
 	visit_type = visit_type or visit.visit_type
 
 	lines = _resolve_charge_lines_for_so(visit_type, charge_lines, patient=visit.patient)
@@ -414,6 +414,12 @@ def create_patient_visit_charge_sales_order(
 			"existing": True,
 			"rate": total_rate,
 		}
+
+	from healthcare.api.package_service_coverage import filter_covered_visit_lines
+	lines, covered = filter_covered_visit_lines(visit, lines)
+	if covered and not lines:
+		return {"covered_by_package": True, "sales_order": None, "rate": 0,
+			"message": _("Visit services are included in the admission package.")}
 
 	customer = _ensure_patient_customer(visit.patient)
 	company = visit.company or frappe.defaults.get_user_default("company") or frappe.db.get_single_value(
@@ -625,6 +631,11 @@ def update_patient_visit_charge(visit_name: str, lines=None) -> dict:
 				"discount": flt(cl.get("discount")),
 			}
 		)
+
+	if existing and charge_lines:
+		from healthcare.api.package_service_coverage import coverage_for
+		if any(coverage_for(visit, template=line.get("template"), item_code=line.get("item_code")) for line in charge_lines):
+			frappe.throw(_("Existing visit charges are retained. Package coverage cannot cancel or replace an existing Sales Order."))
 
 	for so_name in existing:
 		so = frappe.get_doc("Sales Order", so_name)

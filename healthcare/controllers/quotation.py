@@ -22,6 +22,10 @@ def create_sales_order_from_package_quotation(doc, method=None):
 	if doc.doctype != "Quotation" or doc.docstatus != 1:
 		return
 
+	# Explicit room modes bill actual occupied days through catch-up, not planned days.
+	if doc.get("custom_package_pricing_mode"):
+		return
+
 	if getattr(frappe.flags, "healthcare_skip_package_auto_so", False):
 		return
 

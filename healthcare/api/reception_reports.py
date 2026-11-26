@@ -315,7 +315,7 @@ def _admission_package_quotation_lines(admission):
 			"docstatus": 1,
 			"custom_package": ["is", "set"],
 		},
-		fields=["name", "transaction_date"],
+		fields=["name", "transaction_date", "custom_package_pricing_mode"],
 		limit_page_length=0,
 	)
 	if not quotes:
@@ -332,9 +332,18 @@ def _admission_package_quotation_lines(admission):
 		or []
 	)
 
+	# Standalone catch-up orders reference quotations through Package Detail,
+	# rather than Sales Order Item.prevdoc_docname.
+	ledger_orders = frappe.get_all("Package Detail", filters={"admission_no": admission,
+		"quotation": ["in", qnames], "sales_order": ["is", "set"]}, fields=["quotation", "sales_order"])
+	if ledger_orders:
+		active_orders = set(frappe.get_all("Sales Order", filters={
+			"name": ["in", list({row.sales_order for row in ledger_orders})], "docstatus": ["<", 2]}, pluck="name"))
+		linked.update(row.quotation for row in ledger_orders if row.sales_order in active_orders)
+
 	lines = []
 	for q in quotes:
-		if q.name in linked:
+		if q.name in linked or q.get("custom_package_pricing_mode"):
 			continue
 		items = frappe.get_all(
 			"Quotation Item",
@@ -1146,10 +1155,15 @@ def get_ip_statement_of_account(admission, from_date=None, to_date=None):
 	by_category = _soa_ordered_ip_categories(by_category)
 
 	# Gross bill = net line amounts + all discounts shown on lines
+	from healthcare.api.package_service_coverage import completed_covered_value
+	covered = completed_covered_value(admission, from_date, to_date, include_details=True)
+	covered_value = covered["amount"]
+	if covered["rows"]:
+		by_category[_("Package-covered Services")] = covered["rows"]
 	line_net = sum(flt(r["amount"]) for r in lines.values())
 	line_discount = sum(flt(r["discount_amount"]) for r in lines.values())
-	bill_total = round(line_net + line_discount, 3)
-	discount_total = round(line_discount, 3)
+	bill_total = round(line_net + line_discount + covered_value, 3)
+	discount_total = round(line_discount + covered_value, 3)
 
 	paid_entries = _admission_payments(admission)
 	net_total = round(bill_total - discount_total, 3)

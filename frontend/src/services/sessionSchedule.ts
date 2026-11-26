@@ -251,9 +251,9 @@ export async function getSessionTypes(): Promise<HealthcareServiceTemplateOption
 
 export async function createSessionScheduleSalesOrder(
   sessionScheduleName: string,
-): Promise<{ sales_order: string; existing?: boolean; transaction_status?: string }> {
+): Promise<{ sales_order: string | null; existing?: boolean; transaction_status?: string; covered_by_package?: boolean; message?: string }> {
   const { apiRequest } = await import('./apiClient')
-  return apiRequest<{ sales_order: string; existing?: boolean; transaction_status?: string }>(
+  return apiRequest<{ sales_order: string | null; existing?: boolean; transaction_status?: string; covered_by_package?: boolean; message?: string }>(
     '/api/method/healthcare.api.session_schedule.create_sales_order_from_session_schedule',
     {
       method: 'POST',

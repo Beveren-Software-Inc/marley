@@ -84,7 +84,9 @@ export function formatAppointmentTimeLabel(
 }
 
 export interface AppointmentSalesOrderResult {
-  sales_order: string
+  covered_by_package?: boolean
+  message?: string
+  sales_order: string | null
   sales_order_status?: string
   existing?: boolean
   sales_invoice?: string | null

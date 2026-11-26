@@ -11,11 +11,15 @@ import {
   type LinkFieldOption,
 } from '../../services/common'
 import { apiRequest } from '../../services/apiClient'
+import { Activity, Stethoscope } from 'lucide-react'
 
 interface AdmissionOtherServicesTabProps {
   admissionName: string
   selectedPackage: InpatientPackage | null
   onResolvedPackageChange?: (pkg: InpatientPackage | null) => void
+  onPackageDetailsChange?: (details: AdmissionPackageDetailsResponse) => void
+  onDirtyChange?: (dirty: boolean) => void
+  onQuotationInclusionsChange?: (quotation: Awaited<ReturnType<typeof checkAdmissionQuotation>>) => void
   loadInitialQuotation?: () => ReturnType<typeof checkAdmissionQuotation>
   selectedServices: string[]
   onSelectedServicesChange: (services: string[]) => void
@@ -29,6 +33,9 @@ export const AdmissionOtherServicesTab = ({
   admissionName,
   selectedPackage,
   onResolvedPackageChange,
+  onPackageDetailsChange,
+  onDirtyChange,
+  onQuotationInclusionsChange,
   loadInitialQuotation,
   selectedServices,
   onSelectedServicesChange,
@@ -40,10 +47,11 @@ export const AdmissionOtherServicesTab = ({
   const [packageData, setPackageData] =
     useState<AdmissionPackageDetailsResponse | null>(null)
   const [submitted, setSubmitted] = useState(false)
-  const [quotationSettings, setQuotationSettings] = useState({ include_lab_tests: 0, include_observation: 0 })
-  const [savedSettings, setSavedSettings] = useState({ include_lab_tests: 0, include_observation: 0 })
+  const [quotationSettings, setQuotationSettings] = useState({ include_lab_tests: 0, include_observation: 0, include_therapy_sessions: 0, include_consultations: 0 })
+  const [savedSettings, setSavedSettings] = useState({ include_lab_tests: 0, include_observation: 0, include_therapy_sessions: 0, include_consultations: 0 })
   const settingsIdentityRef = useRef<string | null>(null)
 
+  const [quotationPackageName, setQuotationPackageName] = useState<string | null>(null)
   const [quotationName, setQuotationName] = useState<string | null>(null)
   const [savedServices, setSavedServices] = useState<string[]>([])
   const [updating, setUpdating] = useState(false)
@@ -117,6 +125,7 @@ export const AdmissionOtherServicesTab = ({
       const details = await fetchAdmissionPackageDetails(admissionName)
       if (generation !== loadGeneration.current) return
       setPackageData(details)
+      onPackageDetailsChange?.(details)
 
       const packageName =
         selectedPackage?.name || details.active_package?.name
@@ -131,10 +140,12 @@ export const AdmissionOtherServicesTab = ({
 
       const quotation = await (useInitialQuotation && loadInitialQuotation
         ? loadInitialQuotation()
-        : checkAdmissionQuotation(admissionName, packageName))
+        : checkAdmissionQuotation(admissionName, packageName, requireExistingQuotation))
 
       if (generation !== loadGeneration.current) return
       onResolvedPackageChange?.(details.active_package)
+      onQuotationInclusionsChange?.(quotation)
+      setQuotationPackageName(quotation.package_name || packageName)
       setSubmitted(quotation.docstatus === 1)
       setQuotationName(quotation.exists ? quotation.quotation_name || null : null)
       setSavedServices(Array.from(new Set(quotation.other_services || [])))
@@ -143,6 +154,8 @@ export const AdmissionOtherServicesTab = ({
       const settings = {
         include_lab_tests: Number(quotation.include_lab_tests) === 1 ? 1 : 0,
         include_observation: Number(quotation.include_observation) === 1 ? 1 : 0,
+        include_therapy_sessions: Number(quotation.include_therapy_sessions) === 1 ? 1 : 0,
+        include_consultations: Number(quotation.include_consultations) === 1 ? 1 : 0,
       }
       setSavedSettings(settings)
       if (settingsIdentityRef.current !== identity || quotation.docstatus === 1) {
@@ -169,6 +182,9 @@ export const AdmissionOtherServicesTab = ({
   }, [
     admissionName,
     onResolvedPackageChange,
+    onPackageDetailsChange,
+    onQuotationInclusionsChange,
+    requireExistingQuotation,
     loadInitialQuotation,
     onSelectedServicesChange,
     refreshKey,
@@ -267,9 +283,15 @@ export const AdmissionOtherServicesTab = ({
   const settingsChanged = requireExistingQuotation && (
     quotationSettings.include_lab_tests !== savedSettings.include_lab_tests
     || quotationSettings.include_observation !== savedSettings.include_observation
+    || quotationSettings.include_therapy_sessions !== savedSettings.include_therapy_sessions
+    || quotationSettings.include_consultations !== savedSettings.include_consultations
   )
   const servicesChanged = settingsChanged || selectedServices.length !== savedServices.length
     || selectedServices.some((name) => !savedServices.includes(name))
+
+  useEffect(() => {
+    onDirtyChange?.(loading || updating || servicesChanged)
+  }, [loading, updating, servicesChanged, onDirtyChange])
 
   const updateQuotation = async () => {
     if (!selectionReady || !activePackage || !quotationName || submitted || !servicesChanged) return
@@ -278,7 +300,7 @@ export const AdmissionOtherServicesTab = ({
       setError(null)
       setUpdateMessage('')
       const result = await updateAdmissionQuotationOtherServices(
-        admissionName, activePackage.name, selectedServices,
+        admissionName, quotationPackageName || activePackage.name, selectedServices,
         requireExistingQuotation ? quotationSettings : undefined,
       )
       if (requireExistingQuotation) setSavedSettings(quotationSettings)
@@ -347,6 +369,36 @@ export const AdmissionOtherServicesTab = ({
               className="h-4 w-4 rounded border-slate-300" />
             Include Observation
           </label>
+          <label className="inline-flex items-center gap-2">
+            <input type="checkbox" disabled={!selectionReady || submitted || updating}
+              checked={quotationSettings.include_therapy_sessions === 1}
+              onChange={(event) => setQuotationSettings((current) => ({ ...current, include_therapy_sessions: event.target.checked ? 1 : 0 }))}
+              className="h-4 w-4 rounded border-slate-300" />
+            Include Therapy Sessions
+          </label>
+          <label className="inline-flex items-center gap-2">
+            <input type="checkbox" disabled={!selectionReady || submitted || updating}
+              checked={quotationSettings.include_consultations === 1}
+              onChange={(event) => setQuotationSettings((current) => ({ ...current, include_consultations: event.target.checked ? 1 : 0 }))}
+              className="h-4 w-4 rounded border-slate-300" />
+            Include Consultations
+          </label>
+        </div>
+      )}
+      {requireExistingQuotation && quotationName && !loading && !error && (savedSettings.include_therapy_sessions === 1 || savedSettings.include_consultations === 1) && (
+        <div className="flex flex-wrap gap-2">
+          {savedSettings.include_therapy_sessions === 1 && (
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700">
+              <Activity className="h-3.5 w-3.5" aria-hidden />
+              Therapy Sessions Included
+            </span>
+          )}
+          {savedSettings.include_consultations === 1 && (
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700">
+              <Stethoscope className="h-3.5 w-3.5" aria-hidden />
+              Consultations Included
+            </span>
+          )}
         </div>
       )}
       {requireExistingQuotation && !loading && !error && !quotationName && (

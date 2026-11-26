@@ -95,7 +95,11 @@ export const AppointmentCreateSalesOrderModal = ({
         alsoInvoice,
         needsAmount ? parsedAmount : undefined,
       )
-      if (result.sales_invoice) {
+      if (result.covered_by_package) {
+        toast.success(result.message || 'Service included in the package; no separate bill created')
+        onSuccess(result)
+        onClose()
+      } else if (result.sales_invoice) {
         toast.success(`Sales Order ${result.sales_order} and Invoice ${result.sales_invoice} created`)
         setCompleted(result)
         onSuccess(result)

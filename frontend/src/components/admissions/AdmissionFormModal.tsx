@@ -1,15 +1,16 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { AdmissionOtherServicesTab } from './AdmissionOtherServicesTab'
+import { PackagePricingSelector } from './PackagePricingSelector'
 import { useAuth } from '../../providers/AuthProvider'
 import { isAdmin, isReceptionRole } from '../../config/permissions'
 import { apiRequest } from '../../services/apiClient'
-import { fetchInpatientRecord, fetchServiceUnits, fetchBedNumbers, admitPatient, calculatePackagePrice, type ServiceUnit, type BedNoRecord, type InpatientPackage, createAdmissionQuotation, checkAdmissionQuotation, fetchCaseManagementTemplates, fetchMedicalSupervisionTemplates, fetchAdmissionBillingSettings, isNoPackage } from '../../services/inpatientRecords'
+import { fetchInpatientRecord, fetchServiceUnits, fetchBedNumbers, admitPatient, calculatePackagePrice, type ServiceUnit, type BedNoRecord, type InpatientPackage, getPackagePricingModes, type RoomPricingMode, createAdmissionQuotation, checkAdmissionQuotation, fetchCaseManagementTemplates, fetchMedicalSupervisionTemplates, fetchAdmissionBillingSettings, isNoPackage } from '../../services/inpatientRecords'
 import { uploadPatientFile, type PatientDocumentRow } from '../../services/patients'
 import { fetchDocumentTypes, fetchServiceUnitTypes, createDocumentType, type LinkFieldOption } from '../../services/common'
 import { DocumentTypeSelect } from '../ui/DocumentTypeSelect'
 import { SignaturePad, attachFileDisplayUrl } from '../ui/SignaturePad'
 import { toast } from '../../hooks/useToast'
-import { PenLine, X, BedDouble, Check, FlaskConical, Eye } from 'lucide-react'
+import { PenLine, X, BedDouble, Check, FlaskConical, Eye, Activity, Stethoscope } from 'lucide-react'
 import { toDatetimeLocalValue } from '../../utils/datetimeLocal'
 import { DateFilterInput } from '../ui/DateFilterInput'
 
@@ -296,16 +297,32 @@ function isSignatureDocumentType(
 
 export const AdmissionFormModal = ({
   admissionNo,
-  selectedPackage,
+  selectedPackage: packageSelection,
   onComplete,
   onClose,
 }: AdmissionFormModalProps) => {
+  const selectedPackage = packageSelection
   const skipPackage = isNoPackage(selectedPackage)
+  const pricingModes = useMemo(() => {
+    const modes = getPackagePricingModes(selectedPackage)
+    return modes.length > 1 ? modes : []
+  }, [selectedPackage])
+  const [pricingMode, setPricingMode] = useState<RoomPricingMode | undefined>(() =>
+    pricingModes.includes('Weekly') ? 'Weekly' : pricingModes[0]
+  )
+  const [effectiveDailyRate, setEffectiveDailyRate] = useState<number | null>(null)
+  useEffect(() => {
+    setPricingMode(pricingModes.includes('Weekly') ? 'Weekly' : pricingModes[0])
+    setEffectiveDailyRate(null)
+  }, [selectedPackage.name, pricingModes])
+
   const packageName = selectedPackage.name
   const [packageInclusions, setPackageInclusions] = useState<{
     packageName: string
     labTests: boolean
     observation: boolean
+    therapy: boolean
+    consultations: boolean
   } | null>(null)
 
   useEffect(() => {
@@ -314,15 +331,17 @@ export const AdmissionFormModal = ({
     const params = new URLSearchParams({
       doctype: 'Inpatient Package',
       filters: JSON.stringify({ name: packageName }),
-      fieldname: JSON.stringify(['custom_include_lab_tests', 'custom_include_observation']),
+      fieldname: JSON.stringify(['custom_include_lab_tests', 'custom_include_observation', 'include_therapy_sessions', 'include_consultations']),
     })
-    apiRequest<{ custom_include_lab_tests?: number; custom_include_observation?: number }>(
+    apiRequest<{ custom_include_lab_tests?: number; custom_include_observation?: number; include_therapy_sessions?: number; include_consultations?: number }>(
       `/api/method/frappe.client.get_value?${params.toString()}`,
     ).then((fields) => {
       if (!cancelled) setPackageInclusions({
         packageName,
         labTests: Number(fields.custom_include_lab_tests) === 1,
         observation: Number(fields.custom_include_observation) === 1,
+        therapy: Number(fields.include_therapy_sessions) === 1,
+        consultations: Number(fields.include_consultations) === 1,
       })
     }).catch(() => {
       if (!cancelled) setPackageInclusions(null)
@@ -344,6 +363,27 @@ export const AdmissionFormModal = ({
     identity: string
     request: ReturnType<typeof checkAdmissionQuotation>
   } | null>(null)
+  const [quotationInclusions, setQuotationInclusions] = useState<{
+    identity: string
+    exists: boolean
+    therapy: boolean
+    consultations: boolean
+  } | null>(null)
+  const onQuotationInclusionsChange = useCallback((quotation: Awaited<ReturnType<typeof checkAdmissionQuotation>>) => {
+    quotationLookup.current = { identity: servicesIdentity, request: Promise.resolve(quotation) }
+    setQuotationInclusions({
+      identity: servicesIdentity,
+      exists: quotation.exists,
+      therapy: quotation.exists && Number(quotation.include_therapy_sessions) === 1,
+      consultations: quotation.exists && Number(quotation.include_consultations) === 1,
+    })
+  }, [servicesIdentity])
+  const therapyIncluded = quotationInclusions?.identity === servicesIdentity && quotationInclusions.exists
+    ? quotationInclusions.therapy
+    : packageInclusions?.packageName === packageName && packageInclusions.therapy
+  const consultationsIncluded = quotationInclusions?.identity === servicesIdentity && quotationInclusions.exists
+    ? quotationInclusions.consultations
+    : packageInclusions?.packageName === packageName && packageInclusions.consultations
   const loadInitialQuotation = useCallback(() => {
     if (quotationLookup.current?.identity !== servicesIdentity) {
       quotationLookup.current = {
@@ -419,7 +459,9 @@ export const AdmissionFormModal = ({
   >([])
 
   const discountPercent = Math.min(100, Math.max(0, parseFloat(discountPercentInput || '0') || 0))
-  const discountedPrice = calculatedPrice !== null ? calculatedPrice * (1 - discountPercent / 100) : null
+  const discountedPrice = pricingMode && effectiveDailyRate != null
+    ? Math.round(effectiveDailyRate * days * (1 - discountPercent / 100) * 100) / 100
+    : calculatedPrice !== null ? calculatedPrice * (1 - discountPercent / 100) : null
 
   const selectedServiceUnitNames = useMemo(
     () => selectedServiceUnits.map((su) => su.name).filter(Boolean),
@@ -592,6 +634,7 @@ export const AdmissionFormModal = ({
   }, [days, formData.checkIn, calculateExpectedDischarge])
 
   useEffect(() => {
+    let cancelled = false
     const calculatePrice = async () => {
       if (skipPackage) {
         setCalculatedPrice(null)
@@ -617,7 +660,11 @@ export const AdmissionFormModal = ({
             serviceUnitType: activeRoomType || undefined,
             serviceUnit: selectedServiceUnits[0]?.name,
             roomMultiplier: activeRoomMultiplier,
+            pricingMode,
+            company: record?.company,
           })
+          if (cancelled) return
+          setEffectiveDailyRate(result.daily_rate ?? null)
           // Use program (package) price for quotation — not room-multiplied total
           const programPrice = result.program_price ?? result.total_price
           setCalculatedPrice(programPrice)
@@ -627,11 +674,13 @@ export const AdmissionFormModal = ({
             service_unit_type: result.service_unit_type || activeRoomType,
           })
         } catch (err) {
+          if (cancelled) return
+          if (pricingMode) setError(err instanceof Error ? err : new Error('Failed to resolve room price'))
           console.error('Failed to calculate price:', err)
           setCalculatedPrice(null)
           setPriceBreakdown(null)
         } finally {
-          setCalculatingPrice(false)
+          if (!cancelled) setCalculatingPrice(false)
         }
       } else {
         setCalculatedPrice(null)
@@ -639,7 +688,15 @@ export const AdmissionFormModal = ({
       }
     }
     calculatePrice()
-  }, [days, selectedPackage.name, selectedPackage.package_rate, activeRoomType, activeRoomMultiplier, selectedServiceUnits, skipPackage])
+    return () => { cancelled = true }
+  }, [days, selectedPackage.name, selectedPackage.package_rate, activeRoomType, activeRoomMultiplier, selectedServiceUnits, skipPackage, pricingMode, packageSelection, record?.company])
+
+  useEffect(() => {
+    if (!pricingMode) return
+    setSalesOrderCreated(null)
+    setExistingQuotation(null)
+    quotationLookup.current = null
+  }, [pricingMode])
 
   // ── Service unit search (any room type; cost center optional on room) ─────
 
@@ -872,22 +929,25 @@ export const AdmissionFormModal = ({
   }, [roomTypeQuery, roomTypeOpen])
 
   useEffect(() => {
+    let cancelled = false
     const checkQuotation = async () => {
       try {
         setCheckingQuotation(true)
         const result = await loadInitialQuotation()
-        if (result.exists && result.quotation_name) {
+        if (!cancelled) onQuotationInclusionsChange(result)
+        if (!cancelled && result.exists && result.quotation_name && (!pricingMode || result.pricing_mode === pricingMode)) {
           setExistingQuotation(result.quotation_name)
           setSalesOrderCreated(result.quotation_name)
         }
       } catch (err) {
         console.error('Failed to check quotation:', err)
       } finally {
-        setCheckingQuotation(false)
+        if (!cancelled) setCheckingQuotation(false)
       }
     }
     if (admissionNo && selectedPackage.name && canCheckQuotation) checkQuotation()
-  }, [admissionNo, selectedPackage.name, canCheckQuotation, loadInitialQuotation])
+    return () => { cancelled = true }
+  }, [admissionNo, selectedPackage.name, canCheckQuotation, loadInitialQuotation, onQuotationInclusionsChange, otherServicesRefresh, pricingMode, activeRoomType])
 
   // ── Service unit toggle (FIX: no longer replaces query on select) ─────────
 
@@ -1089,7 +1149,9 @@ export const AdmissionFormModal = ({
         selectedRoomType.name,
         enhancedWorkflow
           ? Array.from(new Set(selectedOtherServices.filter(Boolean)))
-          : undefined
+          : undefined,
+        pricingMode,
+        discountPercent,
       )
       const quotationName = (result as any).quotation_name || (result as any).sales_order_name || null
       if (quotationName) {
@@ -1232,6 +1294,7 @@ export const AdmissionFormModal = ({
         formData.isMedSuprRequired === 1 ? 1 : 0,
         formData.isMedSuprRequired === 1 ? selectedMedicalSupervision?.template ?? null : null,
         formData.isMedSuprRequired === 1 ? selectedMedicalSupervision?.amount ?? null : null,
+        pricingMode,
       )
 
       onComplete()
@@ -1333,7 +1396,7 @@ export const AdmissionFormModal = ({
                 <div className={`rounded-lg p-4 ${selectedPackage.name === '__custom__' ? 'bg-amber-50 border border-amber-200' : 'bg-slate-50'}`}>
                   <h3 className="font-semibold text-slate-900 mb-2">Selected Package</h3>
                   <div className="mb-2 flex items-center gap-2 flex-wrap">
-                    <p className="font-medium text-slate-900">{selectedPackage.package_name}</p>
+                    <p className="font-medium text-slate-900">{selectedPackage.package_name}{pricingMode ? ` · ${pricingMode} charging` : ''}</p>
                     {selectedPackage.name === '__custom__' && (
                       <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700">Custom</span>
                     )}
@@ -1341,10 +1404,11 @@ export const AdmissionFormModal = ({
                       <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-200 text-slate-700">Daily default</span>
                     ) : null}
                   </div>
+                  {pricingModes.length > 0 && <PackagePricingSelector modes={pricingModes} value={pricingMode} onChange={setPricingMode} />}
                   <div className="grid grid-cols-2 gap-2 text-sm mb-2">
                     <div>
                       <span className="text-slate-600">Base Rate:</span>{' '}
-                      <span className="font-medium">{selectedPackage.package_rate.toLocaleString()} BHD / day</span>
+                      <span className="font-medium">{selectedPackage.package_rate.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} BHD / day</span>
                     </div>
                     {selectedPackage.base_total != null && selectedPackage.base_total > 0 && (
                       <div>
@@ -1359,7 +1423,10 @@ export const AdmissionFormModal = ({
                       </div>
                     )}
                   </div>
-                  <p className="text-xs text-slate-500">Final Price = Program Price × Room Multiplier (from Service Unit Type)</p>
+                  <p className="text-xs text-slate-500">{pricingMode ? `Total = ${pricingMode === 'Daily' ? 'Selected Package Base Rate' : pricingMode === 'Weekly' ? 'Weekly Price ÷ 7' : 'Monthly Price ÷ 30'} × Stay Days; room multiplier is not applied` : 'Final Price = Program Price × Room Multiplier (from Service Unit Type)'}</p>
+                  {pricingMode && effectiveDailyRate != null && (
+                    <p className="text-sm text-slate-700 mt-2">Daily rate: {effectiveDailyRate.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} BHD / day</p>
+                  )}
                   {selectedPackage.name !== '__custom__' && selectedPackage.duration_pricing && selectedPackage.duration_pricing.length > 0 && (
                     <div className="mt-2 pt-2 border-t border-slate-300">
                       <p className="text-xs font-medium text-slate-700 mb-1">Duration Pricing:</p>
@@ -1373,20 +1440,32 @@ export const AdmissionFormModal = ({
                       </div>
                     </div>
                   )}
-                  {packageInclusions?.packageName === packageName && (packageInclusions.labTests || packageInclusions.observation) && (
+                  {((packageInclusions?.packageName === packageName && (packageInclusions.labTests || packageInclusions.observation)) || therapyIncluded || consultationsIncluded) && (
                     <div className="mt-3 border-t border-slate-200 pt-3">
                       <p className="mb-2 text-xs font-medium text-slate-700">Package Includes</p>
                       <div className="flex flex-wrap gap-2">
-                        {packageInclusions.labTests && (
+                        {packageInclusions?.packageName === packageName && packageInclusions.labTests && (
                           <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700">
                             <FlaskConical className="h-3.5 w-3.5" aria-hidden />
                             Lab Tests Included
                           </span>
                         )}
-                        {packageInclusions.observation && (
+                        {packageInclusions?.packageName === packageName && packageInclusions.observation && (
                           <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700">
                             <Eye className="h-3.5 w-3.5" aria-hidden />
                             Observation Included
+                          </span>
+                        )}
+                        {therapyIncluded && (
+                          <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700">
+                            <Activity className="h-3.5 w-3.5" aria-hidden />
+                            Therapy Sessions Included
+                          </span>
+                        )}
+                        {consultationsIncluded && (
+                          <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700">
+                            <Stethoscope className="h-3.5 w-3.5" aria-hidden />
+                            Consultations Included
                           </span>
                         )}
                       </div>
@@ -1661,6 +1740,7 @@ export const AdmissionFormModal = ({
                   otherServicesHydrated={otherServicesHydrated}
                   setOtherServicesHydrated={setOtherServicesHydrated}
                   loadInitialQuotation={loadInitialQuotation}
+                  onQuotationInclusionsChange={onQuotationInclusionsChange}
                 />
               </div>
             )}
@@ -2357,6 +2437,7 @@ export const AdmissionFormModal = ({
                   type="submit"
                   disabled={
                     submitting ||
+                    (Boolean(pricingMode) && (calculatingPrice || !calculatedPrice)) ||
                     (!skipPackage && checkingQuotation) ||
                     (!skipPackage && !salesOrderCreated && !existingQuotation)
                   }

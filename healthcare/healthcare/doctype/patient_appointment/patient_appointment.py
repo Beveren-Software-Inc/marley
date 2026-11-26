@@ -537,11 +537,20 @@ def invoice_appointment(appointment_name, discount_percentage=0, discount_amount
 		fee_validity = None
 
 	if settings.show_payment_popup and not appointment_doc.invoiced and not fee_validity:
-		create_sales_invoice(appointment_doc, discount_percentage, discount_amount)
+		result = create_sales_invoice(appointment_doc, discount_percentage, discount_amount)
+		if result and result.get("covered_by_package"):
+			return result
 	update_fee_validity(appointment_doc)
 
 
 def create_sales_invoice(appointment_doc, discount_percentage=0, discount_amount=0):
+	from healthcare.api.package_service_coverage import lock_service, appointment_coverage, covered_response, has_separate_billing, recorded_amount
+	lock_service(appointment_doc)
+	coverage = appointment_coverage(appointment_doc)
+	if coverage and has_separate_billing(appointment_doc):
+		frappe.throw(_("An existing billing document is linked to this appointment. Use that document; no new invoice was created."))
+	if coverage:
+		return covered_response(appointment_doc, coverage, recorded_amount(appointment_doc, "paid_amount"), appointment_doc.appointment_date)
 	sales_invoice = frappe.new_doc("Sales Invoice")
 	sales_invoice.patient = appointment_doc.patient
 	sales_invoice.customer = frappe.get_value("Patient", appointment_doc.patient, "customer")

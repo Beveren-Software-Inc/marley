@@ -1059,6 +1059,10 @@ let make_payment = function (frm, automate_invoicing) {
 					},
 					callback: async function (data) {
 						if (!data.exc) {
+							if (data.message && data.message.covered_by_package) {
+								frappe.msgprint(data.message.message);
+								d.hide();
+							}
 							await frm.reload_doc();
 							if (frm.doc.ref_sales_invoice) {
 								d.get_field("mode_of_payment").$input.prop("disabled", true);
