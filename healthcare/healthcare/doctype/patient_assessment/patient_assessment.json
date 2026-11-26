@@ -15,6 +15,7 @@
   "encounter",
   "cost_center",
   "admission",
+  "written_admission",
   "column_break_4",
   "company",
   "healthcare_practitioner",
@@ -39,6 +40,7 @@
    "fieldname": "patient",
    "fieldtype": "Link",
    "in_list_view": 1,
+   "in_standard_filter": 1,
    "label": "File No",
    "options": "Patient"
   },
@@ -144,6 +146,8 @@
   {
    "fieldname": "patient_name",
    "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
    "label": "Patient Name"
   },
   {
@@ -175,6 +179,13 @@
    "options": "Inpatient Admission"
   },
   {
+   "description": "Oracle ADMISSION_NUM. Kept even when Admission cannot be linked (orphan / missing in IP_ADMISSION_01).",
+   "fieldname": "written_admission",
+   "fieldtype": "Data",
+   "in_standard_filter": 1,
+   "label": "Missing / Oracle Admission"
+  },
+  {
    "fieldname": "ip_patient_assessment",
    "fieldtype": "Link",
    "label": "IP Patient assessment",
@@ -193,8 +204,9 @@
    "options": "Cost Center"
   }
  ],
+ "link_display_mode": "Search",
  "links": [],
- "modified": "2026-09-07 14:54:00.000000",
+ "modified": "2026-11-26 17:23:05.061920",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Patient Assessment",

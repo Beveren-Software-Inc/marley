@@ -88,8 +88,7 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Admission No",
-   "options": "Inpatient Admission",
-   "reqd": 1
+   "options": "Inpatient Admission"
   },
   {
    "fetch_from": "admission_no.patient",
@@ -98,8 +97,7 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "File No",
-   "options": "Patient",
-   "reqd": 1
+   "options": "Patient"
   },
   {
    "fieldname": "trans_shift",
@@ -514,8 +512,9 @@
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
+ "link_display_mode": "Search",
  "links": [],
- "modified": "2026-07-12 16:14:06.994948",
+ "modified": "2026-11-26 17:52:15.899400",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Mental State",

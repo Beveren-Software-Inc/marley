@@ -119,7 +119,8 @@ class TestVitalSignsReconcileWorkList(IntegrationTestCase):
 		self.assertEqual([item[0] for item in items], ["881234", "881235", "881300"])
 		self.assertEqual([item[2] for item in items], ["blocked", "blocked", "free"])
 
-	def test_blocked_rows_are_left_out_when_the_suffix_is_turned_off(self):
+	def test_blocked_rows_are_still_imported_when_suffix_flag_is_off(self):
+		# New content with a taken trans_no always gets a suffixed create.
 		scan = _scan(
 			missing_free=[["881300", "2372"]],
 			missing_blocked=[["881234", "2372", "2356"]],
@@ -127,7 +128,7 @@ class TestVitalSignsReconcileWorkList(IntegrationTestCase):
 
 		items = _work_items(scan, suffix_conflicts=0)
 
-		self.assertEqual([item[0] for item in items], ["881300"])
+		self.assertEqual([item[0] for item in items], ["881234", "881300"])
 
 	def test_limit_keeps_the_first_rows(self):
 		scan = _scan(missing_free=[["881301", "2372"], ["881299", "2372"], ["881300", "2372"]])

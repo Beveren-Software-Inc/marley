@@ -673,6 +673,10 @@ frappe.ui.form.on('Healthcare Settings', {
 			});
 		}, __('Data Maintenance'));
 
+		frm.add_custom_button(__('Clean Check'), () => {
+			open_oracle_clean_check(frm);
+		}, __('Update'));
+
 		frm.add_custom_button(__('Update Session Schedule Price'), () => {
 			frappe.call({
 				method: 'healthcare.api.session_schedule.preview_update_session_schedule_prices',
@@ -4584,9 +4588,9 @@ frappe.ui.form.on('Healthcare Settings', {
 							+ 'Existing scales (will update): {3}\n'
 							+ 'New: {4}\n'
 							+ 'Admissions resolved: {5}\n'
-							+ 'Admissions unresolved: {6}\n'
+							+ 'Admissions unresolved (still imported; Oracle no. on Missing / Oracle Admission): {6}\n'
 							+ 'Patients to auto-create: {7}\n'
-							+ 'Rows with no detail lines: {8}\n\n'
+							+ 'Rows with no detail lines (still imported): {8}\n\n'
 							+ 'TEXT_MESSAGE_1–7 / GET_POINTS_1–7 → Morse Fall Scale Detail child rows.\n'
 							+ 'Sample TRANS_NUM: {9}\n\nContinue?',
 						[
@@ -7583,7 +7587,180 @@ function open_op_prescription_repair() {
 
 /**
  * Oracle -> ERPNext buttons: where does the legacy data come from?
- *
+/**
+ * Clean Check — background read-only gap report for every Oracle → ERPNext
+ * import table (same compares as the individual reconcile buttons).
+ */
+function open_oracle_clean_check(frm) {
+	frappe.confirm(
+		__(
+			'Run Clean Check in the background?\n\n'
+			+ 'Compares every Oracle → ERPNext table (patients, visits, admissions, '
+			+ 'prescriptions, clinical notes, ECT, labs, vitals, …) and reports what '
+			+ 'is still missing and needs re-import.\n\n'
+			+ 'Nothing is created or updated — report only.'
+		),
+		() => {
+			frappe.call({
+				method: 'healthcare.api.oracle_clean_check.start_oracle_clean_check',
+				freeze: true,
+				freeze_message: __('Starting Clean Check…'),
+				callback(r) {
+					const msg = r.message || {};
+					if (msg.queued || msg.running) {
+						frappe.show_alert({
+							message: msg.message || __('Clean Check started'),
+							indicator: msg.queued ? 'green' : 'orange',
+						});
+						poll_oracle_clean_check(frm);
+					}
+				},
+			});
+		}
+	);
+}
+
+function poll_oracle_clean_check(frm) {
+	const title = __('Clean Check');
+	let polls = 0;
+	frappe.show_progress(title, 0, 100, __('Comparing Oracle with ERPNext…'));
+	const timer = setInterval(() => {
+		polls += 1;
+		frappe.call({
+			method: 'healthcare.api.oracle_clean_check.get_oracle_clean_check_status',
+			callback(r) {
+				const s = r.message || {};
+				const state = s.state || 'idle';
+				const total = cint(s.total) || 1;
+				const processed = cint(s.processed) || 0;
+				const pct = Math.min(99, Math.floor((processed / total) * 100));
+				const current = s.current_label
+					? __('Checking {0} ({1}/{2})…', [s.current_label, processed, total])
+					: s.message || __('Comparing…');
+				if (state === 'queued' || state === 'running') {
+					frappe.show_progress(title, pct, 100, current);
+					if (polls % 4 === 0) {
+						frappe.show_alert({ message: current, indicator: 'blue' });
+					}
+					return;
+				}
+				clearInterval(timer);
+				frappe.hide_progress();
+				if (state === 'finished') {
+					show_oracle_clean_check_report(frm, s);
+				} else if (state === 'failed') {
+					frappe.msgprint({
+						title: __('Clean Check failed'),
+						indicator: 'red',
+						message: (s.message || __('Clean Check failed.')).replace(/\n/g, '<br>'),
+					});
+				} else {
+					frappe.msgprint({
+						title: title,
+						indicator: 'orange',
+						message: s.message || __('Clean Check is idle.'),
+					});
+				}
+			},
+			error() {
+				clearInterval(timer);
+				frappe.hide_progress();
+			},
+		});
+		if (polls > 600) {
+			clearInterval(timer);
+			frappe.hide_progress();
+			frappe.msgprint({
+				title: title,
+				indicator: 'orange',
+				message: __('Still running — reopen Clean Check later to see the report.'),
+			});
+		}
+	}, 5000);
+}
+
+function show_oracle_clean_check_report(frm, status) {
+	const rows = status.rows || [];
+	const summary = status.summary || {};
+	const gaps = rows.filter((r) => r.status === 'missing');
+	const errors = rows.filter((r) => r.status === 'error');
+	const ok = rows.filter((r) => r.status === 'ok');
+
+	const fmt = (n) => (n == null || n === '' ? '—' : frappe.format(n, { fieldtype: 'Int' }));
+	const status_badge = (row) => {
+		if (row.status === 'ok') {
+			return `<span class="indicator-pill green">${__('In sync')}</span>`;
+		}
+		if (row.status === 'missing') {
+			return `<span class="indicator-pill orange">${__('Missing')} ${fmt(row.missing_count)}</span>`;
+		}
+		if (row.status === 'error') {
+			return `<span class="indicator-pill red">${__('Error')}</span>`;
+		}
+		return `<span class="indicator-pill gray">${__('Unknown')}</span>`;
+	};
+
+	let table = `
+		<div class="mb-3">
+			<p>${__('Tables checked')}: <b>${fmt(summary.checked || rows.length)}</b>
+			&nbsp;·&nbsp; ${__('In sync')}: <b>${fmt(summary.in_sync || ok.length)}</b>
+			&nbsp;·&nbsp; ${__('With gaps')}: <b>${fmt(summary.with_gaps || gaps.length)}</b>
+			&nbsp;·&nbsp; ${__('Errors')}: <b>${fmt(summary.errors || errors.length)}</b>
+			&nbsp;·&nbsp; ${__('Missing rows (sum)')}: <b>${fmt(summary.missing_total)}</b></p>
+		</div>
+		<div style="max-height: 420px; overflow: auto;">
+		<table class="table table-bordered table-condensed" style="font-size: 12px;">
+			<thead>
+				<tr>
+					<th>${__('Entity')}</th>
+					<th>${__('Doctype')}</th>
+					<th class="text-right">${__('Oracle')}</th>
+					<th class="text-right">${__('ERPNext')}</th>
+					<th class="text-right">${__('Missing')}</th>
+					<th>${__('Status')}</th>
+				</tr>
+			</thead>
+			<tbody>
+	`;
+	rows.forEach((row) => {
+		table += `
+			<tr>
+				<td><b>${frappe.utils.escape_html(row.label || row.key || '')}</b>
+					${row.oracle_table ? `<br><span class="text-muted small">${frappe.utils.escape_html(row.oracle_table)}</span>` : ''}
+				</td>
+				<td>${frappe.utils.escape_html(row.doctype || '')}</td>
+				<td class="text-right">${fmt(row.oracle_count)}</td>
+				<td class="text-right">${fmt(row.erpnext_count)}</td>
+				<td class="text-right">${fmt(row.missing_count)}</td>
+				<td>${status_badge(row)}</td>
+			</tr>
+		`;
+	});
+	table += '</tbody></table></div>';
+
+	if (gaps.length) {
+		table += `<div class="mt-3"><b>${__('Needs re-import')}</b><ul>`;
+		gaps.forEach((row) => {
+			table += `<li>${frappe.utils.escape_html(row.label)} — ${fmt(row.missing_count)} ${__('missing')}</li>`;
+		});
+		table += '</ul></div>';
+	}
+
+	if (status.message) {
+		table += `<pre class="mt-3 small text-muted" style="white-space: pre-wrap;">${frappe.utils.escape_html(
+			status.message
+		)}</pre>`;
+	}
+
+	frappe.msgprint({
+		title: __('Clean Check report'),
+		indicator: gaps.length || errors.length ? 'orange' : 'green',
+		message: table,
+		wide: true,
+	});
+}
+
+/*
  * A live SQL*Plus login is not always available (VPN, a locked account, the
  * Oracle container down), so every Oracle button first asks how to read the
  * legacy tables:
@@ -12902,7 +13079,7 @@ function open_morse_fall_scale_reconcile(frm) {
 		title: __('Oracle -> ERPNext: Morse Fall Scale'),
 		entity: 'morse_fall_scale',
 		intro: __(
-			'Reads MORSE_FALL_SCALE_01 and creates only the Morse Fall Scale rows ERPNext is missing (by TRANS_NUM). Scales already stored are left as they are.'
+			'Reads MORSE_FALL_SCALE_01 and creates only the Morse Fall Scale rows ERPNext is missing (by TRANS_NUM). Scales already stored are left as they are. If the Inpatient Admission cannot be linked, the scale is still created and the Oracle admission number is kept on Missing / Oracle Admission.'
 		),
 		api_prefix: 'healthcare.api.care_record_reconcile',
 		method_suffix: 'morse_fall_scale_reconcile',

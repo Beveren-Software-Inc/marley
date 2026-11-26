@@ -8,6 +8,7 @@ from typing import Any
 
 import frappe
 from frappe import _
+from frappe.utils import cint
 
 from healthcare.api.discharge_checklist_import import _resolve_cost_center
 from healthcare.api.patient_info_import import (
@@ -164,23 +165,25 @@ def _parse_excel_rows(file_url: str) -> tuple[list[dict], dict[str, int]]:
 
 
 def _build_fields(row: dict) -> tuple[dict[str, Any], dict[str, int]]:
-	stats = {"skip_no_admission": 0, "skip_no_patient": 0}
+	"""Build IP Grooming Chart fields even when the admission is missing in ERPNext.
+
+	Oracle ``ADMISSION_NUM`` is always kept on ``admission_no_old``. The Link
+	``admission_no`` / patient stay empty for orphans so the chart is still imported.
+	"""
+	stats = {"skip_no_admission": 0, "skip_no_patient": 0, "orphan_admission": 0}
 
 	admission = _resolve_admission(row)
-	if not admission:
-		stats["skip_no_admission"] = 1
-		return {}, stats
+	patient = ""
+	if admission:
+		patient = frappe.db.get_value("Inpatient Admission", admission, "patient") or ""
+	else:
+		stats["orphan_admission"] = 1
 
-	patient = frappe.db.get_value("Inpatient Admission", admission, "patient")
-	if not patient:
-		stats["skip_no_patient"] = 1
-		return {}, stats
+	oracle_admission = row.get("admission_num_old") or row.get("admission_num") or None
 
 	fields: dict[str, Any] = {
 		"trans_num": row["trans_num"],
-		"admission_no": admission,
-		"file_no": patient,
-		"admission_no_old": row.get("admission_num_old") or row.get("admission_num") or None,
+		"admission_no_old": oracle_admission,
 		"brush_teeth_morning": _to_check(row.get("brush_teeth_morning")),
 		"change_clothes_morning": _to_check(row.get("change_clothes_morning")),
 		"brush_teeth_noon": _to_check(row.get("brush_teeth_noon")),
@@ -197,6 +200,10 @@ def _build_fields(row: dict) -> tuple[dict[str, Any], dict[str, int]]:
 		"cr_id": row.get("cr_id"),
 		"up_id": row.get("up_id"),
 	}
+	if admission:
+		fields["admission_no"] = admission
+	if patient:
+		fields["file_no"] = patient
 
 	trans_date = _parse_date_field(row.get("trans_date"))
 	if trans_date:
@@ -229,20 +236,21 @@ def _build_fields(row: dict) -> tuple[dict[str, Any], dict[str, int]]:
 def _preview_counts(rows: list[dict]) -> dict:
 	existing = 0
 	resolved_admissions = 0
-	skip_no_admission = 0
+	orphan_admission = 0
 	for row in rows:
 		if frappe.db.exists(DOCTYPE, {"trans_num": row["trans_num"]}):
 			existing += 1
 		if _resolve_admission(row):
 			resolved_admissions += 1
 		else:
-			skip_no_admission += 1
+			orphan_admission += 1
 
 	return {
 		"existing_records": existing,
 		"new_records": len(rows) - existing,
 		"resolved_admissions": resolved_admissions,
-		"skip_no_admission": skip_no_admission,
+		"orphan_admission": orphan_admission,
+		"skip_no_admission": 0,
 		"sample_trans_nums": [row.get("trans_num") for row in rows[:5]],
 	}
 
@@ -283,8 +291,6 @@ def _load_cached_rows() -> dict[str, dict]:
 def upsert_ip_grooming_chart(row: dict) -> dict:
 	fields, stats = _build_fields(row)
 	if not fields.get("trans_num"):
-		return {"status": "skip", "trans_num": row.get("trans_num"), **stats}
-	if stats.get("skip_no_admission") or stats.get("skip_no_patient"):
 		return {"status": "skip", "trans_num": row.get("trans_num"), **stats}
 
 	trans_num = fields["trans_num"]
@@ -327,8 +333,7 @@ def run_ip_grooming_chart_import_batch(*, offset: int = 0) -> dict:
 	if not batch_keys:
 		return {"processed": offset, "done": True, "batch_count": 0}
 
-	created = updated = skipped = 0
-	skip_no_admission = skip_no_patient = 0
+	created = updated = skipped = orphan_admission = 0
 	errors: list[str] = []
 
 	for key in batch_keys:
@@ -342,8 +347,7 @@ def run_ip_grooming_chart_import_batch(*, offset: int = 0) -> dict:
 				updated += 1
 			else:
 				skipped += 1
-			skip_no_admission += cint(result.get("skip_no_admission", 0))
-			skip_no_patient += cint(result.get("skip_no_patient", 0))
+			orphan_admission += cint(result.get("orphan_admission", 0))
 		except Exception:
 			errors.append(f"{key}: {frappe.get_traceback()}")
 			frappe.log_error(title=f"IP_GROOMING_CHART import failed: {key}")
@@ -357,7 +361,8 @@ def run_ip_grooming_chart_import_batch(*, offset: int = 0) -> dict:
 		"created": created,
 		"updated": updated,
 		"skipped": skipped,
-		"skip_no_admission": skip_no_admission,
-		"skip_no_patient": skip_no_patient,
+		"orphan_admission": orphan_admission,
+		"skip_no_admission": 0,
+		"skip_no_patient": 0,
 		"errors": len(errors),
 	}

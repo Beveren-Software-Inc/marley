@@ -126,7 +126,8 @@ class TestMainNursingNoteReconcileWorkList(IntegrationTestCase):
 		self.assertEqual([item[0] for item in items], ["435297", "435298", "435300"])
 		self.assertEqual([item[2] for item in items], ["blocked", "blocked", "free"])
 
-	def test_blocked_rows_are_left_out_when_the_suffix_is_turned_off(self):
+	def test_blocked_rows_are_still_imported_when_suffix_flag_is_off(self):
+		# Reused trans numbers always get a new suffixed note; never left behind.
 		scan = _scan(
 			missing_free=[["435300", "2372"]],
 			missing_blocked=[["435297", "2372", "2356"]],
@@ -134,7 +135,7 @@ class TestMainNursingNoteReconcileWorkList(IntegrationTestCase):
 
 		items = _work_items(scan, suffix_conflicts=0)
 
-		self.assertEqual([item[0] for item in items], ["435300"])
+		self.assertEqual([item[0] for item in items], ["435297", "435300"])
 
 	def test_limit_keeps_the_first_rows(self):
 		scan = _scan(missing_free=[["435301", "2372"], ["435299", "2372"], ["435300", "2372"]])

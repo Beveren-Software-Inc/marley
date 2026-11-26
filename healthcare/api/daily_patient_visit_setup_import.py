@@ -167,28 +167,88 @@ def _apply_services(doc, services: list[dict]):
 		doc.append("services", {"session": session, "amount": amount})
 
 
+def _safe_getdate(value):
+	if value in (None, ""):
+		return None
+	try:
+		return getdate(value)
+	except Exception:
+		return None
+
+
+def _date_ranges_overlap(a_start, a_end, b_start, b_end) -> bool:
+	"""True when two inclusive date ranges overlap (open end = unbounded)."""
+	if not a_start or not b_start:
+		return False
+	a_last = a_end or a_start
+	b_last = b_end or b_start
+	return a_start <= b_last and b_start <= a_last
+
+
 def _find_existing_daily_patient_visit_setup(row: dict, patient: str | None = None) -> str | None:
-	"""Match by TRANS_NUM first, else same patient + from_date (START_DATE)."""
+	"""Match Oracle setup to an ERPNext row without relying on TRANS_NUM alone.
+
+	Order:
+	1. ``trans_num`` when ERPNext already stores it
+	2. same patient + same ``from_date``
+	3. same patient + same ``to_date`` (Oracle END_DATE) — covers ERPNext-first
+	   creates where Oracle later changed START_DATE / TRANS_NUM
+	4. same patient + overlapping from/to window
+	"""
 	trans_num = _clean_oracle_num(row.get("trans_num"))
 	if trans_num:
 		existing = frappe.db.get_value("Daily Patient Visit Setup", {"trans_num": trans_num}, "name")
 		if existing:
 			return existing
 
-	# Lookup only: preview/dry-run call this before any create path.
 	patient = patient or _lookup_patient(row.get("patient_num"))
-	start = row.get("start_date")
-	if not patient or not start:
+	if not patient:
 		return None
-	try:
-		from_date = getdate(start)
-	except Exception:
+
+	oracle_from = _safe_getdate(row.get("start_date"))
+	oracle_to = _safe_getdate(row.get("end_date"))
+
+	if oracle_from:
+		existing = frappe.db.get_value(
+			"Daily Patient Visit Setup",
+			{"patient": patient, "from_date": oracle_from},
+			"name",
+		)
+		if existing:
+			return existing
+
+	if oracle_to:
+		existing = frappe.db.get_value(
+			"Daily Patient Visit Setup",
+			{"patient": patient, "to_date": oracle_to},
+			"name",
+		)
+		if existing:
+			return existing
+
+	if not oracle_from and not oracle_to:
 		return None
-	return frappe.db.get_value(
-		"Daily Patient Visit Setup",
-		{"patient": patient, "from_date": from_date},
-		"name",
+
+	candidates = frappe.db.sql(
+		"""
+		select name, from_date, to_date
+		from `tabDaily Patient Visit Setup`
+		where patient = %s
+		order by from_date desc
+		limit 50
+		""",
+		patient,
+		as_dict=True,
 	)
+	for cand in candidates or []:
+		if _date_ranges_overlap(
+			oracle_from or oracle_to,
+			oracle_to,
+			_safe_getdate(cand.get("from_date")),
+			_safe_getdate(cand.get("to_date")),
+		):
+			return cand.get("name")
+	return None
 
 
 def upsert_daily_patient_visit_setup_from_row(row: dict) -> dict:

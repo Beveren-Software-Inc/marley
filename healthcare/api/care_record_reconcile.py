@@ -1,6 +1,8 @@
 """Oracle -> ERPNext reconcile for four care records.
 
-* ``MORSE_FALL_SCALE_01.TRANS_NUM`` -> ``Morse Fall Scale`` (document name)
+* ``MORSE_FALL_SCALE_01.TRANS_NUM`` -> ``Morse Fall Scale`` (document name).
+  Missing Inpatient Admission links still create the scale; Oracle
+  ``ADMISSION_NUM`` is kept on ``written_admission`` (Missing / Oracle Admission).
 * ``IP_PATIENT_ASSESSMENT`` -> one ``Patient Assessment`` per admission
 * ``IP_ADMISSION_MEDICINE_SHEET`` and ``IP_ADMISSION_MEDICINE_SHEET_23``,
   where ``GIVEN_YN`` is Y -> ``Medicine Given``
@@ -41,6 +43,7 @@ from healthcare.api.patient_appointment_info_import import EXCEL_HEADER_MAP as A
 from healthcare.api.patient_appointment_info_import import (
 	_build_appointment_fields,
 	_resolve_appointment_time,
+	_truncate_data,
 )
 from healthcare.api.patient_info_import import _cell_text, _clean_oracle_num, _require_admin
 from healthcare.api.visit_diagnosis_sync import _resolve_inpatient_admission
@@ -309,29 +312,58 @@ def _appointment_parties(patient: Any, temporary_name: Any, patient_name: Any, *
 	return patients, doctor_tokens
 
 
+def _appointment_name_bases(name: str) -> list[str]:
+	"""``8424`` and ``8424-2`` both map back to Oracle ``APP_NUM`` ``8424``."""
+	text = _clean_oracle_num(name)
+	if not text:
+		return []
+	bases = [text]
+	if "-" in text:
+		head, _, tail = text.rpartition("-")
+		if head and tail.isdigit():
+			bases.append(head)
+	return bases
+
+
 def match_appointments(oracle_rows: list[dict], erp_rows: list[dict]) -> list[list]:
 	"""Pair each dated Oracle appointment to one ERPNext appointment.
 
-	A pair is the same patient, the same doctor, and the same date. When both
-	sides have a time, the time must be the same too. ``APP_NUM`` and the
-	document name are not compared. Each ERPNext appointment is used once.
-	Rows with no date are left out.
+	Match order:
+	1. Same patient, same doctor, same date (and time when both sides have one).
+	   Blank doctor still pairs on patient + date (+ time).
+	2. Same ``APP_NUM`` as the ERPNext document name / ``trans_no`` (including
+	   ``APP_NUM-2`` suffixes). Blank-patient rows rely on this; they are still
+	   created when no document exists yet.
+
+	Each ERPNext appointment is used once. Rows with no date are left out.
 	"""
 	unused: dict[str, dict] = {}
 	by_exact: dict[tuple, list[str]] = {}
 	by_day: dict[tuple, list[str]] = {}
+	by_app_num: dict[str, list[str]] = {}
 	for erp in erp_rows:
 		name = str(erp.get("name") or "")
 		day = erp.get("day") or ""
-		if not name or not day or name in unused:
+		if not name or name in unused:
+			continue
+		unused[name] = erp
+		for base in _appointment_name_bases(name):
+			by_app_num.setdefault(base, []).append(name)
+		trans_no = _clean_oracle_num(erp.get("trans_no"))
+		if trans_no and trans_no != name:
+			for base in _appointment_name_bases(trans_no):
+				by_app_num.setdefault(base, []).append(name)
+		if not day:
 			continue
 		patients = list(erp.get("patients") or [])
 		doctors = list(erp.get("doctors") or [])
-		if not patients or not doctors:
-			continue
-		unused[name] = erp
 		clock = erp.get("time") or ""
 		for patient in patients:
+			if not doctors:
+				# Blank doctor on the ERP side still pairs on patient + day.
+				by_day.setdefault((patient, "", day), []).append(name)
+				if clock:
+					by_exact.setdefault((patient, "", day, clock), []).append(name)
 			for doctor in doctors:
 				by_day.setdefault((patient, doctor, day), []).append(name)
 				if clock:
@@ -355,28 +387,38 @@ def match_appointments(oracle_rows: list[dict], erp_rows: list[dict]) -> list[li
 		patient = row.get("patient") or ""
 		doctor = row.get("doctor") or ""
 		clock = row.get("time") or ""
-		if patient and doctor and clock and take(by_exact.get((patient, doctor, day, clock), [])):
+		if patient and clock and take(by_exact.get((patient, doctor, day, clock), [])):
 			matched.add(app_num)
 		else:
 			pending.append(row)
 
+	still_pending: list[dict] = []
 	for row in pending:
 		patient = row.get("patient") or ""
 		doctor = row.get("doctor") or ""
 		day = row.get("day") or ""
 		clock = row.get("time") or ""
-		if not patient or not doctor:
-			continue
-		for name in by_day.get((patient, doctor, day), []):
-			erp = unused.get(name)
-			if not erp:
-				continue
-			erp_clock = erp.get("time") or ""
-			if clock and erp_clock and clock != erp_clock:
-				continue
-			unused.pop(name)
-			matched.add(str(row.get("app_num") or ""))
-			break
+		app_num = str(row.get("app_num") or "")
+		claimed = False
+		if patient:
+			for name in by_day.get((patient, doctor, day), []):
+				erp = unused.get(name)
+				if not erp:
+					continue
+				erp_clock = erp.get("time") or ""
+				if clock and erp_clock and clock != erp_clock:
+					continue
+				unused.pop(name)
+				matched.add(app_num)
+				claimed = True
+				break
+		if not claimed:
+			still_pending.append(row)
+
+	for row in still_pending:
+		app_num = str(row.get("app_num") or "")
+		if app_num and take(by_app_num.get(app_num, [])):
+			matched.add(app_num)
 
 	entries = []
 	for row in ordered:
@@ -430,6 +472,7 @@ def _erp_appointment_rows() -> tuple[list[dict], int]:
 		stored = frappe.db.sql(
 			"""
 			select pa.name,
+				ifnull(pa.trans_no, ''),
 				ifnull(pa.patient, ''),
 				ifnull(pa.temporary_patient_name, ''),
 				ifnull(pa.patient_name, ''),
@@ -448,7 +491,18 @@ def _erp_appointment_rows() -> tuple[list[dict], int]:
 		)
 		if not stored:
 			break
-		for name, patient, temporary_name, patient_name, doc_code, practitioner, doctors_id, day, clock in stored:
+		for (
+			name,
+			trans_no,
+			patient,
+			temporary_name,
+			patient_name,
+			doc_code,
+			practitioner,
+			doctors_id,
+			day,
+			clock,
+		) in stored:
 			after = name
 			total += 1
 			patients, doctors = _appointment_parties(
@@ -457,6 +511,7 @@ def _erp_appointment_rows() -> tuple[list[dict], int]:
 			prepared.append(
 				{
 					"name": name,
+					"trans_no": trans_no or name,
 					"patients": patients,
 					"doctors": doctors,
 					"day": appointment_day(day),
@@ -514,12 +569,17 @@ def _scan_assessments() -> dict:
 			grouped[identity] = {"trans": trans_num, "links": links, "resolved": resolved}
 
 	by_admission: dict[str, list[tuple[str, str]]] = {}
+	by_written: dict[str, list[tuple[str, str]]] = {}
+	by_trans: dict[str, list[tuple[str, str]]] = {}
 	total = 0
 	after = ""
+	has_written = frappe.get_meta("Patient Assessment").has_field("written_admission")
 	while True:
 		stored = frappe.db.sql(
-			"""
-			select name, ifnull(admission, ''), creation
+			f"""
+			select name, ifnull(admission, ''),
+				{"ifnull(written_admission, '')," if has_written else "'' as written_admission,"}
+				ifnull(ip_patient_assessment, ''), creation
 			from `tabPatient Assessment`
 			where docstatus != 2 and name > %s
 			order by name asc
@@ -529,19 +589,40 @@ def _scan_assessments() -> dict:
 		)
 		if not stored:
 			break
-		for name, admission, creation in stored:
+		for name, admission, written, ip_trans, creation in stored:
 			after = name
 			total += 1
+			creation_s = str(creation or "")
 			admission = _clean_oracle_num(admission)
+			written = _clean_oracle_num(written)
+			ip_trans = _clean_oracle_num(ip_trans)
 			if admission:
-				by_admission.setdefault(admission, []).append((name, str(creation or "")))
+				by_admission.setdefault(admission, []).append((name, creation_s))
+			if written:
+				by_written.setdefault(written, []).append((name, creation_s))
+			if ip_trans:
+				by_trans.setdefault(ip_trans, []).append((name, creation_s))
 		if len(stored) < ERP_PAGE:
 			break
 
 	entries = []
 	duplicate_rows = []
 	for item in grouped.values():
-		docs = by_admission.get(item["resolved"], []) if item["resolved"] else []
+		raw_adm = ""
+		for value in item.get("links") or []:
+			# Prefer unresolved Oracle admission numbers over resolved ERP names for written match.
+			if value and not value.startswith("HLC-") and value not in (item.get("resolved") or ""):
+				raw_adm = value
+				break
+		if not raw_adm and item.get("links"):
+			raw_adm = item["links"][-1]
+		docs = []
+		if item.get("resolved"):
+			docs = list(by_admission.get(item["resolved"]) or [])
+		if not docs and raw_adm:
+			docs = list(by_written.get(raw_adm) or [])
+		if not docs:
+			docs = list(by_trans.get(item["trans"]) or [])
 		if docs:
 			entries.append([item["trans"], item["links"], True])
 			for name in keep_earliest(docs):
@@ -657,7 +738,27 @@ def _free_appointment_name(app_num: str) -> str:
 
 
 def _appointment_already_stored(row: dict) -> bool:
-	"""True when this patient, doctor, and date (and time) are already stored."""
+	"""True when this APP_NUM (or the same patient/doctor/day) is already stored.
+
+	Blank patient or blank doctor still count as stored once the document name /
+	``trans_no`` carries the Oracle ``APP_NUM`` (or an ``APP_NUM-N`` suffix).
+	"""
+	app_num = _clean_oracle_num(row.get("app_num"))
+	if app_num:
+		if frappe.db.exists("Patient Appointment", app_num):
+			return True
+		if frappe.db.get_value("Patient Appointment", {"trans_no": app_num}, "name"):
+			return True
+		if frappe.db.sql(
+			"""
+			select name from `tabPatient Appointment`
+			where name like %s or trans_no like %s
+			limit 1
+			""",
+			(f"{app_num}-%", f"{app_num}-%"),
+		):
+			return True
+
 	day = appointment_day(row.get("app_date"))
 	patients, doctors = _appointment_parties(
 		row.get("patient_num"),
@@ -665,7 +766,7 @@ def _appointment_already_stored(row: dict) -> bool:
 		"",
 		row.get("doc_code"),
 	)
-	if not day or not patients or not doctors:
+	if not day or not patients:
 		return False
 	patient_num = _clean_oracle_num(row.get("patient_num"))
 	patient_name = _cell_text(row.get("patient_name"))
@@ -679,6 +780,7 @@ def _appointment_already_stored(row: dict) -> bool:
 	stored = frappe.db.sql(
 		f"""
 		select pa.name,
+			ifnull(pa.trans_no, ''),
 			ifnull(pa.patient, ''),
 			ifnull(pa.temporary_patient_name, ''),
 			ifnull(pa.patient_name, ''),
@@ -694,13 +796,25 @@ def _appointment_already_stored(row: dict) -> bool:
 		tuple(params),
 	)
 	erp_rows = []
-	for name, patient, temporary_name, stored_name, doc_code, practitioner, doctors_id, stored_day, clock in stored:
+	for (
+		name,
+		trans_no,
+		patient,
+		temporary_name,
+		stored_name,
+		doc_code,
+		practitioner,
+		doctors_id,
+		stored_day,
+		clock,
+	) in stored:
 		parties = _appointment_parties(
 			patient, temporary_name, stored_name, doc_code, doctors_id, practitioner
 		)
 		erp_rows.append(
 			{
 				"name": name,
+				"trans_no": trans_no or name,
 				"patients": parties[0],
 				"doctors": parties[1],
 				"day": appointment_day(stored_day),
@@ -708,9 +822,9 @@ def _appointment_already_stored(row: dict) -> bool:
 			}
 		)
 	oracle = {
-		"app_num": _clean_oracle_num(row.get("app_num")) or "1",
+		"app_num": app_num or "1",
 		"patient": patients[0],
-		"doctor": doctors[0],
+		"doctor": doctors[0] if doctors else "",
 		"day": day,
 		"time": _resolve_appointment_time(row) or "",
 	}
@@ -718,6 +832,7 @@ def _appointment_already_stored(row: dict) -> bool:
 
 
 def _create_appointment(raw: dict) -> str:
+	"""Create every missing dated Oracle appointment - blank patient/doctor allowed."""
 	row = _map_row(raw, APPOINTMENT_HEADER_MAP)
 	app_num = _clean_oracle_num(row.get("app_num"))
 	if not app_num or not appointment_day(row.get("app_date")):
@@ -728,6 +843,12 @@ def _create_appointment(raw: dict) -> str:
 	fields, _stats = _build_appointment_fields(row)
 	if not fields.get("appointment_date"):
 		return "skipped"
+	# Walk-ins / blank file no: keep the Oracle name text when present.
+	if not fields.get("patient") and not fields.get("temporary_patient_name"):
+		label = _truncate_data(_cell_text(row.get("patient_name"))) or _("Oracle appointment {0}").format(
+			app_num
+		)
+		fields["temporary_patient_name"] = label
 	fields["trans_no"] = _free_appointment_name(app_num)
 	doc = frappe.new_doc("Patient Appointment")
 	doc.update(fields)
@@ -748,16 +869,13 @@ def _create_assessment(raw: dict) -> str:
 	row["trans_num"] = trans_num
 	row["admission_num"] = _clean_oracle_num(row.get("admission_num"))
 	row["admission_num_old"] = _clean_oracle_num(row.get("admission_num_old"))
+	from healthcare.api.ip_patient_assessment_import import _find_existing_patient_assessment
+
 	admission = _resolve_inpatient_admission(admission_num)
-	if not admission:
-		return "skipped"
-	existing = frappe.db.sql(
-		"""
-		select name from `tabPatient Assessment`
-		where admission = %s and docstatus != 2
-		limit 1
-		""",
+	existing = _find_existing_patient_assessment(
 		admission,
+		written_admission=admission_num,
+		trans_num=trans_num,
 	)
 	if existing:
 		return "exists"

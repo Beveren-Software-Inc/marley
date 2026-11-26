@@ -304,11 +304,15 @@ def _non_empty_filter(table: str, column: str) -> str:
 	"""Keep a row only when the note text has a non-space character.
 
 	This is the Oracle developer's rule, ``trim(col) is not null``: a null note
-	and a note that is only spaces are both skipped. The Excel upload is queried
-	through SQLite, where a blank cell is ``''`` and ``trim('') is not null`` is
-	true, so the check is written as ``length(trim(col)) > 0``. That rejects
-	null, blank, and whitespace-only text in both engines. TRIM() does not
-	accept a CLOB, so a CLOB column is measured by length.
+	and a note that is only spaces / newlines are both skipped. The Excel upload
+	is queried through SQLite, where a blank cell is ``''`` and
+	``trim('') is not null`` is true, so the check is written as
+	``length(trim(col)) > 0``. That rejects null, blank, and whitespace-only
+	text in both engines.
+
+	TRIM() does not accept a CLOB, so CLOB columns are trimmed via a leading
+	``dbms_lob.substr`` slice. A lone ``\\n`` has ``getlength > 0`` but must
+	not count as a note (or as "missing").
 	"""
 	column = column.upper()
 	column_type = ""
@@ -317,7 +321,10 @@ def _non_empty_filter(table: str, column: str) -> str:
 			column_type = info["type"]
 			break
 	if column_type in ("CLOB", "NCLOB"):
-		return f"dbms_lob.getlength({column}) > 0"
+		return (
+			f"dbms_lob.getlength({column}) > 0 "
+			f"and length(trim(dbms_lob.substr({column}, 1, 4000))) > 0"
+		)
 	return f"length(trim({column})) > 0"
 
 
@@ -1100,10 +1107,16 @@ def _row_posting_text(source: str, row: dict) -> str:
 
 
 def _source_entries(source: str, rows: list[dict]) -> list[tuple[str, dict]]:
-	"""``(comparison key, row)`` - the key ``_coverage`` stores for this source."""
+	"""``(comparison key, row)`` - the key ``_coverage`` stores for this source.
+
+	Blank / whitespace-only notes (e.g. a lone newline in a CLOB) are dropped:
+	they are not progress notes and must not be reported as missing.
+	"""
 	if source == SOURCE_HISTORY:
-		return _history_keys(rows)
-	return [(_row_key(source, row), row) for row in rows or []]
+		entries = _history_keys(rows)
+	else:
+		entries = [(_row_key(source, row), row) for row in rows or []]
+	return [(key, row) for key, row in entries if key and _row_text(source, row)]
 
 
 def _missing_samples(

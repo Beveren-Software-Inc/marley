@@ -117,6 +117,34 @@ class TestCareRecordReconcile(UnitTestCase):
 		)
 		self.assertEqual(entries, [])
 
+	def test_blank_patient_matches_only_by_app_num(self):
+		oracle = [
+			{"app_num": "8424", "patient": "", "doctor": "21", "day": "2015-11-23", "time": "12:30:00"},
+			{"app_num": "8425", "patient": "", "doctor": "21", "day": "2015-11-24", "time": "12:30:00"},
+		]
+		erp = [
+			{"name": "8424", "trans_no": "8424", "patients": [], "doctors": ["21"], "day": "2015-11-23", "time": "12:30:00"},
+		]
+		entries = {key: present for key, _links, present in match_appointments(oracle, erp)}
+		self.assertTrue(entries["8424"])
+		self.assertFalse(entries["8425"])
+
+	def test_blank_doctor_still_matches_on_patient_and_day(self):
+		oracle = [
+			{"app_num": "50", "patient": "9", "doctor": "", "day": "2024-02-01", "time": "10:00:00"},
+		]
+		erp = [
+			{
+				"name": "PA-50",
+				"patients": ["9"],
+				"doctors": [],
+				"day": "2024-02-01",
+				"time": "10:00:00",
+			},
+		]
+		entries = {key: present for key, _links, present in match_appointments(oracle, erp)}
+		self.assertTrue(entries["50"])
+
 	def test_repeated_rows_keep_the_earliest(self):
 		self.assertEqual(
 			keep_earliest(

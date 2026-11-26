@@ -188,11 +188,20 @@ def _record_errors(progress: dict, errors: Iterable[str]) -> None:
 
 
 def _norm_match_key(value: Any) -> str:
-	"""Case-folded plain text used to decide 'same allergy words'."""
+	"""Case-folded plain text used to decide 'same allergy words'.
+
+	``Patient.allergies`` keeps newlines; ``Warning Message.warning`` is stored
+	as HTML (``<br>``, ``&gt;``). ``strip_html`` drops ``<br>`` without a space,
+	so ``congestion!\\nNo`` and ``congestion!<br>No`` used to look different and
+	132 allergies were falsely reported missing. Turn breaks into whitespace
+	before stripping tags.
+	"""
 	text = _normalize_allergy_text(value)
 	if not text:
 		return ""
-	plain = strip_html(unescape(text))
+	text = unescape(text)
+	text = re.sub(r"<br\s*/?>", "\n", text, flags=re.IGNORECASE)
+	plain = strip_html(text)
 	plain = _TAG.sub(" ", plain)
 	plain = _SPACES.sub(" ", plain).strip().lower()
 	return plain

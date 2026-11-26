@@ -56,7 +56,6 @@
    "fieldtype": "Link",
    "label": "Admission",
    "options": "Inpatient Admission",
-   "reqd": 1,
    "unique": 1
   },
   {
@@ -283,8 +282,9 @@
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
+ "link_display_mode": "Search",
  "links": [],
- "modified": "2026-06-08 13:24:08.992819",
+ "modified": "2026-11-26 23:25:47.770154",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Admission Detail",
