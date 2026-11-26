@@ -571,6 +571,17 @@ def _ensure_allergy_warning(item: dict[str, str], *, dry_run: int = 0) -> dict[s
 	doc.flags.ignore_validate = True
 	doc.flags.ignore_mandatory = True
 	doc.insert(ignore_permissions=True)
+
+	# Keep Patient.allergies in sync so the patient form and later imports see it.
+	if not _normalize_allergy_text(frappe.db.get_value("Patient", patient, "allergies")):
+		frappe.db.set_value(
+			"Patient",
+			patient,
+			"allergies",
+			_cell_text(item.get("text")),
+			update_modified=False,
+		)
+
 	return {"status": "created", "name": doc.name, "patient": patient}
 
 

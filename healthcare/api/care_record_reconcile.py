@@ -326,59 +326,48 @@ def _appointment_name_bases(name: str) -> list[str]:
 
 
 def match_appointments(oracle_rows: list[dict], erp_rows: list[dict]) -> list[list]:
-	"""Pair each dated Oracle appointment to one ERPNext appointment.
+	"""Mark each dated Oracle appointment present when ERPNext already has it.
 
-	Match order:
-	1. Same patient, same doctor, same date (and time when both sides have one).
-	   Blank doctor still pairs on patient + date (+ time).
+	An Oracle row is **not missing** when any of these hold (non-exclusive — the
+	same ERPNext appointment can cover several Oracle ``APP_NUM``s):
+
+	1. Same patient, same doctor, same date (time ignored for "already there").
+	   Blank doctor still pairs on patient + date.
 	2. Same ``APP_NUM`` as the ERPNext document name / ``trans_no`` (including
-	   ``APP_NUM-2`` suffixes). Blank-patient rows rely on this; they are still
-	   created when no document exists yet.
+	   ``APP_NUM-2`` suffixes). Blank-patient rows rely on this.
 
-	Each ERPNext appointment is used once. Rows with no date are left out.
+	Rows with no date are left out.
 	"""
-	unused: dict[str, dict] = {}
-	by_exact: dict[tuple, list[str]] = {}
-	by_day: dict[tuple, list[str]] = {}
-	by_app_num: dict[str, list[str]] = {}
+	by_app_num: set[str] = set()
+	# (patient, doctor, day) — doctor "" means blank-doctor slots
+	by_day: set[tuple[str, str, str]] = set()
 	for erp in erp_rows:
 		name = str(erp.get("name") or "")
 		day = erp.get("day") or ""
-		if not name or name in unused:
+		if not name:
 			continue
-		unused[name] = erp
 		for base in _appointment_name_bases(name):
-			by_app_num.setdefault(base, []).append(name)
+			by_app_num.add(base)
 		trans_no = _clean_oracle_num(erp.get("trans_no"))
-		if trans_no and trans_no != name:
+		if trans_no:
 			for base in _appointment_name_bases(trans_no):
-				by_app_num.setdefault(base, []).append(name)
+				by_app_num.add(base)
 		if not day:
 			continue
 		patients = list(erp.get("patients") or [])
 		doctors = list(erp.get("doctors") or [])
-		clock = erp.get("time") or ""
 		for patient in patients:
+			if not patient:
+				continue
 			if not doctors:
-				# Blank doctor on the ERP side still pairs on patient + day.
-				by_day.setdefault((patient, "", day), []).append(name)
-				if clock:
-					by_exact.setdefault((patient, "", day, clock), []).append(name)
+				by_day.add((patient, "", day))
 			for doctor in doctors:
-				by_day.setdefault((patient, doctor, day), []).append(name)
-				if clock:
-					by_exact.setdefault((patient, doctor, day, clock), []).append(name)
+				by_day.add((patient, doctor, day))
+				# Blank-doctor Oracle rows still see this booking.
+				by_day.add((patient, "", day))
 
-	def take(names: list[str]) -> bool:
-		for name in names:
-			if name in unused:
-				unused.pop(name)
-				return True
-		return False
-
-	matched: set[str] = set()
-	pending: list[dict] = []
 	ordered = sorted(oracle_rows, key=lambda row: _sort_key(str(row.get("app_num") or "")))
+	entries = []
 	for row in ordered:
 		app_num = str(row.get("app_num") or "")
 		day = row.get("day") or ""
@@ -386,47 +375,15 @@ def match_appointments(oracle_rows: list[dict], erp_rows: list[dict]) -> list[li
 			continue
 		patient = row.get("patient") or ""
 		doctor = row.get("doctor") or ""
-		clock = row.get("time") or ""
-		if patient and clock and take(by_exact.get((patient, doctor, day, clock), [])):
-			matched.add(app_num)
-		else:
-			pending.append(row)
-
-	still_pending: list[dict] = []
-	for row in pending:
-		patient = row.get("patient") or ""
-		doctor = row.get("doctor") or ""
-		day = row.get("day") or ""
-		clock = row.get("time") or ""
-		app_num = str(row.get("app_num") or "")
-		claimed = False
-		if patient:
-			for name in by_day.get((patient, doctor, day), []):
-				erp = unused.get(name)
-				if not erp:
-					continue
-				erp_clock = erp.get("time") or ""
-				if clock and erp_clock and clock != erp_clock:
-					continue
-				unused.pop(name)
-				matched.add(app_num)
-				claimed = True
-				break
-		if not claimed:
-			still_pending.append(row)
-
-	for row in still_pending:
-		app_num = str(row.get("app_num") or "")
-		if app_num and take(by_app_num.get(app_num, [])):
-			matched.add(app_num)
-
-	entries = []
-	for row in ordered:
-		app_num = str(row.get("app_num") or "")
-		if not app_num or not row.get("day"):
-			continue
+		present = False
+		if patient and (patient, doctor, day) in by_day:
+			present = True
+		elif patient and not doctor and (patient, "", day) in by_day:
+			present = True
+		elif app_num in by_app_num:
+			present = True
 		link = row.get("link") or row.get("patient") or ""
-		entries.append([app_num, [link] if link else [], app_num in matched])
+		entries.append([app_num, [link] if link else [], present])
 	return entries
 
 

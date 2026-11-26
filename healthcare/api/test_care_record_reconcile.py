@@ -95,10 +95,12 @@ class TestCareRecordReconcile(UnitTestCase):
 			},
 		]
 		entries = {key: present for key, _links, present in match_appointments(oracle, erp)}
+		# 10 matches by APP_NUM; 11 matches by same patient+doctor+date on PA-OTHER.
 		self.assertTrue(entries["10"])
-		self.assertFalse(entries["11"])
+		self.assertTrue(entries["11"])
 
-	def test_one_stored_appointment_is_not_matched_twice(self):
+	def test_same_patient_doctor_date_covers_multiple_oracle_app_nums(self):
+		"""One ERPNext booking is enough — do not report sibling APP_NUMs as missing."""
 		oracle = [
 			{"app_num": "20", "patient": "1", "doctor": "d1", "day": "2024-01-02", "time": "09:00:00"},
 			{"app_num": "21", "patient": "1", "doctor": "d1", "day": "2024-01-02", "time": "09:00:00"},
@@ -108,7 +110,7 @@ class TestCareRecordReconcile(UnitTestCase):
 		]
 		entries = {key: present for key, _links, present in match_appointments(oracle, erp)}
 		self.assertTrue(entries["20"])
-		self.assertFalse(entries["21"])
+		self.assertTrue(entries["21"])
 
 	def test_a_blank_date_is_not_an_appointment_row(self):
 		entries = match_appointments(

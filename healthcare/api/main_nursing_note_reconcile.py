@@ -290,7 +290,8 @@ def _erpnext_page(after: str = "", limit: int = ERP_PAGE) -> list[tuple]:
 	"""One keyset page of ``tabMain Nursing Note`` (primary-key range scan)."""
 	return frappe.db.sql(
 		"""
-		select name, trans_no, ifnull(admission, '')
+		select name, trans_no, ifnull(admission, ''),
+			ifnull(nursing_notes, ''), date, ifnull(shift, '')
 		from `tabMain Nursing Note`
 		where name > %s
 		order by name asc
@@ -301,50 +302,105 @@ def _erpnext_page(after: str = "", limit: int = ERP_PAGE) -> list[tuple]:
 
 
 def _scan() -> dict:
-	"""Exact, number-by-number comparison of the two registers.
+	"""Content-aware compare: same day/shift/text on the admission is not missing.
 
-	Returns the Oracle rows ERPNext is missing, split into the ones whose
-	``TRANS_NUM`` is still free (``missing_free``) and the ones an ERPNext note
-	of another admission already uses (``missing_blocked``). Only the missing
-	and the blocked numbers are kept, so the site-wide scan stays small.
+	A row is missing only when that admission does not already hold the same
+	normalised note. If the plain ``TRANS_NUM`` is used by another admission,
+	it is ``missing_blocked`` (create under a suffix).
 	"""
 	totals = _oracle_totals()
 	oracle = _oracle_note_index()
 
-	missing = set(oracle)
-	blocked: dict[str, str] = {}
-	matched = 0
-	foreign_notes = 0
-	extra_notes = 0
+	# admission -> content fingerprints already stored
+	erp_by_admission: dict[str, tuple[set[tuple[str, str]], set[tuple[str, str, str]], set[str]]] = {}
+	erp_trans_owner: dict[str, str] = {}
 	erp_total = 0
+	extra_notes = 0
 	after = ""
 	while True:
 		rows = _erpnext_page(after)
 		if not rows:
 			break
-		for name, trans_no, admission in rows:
+		for name, trans_no, admission, nursing_notes, note_date, shift in rows:
 			after = name
 			erp_total += 1
-			key = _numeric_key(trans_no)
 			admission = _clean_oracle_num(admission)
-			owner = oracle.get(key)
-			if owner is None:
+			key = _numeric_key(trans_no)
+			if key:
+				erp_trans_owner[key] = admission or "?"
+			if key and key not in oracle:
 				extra_notes += 1
+			if not admission:
 				continue
-			if owner == admission:
-				blocked.pop(key, None)
-				if key in missing:
-					missing.discard(key)
-					matched += 1
+			day_text, day_shift_text, texts = erp_by_admission.setdefault(
+				admission, (set(), set(), set())
+			)
+			text = _norm_text(nursing_notes)
+			if not text:
 				continue
-			foreign_notes += 1
-			if key in missing:
-				blocked.setdefault(key, admission)
+			texts.add(text)
+			day = ""
+			if note_date:
+				try:
+					day = str(getdate(note_date))
+				except Exception:
+					day = _cell_text(note_date)[:10]
+			shift_key = _cell_text(shift).strip().casefold()
+			if day:
+				day_text.add((day, text))
+				if shift_key:
+					day_shift_text.add((day, shift_key, text))
 		if len(rows) < ERP_PAGE:
 			break
 
-	missing_free = [[num, oracle[num]] for num in missing if num not in blocked]
-	missing_blocked = [[num, oracle[num], blocked[num]] for num in blocked if num in missing]
+	# Pull Oracle detail for content matching (only rows with text).
+	oracle_detail = _query(
+		"select TRANS_NUM, ADMISSION_NUM, NURSING_DESC, NURSING_DATE, NURSING_TIME, SHIFT_CODE "
+		f"from {oracle_schema()}.{ORACLE_TABLE} where trim(NURSING_DESC) is not null"
+	) or []
+
+	matched = 0
+	foreign_notes = 0
+	missing_free: list[list] = []
+	missing_blocked: list[list] = []
+
+	for raw in oracle_detail:
+		prepared = _prepare_row(raw)
+		if not prepared:
+			continue
+		num = prepared["trans_num"]
+		ora_adm = prepared.get("admission_num") or ""
+		text = _norm_text(prepared.get("nursing_desc"))
+		day, shift = _oracle_note_moment(prepared)
+		# Content already on this Oracle admission number (as ERP admission name or number).
+		resolved = _resolve_admission_number(ora_adm) if ora_adm else None
+		content_hit = False
+		for candidate in (resolved, ora_adm):
+			if not candidate or candidate not in erp_by_admission:
+				continue
+			day_text, day_shift_text, texts = erp_by_admission[candidate]
+			if text and day and shift and (day, shift, text) in day_shift_text:
+				content_hit = True
+				break
+			if text and day and (day, text) in day_text:
+				content_hit = True
+				break
+			if text and not day and text in texts:
+				content_hit = True
+				break
+		if content_hit:
+			matched += 1
+			continue
+
+		owner = erp_trans_owner.get(num)
+		if owner and (owner == ora_adm or owner == resolved):
+			matched += 1
+			continue
+		if owner:
+			foreign_notes += 1
+			missing_blocked.append([num, ora_adm, owner])
+			continue
+		missing_free.append([num, ora_adm])
 
 	return {
 		"oracle_rows": totals["oracle_rows"],
@@ -537,7 +593,10 @@ def _process_chunk(
 			elif status == "skip_no_notes":
 				progress["skipped_no_notes"] = cint(progress.get("skipped_no_notes")) + 1
 				progress["created"] = cint(progress.get("created")) - 1
-			elif status not in ("created", "updated"):
+			elif status in ("skip_duplicate", "updated"):
+				progress["skipped_same_text"] = cint(progress.get("skipped_same_text")) + 1
+				progress["created"] = cint(progress.get("created")) - 1
+			elif status != "created":
 				_record_errors(progress, [f"{create_num}: {status or 'unexpected result'}"])
 				progress["created"] = cint(progress.get("created")) - 1
 			elif text:

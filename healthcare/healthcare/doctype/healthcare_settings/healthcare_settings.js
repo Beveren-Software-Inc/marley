@@ -13065,7 +13065,7 @@ function open_allergy_reconcile(frm) {
 		title: __('Oracle -> ERPNext: Allergies'),
 		entity: 'allergies',
 		intro: __(
-			'Reads allergy text from Patient Visit (visit_allergies_history), Patient (allergies / PATIENT_INFO_01), and optionally live Oracle / Excel for those tables. Creates only the Warning Messages ERPNext is missing, with is_allergy ticked. Same words already on a warning are skipped (the flag is turned on if it was off). Non-allergy warnings are never overwritten.'
+			'Reads allergy text from Patient.allergies, Patient Visit (visit_allergies_history), and live Oracle / Excel PATIENT_INFO_01 + VISIT_00_01. Creates the Warning Messages ERPNext is missing (is_allergy ticked) and fills blank Patient.allergies from that text. Same words already on a warning are skipped (the flag is turned on if it was off). Non-allergy warnings are never overwritten. Use Direct Upload → Patient Allergies when you only have a PATIENT_INFO_01 Excel.'
 		),
 		api_prefix: 'healthcare.api.allergy_reconcile',
 		method_suffix: 'allergy_reconcile',

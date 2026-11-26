@@ -94,6 +94,9 @@ from healthcare.api.patient_medication_order_import import (
 	_clean_oracle_num,
 	_parse_date_value,
 )
+from healthcare.healthcare.doctype.long_acting_medicine.long_acting_medicine import (
+	_sanitize_plan_item_dosage_forms,
+)
 
 JOB_KEY = "long_acting_reconcile"
 PROGRESS_KEY = "healthcare:long_acting_reconcile:progress"
@@ -502,24 +505,29 @@ def _append_give_outs(lam_name: str, lines: list[dict], existing: set[str], dry_
 		return len(missing)
 
 	doc = frappe.get_doc(LAM_DOCTYPE, lam_name)
+	# Legacy plan items may still say Dosage Form "Injection" while the Link
+	# target is Pharmaceutical Form "injection" — fix before save or submit fails.
+	_sanitize_plan_item_dosage_forms(doc)
 	for row in missing:
 		doc.append("give_outs", _give_out_fields(row))
 	doc.flags.ignore_permissions = True
+	doc.flags.ignore_validate_update_after_submit = True
 	doc.save(ignore_permissions=True)
 	existing.update(_give_out_key(row) for row in missing)
 	return len(missing)
 
 
 def _apply_lam_refresh(lam_name: str, lines: list[dict], dry_run: int = 0) -> dict:
-	"""Extend the dates and the next dose of one record from the Oracle history."""
+	"""Extend the dates and the next dose of one record from the Oracle history.
+
+	Uses ``db.set_value`` so submitted records do not re-validate child Links
+	(legacy ``Injection`` vs Pharmaceutical Form ``injection``).
+	"""
 	doc = frappe.get_doc(LAM_DOCTYPE, lam_name)
 	changes = _lam_refresh_changes(doc.as_dict(), lines)
 	if not changes or dry_run:
 		return changes
-	for fieldname, value in changes.items():
-		doc.set(fieldname, value)
-	doc.flags.ignore_permissions = True
-	doc.save(ignore_permissions=True)
+	frappe.db.set_value(LAM_DOCTYPE, lam_name, changes, update_modified=True)
 	return changes
 
 
