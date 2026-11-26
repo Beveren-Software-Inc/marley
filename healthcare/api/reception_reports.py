@@ -1,10 +1,9 @@
 """Reception reports: Patient Receipts Summary, IP Payments & Discounts,
 IP / OP Statement of Account.
 
-Receipts are submitted Payment Entries. Each entry is attributed to a care episode by
-following its references: Payment Entry -> Sales Invoice/Sales Order -> the Sales
-Order's custom_base_reference (Patient Visit = OP, Inpatient Admission = IP, none =
-Payment Only).
+Receipts are submitted Payment Entries, attributed first by explicit payment case
+tags, then by Sales Invoice / Sales Order and clinical episode links. Patient Visit
+means OP, Inpatient Admission means IP; unresolved receipts remain Payment Only.
 """
 
 import re
@@ -46,6 +45,77 @@ def _base_reference(so_name, cache):
 	)
 	cache[so_name] = out
 	return out
+
+
+def _receipt_case_reference(doctype, name, cache, *, infer_visit_admission=True):
+	"""Resolve an explicit care episode through document links, never patient recency."""
+	if not doctype or not name:
+		return None
+	key = (doctype, name, infer_visit_admission)
+	if key in cache:
+		return cache[key]
+	cache[key] = None  # Also breaks circular clinical/billing references.
+	if doctype in ("Patient Visit", "Inpatient Admission"):
+		visit_fields = []
+		if doctype == "Patient Visit" and infer_visit_admission:
+			meta = frappe.get_meta("Patient Visit")
+			visit_fields = [field for field in ("inpatient_record", "ip_admission_no") if meta.has_field(field)]
+		row = frappe.db.get_value(doctype, name, ["name", "patient", *visit_fields], as_dict=True)
+		if row:
+			cache[key] = (doctype, row.name, row.patient)
+			for field in visit_fields:
+				admission = _receipt_case_reference("Inpatient Admission", row.get(field), cache)
+				if admission and row.patient and admission[2] == row.patient:
+					cache[key] = admission
+					break
+		return cache[key]
+	if doctype not in (
+		"Sales Invoice", "Sales Order", "Session Schedule", "Lab Test",
+		"Service Request", "Observation", "Patient Appointment", "Consultation Service",
+	):
+		return None
+	meta = frappe.get_meta(doctype)
+	fields = [field for field in (
+		"custom_reference_type", "custom_reference_name",
+		"custom_base_reference", "custom_base_reference_name",
+		"admission_number", "inpatient_record", "inpatient_admission", "admission_no",
+		"patient_visit", "service_request", "sr_num", "order_reference_doctype",
+		"order_reference_name", "reference_doctype", "reference_docname",
+		"reference_document", "reference_document_type", "reference_document_name",
+	) if meta.has_field(field)]
+	row = frappe.db.get_value(doctype, name, ["name", *fields], as_dict=True)
+	if not row:
+		return None
+	links = [
+		(row.get("custom_reference_type"), row.get("custom_reference_name")),
+		(row.get("custom_base_reference"), row.get("custom_base_reference_name")),
+	]
+	links.extend(("Inpatient Admission", row.get(field)) for field in (
+		"admission_number", "inpatient_record", "inpatient_admission", "admission_no",
+	))
+	links.append(("Service Request", row.get("service_request") or row.get("sr_num")))
+	visit = row.get("patient_visit")
+	links.extend([
+		("Patient Visit", visit),
+		(row.get("order_reference_doctype"), row.get("order_reference_name")),
+		(row.get("reference_doctype"), row.get("reference_docname") or row.get("reference_document")),
+		(row.get("reference_document_type"), row.get("reference_document_name")),
+	])
+	for linked_type, linked_name in links:
+		resolved = _receipt_case_reference(linked_type, linked_name, cache)
+		if resolved:
+			cache[key] = resolved
+			return resolved
+	if doctype == "Sales Invoice":
+		orders = frappe.get_all("Sales Invoice Item", filters={
+			"parent": name, "sales_order": ["is", "set"],
+		}, pluck="sales_order", order_by="idx", limit_page_length=0)
+		for order in dict.fromkeys(orders):
+			resolved = _receipt_case_reference("Sales Order", order, cache)
+			if resolved:
+				cache[key] = resolved
+				return resolved
+	return None
 
 
 def _patient_for_customer(customer, cache):
@@ -102,6 +172,7 @@ def get_patient_receipts_summary(from_date, to_date, cost_center=None):
 		return {"op": [], "payment_only": [], "ip": [], "summary": {}, "grand_total": 0}
 	requested_cc = (cost_center or "").strip()
 
+	pe_meta = frappe.get_meta("Payment Entry")
 	entries = frappe.get_all(
 		"Payment Entry",
 		filters={
@@ -112,7 +183,7 @@ def get_patient_receipts_summary(from_date, to_date, cost_center=None):
 		fields=[
 			"name", "posting_date", "mode_of_payment", "party", "paid_amount",
 			"reference_no", "reference_date", "owner", "creation", "cost_center",
-		],
+		] + [field for field in ("custom_op_or_ip", "custom_case_no") if pe_meta.has_field(field)],
 		order_by="posting_date, creation",
 		limit_page_length=0,
 	)
@@ -131,6 +202,7 @@ def get_patient_receipts_summary(from_date, to_date, cost_center=None):
 
 	so_cache, base_cache, cust_cache, pat_cache, name_cache = {}, {}, {}, {}, {}
 	booked_cache = {}
+	episode_cache = {}
 	allowed_cc = None
 	if isinstance(resolved_cc, list):
 		allowed_cc = set(resolved_cc)
@@ -148,6 +220,20 @@ def get_patient_receipts_summary(from_date, to_date, cost_center=None):
 			base_ref, base_name, so_cc, so_patient = _base_reference(so, base_cache)
 			if base_ref:
 				break
+
+		# Explicit PE case tags take priority; billing/clinical links are fallback.
+		episode = None
+		if e.get("custom_op_or_ip") in ("Inpatient Admission", "Patient Visit"):
+			episode = _receipt_case_reference(
+				e.get("custom_op_or_ip"), e.get("custom_case_no"), episode_cache, infer_visit_admission=False
+			)
+		if not episode:
+			for reference in refs_by_pe.get(e.name, []):
+				episode = _receipt_case_reference(reference.reference_doctype, reference.reference_name, episode_cache)
+				if episode:
+					break
+		if episode:
+			base_ref, base_name, so_patient = episode
 
 		# Navbar branch is the payment's branch. Fall back to the sales order
 		# when an older receipt has no cost center of its own.
@@ -561,6 +647,8 @@ SOA_IP_CATEGORY_ORDER = (
 	"Medical Supervision",
 	"Medicines",
 	"Lab Tests",
+	"Sessions",
+	"Package included sessions",
 	"Services",
 	"Other Services",
 )
@@ -684,6 +772,33 @@ def _soa_template_info_by_item():
 			mapping[code] = row
 	frappe.local._soa_tpl_by_item = mapping
 	return mapping
+
+
+def _soa_session_item_codes():
+	"""Configured Therapy/Consultation templates and standard Therapy Type items."""
+	cached = getattr(frappe.local, "_soa_session_item_codes", None)
+	if cached is not None:
+		return cached
+	codes = set()
+	for row in frappe.get_all(
+		"Healthcare Service Template",
+		or_filters={"custom_therapy": 1, "custom_consultation": 1},
+		fields=["name", "item_code"], limit_page_length=0,
+	):
+		codes.update(value for value in (row.name, row.item_code) if value)
+	if frappe.db.exists("DocType", "Therapy Type"):
+		for row in frappe.get_all("Therapy Type", fields=["item", "item_code"], limit_page_length=0):
+			codes.update(value for value in (row.item, row.item_code) if value)
+	frappe.local._soa_session_item_codes = codes
+	return codes
+
+
+def _soa_ip_service_category(row):
+	"""Classify after aggregation so existing quantities and frequencies stay intact."""
+	category = row.get("category")
+	if category in ("Services", "Other Services"):
+		return "Sessions" if row.get("item_code") in _soa_session_item_codes() else category
+	return category
 
 
 def _soa_looks_like_room(text):
@@ -1015,6 +1130,16 @@ def _soa_base_for_si_item(it, so_base_map, so_detail_parent=None):
 	return None
 
 
+def _hide_paid_table_in_ip_soa():
+	"""Optional display setting; older/unavailable settings retain the Paid table."""
+	try:
+		if not frappe.get_meta("Healthcare Settings").has_field("hide_paid_table_in_soa"):
+			return False
+		return cint(frappe.db.get_single_value("Healthcare Settings", "hide_paid_table_in_soa")) == 1
+	except Exception:
+		return False
+
+
 @frappe.whitelist()
 def get_ip_statement_of_account(admission, from_date=None, to_date=None):
 	"""Statement of Account for one IP case: services by category + bill totals.
@@ -1146,9 +1271,10 @@ def get_ip_statement_of_account(admission, from_date=None, to_date=None):
 		if (row.get("category") or "").strip() == "Services":
 			qty = flt(row["qty"])
 			row["frequency"] = int(qty) if qty == int(qty) else qty
+		row["category"] = _soa_ip_service_category(row)
 		by_category.setdefault(row["category"], []).append(row)
 	for cat, rows in by_category.items():
-		if cat == "Services":
+		if cat in ("Services", "Sessions"):
 			rows.sort(key=lambda r: (r.get("item_name") or r.get("item_code") or "").lower())
 		else:
 			rows.sort(key=lambda r: -r["amount"])
@@ -1158,8 +1284,10 @@ def get_ip_statement_of_account(admission, from_date=None, to_date=None):
 	from healthcare.api.package_service_coverage import completed_covered_value
 	covered = completed_covered_value(admission, from_date, to_date, include_details=True)
 	covered_value = covered["amount"]
-	if covered["rows"]:
-		by_category[_("Package-covered Services")] = covered["rows"]
+	for row in covered["rows"]:
+		category = "Package included sessions" if row.get("service_category") in ("therapy", "consultation") else "Package-covered Services"
+		by_category.setdefault(category, []).append(row)
+	by_category = _soa_ordered_ip_categories(by_category)
 	line_net = sum(flt(r["amount"]) for r in lines.values())
 	line_discount = sum(flt(r["discount_amount"]) for r in lines.values())
 	bill_total = round(line_net + line_discount + covered_value, 3)
@@ -1185,6 +1313,7 @@ def get_ip_statement_of_account(admission, from_date=None, to_date=None):
 		"letter_head": _letter_head_for_cost_center(
 			adm.cost_center, inpatient_admission=adm.name
 		),
+		"hide_paid_table_in_soa": _hide_paid_table_in_ip_soa(),
 		"categories": by_category,
 		"bill_total": bill_total,
 		"discount_total": discount_total,
@@ -1377,7 +1506,7 @@ def _soa_patient_advances(patient, case_no=None):
 	case_no = (case_no or "").strip() or None
 	for r in rows:
 		pe_case = (r.get("custom_case_no") or "").strip() if has_case else ""
-		if case_no and pe_case and pe_case != case_no:
+		if case_no and pe_case != case_no:
 			continue
 		unalloc = flt(r.get("unallocated_amount"))
 		if unalloc <= 0:

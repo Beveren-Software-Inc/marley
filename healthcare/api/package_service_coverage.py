@@ -363,7 +363,7 @@ def completed_covered_value(admission, from_date=None, to_date=None, include_det
                     "item_code": code, "item_name": label,
                     "rate": flt(value, 3), "qty": 1, "frequency": 1,
                     "amount": flt(value, 3), "discount_amount": flt(value, 3),
-                    "covered_by_package": True, "source_doctype": doc.doctype,
+                    "covered_by_package": True, "service_category": event.get("category"), "source_doctype": doc.doctype,
                     "source_name": doc.name, "service_date": event["service_date"],
                 })
     if include_details:

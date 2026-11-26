@@ -239,6 +239,49 @@ class CoverageTest(unittest.TestCase):
         with patch.object(coverage, "has_separate_billing", return_value=True):
             self.assertEqual(coverage.completed_covered_value("ADM"), 0)
 
+    def test_soa_session_codes_use_configuration_and_standard_therapy_links(self):
+        self.get_all.side_effect = lambda dt, **kwargs: [Record(name="CONFIGURED", item_code="BILLING-ITEM")] if dt == "Healthcare Service Template" else [Record(item="STANDARD-THERAPY", item_code="LEGACY-THERAPY")]
+        self.db.exists.return_value = True
+        run = load_function("reception_reports.py", "_soa_session_item_codes", {"frappe": frappe})
+        with patch.object(frappe, "local", SimpleNamespace()):
+            self.assertEqual(run(), {"CONFIGURED", "BILLING-ITEM", "STANDARD-THERAPY", "LEGACY-THERAPY"})
+            query_count = self.get_all.call_count
+            run()
+            self.assertEqual(self.get_all.call_count, query_count)
+        self.assertEqual(self.get_all.call_args_list[0].kwargs["or_filters"], {"custom_therapy": 1, "custom_consultation": 1})
+
+    def test_ip_soa_sessions_and_ordinary_services_keep_special_categories(self):
+        run = load_function("reception_reports.py", "_soa_ip_service_category", {"_soa_session_item_codes": lambda: {"THERAPY", "CONSULTATION", "STANDARD-THERAPY"}})
+        for code in ("THERAPY", "CONSULTATION", "STANDARD-THERAPY"):
+            for category in ("Services", "Other Services"):
+                self.assertEqual(run(dict(category=category, item_code=code)), "Sessions")
+        self.assertEqual(run(dict(category="Other Services", item_code="ORDINARY", item_name="Therapy-looking name")), "Services")
+        for category in ("Standard Admission Assessment Fee", "Room Charge", "Medical Supervision", "Medicines", "Lab Tests"):
+            self.assertEqual(run(dict(category=category, item_code="THERAPY")), category)
+
+    def test_session_display_preserves_aggregation_amount_quantity_and_frequency(self):
+        env = {"frappe": frappe, "flt": flt, "SOA_LAB_SUMMARY_CODES": set(), "SOA_MED_SUMMARY_CODES": set()}
+        aggregate = load_function("reception_reports.py", "_soa_bucket_raw_lines", env)
+        classify = load_function("reception_reports.py", "_soa_ip_service_category", {"_soa_session_item_codes": lambda: {"CONFIGURED"}})
+        for category in ("Services", "Other Services"):
+            rows = [dict(item_code="CONFIGURED", item_name="Configured service", category=category, rate=30, qty=2, amount=60, discount_amount=5, discount_percentage=0), dict(item_code="CONFIGURED", item_name="Configured service", category=category, rate=30, qty=1, amount=30, discount_amount=0, discount_percentage=0)]
+            before = next(iter(aggregate(rows).values()))
+            after = dict(before, category=classify(before))
+            self.assertEqual(after["category"], "Sessions")
+            for field in ("amount", "qty", "frequency", "rate", "discount_amount"):
+                self.assertEqual(after[field], before[field])
+
+    def test_ip_soa_paid_table_setting_enabled_disabled_missing_and_unavailable(self):
+        run = load_function("reception_reports.py", "_hide_paid_table_in_ip_soa", {"frappe": frappe, "cint": cint})
+        with patch.object(frappe, "get_meta", return_value=SimpleNamespace(has_field=lambda field: True)):
+            for value, expected in ((1, True), (0, False), (None, False)):
+                self.db.get_single_value.return_value = value
+                self.assertEqual(run(), expected)
+        with patch.object(frappe, "get_meta", return_value=SimpleNamespace(has_field=lambda field: False)):
+            self.assertFalse(run())
+        with patch.object(frappe, "get_meta", side_effect=RuntimeError("Settings unavailable")):
+            self.assertFalse(run())
+
     def test_actual_soa_keeps_existing_discount_net_payment_and_balance(self):
         adm = Record(name="ADM", patient="PAT", case_no="ADM", scheduled_date="2026-11-20", discharge_datetime=None,
             cost_center="BRANCH", patient_name="Patient", admission_doctor_name="Doctor")
@@ -248,13 +291,13 @@ class CoverageTest(unittest.TestCase):
             _admission_sales_orders=lambda a: [], _soa_so_base_map=lambda s: {}, _admission_sales_invoices=lambda *a: [],
             _admission_package_quotation_lines=lambda a: [],
             _soa_bucket_raw_lines=lambda lines: {"normal": dict(qty=1, amount=200, discount_amount=10, category="Services", item_name="Normal")},
-            _soa_ordered_ip_categories=lambda c:c, _admission_payments=lambda a: [],
+            _soa_ordered_ip_categories=lambda c:c, _soa_ip_service_category=lambda row:row["category"], _hide_paid_table_in_ip_soa=lambda:False, _admission_payments=lambda a: [],
             _soa_payment_payload=lambda *a, **k: {"paid_total": 50}, _letter_head_for_cost_center=lambda *a,**k:None)
         run = load_function("reception_reports.py", "get_ip_statement_of_account", env)
         self.stack.enter_context(patch.object(frappe.utils, "today", return_value="2026-11-25"))
         results = []
         for value in (0,105,105):
-            rows = [{"item_code": "THERAPY", "item_name": "Therapy — Covered by package", "amount": value}] if value else []
+            rows = [{"item_code": "THERAPY", "item_name": "Therapy", "service_category": "therapy", "amount": value}] if value else []
             with patch.object(coverage, "completed_covered_value", return_value={"amount": value, "rows": rows}):
                 results.append(run("ADM"))
         before, after, repeated = results
@@ -263,8 +306,98 @@ class CoverageTest(unittest.TestCase):
         for field in ("net_total", "paid_total", "balance"):
             self.assertEqual(after[field], before[field])
         self.assertEqual(after["categories"]["Services"], before["categories"]["Services"])
-        self.assertEqual(after["categories"]["Package-covered Services"][0]["amount"], 105)
+        self.assertEqual(after["categories"]["Package included sessions"][0]["amount"], 105)
         self.assertEqual(after,repeated)
+
+
+class ReceiptsClassificationTest(unittest.TestCase):
+    def setUp(self):
+        self.docs = {
+            ("Inpatient Admission", "ADM"): Record(name="ADM", patient="IP-PAT"),
+            ("Patient Visit", "VISIT"): Record(name="VISIT", patient="OP-PAT"),
+            ("Sales Invoice", "DIRECT"): Record(name="DIRECT", custom_reference_type="Inpatient Admission", custom_reference_name="ADM"),
+            ("Sales Invoice", "VIA-ORDERS"): Record(name="VIA-ORDERS"),
+            ("Sales Order", "SO-IP"): Record(name="SO-IP", custom_reference_type="Inpatient Admission", custom_reference_name="ADM"),
+            ("Sales Order", "SO-OP"): Record(name="SO-OP", custom_base_reference="Patient Visit", custom_base_reference_name="VISIT"),
+            ("Sales Order", "SO-SESSION"): Record(name="SO-SESSION", custom_base_reference="Session Schedule", custom_base_reference_name="SESSION"),
+            ("Sales Order", "SO-LAB"): Record(name="SO-LAB", custom_base_reference="Lab Test", custom_base_reference_name="LAB"),
+            ("Session Schedule", "SESSION"): Record(name="SESSION", admission_number="ADM"),
+            ("Patient Visit", "IP-VISIT"): Record(name="IP-VISIT", patient="IP-PAT", inpatient_record="ADM"),
+            ("Session Schedule", "VIA-VISIT"): Record(name="VIA-VISIT", patient_visit="IP-VISIT"),
+            ("Sales Invoice", "VISIT-INVOICE"): Record(name="VISIT-INVOICE", custom_reference_type="Patient Visit", custom_reference_name="IP-VISIT"),
+            ("Lab Test", "LAB"): Record(name="LAB", service_request="SR"),
+            ("Service Request", "SR"): Record(name="SR", inpatient_record="ADM"),
+            ("Sales Order", "CYCLE"): Record(name="CYCLE", custom_base_reference="Service Request", custom_base_reference_name="LOOP"),
+            ("Service Request", "LOOP"): Record(name="LOOP", reference_document_type="Sales Order", reference_document_name="CYCLE"),
+        }
+        self.api = SimpleNamespace(db=SimpleNamespace(get_value=lambda dt,name,*args,**kwargs:self.docs.get((dt,name))),
+            get_meta=lambda dt:SimpleNamespace(has_field=lambda field:True), get_all=MagicMock(return_value=["NO-ORDER", "SO-IP"]))
+        self.env = {"frappe": self.api, "flt": flt, "_": lambda text:text}
+        self.resolve = load_function("reception_reports.py", "_receipt_case_reference", self.env)
+
+    def test_explicit_and_indirect_episode_references(self):
+        for dt,name,expected in (("Inpatient Admission","ADM","Inpatient Admission"),
+            ("Patient Visit","VISIT","Patient Visit"), ("Sales Invoice","DIRECT","Inpatient Admission"),
+            ("Sales Invoice","VIA-ORDERS","Inpatient Admission"), ("Sales Order","SO-OP","Patient Visit"),
+            ("Sales Order","SO-SESSION","Inpatient Admission"), ("Sales Order","SO-LAB","Inpatient Admission"),
+            ("Session Schedule","VIA-VISIT","Inpatient Admission"), ("Patient Visit","IP-VISIT","Inpatient Admission")):
+            with self.subTest(doctype=dt,name=name):
+                self.assertEqual(self.resolve(dt,name,{})[0],expected)
+        self.assertIsNone(self.resolve("Inpatient Admission","MISSING",{}))
+        self.assertIsNone(self.resolve("Sales Order","CYCLE",{}))
+        self.assertIsNone(self.resolve("Patient","IP-PAT",{}))
+
+    def test_explicit_visit_and_inferred_admission_caches_are_separate(self):
+        for order in ((True, False), (False, True)):
+            cache = {}
+            for infer in order:
+                result = self.resolve("Patient Visit", "IP-VISIT", cache, infer_visit_admission=infer)
+                self.assertEqual(result[:2], ("Inpatient Admission", "ADM") if infer else ("Patient Visit", "IP-VISIT"))
+            self.assertEqual(self.resolve("Inpatient Admission", "ADM", cache, infer_visit_admission=False)[:2], ("Inpatient Admission", "ADM"))
+        self.assertEqual(self.resolve("Sales Invoice", "VISIT-INVOICE", {})[:2], ("Inpatient Admission", "ADM"))
+
+    def test_missing_or_foreign_admission_keeps_visit_op(self):
+        self.docs[("Inpatient Admission", "FOREIGN")] = Record(name="FOREIGN", patient="OTHER-PATIENT")
+        for link in (None, "MISSING", "FOREIGN"):
+            self.docs[("Patient Visit", "CHECK")] = Record(name="CHECK", patient="IP-PAT", inpatient_record=link)
+            self.assertEqual(self.resolve("Patient Visit", "CHECK", {})[:2], ("Patient Visit", "CHECK"))
+            self.docs[("Patient Visit", "CHECK")].ip_admission_no = "ADM"
+            self.assertEqual(self.resolve("Patient Visit", "CHECK", {})[:2], ("Inpatient Admission", "ADM"))
+        self.docs[("Patient Visit", "CHECK")] = Record(name="CHECK", patient=None, inpatient_record="ADM")
+        self.assertEqual(self.resolve("Patient Visit", "CHECK", {})[0], "Patient Visit")
+
+    def test_unavailable_visit_link_fields_keeps_visit_op(self):
+        self.api.get_meta = lambda dt: SimpleNamespace(has_field=lambda field: False)
+        self.assertEqual(self.resolve("Patient Visit", "IP-VISIT", {})[:2], ("Patient Visit", "IP-VISIT"))
+
+    def test_case_priority_unallocated_and_duplicate_references_keep_one_row_and_amounts(self):
+        def payment(name,amount,**fields):
+            return Record(name=name,paid_amount=amount,party="CUSTOMER",cost_center="BRANCH",
+                posting_date="2026-11-26",creation="2026-11-26 12:00:00",mode_of_payment="Cash",owner="Administrator",**fields)
+        entries=[payment("TAGGED-IP",25,custom_op_or_ip="Inpatient Admission",custom_case_no="ADM"),
+            payment("UNTAGGED",75),payment("TAGGED-OP",10,custom_op_or_ip="Patient Visit",custom_case_no="IP-VISIT"),
+            payment("DIRECT-IP",40),payment("SESSION-IP",12),payment("LAB-IP",13),payment("VISIT-IP",15)]
+        refs=[Record(parent="TAGGED-IP",reference_doctype="Sales Order",reference_name="SO-OP"),
+            Record(parent="DIRECT-IP",reference_doctype="Sales Invoice",reference_name="DIRECT"),
+            Record(parent="SESSION-IP",reference_doctype="Sales Order",reference_name="SO-SESSION"),
+            Record(parent="SESSION-IP",reference_doctype="Sales Order",reference_name="SO-IP"),
+            Record(parent="LAB-IP",reference_doctype="Sales Order",reference_name="SO-LAB"),
+            Record(parent="VISIT-IP",reference_doctype="Sales Invoice",reference_name="VISIT-INVOICE")]
+        self.api.get_all.side_effect=lambda dt,**kwargs:entries if dt=="Payment Entry" else refs
+        self.env.update(_so_for_reference=lambda *a:None,_base_reference=lambda *a:(None,None,None,None),
+            _patient_for_customer=lambda *a:"CUSTOMER-PAT",_patient_display=lambda patient,cache:{"file_no":patient,"patient_name":patient},_full_name=lambda *a:"Administrator")
+        run=load_function("reception_reports.py","get_patient_receipts_summary",self.env)
+        with patch.dict(sys.modules,{"healthcare.api.common":SimpleNamespace(resolve_cost_center_filter=lambda cc:cc)}):
+            result=run("2026-11-26","2026-11-26",cost_center="BRANCH")
+        self.assertEqual({row["rv_no"] for row in result["ip"]},{"TAGGED-IP","DIRECT-IP","SESSION-IP","LAB-IP","VISIT-IP"})
+        self.assertEqual([row["rv_no"] for row in result["op"]],["TAGGED-OP"])
+        self.assertEqual([row["rv_no"] for row in result["payment_only"]],["UNTAGGED"])
+        self.assertTrue(all(row["case_no"]=="ADM" for row in result["ip"]))
+        all_rows=[row for section in ("ip","op","payment_only") for row in result[section]]
+        self.assertEqual(len(all_rows),len(entries))
+        self.assertEqual({row["rv_no"]:row["amount"] for row in all_rows},{row.name:row.paid_amount for row in entries})
+        self.assertEqual(result["grand_total"],190)
+        self.assertEqual(sum(result["summary"].values()),190)
 
 
 class BillingGuardTest(unittest.TestCase):
