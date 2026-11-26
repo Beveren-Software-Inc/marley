@@ -104,6 +104,7 @@ from healthcare.api.patient_visit_encounter_comment_clinical_note import (
 from healthcare.api.patient_visit_import import _resolve_practitioner_by_doctors_id
 from healthcare.api.visit_00_01_history_import import _build_record_key, _normalize_visit_num
 from healthcare.api.visit_diagnosis_sync import (
+	_remember_oracle_visit_number,
 	_resolve_inpatient_admission,
 	_resolve_patient_visit,
 )
@@ -773,7 +774,11 @@ def _create_op_note(
 	if _clinical_note_with_trans_no(trans_no, patient):
 		return {"status": "skip_exists", "trans_no": trans_no}
 
-	visit = _resolve_patient_visit(visit_number, patient)
+	# Prefer exact case_no / old_trans_num; if OP sync skipped this Oracle visit as a
+	# duplicate (same patient + date + type), attach to that matched ERPNext visit.
+	visit = _resolve_patient_visit(
+		visit_number, patient, oracle_row=row, link_duplicate=False
+	)
 	visit_data = _patient_visit_fields(visit)
 	practitioner = (visit_data.get("practitioner") or "").strip() or (
 		_resolve_practitioner_by_doctors_id(row.get("VISIT_DOCTOR_NUM"))
@@ -823,6 +828,8 @@ def _create_op_note(
 	doc = frappe.get_doc({key: value for key, value in fields.items() if value not in (None, "")})
 	_apply_legacy_flags(doc)
 	doc.insert()
+	# Remember Oracle VISIT_NUM on the identity-matched duplicate for later history rows.
+	_remember_oracle_visit_number(visit, visit_number)
 	return {"status": "created", "trans_no": doc.name, "visit": visit}
 
 
@@ -845,7 +852,11 @@ def _create_history_note(
 	if _clinical_note_with_trans_no(trans_no, patient):
 		return {"status": "skip_exists", "trans_no": trans_no}
 
-	visit = _resolve_patient_visit(visit_number, patient)
+	# History rows may lack VISIT_TYPE_NUM; after the OP note run, old_trans_num is
+	# stamped on the identity-matched duplicate so exact lookup succeeds here.
+	visit = _resolve_patient_visit(
+		visit_number, patient, oracle_row=row, link_duplicate=False
+	)
 	visit_data = _patient_visit_fields(visit)
 	practitioner = (visit_data.get("practitioner") or "").strip() or None
 
@@ -875,7 +886,12 @@ def _create_history_note(
 		"up_date": _cell_text(row.get("UP_DATE")),
 	}
 
-	if staged:
+	if visit:
+		fields["reference_doc"] = "Patient Visit"
+		fields["reference_name"] = visit
+		fields["reference_doctype"] = "Patient Visit"
+		fields["reference_document"] = visit
+	elif staged:
 		fields["reference_doc"] = HISTORY_DOCTYPE
 		fields["reference_name"] = record_key
 		fields["reference_doctype"] = HISTORY_DOCTYPE
@@ -892,6 +908,7 @@ def _create_history_note(
 	doc = frappe.get_doc({key: value for key, value in fields.items() if value not in (None, "")})
 	_apply_legacy_flags(doc)
 	doc.insert()
+	_remember_oracle_visit_number(visit, visit_number)
 	return {"status": "created", "trans_no": doc.name, "visit": visit}
 
 
@@ -988,10 +1005,13 @@ def _reconcile_patient(
 	progress["existing_notes"] = cint(progress.get("existing_notes")) + len(notes or [])
 
 	current_text: dict[str, str] = {}
+	visit_type_by_num: dict[str, Any] = {}
 	for row in rows[SOURCE_OP]:
 		visit_number = _norm_key(row.get("VISIT_NUM"))
 		if visit_number and visit_number not in current_text:
 			current_text[visit_number] = _text_key(row.get(OP_DIAGNOSIS_FIELD))
+		if visit_number and row.get("VISIT_TYPE_NUM") not in (None, ""):
+			visit_type_by_num[visit_number] = row.get("VISIT_TYPE_NUM")
 
 	# 1. OP visit diagnosis (VISIT_00_01) - usually already there as the note
 	#    built from Patient Visit.encounter_comment.
@@ -1020,15 +1040,24 @@ def _reconcile_patient(
 					cint(progress.get("skipped_duplicate_text")) + 1
 				)
 				continue
+		# HISTORY has no VISIT_TYPE_NUM — borrow it from the parent OP visit row so
+		# identity matching still finds the desk visit OP sync treated as duplicate.
+		history_row = dict(row)
+		visit_number = _normalize_visit_num(row.get("VISIT_NUM"))
+		if visit_number and history_row.get("VISIT_TYPE_NUM") in (None, ""):
+			if visit_number in visit_type_by_num:
+				history_row["VISIT_TYPE_NUM"] = visit_type_by_num[visit_number]
 		result = _create_history_note(
 			patient,
-			row,
+			history_row,
 			record_key,
 			patient_name=patient_name,
 			staged=record_key in staged,
 			dry_run=dry_run,
 		)
 		covered[SOURCE_HISTORY].add(record_key)
+		if result.get("status") in ("created", "dry_run") and not result.get("visit"):
+			progress["unresolved_visit"] = cint(progress.get("unresolved_visit")) + 1
 		_track_creation(
 			progress, SOURCE_HISTORY, result, sample=f"{patient} history {record_key}"
 		)

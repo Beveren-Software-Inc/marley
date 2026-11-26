@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 import frappe
 from frappe import _
 from frappe.utils import cint, getdate
@@ -21,9 +23,137 @@ def _strip(value) -> str:
 	return (value or "").strip()
 
 
-def _resolve_patient_visit(visit_num: str, patient: str | None = None) -> str | None:
-	"""Resolve import visit number to Patient Visit name (case_no / old_trans_num)."""
+def _norm_visit_key(value: Any) -> str:
+	"""Same numeric-key cleanup used for Oracle visit / type codes."""
+	if value is None:
+		return ""
+	text = str(value).strip()
+	if not text:
+		return ""
+	try:
+		number = float(text)
+		if number.is_integer():
+			return str(int(number))
+	except (TypeError, ValueError):
+		pass
+	return text
+
+
+def _date_key(value: Any) -> str:
+	if value is None or value == "":
+		return ""
+	try:
+		return str(getdate(value))
+	except Exception:
+		text = str(value).strip()
+		return text[:10] if text else ""
+
+
+def _resolve_patient_visit_by_identity(
+	patient: str | None,
+	encounter_date: Any = None,
+	visit_type_code: Any = None,
+) -> str | None:
+	"""Find the ERPNext visit that OP import treated as the same Oracle visit.
+
+	When a desk/ERPNext visit already exists for the same patient + date + type,
+	Oracle → ERPNext skips importing that Oracle ``VISIT_NUM`` (duplicate by
+	identity). Clinical notes / history must still attach to that matched visit.
+	"""
+	patient_key = _strip(patient)
+	date_key = _date_key(encounter_date)
+	type_key = _norm_visit_key(visit_type_code)
+	if not patient_key or not date_key or not type_key:
+		return None
+	if not frappe.db.exists("Patient", patient_key):
+		return None
+
+	has_old_type = frappe.get_meta("Patient Visit").has_field("old_visit_type_")
+	has_visit_type = frappe.get_meta("Patient Visit").has_field("visit_type")
+	has_legacy = frappe.db.exists("DocType", "Patient Visit Type") and frappe.get_meta(
+		"Patient Visit Type"
+	).has_field("legacy_code")
+
+	# Prefer imported rows that already carry the Oracle type code.
+	if has_old_type:
+		name = frappe.db.get_value(
+			"Patient Visit",
+			{
+				"patient": patient_key,
+				"encounter_date": date_key,
+				"old_visit_type_": type_key,
+				"docstatus": ["<", 2],
+			},
+			"name",
+			order_by="creation asc",
+		)
+		if name:
+			return name
+
+	# Desk-created visits store the Patient Visit Type link; match via legacy_code.
+	if has_visit_type and has_legacy:
+		rows = frappe.db.sql(
+			"""
+			select pv.name
+			from `tabPatient Visit` pv
+			inner join `tabPatient Visit Type` pvt on pvt.name = pv.visit_type
+			where pv.patient = %s
+				and pv.encounter_date = %s
+				and pv.docstatus < 2
+				and ifnull(pvt.legacy_code, '') = %s
+			order by pv.creation asc
+			limit 1
+			""",
+			(patient_key, date_key, type_key),
+		)
+		if rows:
+			return rows[0][0]
+
+	return None
+
+
+def _remember_oracle_visit_number(visit_name: str | None, oracle_visit_num: str | None) -> None:
+	"""Persist Oracle VISIT_NUM on the matched duplicate so later exact lookups work."""
+	visit_name = _strip(visit_name)
+	oracle_visit_num = _norm_visit_key(oracle_visit_num)
+	if not visit_name or not oracle_visit_num:
+		return
+	if not frappe.get_meta("Patient Visit").has_field("old_trans_num"):
+		return
+	current = (frappe.db.get_value("Patient Visit", visit_name, "old_trans_num") or "").strip()
+	if current:
+		return
+	# Do not overwrite if another visit already claims this Oracle number.
+	taken = frappe.db.get_value("Patient Visit", {"old_trans_num": oracle_visit_num}, "name")
+	if taken and taken != visit_name:
+		return
+	frappe.db.set_value(
+		"Patient Visit",
+		visit_name,
+		"old_trans_num",
+		oracle_visit_num,
+		update_modified=False,
+	)
+
+
+def _resolve_patient_visit(
+	visit_num: str,
+	patient: str | None = None,
+	*,
+	encounter_date: Any = None,
+	visit_type_code: Any = None,
+	oracle_row: dict | None = None,
+	link_duplicate: bool = True,
+) -> str | None:
+	"""Resolve import visit number to Patient Visit name (case_no / old_trans_num).
+
+	When the Oracle visit was skipped as a duplicate of an ERPNext visit (same
+	patient + date + visit type, different case number), fall back to that
+	identity match and optionally store ``old_trans_num`` = Oracle VISIT_NUM.
+	"""
 	key = _strip(visit_num)
+	if not key and oracle_row:
+		key = _norm_visit_key(oracle_row.get("VISIT_NUM"))
 	if not key:
 		return None
 	if frappe.db.exists("Patient Visit", key):
@@ -66,7 +196,16 @@ def _resolve_patient_visit(visit_num: str, patient: str | None = None) -> str | 
 				if name:
 					return name
 
-	return None
+	# Identity fallback: the visit OP sync already treated as present/duplicate.
+	row = oracle_row or {}
+	date_value = encounter_date if encounter_date is not None else (
+		row.get("VISIT_DATE") or row.get("VISIT_DAY")
+	)
+	type_value = visit_type_code if visit_type_code is not None else row.get("VISIT_TYPE_NUM")
+	matched = _resolve_patient_visit_by_identity(patient, date_value, type_value)
+	if matched and link_duplicate:
+		_remember_oracle_visit_number(matched, key)
+	return matched
 
 
 def patient_visit_lookup_keys(visit_name: str | None) -> list[str]:
