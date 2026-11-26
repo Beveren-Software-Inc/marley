@@ -33,21 +33,34 @@ def _normalize_note_text(value) -> str:
 	return text.strip().lower()
 
 
+def _progress_note_scope_key(note: dict) -> str:
+	"""Group duplicates by visit/admission when linked; otherwise by calendar day."""
+	ref = (
+		(note.get("reference_document") or "").strip()
+		or (note.get("reference_name") or "").strip()
+		or (note.get("inpatient_admission") or "").strip()
+	)
+	if ref:
+		return f"ref:{ref}"
+	day = _date_key(note.get("posting_date") or note.get("creation")) or ""
+	return f"day:{day}"
+
+
 def _dedupe_progress_notes(notes: list[dict]) -> list[dict]:
-	"""Display-only collapse of same-day notes with the same (or nested) text.
+	"""Display-only collapse of same-visit / same-day notes with the same (or nested) text.
 
 	Stored Clinical Notes / Visit History rows stay untouched. Used for Patient
-	Visit episodes, legacy Visit History, and orphan date buckets so Oracle
-	version churn does not repeat in Clinical Summary.
+	Visit episodes, Patient Progress Notes listing, legacy Visit History, and
+	orphan date buckets so Oracle version churn does not repeat in the UI.
 	"""
-	kept: list[tuple[str, str, dict]] = []  # (day, normalized body, note)
+	kept: list[tuple[str, str, dict]] = []  # (scope, normalized body, note)
 	for note in notes or []:
-		day = _date_key(note.get("posting_date") or note.get("creation")) or ""
+		scope = _progress_note_scope_key(note)
 		body = _normalize_note_text(note.get("note"))
 		drop = False
 		supersede: list[int] = []
-		for i, (kday, kbody, _knote) in enumerate(kept):
-			if kday != day:
+		for i, (kscope, kbody, _knote) in enumerate(kept):
+			if kscope != scope:
 				continue
 			if body == kbody:
 				drop = True
@@ -63,8 +76,8 @@ def _dedupe_progress_notes(notes: list[dict]) -> list[dict]:
 			continue
 		for i in reversed(supersede):
 			kept.pop(i)
-		kept.append((day, body, note))
-	return [note for _day, _body, note in kept]
+		kept.append((scope, body, note))
+	return [note for _scope, _body, note in kept]
 
 
 def _visits_for_patient(patient: str, limit: int = 100) -> list[dict]:

@@ -1097,7 +1097,7 @@
   },
   {
    "default": "0",
-   "description": "When enabled, Patient Medication Order lines marked Is Deduplicate (HIS re-prescription repeats that also exist on PATIENT_VISIT_PRESCRIPTION) are hidden on the form. They remain stored in the backend.",
+   "description": "When enabled, Patient Medication Order lines marked Is Deduplicate (HIS re-prescription repeats that also exist on PATIENT_VISIT_PRESCRIPTION) are hidden on the form, and Patient Progress Notes that share the same visit (or day) and the same text are collapsed to one row. Stored records are unchanged.",
    "fieldname": "hide_deduplicate_prescription",
    "fieldtype": "Check",
    "label": "Hide Deduplicate Prescription"
