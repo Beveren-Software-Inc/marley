@@ -9,6 +9,8 @@ import {
   type InpatientPackage,
 } from '../../services/inpatientRecords'
 import { PackageSelectionModal } from './PackageSelectionModal'
+import { PackageChangeHistory } from './PackageChangeHistory'
+import { ModifyPackageModal } from './ModifyPackageModal'
 
 interface AdmissionPackageTabProps {
   admissionName: string
@@ -180,7 +182,7 @@ export const AdmissionPackageTab = ({ admissionName, onChanged }: AdmissionPacka
               ) : null}
             </div>
             <div className="text-right">
-              <p className="text-lg font-bold text-slate-900">{money(dailyRate, currency)}</p>
+              <p className="text-lg font-bold text-slate-900">{dailyRate.toFixed(2)} {currency}</p>
               <p className="text-xs text-slate-500">per day</p>
             </div>
           </div>
@@ -277,7 +279,7 @@ export const AdmissionPackageTab = ({ admissionName, onChanged }: AdmissionPacka
                       <td className="px-3 py-2">{row.inpatient_package || '—'}</td>
                       <td className="px-3 py-2 text-right">{rowDays}</td>
                       <td className="whitespace-nowrap px-3 py-2 text-right">
-                        {money(rowRate, row.currency || currency)}
+                        {rowRate.toFixed(2)} {row.currency || currency}
                       </td>
                       <td className="whitespace-nowrap px-3 py-2 text-right font-medium text-slate-900">
                         {money(rowAmount, row.currency || currency)}
@@ -306,8 +308,10 @@ export const AdmissionPackageTab = ({ admissionName, onChanged }: AdmissionPacka
         )}
       </div>
 
+      <PackageChangeHistory changes={data.package_changes || []} currency={currency} />
+
       <p className="rounded-md bg-blue-50 px-3 py-2 text-xs text-blue-800">
-        Changing the package applies to future stay charges only. Package charges already posted keep
+        Changing the package applies to all remaining unbilled stay days, including earlier days. Package charges already posted keep
         the package used at the time.
       </p>
 
@@ -319,7 +323,9 @@ export const AdmissionPackageTab = ({ admissionName, onChanged }: AdmissionPacka
       ) : null}
 
       {showChangeModal ? (
-        <PackageSelectionModal
+        ['Admitted', 'Discharge Scheduled'].includes(data.admission.status) ? (
+          <ModifyPackageModal admissionName={admissionName} onClose={() => { setShowChangeModal(false); void load(); onChanged?.() }} />
+        ) : <PackageSelectionModal
           admissionNo={admissionName}
           currentPackage={pkg ? (pkg.is_custom ? '__custom__' : pkg.name) : null}
           currentRate={pkg?.is_custom ? dailyRate : null}

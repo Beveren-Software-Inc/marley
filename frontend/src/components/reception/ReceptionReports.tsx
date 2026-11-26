@@ -228,8 +228,8 @@ function soaCategoryRows(cats: Record<string, any[]>, opts?: { showDays?: boolea
             name === 'Medicines' ||
             name === 'Lab tests' ||
             name === 'Lab Tests'
-          const isSessions = isIp && cat === 'Services'
-          const rateCell = isMedOrLab || r.rate == null ? '—' : fmtAmt(r.rate)
+          const isSessions = isIp && (cat === 'Services' || cat === 'Package-covered Services')
+          const rateCell = isMedOrLab || r.rate == null ? '—' : isIp && cat === 'Room Charge' ? Number(r.rate).toFixed(2) : fmtAmt(r.rate)
           const daysCell = opts?.showDays
             ? `<td class="num">${isMedOrLab || isSessions ? '' : (r.qty ?? '')}</td>`
             : ''
@@ -248,8 +248,8 @@ function soaCategoryRows(cats: Record<string, any[]>, opts?: { showDays?: boolea
 
 function soaTotalsFooter(data: any, labelColspan: number) {
   return `<tr class="total"><td colspan="${labelColspan}">Total Bill Amount</td><td class="num">${fmtAmt(data.bill_total)}</td></tr>
-      <tr class="total"><td colspan="${labelColspan}">Discount Amount</td><td class="num">(${fmtAmt(data.discount_total)})</td></tr>
-      <tr class="total"><td colspan="${labelColspan}">Paid Amount</td><td class="num">(${fmtAmt(data.paid_total)})</td></tr>
+      <tr class="total"><td colspan="${labelColspan}">Discount Amount</td><td class="num">${fmtAmt(data.discount_total)}</td></tr>
+      <tr class="total"><td colspan="${labelColspan}">Paid Amount</td><td class="num">${fmtAmt(data.paid_total)}</td></tr>
       <tr class="total"><td colspan="${labelColspan}">Net Bill Amount</td><td class="num">${fmtAmt(data.net_total)}</td></tr>
       <tr class="total"><td colspan="${labelColspan}">Balance Amount</td><td class="num">${fmtAmt(data.balance)}</td></tr>`
 }

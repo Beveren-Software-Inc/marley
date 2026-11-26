@@ -15,6 +15,7 @@ from frappe import _
 from frappe.utils import cint, flt, getdate, today
 
 from healthcare.api.inpatient_package import calculate_package_price
+from healthcare.api.package_change_history import has_package_change
 
 
 def _require_billing_user() -> None:
@@ -63,6 +64,8 @@ def _is_open_daily_package(admission, package) -> bool:
 	Fixed programs (7-day, 14-day, …) keep a hard package length. The old daily
 	format must keep charging room days for the whole stay.
 	"""
+	if admission.get("package_pricing_mode"):
+		return True
 	if cint(getattr(package, "is_daily_default", 0) or 0):
 		return True
 	if cint(admission.get("standard_package") or 0):
@@ -84,7 +87,7 @@ def _days_from_unledgered_quotations(admission_name: str, package_name: str | No
 		"custom_package": ["is", "set"],
 	}
 	if package_name:
-		filters["custom_package"] = package_name
+		filters["custom_package"] = ["is", "not set"] if package_name == "__custom__" else package_name
 
 	quotes = frappe.get_all("Quotation", filters=filters, pluck="name")
 	if not quotes:
@@ -154,6 +157,8 @@ def _days_already_billed(admission_name: str, package_name: str | None = None) -
 
 
 def _resolve_package_name(admission) -> str:
+	if not admission.get("inpatient_package") and flt(admission.get("rate_per_day")) > 0 and not cint(admission.get("standard_package")):
+		return "__custom__"
 	package = (admission.get("inpatient_package") or "").strip()
 	if package and frappe.db.exists("Inpatient Package", package):
 		return package
@@ -186,13 +191,26 @@ def _find_admission_package_quotation(
 	allow_draft: bool = True,
 ):
 	"""Return the existing admission package Quotation (submitted preferred)."""
+	from healthcare.api.package_change_history import active_change_quotation
+	active = active_change_quotation(admission_name, package_name)
+	if active:
+		quotation = frappe.get_doc("Quotation", active)
+		if quotation.get("custom_inpatient_admission") != admission_name:
+			frappe.throw(_("The active package quotation does not belong to this admission."))
+		if package_name and (quotation.get("custom_package") or "__custom__") != package_name:
+			frappe.throw(_("The active quotation does not match the selected package."))
+		if cint(quotation.docstatus) == 2:
+			if allow_draft:
+				frappe.throw(_("The active package quotation is cancelled. Review it before charging."))
+			return None
+		return quotation if allow_draft or cint(quotation.docstatus) == 1 else None
 	filters: dict[str, Any] = {
 		"custom_inpatient_admission": admission_name,
 		"custom_package": ["is", "set"],
 		"docstatus": ["<", 2] if allow_draft else 1,
 	}
 	if package_name:
-		filters["custom_package"] = package_name
+		filters["custom_package"] = ["is", "not set"] if package_name == "__custom__" else package_name
 
 	names = frappe.get_all(
 		"Quotation",
@@ -227,7 +245,8 @@ def _amount_per_day(admission, package_name: str, service_unit: str | None = Non
 	if per_day > 0:
 		return per_day
 
-	package = frappe.get_doc("Inpatient Package", package_name)
+	package = (frappe._dict(name="__custom__", package_name=_("Custom Package"), no_of_days=0)
+		if package_name == "__custom__" else frappe.get_doc("Inpatient Package", package_name))
 	base_total = flt(getattr(package, "base_total", 0) or 0)
 	program_days = cint(getattr(package, "no_of_days", 0) or 0)
 	if base_total and program_days:
@@ -356,15 +375,20 @@ def _charge_window(admission, package, as_of=None, *, through_discharge=False) -
 	)
 
 	per_day = _amount_per_day(admission, package_name, service_unit=service_unit)
-	if quotation:
+	package_changed = has_package_change(admission.name)
+	from healthcare.api.package_change_history import active_change_quotation
+	change_quotation = active_change_quotation(admission.name, package_name) if package_changed else None
+	if quotation and not package_changed:
 		pline = _package_line_from_quotation(quotation)
 		if pline and flt(pline.get("rate") or 0) > 0:
 			per_day = flt(pline.get("rate"))
 
-	amount = flt(per_day) * cint(days_to_charge)
+	amount = flt(flt(per_day) * cint(days_to_charge), 2) if admission.get("package_pricing_mode") else flt(per_day) * cint(days_to_charge)
 	charge_item = _package_charge_item(admission, quotation, service_unit=service_unit)
 
 	return {
+		"package_changed": package_changed,
+		"change_quotation": change_quotation if quotation and quotation.name == change_quotation else None,
 		"admission": admission.name,
 		"patient": admission.patient,
 		"patient_name": admission.patient_name,
@@ -433,7 +457,8 @@ def preview_package_charge_to_today(admission: str, as_of: str | None = None) ->
 
 	adm = frappe.get_doc("Inpatient Admission", admission)
 	package_name = _resolve_package_name(adm)
-	package = frappe.get_doc("Inpatient Package", package_name)
+	package = (frappe._dict(name="__custom__", package_name=_("Custom Package"), no_of_days=0)
+		if package_name == "__custom__" else frappe.get_doc("Inpatient Package", package_name))
 	preview = _charge_window(adm, package, as_of=as_of)
 	return _attach_ms_preview(preview, adm, as_of=as_of)
 
@@ -558,6 +583,8 @@ def _make_standalone_package_sales_order(
 	so.flags.ignore_pricing_rule = True
 	frappe.flags.mute_messages = True
 	try:
+		from healthcare.api.room_package_pricing import preserve_room_rate_precision
+		preserve_room_rate_precision(so)
 		so.run_method("set_missing_values")
 		so.run_method("calculate_taxes_and_totals")
 		so.insert(ignore_permissions=True)
@@ -593,6 +620,7 @@ def _charge_package_days(
 			frappe.throw(_("Inpatient Admission not found"))
 		return None
 
+	frappe.db.get_value("Inpatient Admission", admission, "name", for_update=True)
 	adm = frappe.get_doc("Inpatient Admission", admission)
 	if adm.status == "Cancelled":
 		if throw_if_nothing:
@@ -606,7 +634,8 @@ def _charge_package_days(
 			raise
 		return None
 
-	package = frappe.get_doc("Inpatient Package", package_name)
+	package = (frappe._dict(name="__custom__", package_name=_("Custom Package"), no_of_days=0)
+		if package_name == "__custom__" else frappe.get_doc("Inpatient Package", package_name))
 	is_daily = _is_open_daily_package(adm, package)
 	preview = _charge_window(
 		adm,
@@ -666,7 +695,7 @@ def _charge_package_days(
 			)
 		desc = (
 			f"{item.get('description') or item.get('item_name') or 'Inpatient Package'} "
-			f"— {days} day(s) @ {per_day}/day"
+			f"— {days} day(s) @ {per_day:.2f}/day"
 			f" ({from_date} to {to_date})"
 		).strip()
 		return _make_standalone_package_sales_order(
@@ -687,7 +716,7 @@ def _charge_package_days(
 				quotation=quotation,
 				sales_order=sales_order,
 				days=days,
-				amount=flt(per_day) * cint(days),
+				amount=flt(flt(per_day) * cint(days), 2) if adm.get("package_pricing_mode") else flt(per_day) * cint(days),
 				amount_per_day=per_day,
 				from_date=from_date,
 				to_date=to_date,
@@ -695,6 +724,8 @@ def _charge_package_days(
 				package=package_name,
 			)
 		except Exception:
+			if adm.get("package_pricing_mode"):
+				raise
 			frappe.log_error(
 				title=f"Package charge ledger (SOA) failed: {quotation.name if quotation else admission}"
 			)
@@ -702,10 +733,20 @@ def _charge_package_days(
 	from frappe.utils import add_days
 
 	quote_remaining = cint(preview.get("quotation_remaining_days") or 0)
-	use_standalone = through_discharge or not quotation or (is_daily and quote_remaining <= 0)
+	use_standalone = through_discharge or (bool(preview.get("package_changed")) and not preview.get("change_quotation")) or not quotation or (is_daily and quote_remaining <= 0)
 
 	sales_orders: list[str] = []
 	if package_can_charge and days_to_charge > 0:
+		# Submit the current quotation without creating an automatic full order.
+		if quotation and cint(quotation.docstatus) == 0 and (not use_standalone or preview.get("change_quotation")):
+			frappe.flags.healthcare_skip_package_auto_so = True
+			try:
+				quotation.flags.ignore_permissions = True
+				quotation.flags.ignore_mandatory = True
+				quotation.submit()
+			finally:
+				frappe.flags.healthcare_skip_package_auto_so = False
+			quotation.reload()
 		if use_standalone:
 			sales_order = _standalone(
 				days_to_charge,
@@ -720,16 +761,6 @@ def _charge_package_days(
 				sales_orders.append(sales_order)
 				_ledger(sales_order, days_to_charge, preview.get("from_date"), preview.get("to_date"))
 		else:
-			# Submit draft quotation without auto full-SO (we create a partial SO below)
-			if cint(quotation.docstatus) == 0:
-				frappe.flags.healthcare_skip_package_auto_so = True
-				try:
-					quotation.flags.ignore_permissions = True
-					quotation.flags.ignore_mandatory = True
-					quotation.submit()
-				finally:
-					frappe.flags.healthcare_skip_package_auto_so = False
-				quotation.reload()
 
 			days_from_quote = days_to_charge
 			days_beyond_quote = 0
@@ -847,7 +878,7 @@ def _charge_package_days(
 		"sales_order": primary_so,
 		"sales_orders": sales_orders,
 		"days_charged": days_to_charge,
-		"amount": flt(per_day) * days_to_charge,
+		"amount": preview["amount"],
 		"amount_per_day": per_day,
 		"days_already_billed": billed_after,
 		"remaining_days": (
@@ -1072,13 +1103,16 @@ def record_partial_package_charge(
 	else:
 		detail.remarks = _("Stay charge from last billed day → Sales Order {0}.").format(so_name or "")
 	if detail.meta.has_field("inpatient_package"):
-		detail.inpatient_package = package
+		detail.inpatient_package = package if package != "__custom__" else None
 	if detail.meta.has_field("quotation") and quotation:
 		detail.quotation = quotation.name
 	if detail.meta.has_field("sales_order") and so_name:
 		detail.sales_order = so_name
 	if detail.meta.has_field("amount_per_day"):
 		detail.amount_per_day = per_day
+	if adm.get("package_pricing_mode"):
+		detail._precision = frappe._dict(main=frappe._dict(amount_per_day=9, transaction_amount=2))
+		detail.transaction_amount = flt(amount, 2)
 	detail.insert(ignore_permissions=True)
 	_sync_admission_days_billed(admission)
 

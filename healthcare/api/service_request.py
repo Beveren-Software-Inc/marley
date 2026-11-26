@@ -2467,32 +2467,9 @@ def _lab_request_sales_order_specs(sr):
 
 
 def _inpatient_lab_tests_included(sr) -> bool:
-	"""Patient-specific lab coverage comes exclusively from the admission quotation."""
-	if sr.get("template_dt") != "Lab Test Template" or not sr.get("inpatient_record"):
-		return False
-	from healthcare.healthcare.care_episode_guard import resolve_inpatient_admission_name
-	from healthcare.api.inpatient_admission import _resolve_admission_package, is_enhanced_workflow_enabled
+    from healthcare.api.package_service_coverage import coverage_for
+    return bool(sr.get("template_dt") == "Lab Test Template" and coverage_for(sr, category="lab"))
 
-	if not is_enhanced_workflow_enabled():
-		return False
-
-	admission_name = resolve_inpatient_admission_name(sr.inpatient_record, sr.get("patient"))
-	if not admission_name:
-		return False
-	admission = frappe.get_doc("Inpatient Admission", admission_name)
-	if admission.patient != sr.get("patient"):
-		return False
-	package, source = _resolve_admission_package(admission)
-	if not package and source != "custom":
-		return False
-	quotation = frappe.db.get_value(
-		"Quotation",
-		{"custom_inpatient_admission": admission_name,
-		 "custom_package": package if package else ["is", "not set"],
-		 "docstatus": ["<", 2]},
-		["custom_include_lab_tests"], order_by="modified desc", as_dict=True,
-	)
-	return bool(quotation and cint(quotation.custom_include_lab_tests))
 
 
 def _active_lab_request_sales_order(sr):
@@ -2535,9 +2512,9 @@ def confirm_payment(service_request_name):
 		frappe.db.sql("select name from `tabService Request` where name=%s for update", (service_request_name,))
 	sr = frappe.get_doc("Service Request", service_request_name, for_update=is_lab)
 
-	# Preserve legacy confirmation for all requests outside enhanced lab billing.
-	if not is_lab and sr.patient_accepted_cost:
-		return {"ok": True, "patient_accepted_cost": 1}
+	if not is_lab and is_enhanced_workflow_enabled():
+		from healthcare.api.package_service_coverage import lock_service
+		lock_service(sr)
 
 	# Validate dynamic template
 	if not sr.template_dt or not sr.template_dn:
@@ -2549,10 +2526,24 @@ def confirm_payment(service_request_name):
 			sr.db_set("patient_accepted_cost", 1)
 			return {"ok": True, "patient_accepted_cost": 1, "sales_order": existing_order,
 				"message": _("Existing Sales Order retained; no new charges created")}
-		if _inpatient_lab_tests_included(sr):
+		from healthcare.api.package_service_coverage import coverage_for, covered_response, recorded_amount
+		coverage = coverage_for(sr, category="lab")
+		if coverage:
 			sr.db_set("patient_accepted_cost", 1)
-			return {"ok": True, "patient_accepted_cost": 1, "covered_by_package": True,
-				"sales_order": None, "message": _("Lab Tests are included in the admission package")}
+			return {"ok": True, "patient_accepted_cost": 1,
+				**covered_response(sr, coverage, recorded_amount(sr, "grand_total", "cost"))}
+	else:
+		from healthcare.api.package_service_coverage import coverage_for, covered_response, has_separate_billing, recorded_amount
+		coverage = coverage_for(sr)
+		if coverage and has_separate_billing(sr):
+			frappe.throw(_("An existing billing document is linked to this service. Use that document; no new package bill was created."))
+		if coverage:
+			sr.db_set("patient_accepted_cost", 1)
+			return {"ok": True, "patient_accepted_cost": 1,
+				**covered_response(sr, coverage, recorded_amount(sr, "grand_total", "cost"))}
+
+	if not is_lab and sr.patient_accepted_cost:
+		return {"ok": True, "patient_accepted_cost": 1}
 
 	delivery_date = sr.expected_date or nowdate()
 
@@ -2742,7 +2733,19 @@ def confirm_session_payment(service_request_name):
 	if not service_request_name:
 		frappe.throw(_("Service Request name is required"))
 
-	sr = frappe.get_doc("Service Request", service_request_name)
+	from healthcare.api.package_service_coverage import lock_service, coverage_for, covered_response, has_separate_billing, recorded_amount
+	sr = frappe.get_doc("Service Request", service_request_name, for_update=True)
+	lock_service(sr)
+	coverage = coverage_for(sr)
+	if not coverage and sr.template_dt != "Healthcare Service Template" and sr.template_dt and sr.template_dn:
+		template_doc = frappe.get_doc(sr.template_dt, sr.template_dn)
+		coverage = coverage_for(sr, item_code=template_doc.get("item") or template_doc.get("item_code"))
+	if coverage and has_separate_billing(sr):
+		frappe.throw(_("An existing billing document is linked to this service. Use that document; no new package bill was created."))
+	if coverage:
+		sr.db_set("patient_accepted_cost", 1)
+		return {"ok": True, "patient_accepted_cost": 1,
+			**covered_response(sr, coverage, recorded_amount(sr, "grand_total", "cost"))}
 
 	if sr.patient_accepted_cost:
 		return {"ok": True, "patient_accepted_cost": 1}

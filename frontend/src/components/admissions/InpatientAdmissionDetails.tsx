@@ -6,7 +6,6 @@ import {
   ADMISSION_UI_STATUS_DISCHARGE_IN_PROGRESS,
   type InpatientRecord,
   type InpatientPackage,
-  fetchAdmissionPackageDetails,
   fetchAdmissionBillingSettings,
   NO_PACKAGE,
 } from '../../services/inpatientRecords'
@@ -1324,25 +1323,7 @@ export const InpatientAdmissionDetails = ({ admissionName, onUpdate }: Inpatient
     const billingSettings = await fetchAdmissionBillingSettings().catch(() => null)
     const enabled = billingSettings?.enable_enhanced_workflow === true
     setEnhancedWorkflow(enabled)
-    if (!enabled) {
-      setShowPackages(true)
-      return
-    }
-    if (selectedPackage) {
-      setShowAdmissionForm(true)
-      return
-    }
-    try {
-      const packageDetails = await fetchAdmissionPackageDetails(admissionName)
-      if (packageDetails.active_package) {
-        setSelectedPackage(packageDetails.active_package)
-        setShowAdmissionForm(true)
-      } else {
-        setShowPackages(true)
-      }
-    } catch {
-      setShowPackages(true)
-    }
+    setShowPackages(true)
   }
 
   const handleDischargeScheduled = () => {

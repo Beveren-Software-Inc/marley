@@ -325,7 +325,21 @@ export interface DurationPricing {
   amount: number
 }
 
+export type RoomPricingMode = 'Daily' | 'Weekly' | 'Monthly'
+
+export function getPackagePricingModes(pkg: InpatientPackage): RoomPricingMode[] {
+  if (pkg.name === '__none__' || pkg.name === '__custom__') return []
+  const durations = pkg.duration_pricing || []
+  const modes: RoomPricingMode[] = ['Daily']
+  if (durations.some((row) => Number(row.from_day) === 1 && Number(row.to_day) === 7)) modes.push('Weekly')
+  if (durations.some((row) => Number(row.from_day) === 1 && Number(row.to_day) === 30)) modes.push('Monthly')
+  return modes
+}
+
+
+
 export interface InpatientPackage {
+  pricing_mode?: RoomPricingMode
   name: string
   package_name: string
   package_category?: string
@@ -589,8 +603,11 @@ export async function transferToAnotherCostCenter(
 export async function calculatePackagePrice(
   packageName: string,
   days: number,
-  opts?: { serviceUnitType?: string; serviceUnit?: string; roomMultiplier?: number }
+  opts?: { serviceUnitType?: string; serviceUnit?: string; roomMultiplier?: number; pricingMode?: RoomPricingMode; company?: string; admissionName?: string }
 ): Promise<{
+  package_name?: string
+  daily_rate?: number
+  period_price?: number
   total_price: number
   program_price?: number
   base_rate: number
@@ -605,6 +622,10 @@ export async function calculatePackagePrice(
   if (opts?.serviceUnitType) params.append('service_unit_type', opts.serviceUnitType)
   if (opts?.serviceUnit) params.append('service_unit', opts.serviceUnit)
   if (opts?.roomMultiplier != null) params.append('room_multiplier', String(opts.roomMultiplier))
+
+  if (opts?.pricingMode) params.append('pricing_mode', opts.pricingMode)
+  if (opts?.company) params.append('company', opts.company)
+  if (opts?.admissionName) params.append('admission_name', opts.admissionName)
 
   const url = `/api/method/healthcare.api.inpatient_package.calculate_package_price?${params.toString()}`
 
@@ -630,7 +651,9 @@ export async function createAdmissionQuotation(
     services?: Array<{ template: string; amount?: number | null }>
   },
   serviceUnitType?: string | null,
-  otherServices?: string[]
+  otherServices?: string[],
+  pricingMode?: RoomPricingMode,
+  discountPercentage?: number
 ): Promise<{
   success: boolean
   sales_order_name?: string
@@ -653,6 +676,8 @@ export async function createAdmissionQuotation(
       },
       body: JSON.stringify({
         admission_name: admissionName,
+        pricing_mode: pricingMode || null,
+        discount_percentage: discountPercentage ?? null,
         package_name: packageName,
         days: days,
         total_amount: totalAmount,
@@ -689,7 +714,7 @@ export async function updateAdmissionQuotationOtherServices(
   admissionName: string,
   packageName: string,
   otherServices: string[],
-  settings?: { include_lab_tests: number; include_observation: number },
+  settings?: { include_lab_tests: number; include_observation: number; include_therapy_sessions?: number; include_consultations?: number },
 ): Promise<{ success: boolean; quotation_name: string; other_services: string[]; message: string }> {
   return await apiRequest(
     '/api/method/healthcare.api.inpatient_admission.update_admission_quotation_other_services',
@@ -707,18 +732,24 @@ export async function updateAdmissionQuotationOtherServices(
 
 export async function checkAdmissionQuotation(
   admissionName: string,
-  packageName: string
+  packageName: string,
+  admissionQuotation = false
 ): Promise<{
   exists: boolean
   quotation_name?: string
   docstatus?: number
+  pricing_mode?: RoomPricingMode
+  package_name?: string
   other_services?: string[]
   include_lab_tests?: number
   include_observation?: number
+  include_therapy_sessions?: number
+  include_consultations?: number
 }> {
   const params = new URLSearchParams()
   params.append('admission_name', admissionName)
   params.append('package_name', packageName)
+  if (admissionQuotation) params.append('admission_quotation', '1')
   
   const url = `/api/method/healthcare.api.inpatient_admission.check_admission_quotation?${params.toString()}`
   
@@ -823,6 +854,7 @@ export async function admitPatient(
   isMedSuprRequired?: 0 | 1,
   medSuprServiceCode?: string | null,
   medicalSupervisionFee?: number | null,
+  pricingMode?: RoomPricingMode,
 ) {
   const { ensureCSRF } = await import('./apiClient')
   const csrf = await ensureCSRF()
@@ -838,6 +870,7 @@ export async function admitPatient(
       },
       body: JSON.stringify({
         name: inpatientRecordName,
+        pricing_mode: pricingMode || null,
         service_unit: serviceUnit || null,
         check_in: checkIn,
         expected_discharge: expectedDischarge || null,
@@ -1287,12 +1320,31 @@ export interface AdmissionPackageSummary {
   package_days_billed: number
 }
 
+export interface AdmissionPackageChange {
+  name: string
+  previous_package?: string | null
+  previous_mode?: string | null
+  previous_rate: number
+  previous_package_price?: number | null
+  previous_price_from_current_config?: boolean
+  new_package?: string | null
+  new_mode: RoomPricingMode
+  new_rate: number
+  new_package_price?: number | null
+  new_price_from_current_config?: boolean
+  changed_on: string
+  changed_by: string
+}
+
 export interface AdmissionPackageAdmissionInfo {
   name: string
   patient: string
   patient_name?: string
   status: string
   inpatient_package?: string | null
+  package_pricing_mode?: RoomPricingMode
+  admission_service_unit_type?: string
+  company?: string
   rate_per_day?: number
   standard_package?: number
   package_days_billed?: number
@@ -1308,6 +1360,7 @@ export interface AdmissionPackageDetailsResponse {
   package_source?: 'admission' | 'enrollment' | 'quotation' | 'package_detail' | 'custom' | null
   enrollment: AdmissionPackageEnrollment | null
   package_details: AdmissionPackageLedgerRow[]
+  package_changes?: AdmissionPackageChange[]
   quotations: AdmissionPackageQuotation[]
   summary: AdmissionPackageSummary
   can_change_package: boolean
@@ -1328,11 +1381,13 @@ export async function fetchAdmissionPackageDetails(
 export async function changeAdmissionPackage(
   admissionName: string,
   packageName: string,
-  ratePerDay?: number
+  ratePerDay?: number,
+  pricingMode?: RoomPricingMode
 ): Promise<AdmissionPackageDetailsResponse> {
   const body: Record<string, unknown> = {
     admission_name: admissionName,
     package_name: packageName,
+    pricing_mode: pricingMode || null,
   }
   if (ratePerDay != null && Number.isFinite(ratePerDay)) {
     body.rate_per_day = ratePerDay

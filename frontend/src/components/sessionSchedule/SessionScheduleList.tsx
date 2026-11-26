@@ -238,7 +238,9 @@ export const SessionScheduleList = ({ refreshKey, patient, admissionNumber, embe
     try {
       const res = await createSessionScheduleSalesOrder(schedule.name)
       toast.success(
-        res.existing
+        res.covered_by_package
+          ? 'Session is covered by the package.'
+          : res.existing
           ? `Already billed — ${res.sales_order}`
           : `Completed & billed — ${res.sales_order}`,
       )

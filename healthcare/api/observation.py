@@ -555,31 +555,9 @@ def _resolve_observation_billing_item(obs, lvl):
 
 
 def _observation_is_package_covered(obs) -> bool:
-	ref_dt, admission_name = _observation_visit_admission_refs(obs)
-	if ref_dt != "Inpatient Admission":
-		return False
+    from healthcare.api.package_service_coverage import coverage_for
+    return bool(coverage_for(obs, category="observation"))
 
-	from healthcare.api.inpatient_admission import _resolve_admission_package, is_enhanced_workflow_enabled
-
-	if not is_enhanced_workflow_enabled():
-		return False
-
-	admission = frappe.get_doc("Inpatient Admission", admission_name)
-	if admission.patient != obs.get("patient"):
-		return False
-	package, source = _resolve_admission_package(admission)
-	if not package and source != "custom":
-		return False
-	return bool(cint(frappe.db.get_value(
-		"Quotation",
-		{
-			"custom_inpatient_admission": admission_name,
-			"custom_package": package if package else ["is", "not set"],
-			"docstatus": ["<", 2],
-		},
-		"custom_include_observation",
-		order_by="modified desc",
-	)))
 
 
 def _create_observation_sales_order(
@@ -593,12 +571,8 @@ def _create_observation_sales_order(
 	billing_date = getdate(billing_date or nowdate())
 	observation_name = obs.name
 
-	if _observation_is_package_covered(obs):
-		return {
-			"covered_by_package": True,
-			"billing_date": str(billing_date),
-			"message": _("Observation is already included in the package. No separate bill is required."),
-		}
+	from healthcare.api.package_service_coverage import lock_service, coverage_for, covered_response, has_separate_billing, recorded_amount
+	lock_service(obs)
 
 	existing = _existing_observation_sales_order_for_date(observation_name, billing_date)
 	if existing:
@@ -607,6 +581,13 @@ def _create_observation_sales_order(
 			so.flags.ignore_permissions = True
 			so.submit()
 		return {"sales_order": so.name, "status": so.status, "existing": True, "billing_date": str(billing_date)}
+
+	coverage = coverage_for(obs, category="observation")
+	if coverage and has_separate_billing(obs, billing_date):
+		frappe.throw(_("An existing billing document is linked to this service. Use that document; no new package bill was created."))
+	if coverage:
+		return {**covered_response(obs, coverage, recorded_amount(obs, "amount"), billing_date),
+			"billing_date": str(billing_date)}
 
 	# if not _observation_is_billable_on_date(obs, billing_date):
 	# 	frappe.throw(

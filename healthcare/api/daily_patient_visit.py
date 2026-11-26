@@ -454,12 +454,15 @@ def add_op_charge_to_patient_visit(visit_name, amount, charge_date=None):
     if not charge_date:
         charge_date = today()
     
-    # Get or create the daily session charge item
-    item_code = get_or_create_daily_session_charge_item()
-    
     # Get the Patient Visit document
     visit = frappe.get_doc('Patient Visit', visit_name)
     
+    amount, covered = _covered_daily_amount(visit, amount, charge_date)
+    if covered and amount <= 0:
+        return {"covered_by_package": True}
+
+    item_code = get_or_create_daily_session_charge_item()
+
     # Get op_charges, ensure it's a list (not None)
     op_charges = visit.get('charges')
     if op_charges is None:
@@ -618,6 +621,46 @@ def _process_setup_visit_dates(setup, visit_dates) -> dict:
 	}
 
 
+def _covered_daily_amount(visit, amount, charge_date, setup=None):
+    """Filter only recorded setup amounts; never replace a clinical rate."""
+    from healthcare.api.package_service_coverage import coverage_for, record_coverage
+    from healthcare.api.inpatient_admission import is_enhanced_workflow_enabled
+    if not is_enhanced_workflow_enabled():
+        return amount, False
+    if _existing_visit_charge_sales_order(visit.name, "Daily Session Charge"):
+        return amount, False
+    if not visit.get("inpatient_record"):
+        return amount, False
+    if setup is None:
+        candidates = frappe.get_all("Daily Patient Visit Setup", filters={"patient": visit.patient,
+            "admission": visit.inpatient_record}, fields=["name", "from_date", "to_date"], limit_page_length=0)
+        candidates = [row for row in candidates if (not row.from_date or getdate(row.from_date) <= getdate(charge_date))
+            and (not row.to_date or getdate(row.to_date) >= getdate(charge_date))]
+        if len(candidates) > 1:
+            frappe.throw(_("Multiple daily visit setups match this admission/date. Resolve the setup before billing."))
+        if not candidates:
+            return amount, False
+        setup = frappe.get_doc("Daily Patient Visit Setup", candidates[0].name)
+    if isinstance(setup, str):
+        setup = frappe.get_doc("Daily Patient Visit Setup", setup)
+    services = setup.get("services") or []
+    if not services:
+        services = [{"session": setup.get("session"), "amount": setup.get("amount")}]
+    remaining, covered, counts = 0.0, False, {}
+    for line in services:
+        template = line.get("session")
+        coverage = coverage_for(visit, template=template) if template else None
+        if not coverage:
+            remaining += _line_amount(line)
+            continue
+        covered = True
+        counts[template] = counts.get(template, 0) + 1
+        record_coverage(visit, coverage, _line_amount(line), charge_date, key=f"{template}:{counts[template]}")
+    if covered and abs(flt(amount) - _setup_total_amount(setup)) > 0.0005 and abs(flt(amount) - remaining) > 0.0005:
+        frappe.throw(_("The daily charge differs from its recorded service amounts; coverage cannot allocate an override automatically."))
+    return (remaining if covered else amount), covered
+
+
 def create_daily_auto_visit_sales_order(visit_name, amount, charge_date=None, cost_center=None):
     """Create a submitted Sales Order for a daily auto visit charge."""
     amount = flt(amount)
@@ -634,6 +677,9 @@ def create_daily_auto_visit_sales_order(visit_name, amount, charge_date=None, co
             so.submit()
         return {'sales_order': so.name, 'existing': True}
 
+    amount, covered = _covered_daily_amount(visit, amount, charge_date or visit.encounter_date or today())
+    if covered and amount <= 0:
+        return {"covered_by_package": True, "sales_order": None}
     customer = _ensure_patient_customer(visit.patient)
     company = visit.company or frappe.defaults.get_user_default('company') or frappe.db.get_single_value(
         'Global Defaults', 'default_company'
@@ -697,6 +743,9 @@ def _ensure_daily_auto_visit_billing(setup, visit_name, visit_date):
         return
     cost_center = _resolve_setup_cost_center(setup, visit_date)
     amount = _setup_total_amount(setup)
+    amount, covered = _covered_daily_amount(frappe.get_doc("Patient Visit", visit_name), amount, visit_date, setup)
+    if covered and amount <= 0:
+        return {"covered_by_package": True, "sales_order": None}
     if amount > 0:
         add_op_charge_to_patient_visit(visit_name, amount, visit_date)
         item_code = get_or_create_daily_session_charge_item()
@@ -742,6 +791,9 @@ def _create_daily_auto_visit_for_date(setup, visit_date):
         return visit.name
 
     amount = _setup_total_amount(setup)
+    amount, covered = _covered_daily_amount(visit, amount, visit_date, setup)
+    if covered and amount <= 0:
+        return visit.name
     if amount > 0:
         add_op_charge_to_patient_visit(visit.name, amount, visit_date)
         create_daily_auto_visit_sales_order(

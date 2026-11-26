@@ -20,6 +20,8 @@
   "active",
   "custom_include_lab_tests",
   "custom_include_observation",
+  "include_therapy_sessions",
+  "include_consultations",
   "duration_section",
   "duration_pricing",
   "services_section",
@@ -63,7 +65,7 @@
    "reqd": 1
   },
   {
-   "description": "Program price for Triple Sharing (reference). Final Price = Base Total × Room Multiplier.",
+   "description": "Program price for Triple Sharing (reference). Final Price = Base Total \u00d7 Room Multiplier.",
    "fieldname": "base_total",
    "fieldtype": "Currency",
    "in_list_view": 1,
@@ -71,7 +73,7 @@
   },
   {
    "default": "0",
-   "description": "When checked, price is always days × base rate (Daily default program).",
+   "description": "When checked, price is always days \u00d7 base rate (Daily default program).",
    "fieldname": "is_daily_default",
    "fieldtype": "Check",
    "label": "Daily Default"
@@ -91,11 +93,13 @@
    "label": "Active"
   },
   {
+   "default": "0",
    "fieldname": "custom_include_lab_tests",
    "fieldtype": "Check",
    "label": "Include Lab Tests"
   },
   {
+   "default": "0",
    "fieldname": "custom_include_observation",
    "fieldtype": "Check",
    "label": "Include Observation"
@@ -128,9 +132,22 @@
    "label": "Company",
    "options": "Company",
    "reqd": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "include_therapy_sessions",
+   "fieldtype": "Check",
+   "label": "Include Therapy Sessions "
+  },
+  {
+   "default": "0",
+   "fieldname": "include_consultations",
+   "fieldtype": "Check",
+   "label": "Include Consultations "
   }
  ],
  "index_web_pages_for_search": 1,
+ "link_display_mode": "Search",
  "links": [
   {
    "group": "Inpatient",
@@ -138,7 +155,7 @@
    "link_fieldname": "package"
   }
  ],
- "modified": "2026-03-22 13:28:48.662916",
+ "modified": "2026-11-25 13:55:06.080542",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Inpatient Package",

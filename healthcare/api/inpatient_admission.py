@@ -10,6 +10,7 @@ from datetime import timedelta
 
 from frappe.utils import cint, cstr, flt, format_timedelta, get_datetime, getdate, today
 from healthcare.api.patient_visit import create_invoice
+from healthcare.api.package_change_history import get_package_changes
 from healthcare.api.utils.api_utility import get_next_inpatient_case_number
 from healthcare.controllers.discount_validation import apply_insurance_discounts
 from healthcare.healthcare.doctype.observation.observation import vacate_active_observation_rooms_for_patient
@@ -1036,6 +1037,8 @@ def _sync_active_package_enrollment(admission, package_name: str, daily_rate: fl
 		doc.package_name = _package_display_name(package_name)
 	if doc.meta.has_field("package_rate"):
 		doc.package_rate = daily_rate
+		if admission.get("package_pricing_mode"):
+			doc._precision = frappe._dict(main=frappe._dict(package_rate=9))
 	doc.save(ignore_permissions=True)
 
 
@@ -1076,6 +1079,8 @@ def get_admission_package_details(admission_name):
 		}
 		package_source = "custom"
 
+	if active_package and rate_per_day > 0:
+		active_package["daily_rate"] = rate_per_day
 	if active_package and not flt(active_package.get("daily_rate")):
 		active_package["daily_rate"] = rate_per_day or flt(active_package.get("package_rate"))
 
@@ -1138,6 +1143,9 @@ def get_admission_package_details(admission_name):
 			"status": admission.status,
 			"inpatient_package": admission.get("inpatient_package"),
 			"rate_per_day": rate_per_day,
+			"package_pricing_mode": admission.get("package_pricing_mode"),
+			"admission_service_unit_type": admission.get("admission_service_unit_type"),
+			"company": admission.company,
 			"standard_package": cint(admission.get("standard_package")),
 			"package_days_billed": cint(admission.get("package_days_billed") or 0),
 			"scheduled_date": str(admission.get("scheduled_date") or "") or None,
@@ -1149,6 +1157,7 @@ def get_admission_package_details(admission_name):
 		"package_source": package_source,
 		"enrollment": _get_active_package_enrollment(admission),
 		"package_details": package_details,
+		"package_changes": get_package_changes(admission.name),
 		"quotations": quotations,
 		"summary": {
 			"billed_days": billed_days,
@@ -1165,100 +1174,75 @@ def get_admission_package_details(admission_name):
 
 
 @frappe.whitelist()
-def change_admission_package(admission_name, package_name, rate_per_day=None):
-	"""Change the package applied to an admission.
+def change_admission_package(admission_name, package_name, rate_per_day=None, pricing_mode=None):
+	"""Apply the new snapshot to all unbilled stay days; never rewrite posted charges."""
+	from healthcare.api.package_change_history import record_package_change
+	from healthcare.api.room_package_pricing import resolve_room_package_price, daily_room_package_price
 
-	Billing behaviour: already-ledgered Package Detail rows keep the old package;
-	subsequent stay charges use the new package / daily rate. Pass ``__custom__``
-	as ``package_name`` together with ``rate_per_day`` for a bespoke rate.
-	"""
 	_assert_can_change_admission_package()
 	assert_editing_allowed()
-
-	if not admission_name:
-		frappe.throw(_("Admission name is required"))
-	if not frappe.db.exists("Inpatient Admission", admission_name):
-		frappe.throw(_("Inpatient Admission {0} not found").format(admission_name))
-
+	if not admission_name or not frappe.db.exists("Inpatient Admission", admission_name):
+		frappe.throw(_("Inpatient Admission not found"))
+	# Serialize package changes with charge-to-today/discharge charging.
+	frappe.db.get_value("Inpatient Admission", admission_name, "name", for_update=True)
 	admission = frappe.get_doc("Inpatient Admission", admission_name)
+	admission.check_permission("write")
 	if not _admission_package_is_editable(admission):
 		frappe.throw(_("The package can only be changed before the patient is discharged"))
-
 	package_name = cstr(package_name or "").strip()
 	if not package_name:
 		frappe.throw(_("Package is required"))
-
-	old_key = cstr(admission.get("inpatient_package") or "").strip()
-	old_is_custom = (
-		not old_key
-		and flt(admission.get("rate_per_day") or 0) > 0
-		and not cint(admission.get("standard_package"))
-	)
-	old_label = _("Custom Package") if old_is_custom else _package_display_name(old_key)
-
+	old_key, old_source = _resolve_admission_package(admission)
+	old_rate = flt(admission.get("rate_per_day"))
+	old_mode = admission.get("package_pricing_mode")
+	# Capture the effective pre-change rate, including legacy quotation precedence.
+	from healthcare.api.package_change_history import has_package_change
+	if old_key and not has_package_change(admission_name):
+		from healthcare.api.package_charge_to_today import _find_admission_package_quotation, _package_line_from_quotation
+		old_quote = _find_admission_package_quotation(admission_name, old_key, allow_draft=True)
+		old_line = _package_line_from_quotation(old_quote) if old_quote else None
+		if old_line and flt(old_line.get("rate")) > 0:
+			old_rate = flt(old_line.rate)
+	old_key = "__custom__" if old_source == "custom" else old_key
+	mode = cstr(pricing_mode or "Daily").strip()
 	if package_name == "__custom__":
-		new_key = ""
-		new_label = _("Custom Package")
+		if mode != "Daily":
+			frappe.throw(_("Custom packages use Daily pricing."))
+		new_key, new_label, standard_package = "", _("Custom Package"), 0
 		rate = flt(rate_per_day)
-		standard_package = 0
 		if rate <= 0:
 			frappe.throw(_("Rate per day is required for a custom package"))
 	else:
-		if not frappe.db.exists("Inpatient Package", package_name):
-			frappe.throw(_("Inpatient Package {0} not found").format(package_name))
-		package = frappe.get_doc("Inpatient Package", package_name)
-		if not cint(package.get("active")):
-			frappe.throw(_("Inpatient Package {0} is not active").format(package_name))
-
-		new_key = package.name
-		new_label = package.package_name or package.name
-		rate = _inpatient_package_daily_rate(package)
-		if rate_per_day not in (None, ""):
-			rate = flt(rate_per_day) or rate
-		if rate <= 0:
-			frappe.throw(
-				_("Inpatient Package {0} has no rate. Set a package rate first.").format(
-					new_label
-				)
-			)
-		standard_package = 1
-
-	new_is_custom = package_name == "__custom__"
-	if (
-		old_key == new_key
-		and old_is_custom == new_is_custom
-		and flt(admission.get("rate_per_day") or 0) == rate
-	):
+		pricing = resolve_room_package_price(mode, package_name, 1, admission.company)
+		if mode == "Daily" and (pricing_mode or admission.get("admission_service_unit_type")):
+			pricing = daily_room_package_price(admission.get("admission_service_unit_type"), 1, admission.company)
+		new_key = package_name
+		new_label = _package_display_name(new_key)
+		standard_package, rate = 1, pricing["daily_rate"]
+	if old_key == package_name and old_mode == mode and abs(old_rate - rate) < 0.000000001:
 		result = get_admission_package_details(admission_name)
 		result["message"] = _("Package is already set to {0}").format(new_label)
 		return result
-
-	if admission.meta.has_field("inpatient_package"):
-		admission.inpatient_package = new_key or None
-	if admission.meta.has_field("rate_per_day"):
-		admission.rate_per_day = rate
-	if admission.meta.has_field("standard_package"):
-		admission.standard_package = standard_package
+	quotation_change = None
+	if admission.status in ("Admitted", "Discharge Scheduled"):
+		from healthcare.api.package_change_quotation import create_package_change_quotation
+		quotation_change = create_package_change_quotation(admission, old_key, package_name, mode, rate)
+	admission.inpatient_package = new_key or None
+	admission.rate_per_day = rate
+	admission.package_pricing_mode = mode
+	admission.standard_package = standard_package
 	admission.save(ignore_permissions=True)
-
 	if new_key:
 		_sync_active_package_enrollment(admission, new_key, rate)
-
-	try:
-		admission.add_comment(
-			"Comment",
-			text=_("Inpatient package changed from {0} to {1} at {2}/day.").format(
-				old_label, new_label, flt(rate)
-			),
-		)
-	except Exception:
-		# The audit comment must never block the package change itself.
-		pass
-
-	frappe.db.commit()
-
+	record_package_change(admission, old_key, old_mode, old_rate, package_name, mode, rate, quotation_change)
+	# Frappe commits successful POST requests atomically, including audit history.
 	result = get_admission_package_details(admission_name)
-	result["message"] = _("Package changed to {0}").format(new_label)
+	if quotation_change:
+		result.update(quotation_change)
+		message = _("Package changed to {0}; Draft quotation {1} updated for {2} remaining day(s).") if quotation_change.get("quotation_reused") else _("Package changed to {0}; Draft quotation {1} created for {2} remaining day(s).")
+		result["message"] = message.format(new_label, quotation_change["new_quotation"], quotation_change["quotation_days"])
+	else:
+		result["message"] = _("Package changed to {0}").format(new_label)
 	return result
 
 
@@ -2483,6 +2467,7 @@ def _ensure_observation_sales_order(observation_name: str) -> dict:
 	return {
 		"sales_order": (so_result or {}).get("sales_order"),
 		"existing": bool((so_result or {}).get("existing")),
+		"covered_by_package": bool((so_result or {}).get("covered_by_package")),
 	}
 
 
@@ -2501,6 +2486,7 @@ def _create_observation_from_discharge_if_needed(discharge_doc, admission_name: 
 			"name": existing,
 			"trans_no": frappe.db.get_value("Observation", existing, "trans_no"),
 			"sales_order": so_info.get("sales_order"),
+			"covered_by_package": bool(so_info.get("covered_by_package")),
 			"existing": True,
 		}
 
@@ -2563,6 +2549,7 @@ def _create_observation_from_discharge_if_needed(discharge_doc, admission_name: 
 	return {
 		**created,
 		"sales_order": so_info.get("sales_order"),
+		"covered_by_package": bool(so_info.get("covered_by_package")),
 		"existing": False,
 	}
 
@@ -2695,14 +2682,20 @@ def _item_code_from_healthcare_service_unit(service_unit: str) -> str | None:
 
 
 def _resolve_package_quotation_item(
-	admission, service_unit: str | None = None, service_unit_type: str | None = None
+	admission, service_unit: str | None = None, service_unit_type: str | None = None,
+	package_name: str | None = None, fallback_item=None
 ) -> dict:
-	"""Item for package quotation lines: Service Unit Type Item (not the room/unit itself).
+	"""Resolve the selected package category Item, falling back to the admission Room Type.
 
 	``service_unit`` (room/bed) is optional. When it is not provided, the Room Type
 	(Healthcare Service Unit Type) is used — first the explicit ``service_unit_type``,
 	then the one saved on the admission.
 	"""
+	from healthcare.api.room_package_pricing import package_service_unit_type
+	package_type = package_service_unit_type(package_name)
+	if package_type:
+		service_unit = None
+		service_unit_type = package_type
 	service_unit = (service_unit or "").strip() or None
 	explicit_type = (service_unit_type or "").strip() or None
 	service_unit_type = None
@@ -2729,6 +2722,9 @@ def _resolve_package_quotation_item(
 		item_code = _item_code_from_healthcare_service_unit(service_unit)
 	if not item_code and service_unit_type:
 		item_code = _item_code_from_healthcare_service_unit_type(service_unit_type)
+
+	if not item_code and not service_unit_type and fallback_item:
+		item_code = fallback_item.get("item_code")
 
 	if not item_code:
 		type_label = service_unit_type or _("(not set)")
@@ -4108,6 +4104,7 @@ def admit_patient(
 	is_med_supr_required=None,
 	med_supr_service_code=None,
 	medical_supervision_fee=None,
+	pricing_mode=None,
 ):
 	"""Admit a patient - wrapper for the DocType method"""
 	if not name:
@@ -4130,6 +4127,21 @@ def admit_patient(
 		patient_category = frappe.db.get_value("Patient", record.patient, "category")
 		if patient_category:
 			record.patient_ip_category = patient_category
+
+	if pricing_mode:
+		from healthcare.api.room_package_pricing import resolve_room_package_price
+		pricing = resolve_room_package_price(pricing_mode, inpatient_package, 1, record.company, service_unit_type)
+		inpatient_package = pricing["package_name"]
+		quotes = frappe.get_all("Quotation", filters={"custom_inpatient_admission": name,
+			"custom_package": inpatient_package, "docstatus": ["<", 2]}, pluck="name", order_by="modified desc")
+		quote = frappe.get_doc("Quotation", quotes[0]) if quotes else None
+		if not quote or quote.get("custom_package_pricing_mode") != pricing_mode:
+			frappe.throw(_("Create a quotation for the selected room pricing before admitting."))
+		rate_per_day = flt(quote.get("custom_package_daily_rate"))
+		if rate_per_day <= 0:
+			frappe.throw(_("Quotation daily rate must be positive."))
+		record.package_pricing_mode = pricing_mode
+		standard_package = 1
 
 	# Set package fields if provided
 	if inpatient_package and inpatient_package != '__custom__':
@@ -4373,6 +4385,8 @@ def create_admission_quotation(
 	case_management_services=None,
 	service_unit_type=None,
 	other_services=None,
+	pricing_mode=None,
+	discount_percentage=None,
 ):
 	"""Create a Draft Quotation for admission with package.
 
@@ -4426,6 +4440,12 @@ def create_admission_quotation(
 	if not frappe.db.exists("Customer", customer):
 		frappe.throw(_("Customer {0} linked on Patient {1} was not found").format(customer, patient))
 	
+	pricing = None
+	if pricing_mode:
+		from healthcare.api.room_package_pricing import resolve_room_package_price
+		pricing = resolve_room_package_price(pricing_mode, package_name, days, company, explicit_type or admission.admission_service_unit_type)
+		package_name = pricing["package_name"]
+
 	# Get package details
 	is_custom = package_name == '__custom__'
 	package = None if is_custom else frappe.get_doc('Inpatient Package', package_name)
@@ -4441,10 +4461,13 @@ def create_admission_quotation(
 		},
 		"name",
 		order_by="modified desc",
-	) if enhanced_workflow else None
+	) if enhanced_workflow or pricing_mode else None
 	if existing_name:
 		existing_quotation = frappe.get_doc("Quotation", existing_name)
+
 		if existing_quotation.docstatus == 1:
+			if pricing_mode and existing_quotation.get("custom_package_pricing_mode") != pricing_mode:
+				frappe.throw(_("The submitted quotation uses a different pricing mode and cannot be changed."))
 			return {
 				"success": True,
 				"quotation_name": existing_quotation.name,
@@ -4452,9 +4475,27 @@ def create_admission_quotation(
 				"message": _("Quotation {0} is submitted and cannot be modified").format(existing_quotation.name),
 			}
 		existing_quotation.check_permission("write")
+		if pricing:
+			if not existing_quotation.items or not 0 < flt(total_amount) <= pricing["program_price"] + 0.001:
+				frappe.throw(_("A positive room pricing total within the configured price is required."))
+			info = _resolve_package_quotation_item(admission, service_unit, service_unit_type=explicit_type, package_name=package_name)
+			line = existing_quotation.items[0]
+			line.item_code = info["item_code"]
+			line.item_name = info["item_name"]
+			line.qty = cint(days)
+			from healthcare.api.room_package_pricing import discounted_package_daily_rate
+			line.rate = discounted_package_daily_rate(pricing, days, total_amount, discount_percentage)
+			line.price_list_rate = line.rate
+			line.description = f"Inpatient Package: {package.package_name} - Room type: {info['type_label']} ({cint(days)} days @ {line.rate:.2f}/day)"
+			existing_quotation.custom_package_pricing_mode = pricing_mode
+			existing_quotation.custom_package_daily_rate = line.rate
+			from healthcare.api.room_package_pricing import preserve_room_rate_precision
+			preserve_room_rate_precision(existing_quotation)
 
-		services = _parse_admission_other_services(other_services, package=package)
-		_set_quotation_additional_services(existing_quotation, services)
+		if enhanced_workflow:
+			services = _parse_admission_other_services(other_services, package=package)
+			_set_quotation_additional_services(existing_quotation, services)
+
 		existing_quotation.save()
 		return {
 			"success": True,
@@ -4465,7 +4506,7 @@ def create_admission_quotation(
 
 	# Bill the Service Unit Type Item (not the room / service unit itself)
 	item_info = _resolve_package_quotation_item(
-		admission, service_unit, service_unit_type=explicit_type
+		admission, service_unit, service_unit_type=explicit_type, package_name=package_name
 	)
 	item_code = item_info["item_code"]
 	item_name = item_info["item_name"]
@@ -4484,6 +4525,8 @@ def create_admission_quotation(
 	if enhanced_workflow:
 		quotation.custom_include_lab_tests = cint(package.get("custom_include_lab_tests")) if package else 0
 		quotation.custom_include_observation = cint(package.get("custom_include_observation")) if package else 0
+		quotation.custom_include_therapy_sessions = cint(package.get("include_therapy_sessions")) if package else 0
+		quotation.custom_include_consultations = cint(package.get("include_consultations")) if package else 0
 	quotation.custom_inpatient_admission= admission_name
 	quotation.custom_reference_type = "Inpatient Admission"
 	quotation.custom_reference_name = admission_name
@@ -4509,6 +4552,14 @@ def create_admission_quotation(
 			# Treat as discount on package amount (ignore room-inflated totals above package)
 			daily_rate = passed_total / days_qty
 
+	if pricing:
+		if flt(total_amount) > pricing["program_price"] + 0.001:
+			frappe.throw(_("Room pricing total exceeds the configured price."))
+		from healthcare.api.room_package_pricing import discounted_package_daily_rate
+		daily_rate = discounted_package_daily_rate(pricing, days, total_amount, discount_percentage)
+		quotation.custom_package_pricing_mode = pricing_mode
+		quotation.custom_package_daily_rate = daily_rate
+
 	if daily_rate <= 0:
 		frappe.throw(_("Package daily rate must be greater than zero."))
 
@@ -4520,7 +4571,7 @@ def create_admission_quotation(
 		f"Inpatient Package: {package_label} - "
 		f"Room type: {type_label}"
 		+ (f" ({room_label})" if room_label and room_label != type_label else "")
-		+ f" ({days_qty} days @ {daily_rate}/day)"
+		+ f" ({days_qty} days @ {daily_rate:.2f}/day)"
 	)
 	item_row.qty = days_qty
 	item_row.rate = daily_rate
@@ -4562,6 +4613,8 @@ def create_admission_quotation(
 	
 	# ✅ Save only (Draft)
 	quotation.flags.ignore_mandatory = True
+	from healthcare.api.room_package_pricing import preserve_room_rate_precision
+	preserve_room_rate_precision(quotation)
 	quotation.calculate_taxes_and_totals()
 	# from healthcare.controllers.discount_validation import apply_insurance_discounts
 	# apply_insurance_discounts(quotation)
@@ -4577,22 +4630,28 @@ def create_admission_quotation(
 		'message': _('Quotation {0} created successfully (Draft)').format(quotation.name)
 	}
 
+def _active_admission_quotation_filters(admission_name, package_name):
+    from healthcare.api.package_change_history import active_change_quotation
+    filters = {"custom_inpatient_admission": admission_name,
+        "custom_package": ["is", "not set"] if package_name == "__custom__" else package_name,
+        "docstatus": ["<", 2]}
+    active = active_change_quotation(admission_name, package_name)
+    if active:
+        filters["name"] = active
+    return filters
+
+
 @frappe.whitelist()
-def update_admission_quotation_other_services(admission_name, package_name, other_services, include_lab_tests=None, include_observation=None):
+def update_admission_quotation_other_services(admission_name, package_name, other_services, include_lab_tests=None, include_observation=None, include_therapy_sessions=None, include_consultations=None):
     """Replace only additional-service metadata on an existing Draft quotation."""
     if not admission_name or not package_name:
         frappe.throw(_("Admission and package are required"))
 
     is_custom = package_name == "__custom__"
-    package_filter = ["is", "not set"] if is_custom else package_name
 
     name = frappe.db.get_value(
         "Quotation",
-        {
-            "custom_inpatient_admission": admission_name,
-            "custom_package": package_filter,
-            "docstatus": ["<", 2],
-        },
+        _active_admission_quotation_filters(admission_name, package_name),
         "name",
         order_by="modified desc",
     )
@@ -4614,6 +4673,10 @@ def update_admission_quotation_other_services(admission_name, package_name, othe
         quotation.custom_include_lab_tests = 1 if cint(include_lab_tests) else 0
     if include_observation is not None:
         quotation.custom_include_observation = 1 if cint(include_observation) else 0
+    if include_therapy_sessions is not None:
+        quotation.custom_include_therapy_sessions = 1 if cint(include_therapy_sessions) else 0
+    if include_consultations is not None:
+        quotation.custom_include_consultations = 1 if cint(include_consultations) else 0
     quotation.save()
 
     return {
@@ -4624,26 +4687,32 @@ def update_admission_quotation_other_services(admission_name, package_name, othe
     }
 
 @frappe.whitelist()
-def check_admission_quotation(admission_name, package_name):
+def check_admission_quotation(admission_name, package_name, admission_quotation=False):
     """Check if a quotation already exists for this admission and package."""
 
     if not admission_name or not package_name:
         return {"exists": False}
 
-    is_custom = package_name == "__custom__"
-    package_filter = ["is", "not set"] if is_custom else package_name
 
     existing = frappe.db.get_value(
         "Quotation",
-        {
-            "custom_inpatient_admission": admission_name,
-            "custom_package": package_filter,
-            "docstatus": ["<", 2],
-        },
+        _active_admission_quotation_filters(admission_name, package_name),
         ["name", "docstatus"],
         order_by="modified desc",
         as_dict=True,
     )
+
+    if not existing and cint(admission_quotation) and not _active_admission_quotation_filters(admission_name, package_name).get("name"):
+        # Keep the existing admission package quotation; never pick an unrelated
+        # assessment-fee quotation merely because it was modified more recently.
+        candidates = frappe.get_all("Quotation", filters={"custom_inpatient_admission": admission_name,
+            "docstatus": ["<", 2]}, fields=["name", "docstatus", "custom_package", "custom_package_pricing_mode"],
+            order_by="modified desc", limit_page_length=0)
+        custom_quotes = set(frappe.get_all("Quotation Item", filters={
+            "parent": ["in", [row.name for row in candidates]], "description": ["like", "Inpatient Package:%"]},
+            pluck="parent")) if candidates else set()
+        existing = next((row for row in candidates if row.custom_package or row.custom_package_pricing_mode
+            or row.name in custom_quotes), None)
 
     if existing:
         quotation = frappe.get_doc("Quotation", existing.name)
@@ -4653,8 +4722,12 @@ def check_admission_quotation(admission_name, package_name):
             "exists": True,
             "quotation_name": existing.name,
             "docstatus": existing.docstatus,
+            "pricing_mode": quotation.get("custom_package_pricing_mode"),
+            "package_name": quotation.get("custom_package") or "__custom__",
             "include_lab_tests": cint(quotation.get("custom_include_lab_tests")),
             "include_observation": cint(quotation.get("custom_include_observation")),
+            "include_therapy_sessions": cint(quotation.get("custom_include_therapy_sessions")),
+            "include_consultations": cint(quotation.get("custom_include_consultations")),
             "other_services": [
                 row.healthcare_service_template
                 for row in (quotation.get("custom_additional_services") or [])

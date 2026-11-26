@@ -564,8 +564,8 @@ export const ServiceRequestList = ({
     setOpenActionRow(null)
     setActionLoading(sr.name)
     try {
-      await confirmSessionPayment(sr.name)
-      toast.success('Payment confirmed')
+      const result = await confirmSessionPayment(sr.name)
+      toast.success(result.covered_by_package ? (result.message || 'Service included in the package; no payment required') : 'Payment confirmed')
       doRefetch()
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to confirm payment')

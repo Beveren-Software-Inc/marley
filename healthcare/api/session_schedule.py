@@ -259,6 +259,10 @@ def _default_company(doc=None):
 
 
 def _create_session_schedule_sales_order(doc):
+	from healthcare.api.package_service_coverage import lock_service, coverage_for, covered_response, has_separate_billing, recorded_amount
+	lock_service(doc)
+	if doc.get("transaction_status") == "Cancelled":
+		frappe.throw(_("Cancelled sessions cannot be billed"))
 	existing = _existing_session_schedule_sales_order(doc.name)
 	if existing:
 		so = frappe.get_doc("Sales Order", existing)
@@ -267,6 +271,12 @@ def _create_session_schedule_sales_order(doc):
 			so.submit()
 		status = frappe.db.get_value("Session Schedule", doc.name, "transaction_status")
 		return {"sales_order": so.name, "existing": True, "transaction_status": status}
+
+	coverage = coverage_for(doc, template=doc.get("session_type"))
+	if coverage and has_separate_billing(doc):
+		frappe.throw(_("An existing billing document is linked to this service. Use that document; no new package bill was created."))
+	if coverage:
+		return covered_response(doc, coverage, recorded_amount(doc, "amount"))
 
 	from healthcare.api.patient_file_no_charge import _ensure_patient_customer
 	from healthcare.api.sales_order_cost_center import (
@@ -666,6 +676,9 @@ def create_sales_order_from_session_schedule(session_schedule_name: str):
 
 	doc = frappe.get_doc("Session Schedule", session_schedule_name)
 	result = _create_session_schedule_sales_order(doc)
+	if result.get("covered_by_package"):
+		doc.db_set("transaction_status", "Submitted", update_modified=False)
+		result["message"] = _("Session is covered by the package.")
 	frappe.db.commit()
 	row = doc.as_dict()
 	result.update(_attach_sales_orders([row])[0])

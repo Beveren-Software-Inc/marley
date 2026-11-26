@@ -64,10 +64,14 @@ fixtures = [
                     "Sales Order Item-custom_prescription_frequency",
                     "Quotation-custom_inpatient_admission",
                     "Quotation-custom_package",
+                    "Quotation-custom_package_pricing_mode",
+                    "Quotation-custom_package_daily_rate",
                     "Quotation-custom_additional_services",
                     "Quotation Other Service-custom_service_name",
                     "Quotation-custom_include_lab_tests",
                     "Quotation-custom_include_observation",
+                    "Quotation-custom_include_therapy_sessions",
+                    "Quotation-custom_include_consultations",
                     "Sales Order-custom_healthcare_reference",
                     "Sales Order-custom_reference_type",
                     "Sales Order-custom_column_break_rq7zb",
@@ -796,3 +800,22 @@ treeviews = [
 company_data_to_be_ignored = [
 	"Healthcare Service Unit",
 ]
+
+# Prorated room pricing keeps rate precision across quotation/order/invoice mapping.
+for _pricing_dt in ("Quotation", "Sales Order", "Sales Invoice"):
+    _events = doc_events.setdefault(_pricing_dt, {})
+    _previous = _events.get("before_validate", [])
+    if isinstance(_previous, str):
+        _previous = [_previous]
+    _events["before_validate"] = list(_previous) + ["healthcare.api.room_package_pricing.preserve_room_rate_precision"]
+
+# Snapshot package coverage alongside clinical records, without creating bills.
+for _coverage_dt in ("Session Schedule", "Lab Test", "Patient Appointment"):
+    _coverage_events = doc_events.setdefault(_coverage_dt, {})
+    for _coverage_event in ("after_insert", "on_update", "on_update_after_submit"):
+        _previous_coverage = _coverage_events.get(_coverage_event, [])
+        if isinstance(_previous_coverage, str):
+            _previous_coverage = [_previous_coverage]
+        _coverage_events[_coverage_event] = list(_previous_coverage) + [
+            "healthcare.api.package_service_coverage.snapshot_clinical_coverage"
+        ]

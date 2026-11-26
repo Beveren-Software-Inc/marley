@@ -1067,6 +1067,7 @@ def create_patient_visit(data):
 	if charge_result:
 		result["sales_order"] = charge_result.get("sales_order")
 		result["visit_charge_rate"] = charge_result.get("rate")
+		result["covered_by_package"] = bool(charge_result.get("covered_by_package"))
 	if charge_error:
 		result["visit_charge_error"] = charge_error
 

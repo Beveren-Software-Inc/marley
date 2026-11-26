@@ -67,7 +67,7 @@ export const MarkPatientCheckedOutModal = ({
       if (billNow && billAmount !== null) {
         try {
           const billed = await createAppointmentSalesOrder(appointment.name, true, billAmount)
-          toast.success(`Sales Order ${billed.sales_order} and Invoice ${billed.sales_invoice} created`)
+          toast.success(billed.covered_by_package ? (billed.message || 'Service included in the package; no separate bill created') : `Sales Order ${billed.sales_order} and Invoice ${billed.sales_invoice} created`)
         } catch (billErr) {
           const billMsg = billErr instanceof Error ? billErr.message : 'Billing failed'
           toast.error(`Patient checked out, but billing failed: ${billMsg}`)
