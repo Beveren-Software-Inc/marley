@@ -456,6 +456,32 @@ def _serialize_patient_for_portal(patient_doc):
 
 
 @frappe.whitelist()
+def get_patient_barcode_label(patient: str | None = None) -> dict:
+	"""Patient barcode label data — same size/layout as the lab sample label.
+
+	Used by the Patient list (Edit Patient Details) print button so reception
+	can stick a barcode label on the file without booking a lab request.
+	"""
+	from frappe.utils import now_datetime
+
+	from healthcare.api.service_request import _lab_sample_patient_label_fields
+
+	patient = (patient or "").strip()
+	if not patient:
+		frappe.throw(_("Patient is required"))
+	if not frappe.db.exists("Patient", patient):
+		frappe.throw(_("Patient not found"))
+
+	fields = _lab_sample_patient_label_fields(patient)
+	return {
+		**fields,
+		"patient": patient,
+		"file_no": fields.get("file_no") or patient,
+		"printed_on": now_datetime().strftime("%d-%b-%Y %H:%M %p").upper(),
+	}
+
+
+@frappe.whitelist()
 def get_patient_doc(patient=None):
 	"""Full Patient record for portal edit form (bypasses REST read permission)."""
 	patient = (patient or "").strip()

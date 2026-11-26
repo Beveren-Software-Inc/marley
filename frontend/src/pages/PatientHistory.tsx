@@ -32,9 +32,11 @@ import {
   AlertCircle,
   DollarSign,
   ChevronDown,
+  Printer,
 } from 'lucide-react'
 import { useFormatMoney } from '../hooks/useFormatMoney'
 import { usePatientHistoryListingOpener } from '../utils/patientHistoryListingNavigation'
+import { openPatientBarcodePrint } from '../utils/printPatientBarcode'
 
 export const PatientHistoryPage = () => {
   const formatCurrency = useFormatMoney()
@@ -177,7 +179,19 @@ export const PatientHistoryPage = () => {
             <>
           {/* Demographics */}
           <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
-            <h2 className="font-semibold text-slate-900 mb-3">Patient Demographics</h2>
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <h2 className="font-semibold text-slate-900">Patient Demographics</h2>
+              <button
+                type="button"
+                onClick={() => selectedPatient && openPatientBarcodePrint(selectedPatient)}
+                className="inline-flex items-center gap-1.5 rounded-md border border-primary/20 bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary hover:bg-primary hover:text-white transition-colors"
+                title="Print patient barcode label"
+                aria-label={`Print barcode label for ${selectedPatient}`}
+              >
+                <Printer className="h-3.5 w-3.5" />
+                Print Barcode
+              </button>
+            </div>
             <PatientSummaryCard patient={selectedPatient} />
           </section>
 

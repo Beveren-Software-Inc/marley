@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { usePatients } from '../../hooks/usePatients'
 import { EditPatientModal } from './EditPatientModal'
-import { Pencil, Users } from 'lucide-react'
+import { Pencil, Printer, Users } from 'lucide-react'
 import { useCareContext } from '../../providers/CareContextProvider'
+import { openPatientBarcodePrint } from '../../utils/printPatientBarcode'
 
 interface PatientListProps {
   refreshKey?: string | number
@@ -205,7 +206,7 @@ export const PatientList = ({ refreshKey }: PatientListProps = {}) => {
             Refreshing...
           </div>
         </div>
-        <div className="min-w-[1150px]">
+        <div className="min-w-[1260px]">
           <table className="w-full table-fixed border-separate border-spacing-0">
             <colgroup>
               <col className="w-[90px]" />
@@ -218,6 +219,7 @@ export const PatientList = ({ refreshKey }: PatientListProps = {}) => {
               <col className="w-[100px]" />
               <col className="w-[140px]" />
               <col className="w-[90px]" />
+              <col className="w-[110px]" />
             </colgroup>
 
             <thead>
@@ -252,13 +254,16 @@ export const PatientList = ({ refreshKey }: PatientListProps = {}) => {
                 <th className="sticky top-0 z-10 bg-slate-50 px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase shadow-[0_1px_0_0_rgb(226_232_240)]">
                   Edit Details
                 </th>
+                <th className="sticky top-0 z-10 bg-slate-50 px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase shadow-[0_1px_0_0_rgb(226_232_240)]">
+                  Print Barcode
+                </th>
               </tr>
             </thead>
 
             <tbody className="divide-y divide-slate-200">
               {patients.length === 0 && !loading ? (
                 <tr>
-                  <td colSpan={10} className="p-0">
+                  <td colSpan={11} className="p-0">
                     {debouncedQuery ? (
                       <div className="px-4 py-8 text-center text-slate-500">No Patient Found.</div>
                     ) : (
@@ -346,6 +351,18 @@ export const PatientList = ({ refreshKey }: PatientListProps = {}) => {
                           title="Edit patient"
                         >
                           <Pencil className="w-4 h-4" />
+                        </button>
+                      </td>
+
+                      <td className="px-4 py-3">
+                        <button
+                          type="button"
+                          onClick={() => openPatientBarcodePrint(patient.name)}
+                          className="p-2 rounded-md bg-primary/10 text-primary border border-primary/20 hover:bg-primary hover:text-white transition-colors"
+                          title="Print patient barcode label"
+                          aria-label={`Print barcode label for ${patient.patient_name || patient.name}`}
+                        >
+                          <Printer className="w-4 h-4" />
                         </button>
                       </td>
                     </tr>
