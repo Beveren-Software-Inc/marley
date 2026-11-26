@@ -209,6 +209,44 @@ def get_patient_visit(name):
 	return data
 
 
+@frappe.whitelist()
+def get_patient_visit_barcode_label(name):
+	"""Patient barcode (PB) label data for a Patient Visit.
+
+	Same 2.299in x 1.5in label as the Inpatient Admission PB, but it carries the
+	visit no and visit date instead of the admission / discharge dates.
+	"""
+	from frappe.utils import cstr, getdate
+
+	from healthcare.api.service_request import _lab_sample_patient_label_fields
+
+	if not name:
+		frappe.throw(_("Patient Visit name is required"))
+	if not frappe.db.exists("Patient Visit", name):
+		frappe.throw(_("Patient Visit not found"))
+
+	doc = frappe.get_doc("Patient Visit", name)
+	fields = _lab_sample_patient_label_fields(doc.patient, doc.get("patient_sex"))
+
+	def _fmt(dt):
+		if not dt:
+			return ""
+		try:
+			return getdate(dt).strftime("%d-%b-%y").upper()
+		except Exception:  # noqa: BLE001 - fall back to the raw value for unparsable dates
+			return cstr(dt)
+
+	return {
+		"visit": doc.name,
+		"visit_no": doc.name,
+		"file_no": fields.get("file_no") or doc.get("file_number") or doc.patient or "",
+		"patient_name": fields.get("patient_name") or doc.get("patient_name") or "",
+		"sex": fields.get("sex") or doc.get("patient_sex") or "",
+		"id_number": fields.get("id_number") or doc.get("patient_id_no") or "",
+		"visit_date": _fmt(doc.get("encounter_date")),
+	}
+
+
 def _add_pharmacy_amounts_net_of_returns(rows, pharmacy_amount_map, discount_map, paid_map):
 	"""Add pharmacy SO amounts to visit maps after subtracting POS/DN returns.
 

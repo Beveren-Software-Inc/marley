@@ -40,6 +40,7 @@ import { ClearFiltersButton } from '../ui/ClearFiltersButton'
 import { UploadPatientDocumentsModal } from '../documents/UploadPatientDocumentsModal'
 import { DateFilterInput } from '../ui/DateFilterInput'
 import { Eye } from 'lucide-react'
+import { openPatientVisitBarcodePrint } from '../../utils/printPatientVisitBarcode'
 
 const statusColors: Record<string, string> = {
   'Open': 'warning',
@@ -587,6 +588,17 @@ export const PatientVisitList = ({
                 Edit Visit
               </button>
             )}
+            <button
+              type="button"
+              onClick={() => {
+                openPatientVisitBarcodePrint(visit.value)
+                setOpenActionRow(null)
+              }}
+              className="block w-full text-left px-3 py-2 text-sm text-slate-800 hover:bg-slate-100 font-semibold"
+              title="Print patient barcode label"
+            >
+              PB
+            </button>
             <button
               type="button"
               onClick={() => handleScheduleAdmission(visit)}
