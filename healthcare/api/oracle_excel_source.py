@@ -301,8 +301,15 @@ ORACLE_SOURCES: dict[str, dict[str, Any]] = {
 		"doctype": "Warning Message",
 		"tables": [
 			{
+				"table": "PATIENT_INFO_01",
+				"label": "Patient allergies (ALLERGIES_HISTORY)",
+				"optional": True,
+				"required": ["ALLERGIES_HISTORY"],
+			},
+			{
 				"table": "VISIT_00_01",
 				"label": "Visit allergies (VISIT_ALLERGIES_HISTORY)",
+				"optional": True,
 				"required": ["VISIT_NUM", "VISIT_PATIENT_NUM", "VISIT_ALLERGIES_HISTORY"],
 			},
 		],

@@ -360,11 +360,17 @@ def _check_visit_history() -> dict:
 
 
 def _check_clinical_notes() -> dict:
-	"""Oracle non-empty diagnosis rows vs Clinical Notes imported with OPDX-/OPHX- prefixes.
+	"""Oracle non-empty diagnosis rows vs Clinical Notes that cover them.
 
-	IP doctor notes are counted against Clinical Notes linked to an admission.
-	Missing is an estimate suitable for Clean Check; use Clinical Notes reconcile
-	for exact per-patient gaps.
+	Import naming varies:
+	* OP visits may be ``OPDX-<VISIT_NUM>`` *or* a Doctor Progress Note on
+	  ``Patient Visit`` whose ``trans_no`` is the raw visit number.
+	* History uses ``OPHX-…``.
+	* IP notes are Doctor Progress Notes linked to an admission (or not on a visit).
+
+	Clean Check previously only counted ``OPDX-`` / admission-linked rows, so
+	~100k visit notes looked "missing" even when already imported. This estimate
+	counts those shapes; use Clinical Notes reconcile for exact per-patient gaps.
 	"""
 	from healthcare.api.clinical_note_reconcile import (
 		DOCTOR_PROGRESS_NOTE_TYPE,
@@ -395,6 +401,21 @@ def _check_clinical_notes() -> dict:
 			(f"{OP_TRANS_PREFIX}%",),
 		)[0][0]
 	)
+	# Legacy / workbook OP notes: Doctor Progress Note on Patient Visit with the
+	# raw VISIT_NUM as trans_no (no OPDX- prefix).
+	op_visit_notes = cint(
+		frappe.db.sql(
+			"""
+			select count(*) from `tabClinical Note`
+			where docstatus != 2
+			  and reference_doctype = 'Patient Visit'
+			  and ifnull(trans_no, '') not like %s
+			  and ifnull(trans_no, '') not like %s
+			""",
+			(f"{OP_TRANS_PREFIX}%", f"{HISTORY_TRANS_PREFIX}%"),
+		)[0][0]
+	)
+	op_covered = opdx + op_visit_notes
 	ophx = cint(
 		frappe.db.sql(
 			"""
@@ -409,19 +430,22 @@ def _check_clinical_notes() -> dict:
 			"""
 			select count(*) from `tabClinical Note`
 			where docstatus != 2
-			  and clinical_note_type = %s
+			  and ifnull(trans_no, '') not like %s
+			  and ifnull(trans_no, '') not like %s
 			  and (
 			  	ifnull(inpatient_admission, '') != ''
 			  	or reference_doctype = 'Inpatient Admission'
+			  	or (
+			  		clinical_note_type = %s
+			  		and ifnull(reference_doctype, '') != 'Patient Visit'
+			  	)
 			  )
-			  and ifnull(trans_no, '') not like %s
-			  and ifnull(trans_no, '') not like %s
 			""",
-			(DOCTOR_PROGRESS_NOTE_TYPE, f"{OP_TRANS_PREFIX}%", f"{HISTORY_TRANS_PREFIX}%"),
+			(f"{OP_TRANS_PREFIX}%", f"{HISTORY_TRANS_PREFIX}%", DOCTOR_PROGRESS_NOTE_TYPE),
 		)[0][0]
 	)
-	imported = opdx + ophx + ip_linked
-	missing_op = max(0, oracle_by[SOURCE_OP] - opdx)
+	imported = op_covered + ophx + ip_linked
+	missing_op = max(0, oracle_by[SOURCE_OP] - op_covered)
 	missing_hist = max(0, oracle_by[SOURCE_HISTORY] - ophx)
 	missing_ip = max(0, oracle_by[SOURCE_IP] - ip_linked)
 	missing_total = missing_op + missing_hist + missing_ip
@@ -439,14 +463,21 @@ def _check_clinical_notes() -> dict:
 		"totals": {"oracle": oracle_total, "erpnext": imported, "missing": missing_total},
 		"erpnext": erp,
 		"samples": [
-			{"key": "op", "text": f"OP missing ≈ {missing_op} (Oracle {oracle_by[SOURCE_OP]}, OPDX {opdx})"},
+			{
+				"key": "op",
+				"text": (
+					f"OP missing ≈ {missing_op} "
+					f"(Oracle {oracle_by[SOURCE_OP]}, covered {op_covered} "
+					f"= OPDX {opdx} + visit notes {op_visit_notes})"
+				),
+			},
 			{
 				"key": "history",
 				"text": f"History missing ≈ {missing_hist} (Oracle {oracle_by[SOURCE_HISTORY]}, OPHX {ophx})",
 			},
 			{
 				"key": "ip",
-				"text": f"IP missing ≈ {missing_ip} (Oracle {oracle_by[SOURCE_IP]}, linked {ip_linked})",
+				"text": f"IP missing ≈ {missing_ip} (Oracle {oracle_by[SOURCE_IP]}, covered {ip_linked})",
 			},
 		],
 		"in_sync": missing_total == 0,

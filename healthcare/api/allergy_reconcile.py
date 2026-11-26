@@ -754,14 +754,32 @@ def _run(
 # ---------------------------------------------------------------------------
 
 
+def _allergy_excel_tables(files: Any) -> list[str]:
+	"""Tables to load from the upload — PATIENT_INFO_01 and/or VISIT_00_01."""
+	entries = normalize_files(files)
+	if not entries:
+		return []
+	allowed = {PATIENT_TABLE, VISIT_TABLE}
+	chosen: list[str] = []
+	for entry in entries:
+		table = str(entry.get("table") or "").strip().upper()
+		if table in allowed and table not in chosen:
+			chosen.append(table)
+	if not chosen:
+		frappe.throw(
+			_("Upload PATIENT_INFO_01 (patient allergies) and/or VISIT_00_01 (visit allergies)."),
+			title=_("Oracle Excel Upload"),
+		)
+	return chosen
+
+
 @frappe.whitelist()
 def preview_allergy_reconcile(patient: str = "", limit: int = 0, files=None) -> dict[str, Any]:
 	"""Read-only: which allergy texts still need an is_allergy Warning Message?"""
 	_require_admin()
 	files = normalize_files(files)
-	# Excel upload only needs VISIT_00_01; patient allergies come from
-	# Patient.allergies (and live PATIENT_INFO_01 when Oracle is direct).
-	with excel_source(files, tables=[VISIT_TABLE]) as source:
+	tables = _allergy_excel_tables(files)
+	with excel_source(files, tables=tables) as source:
 		scan = _scan(patient=patient)
 		items = _work_items(scan, patient=patient, limit=limit)
 		result: dict[str, Any] = {
@@ -787,10 +805,14 @@ def preview_allergy_reconcile(patient: str = "", limit: int = 0, files=None) -> 
 				for item in items[:10]
 			],
 		}
-		if source is not None and source.has_table(VISIT_TABLE):
-			result["oracle_table"] = (
-				f"{source.describe(VISIT_TABLE)} + Patient.allergies (ERPNext)"
-			)
+		if source is not None:
+			parts = []
+			if source.has_table(PATIENT_TABLE):
+				parts.append(source.describe(PATIENT_TABLE))
+			if source.has_table(VISIT_TABLE):
+				parts.append(source.describe(VISIT_TABLE))
+			parts.append("Patient.allergies (ERPNext)")
+			result["oracle_table"] = " + ".join(parts)
 	result["in_sync"] = not cint(result["missing_total"])
 	return result
 
@@ -876,7 +898,7 @@ def run_allergy_reconcile(
 
 	outcome: dict[str, Any] = {}
 	try:
-		with excel_source(files, tables=[VISIT_TABLE]):
+		with excel_source(files, tables=_allergy_excel_tables(files)):
 			outcome = _run(token, cint(resume), cint(limit), cint(dry_run), patient or "", files)
 	except Exception:
 		progress = _load_progress() or _new_progress()
