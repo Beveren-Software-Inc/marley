@@ -137,8 +137,8 @@ const fmtAmt = (v: number | null | undefined) =>
 
 const RECEIPT_COLS = [
   ['rv_no', 'RV No.'], ['rv_date', 'RV Date'], ['payment_type', 'Payment Type'],
-  ['file_no', 'File No.'], ['patient_name', 'Patient Name'], ['chq_num', 'Chq Num'],
-  ['chq_date', 'Chq Date'], ['case_no', 'Visit/Case No.'], ['visit_booked_by', 'Visit Booked By'],
+  ['file_no', 'File No.'], ['case_no', 'Visit/Case No.'], ['patient_name', 'Patient Name'],
+  ['chq_num', 'Chq Num'], ['chq_date', 'Chq Date'], ['visit_booked_by', 'Visit Booked By'],
   ['received_by', 'Received By'], ['received_date', 'Received Date'], ['amount', 'Amount'],
 ] as const
 
@@ -187,6 +187,8 @@ const IP_SOA_CATEGORY_ORDER = [
   'Medical Supervision',
   'Medicines',
   'Lab Tests',
+  'Sessions',
+  'Package included sessions',
   'Services',
   'Other Services',
 ]
@@ -228,7 +230,7 @@ function soaCategoryRows(cats: Record<string, any[]>, opts?: { showDays?: boolea
             name === 'Medicines' ||
             name === 'Lab tests' ||
             name === 'Lab Tests'
-          const isSessions = isIp && (cat === 'Services' || cat === 'Package-covered Services')
+          const isSessions = isIp && ['Services', 'Sessions', 'Package included sessions', 'Package-covered Services'].includes(cat)
           const rateCell = isMedOrLab || r.rate == null ? '—' : isIp && cat === 'Room Charge' ? Number(r.rate).toFixed(2) : fmtAmt(r.rate)
           const daysCell = opts?.showDays
             ? `<td class="num">${isMedOrLab || isSessions ? '' : (r.qty ?? '')}</td>`
@@ -838,7 +840,7 @@ export function ReceptionReports() {
     html += `<table><thead><tr><th>Service Category</th><th>Service Code</th><th>Service Name</th><th class="num">Rate (BHD)</th><th class="num">No of Days</th><th class="num">Frequency</th><th class="num">Total Amount (BHD)</th></tr></thead><tbody>${soaCategoryRows(data.categories || {}, { showDays: true })}
       ${soaTotalsFooter(data, 6)}
     </tbody></table>`
-    html += soaPaymentsHtml(data)
+    if (!data.hide_paid_table_in_soa) html += soaPaymentsHtml(data)
     html += `<p class="soa-note" style="margin-top:10px">This is not an invoice, all charges are inclusive of VAT.</p>`
     html += letterHeadBlocks(data.letter_head).footer
     return { html, filename: `soa-${data.case_no || resolvedAdmission}` }

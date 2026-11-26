@@ -18,6 +18,7 @@
   "active",
   "display_batch_and_lot_on_pharmacy_giveout",
   "combine_admission_fee_and_case_management",
+  "hide_paid_table_in_soa",
   "column_break_9",
   "collect_registration_fee",
   "registration_item",
@@ -1283,11 +1284,18 @@
    "fieldname": "enable_enhanced_workflow",
    "fieldtype": "Check",
    "label": "Enable Enhanced Workflow"
+  },
+  {
+   "default": "0",
+   "fieldname": "hide_paid_table_in_soa",
+   "fieldtype": "Check",
+   "label": "Hide Paid Table in SOA"
   }
  ],
  "issingle": 1,
+ "link_display_mode": "Search",
  "links": [],
- "modified": "2026-11-11 12:14:03.816587",
+ "modified": "2026-11-26 12:20:23.549914",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Healthcare Settings",
