@@ -9,7 +9,9 @@ Oracle stores the schedule and the generated visits in two tables:
 
 Matching is not TRANS_NUM-only:
 
-* Setup: ``trans_num``, else same patient + ``from_date`` (Oracle START_DATE).
+* Setup: ``trans_num``, else same patient + ``from_date``, else same patient +
+  ``to_date``, else same patient + overlapping from/to window (ERPNext may have
+  created the setup first; Oracle TRANS_NUM / START_DATE can differ later).
 * Auto visit: ``inv_num`` / ``old_trans_num``, else same patient + encounter
   date + Daily Auto Visit.
 

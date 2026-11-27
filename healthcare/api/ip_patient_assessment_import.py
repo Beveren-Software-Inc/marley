@@ -233,14 +233,66 @@ def _parse_excel_rows(file_url: str) -> tuple[list[dict], dict[str, int], dict[s
 	return deduped, sheet_row_counts, dup_stats
 
 
-def _find_existing_patient_assessment(admission: str) -> str | None:
-	rows = frappe.get_all(
-		"Patient Assessment",
-		filters={"admission": admission, "docstatus": ["!=", 2]},
-		pluck="name",
-		limit=1,
+def _find_existing_patient_assessment(
+	admission: str | None = None,
+	*,
+	written_admission: str | None = None,
+	trans_num: str | None = None,
+) -> str | None:
+	"""Find a stored assessment by admission link, Oracle admission no., or TRANS_NUM."""
+	if admission:
+		rows = frappe.get_all(
+			"Patient Assessment",
+			filters={"admission": admission, "docstatus": ["!=", 2]},
+			pluck="name",
+			limit=1,
+		)
+		if rows:
+			return rows[0]
+	written = _clean_oracle_num(written_admission or "")
+	if written and frappe.get_meta("Patient Assessment").has_field("written_admission"):
+		rows = frappe.get_all(
+			"Patient Assessment",
+			filters={"written_admission": written, "docstatus": ["!=", 2]},
+			pluck="name",
+			limit=1,
+		)
+		if rows:
+			return rows[0]
+	trans = _clean_oracle_num(trans_num or "")
+	if trans:
+		rows = frappe.get_all(
+			"Patient Assessment",
+			filters={"ip_patient_assessment": trans, "docstatus": ["!=", 2]},
+			pluck="name",
+			limit=1,
+		)
+		if rows:
+			return rows[0]
+	return None
+
+
+def _patient_for_orphan_admission(admission_num: str) -> str | None:
+	"""Best-effort patient when Oracle IP_ADMISSION_01 has no row for this admission."""
+	admission_num = _clean_oracle_num(admission_num)
+	if not admission_num:
+		return None
+	if frappe.get_meta("Morse Fall Scale").has_field("written_admission"):
+		patient = frappe.db.get_value(
+			"Morse Fall Scale",
+			{"written_admission": admission_num},
+			"patient_no",
+		)
+		if patient and frappe.db.exists("Patient", patient):
+			return patient
+	patient = frappe.db.get_value(
+		"Morse Fall Scale",
+		{"admission_no": admission_num},
+		"patient_no",
 	)
-	return rows[0] if rows else None
+	if patient and frappe.db.exists("Patient", patient):
+		return patient
+	return None
 
 
 def _append_assessment_sheet(
@@ -286,36 +338,54 @@ def _build_patient_assessment_doc(
 	parameter_abbrev_by_name: dict[str, str],
 	existing_name: str | None = None,
 ):
-	admission_num = row.get("admission_num") or row.get("admission_num_old") or ""
-	admission = _resolve_inpatient_admission(admission_num)
-	if not admission:
-		return None, "skip_no_admission"
+	"""Build a Patient Assessment even when the Inpatient Admission link is missing.
 
-	inpatient = frappe.db.get_value(
-		"Inpatient Admission",
-		admission,
-		["patient", "patient_name", "company", "primary_practitioner", "secondary_practitioner"],
-		as_dict=True,
-	) or {}
-	patient = (_cell_text(inpatient.get("patient")) or "").strip()
-	if not patient:
-		return None, "skip_no_patient"
+	Oracle ADMISSION_NUM is always kept on ``written_admission``. When the
+	admission cannot be resolved (orphan in IP_ADMISSION_01), the Link stays
+	empty and patient is filled from Morse / other hints when possible.
+	"""
+	admission_num = _clean_oracle_num(row.get("admission_num") or row.get("admission_num_old") or "")
+	admission = _resolve_inpatient_admission(admission_num) if admission_num else None
+
+	inpatient = {}
+	patient = ""
+	if admission:
+		inpatient = frappe.db.get_value(
+			"Inpatient Admission",
+			admission,
+			["patient", "patient_name", "company", "primary_practitioner", "secondary_practitioner"],
+			as_dict=True,
+		) or {}
+		patient = (_cell_text(inpatient.get("patient")) or "").strip()
+	if not patient and admission_num:
+		patient = _patient_for_orphan_admission(admission_num) or ""
 
 	if existing_name:
 		doc = frappe.get_doc("Patient Assessment", existing_name)
 	else:
 		doc = frappe.new_doc("Patient Assessment")
 
-	doc.patient = patient
-	doc.patient_name = inpatient.get("patient_name")
+	if patient:
+		doc.patient = patient
+		doc.patient_name = inpatient.get("patient_name") or frappe.db.get_value(
+			"Patient", patient, "patient_name"
+		)
 	doc.assessment_template = template.name
-	doc.reference_type = "Inpatient Admission"
-	doc.encounter = admission
-	doc.admission = admission
-	doc.company = inpatient.get("company")
-	doc.healthcare_practitioner = inpatient.get("primary_practitioner") or inpatient.get("secondary_practitioner")
+	if admission:
+		doc.reference_type = "Inpatient Admission"
+		doc.encounter = admission
+		doc.admission = admission
+		doc.company = inpatient.get("company") or doc.company
+		doc.healthcare_practitioner = (
+			inpatient.get("primary_practitioner")
+			or inpatient.get("secondary_practitioner")
+			or doc.healthcare_practitioner
+		)
+	if admission_num and frappe.get_meta("Patient Assessment").has_field("written_admission"):
+		doc.written_admission = admission_num
+	doc.company = doc.company or frappe.defaults.get_global_default("company")
 	doc.assessment_datetime = _assessment_datetime_from_row(row)
-	trans_num = row.get("trans_num") or ""
+	trans_num = _clean_oracle_num(row.get("trans_num") or "")
 	if trans_num and frappe.db.exists("IP Patient Assessment", trans_num):
 		doc.ip_patient_assessment = trans_num
 	doc.assessment_description = (row.get("history_dscp") or "").strip() or (row.get("others") or "").strip()
@@ -372,12 +442,17 @@ def upsert_patient_assessment_from_row(
 	if parameter_abbrev_by_name is None:
 		parameter_abbrev_by_name = _parameter_abbrev_index()
 
-	admission_num = row.get("admission_num") or row.get("admission_num_old") or ""
-	admission = _resolve_inpatient_admission(admission_num)
-	if not admission:
-		return {"status": "skip_no_admission", "trans_num": row.get("trans_num")}
+	admission_num = _clean_oracle_num(row.get("admission_num") or row.get("admission_num_old") or "")
+	trans_num = _clean_oracle_num(row.get("trans_num") or "")
+	if not trans_num and not admission_num:
+		return {"status": "skip_error", "trans_num": row.get("trans_num")}
 
-	existing = _find_existing_patient_assessment(admission)
+	admission = _resolve_inpatient_admission(admission_num) if admission_num else None
+	existing = _find_existing_patient_assessment(
+		admission,
+		written_admission=admission_num,
+		trans_num=trans_num,
+	)
 	doc, skip_reason = _build_patient_assessment_doc(
 		row,
 		template=template,
@@ -385,17 +460,24 @@ def upsert_patient_assessment_from_row(
 		existing_name=existing,
 	)
 	if skip_reason:
-		return {"status": skip_reason, "trans_num": row.get("trans_num"), "admission": admission}
+		return {
+			"status": skip_reason,
+			"trans_num": trans_num,
+			"admission": admission,
+			"written_admission": admission_num,
+		}
 	if not doc:
-		return {"status": "skip_error", "trans_num": row.get("trans_num")}
+		return {"status": "skip_error", "trans_num": trans_num}
 
 	action = "updated" if existing else "created"
 	submitted = _persist_and_submit_patient_assessment(doc, existing=bool(existing))
 
 	return {
 		"status": action,
-		"trans_num": row.get("trans_num"),
+		"trans_num": trans_num,
 		"admission": admission,
+		"written_admission": admission_num,
+		"unresolved_admission": 1 if admission_num and not admission else 0,
 		"name": doc.name,
 		"submitted": submitted,
 	}

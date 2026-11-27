@@ -5,7 +5,11 @@ Covered tables
 1. **IP Admission**
 
 	Oracle  CLINIC2.IP_ADMISSION_01.ADMISSION_NUM
-	ERPNext tabInpatient Admission.case_no
+	ERPNext tabInpatient Admission.case_no **or** document name (id)
+
+	Some live admissions keep the Oracle number as ``name`` while ``case_no``
+	holds another value; both are treated as a match so those rows are not
+	reported missing.
 
 2. **OP Visit**
 
@@ -488,10 +492,18 @@ def _oracle_admission_keys() -> set[str]:
 
 
 def _erpnext_admission_keys() -> set[str]:
-	values = frappe.db.sql_list(
-		"select case_no from `tabInpatient Admission` where ifnull(case_no, '') != ''"
+	"""Keys that count as already imported: ``case_no`` or document ``name``."""
+	rows = frappe.db.sql(
+		"select name, case_no from `tabInpatient Admission`",
+		as_dict=True,
 	)
-	return {key for key in (_norm_key(value) for value in values) if key}
+	keys: set[str] = set()
+	for row in rows or []:
+		for value in (row.get("case_no"), row.get("name")):
+			key = _norm_key(value)
+			if key:
+				keys.add(key)
+	return keys
 
 
 def _admission_rows_for_keys(keys: list[str]) -> list[dict[str, str]]:
@@ -560,9 +572,9 @@ def _compare_ip_admissions(sample_limit: int) -> dict:
 		"doctype": IP_ADMISSION_SYNC.doctype,
 		"oracle_table": _source_table(IP_ADMISSION_SYNC.oracle_table),
 		"oracle_key": IP_ADMISSION_SYNC.oracle_key,
-		"frappe_key": IP_ADMISSION_SYNC.frappe_key,
+		"frappe_key": "case_no or name",
 		"source_count": len(oracle_keys),
-		"target_count": len(erpnext_keys),
+		"target_count": frappe.db.count("Inpatient Admission"),
 		"missing_count": len(missing_keys),
 		"extra_count": len(extra_keys),
 		"missing_keys": sample_keys,

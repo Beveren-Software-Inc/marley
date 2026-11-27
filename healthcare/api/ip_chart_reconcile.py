@@ -4,10 +4,11 @@ The Healthcare Settings buttons read the matching Oracle table (live, or from
 an uploaded Excel export) and insert only the keys ERPNext does not already
 have. Existing documents are left as they are.
 
-* ``IP_GROOMING_CHART.TRANS_NUM`` -> ``IP Grooming Chart``
+* ``IP_GROOMING_CHART.TRANS_NUM`` -> ``IP Grooming Chart`` (imported even when
+  the admission is missing; Oracle ``ADMISSION_NUM`` stays on ``admission_no_old``)
 * ``IP_MENTAL_STATE.TRANS_NO`` -> ``Mental State`` (document name is the
   Oracle transaction number; desk rows named ``MS-...`` are not treated as
-  those imports)
+  those imports; orphans keep ``ADMISSION_NUM`` on ``admission_num_old``)
 * ``IP_ADMISSION_TRANSFER.TRANS_NUM`` -> ``Transfer Admission Event``
 """
 
@@ -138,10 +139,12 @@ def _map_row(raw: dict, header_map: dict[str, str]) -> dict:
 
 
 def _create_grooming(raw: dict) -> str:
+	"""Create IP Grooming Chart even when admission cannot be resolved."""
 	row = _map_row(raw, GROOMING_HEADER_MAP)
 	trans_num = _clean_oracle_num(row.get("trans_num"))
 	if not trans_num:
 		return "skipped"
+	row["trans_num"] = trans_num
 	if frappe.db.exists("IP Grooming Chart", trans_num) or frappe.db.exists(
 		"IP Grooming Chart", {"trans_num": trans_num}
 	):
@@ -162,6 +165,11 @@ def _create_transfer(raw: dict) -> str:
 
 
 def _create_mental(raw: dict) -> str:
+	"""Create Mental State even when the Inpatient Admission link is missing.
+
+	Oracle ``ADMISSION_NUM`` is kept on ``admission_num_old``. Document name is
+	always the Oracle ``TRANS_NO`` so Clean Check / reconcile can match it.
+	"""
 	trans_no = _clean_oracle_num(raw.get("TRANS_NO"))
 	if not trans_no:
 		return "skipped"
@@ -169,16 +177,18 @@ def _create_mental(raw: dict) -> str:
 		return "exists"
 	admission_num = _clean_oracle_num(raw.get("ADMISSION_NUM"))
 	admission = _resolve_inpatient_admission(admission_num) if admission_num else None
-	if not admission:
-		return "skipped"
-	patient = frappe.db.get_value("Inpatient Admission", admission, "patient")
-	if not patient or not frappe.db.exists("Patient", patient):
-		return "skipped"
+	patient = ""
+	if admission:
+		patient = frappe.db.get_value("Inpatient Admission", admission, "patient") or ""
+		if patient and not frappe.db.exists("Patient", patient):
+			patient = ""
 
 	doc = frappe.new_doc("Mental State")
-	doc.admission_no = admission
-	doc.file_no = patient
-	old = _clean_oracle_num(raw.get("ADMISSION_NUM_OLD"))
+	if admission:
+		doc.admission_no = admission
+	if patient:
+		doc.file_no = patient
+	old = _clean_oracle_num(raw.get("ADMISSION_NUM_OLD")) or admission_num
 	if old:
 		doc.admission_num_old = old
 	if _cell_text(raw.get("TRANS_SHIFT")):
@@ -201,6 +211,7 @@ def _create_mental(raw: dict) -> str:
 		doc.name = trans_no
 		doc.flags.ignore_mandatory = True
 		doc.flags.ignore_links = True
+		doc.flags.ignore_validate = True
 		doc.insert(ignore_permissions=True)
 	finally:
 		frappe.flags.in_import = previous

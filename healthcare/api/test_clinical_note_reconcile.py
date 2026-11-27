@@ -369,6 +369,7 @@ class TestClinicalNoteOracleReads(IntegrationTestCase):
 			)
 
 		self.assertIn("dbms_lob.getlength(DIAGNOSES_DESC) > 0", where_seen[-1])
+		self.assertIn("length(trim(dbms_lob.substr(DIAGNOSES_DESC, 1, 4000))) > 0", where_seen[-1])
 		self.assertIn("ADMISSION_NUM = '2338'", where_seen[-1])
 
 	def test_read_errors_are_not_counted_as_failed_patients(self):
@@ -515,5 +516,37 @@ class TestBlankNotesAreSkipped(UnitTestCase):
 		)
 		kept = connection.execute(f"select count(*) from VISIT_00_01 where {where}").fetchone()[0]
 		self.assertEqual(kept, 1)
+
+	def test_clob_filter_rejects_whitespace_only_notes(self):
+		with patch(
+			"healthcare.api.clinical_note_reconcile._table_columns",
+			return_value=[{"name": "DIAGNOSES_DESC", "type": "CLOB"}],
+		):
+			where = _non_empty_filter("IP_ADMISSION_DIAGNOSES", "DIAGNOSES_DESC")
+
+		self.assertIn("dbms_lob.getlength(DIAGNOSES_DESC) > 0", where)
+		self.assertIn("length(trim(dbms_lob.substr(DIAGNOSES_DESC, 1, 4000))) > 0", where)
+
+	def test_blank_and_newline_only_notes_are_not_missing(self):
+		rows = {
+			SOURCE_OP: [_op_row("1", ""), _op_row("2", "\n"), _op_row("3", "Real note")],
+			SOURCE_HISTORY: [_history_row("4", "2020-01-01", "   \n")],
+			SOURCE_IP: [_ip_row("5", "\n\n"), _ip_row("6", "Ward round")],
+		}
+		covered = {SOURCE_OP: set(), SOURCE_HISTORY: set(), SOURCE_IP: set()}
+
+		self.assertEqual(
+			[key for key, _row in _source_entries(SOURCE_OP, rows[SOURCE_OP])],
+			["3"],
+		)
+		self.assertEqual(_source_entries(SOURCE_HISTORY, rows[SOURCE_HISTORY]), [])
+		self.assertEqual(
+			[key for key, _row in _source_entries(SOURCE_IP, rows[SOURCE_IP])],
+			["6"],
+		)
+		self.assertEqual(
+			[(sample["source"], sample["key"]) for sample in _missing_samples(rows, covered, 10)],
+			[(SOURCE_OP, "3"), (SOURCE_IP, "6")],
+		)
 
 

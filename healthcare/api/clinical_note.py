@@ -337,6 +337,11 @@ def _hide_note_with_no_visit_enabled() -> bool:
 	return bool(cint(frappe.db.get_single_value("Healthcare Settings", "hide_note_with_no_visit")))
 
 
+def _hide_duplicate_progress_notes_enabled() -> bool:
+	"""Healthcare Settings → Hide Deduplicate Prescription also collapses duplicate Progress Notes."""
+	return bool(cint(frappe.db.get_single_value("Healthcare Settings", "hide_deduplicate_prescription")))
+
+
 def _clinical_note_has_visit_reference(note: dict) -> bool:
 	return bool(
 		cstr(note.get("reference_document") or "").strip()
@@ -479,56 +484,70 @@ def get_clinical_notes(**kwargs):
 
 	filter_list, or_filters = _clinical_note_list_filters(kwargs)
 	ignore_permissions = portal_reader and not has_read
-
-	total_count = len(
-		frappe.get_all(
-			'Clinical Note',
-			filters=filter_list,
-			or_filters=or_filters,
-			pluck='name',
-			ignore_permissions=ignore_permissions,
-		)
-	)
-
-	clinical_notes = frappe.get_all(
-		'Clinical Note',
-		filters=filter_list,
-		or_filters=or_filters,
-		fields=[
-			'name',
-			'patient',
-			'posting_date',
-			'practitioner',
-			'user',
-			'username',
-			'cr_id',
-			'clinical_note_type',
-			'medical_role',
-			'note',
-			'reference_doctype',
-			'reference_document',
-			'reference_name',
-			'inpatient_admission',
-			'branch',
-			'creation',
-			'modified',
-			'note_locked',
+	hide_dupes = _hide_duplicate_progress_notes_enabled()
+	# When collapsing duplicates, load the full filtered set then paginate in memory
+	# so same-visit / same-text Oracle reimports do not appear as separate rows.
+	fetch_kwargs = {
+		"filters": filter_list,
+		"or_filters": or_filters,
+		"fields": [
+			"name",
+			"patient",
+			"posting_date",
+			"practitioner",
+			"user",
+			"username",
+			"cr_id",
+			"clinical_note_type",
+			"medical_role",
+			"note",
+			"reference_doctype",
+			"reference_document",
+			"reference_name",
+			"inpatient_admission",
+			"branch",
+			"creation",
+			"modified",
+			"note_locked",
 		],
-		limit=int(limit),
-		limit_start=int(offset),
-		order_by='posting_date desc',
-		ignore_permissions=ignore_permissions,
-	)
-	if _hide_note_with_no_visit_enabled() and not cint(kwargs.get('include_notes_without_visit')):
+		"order_by": "posting_date desc",
+		"ignore_permissions": ignore_permissions,
+	}
+	if not hide_dupes:
+		total_count = len(
+			frappe.get_all(
+				"Clinical Note",
+				filters=filter_list,
+				or_filters=or_filters,
+				pluck="name",
+				ignore_permissions=ignore_permissions,
+			)
+		)
+		fetch_kwargs["limit"] = int(limit)
+		fetch_kwargs["limit_start"] = int(offset)
+
+	clinical_notes = frappe.get_all("Clinical Note", **fetch_kwargs)
+	if _hide_note_with_no_visit_enabled() and not cint(kwargs.get("include_notes_without_visit")):
 		dropped = sum(1 for n in clinical_notes if not _clinical_note_has_visit_reference(n))
 		clinical_notes = [n for n in clinical_notes if _clinical_note_has_visit_reference(n)]
-		total_count = max(0, int(total_count or 0) - dropped)
+		if not hide_dupes:
+			total_count = max(0, int(total_count or 0) - dropped)
+
+	if hide_dupes:
+		from healthcare.api.op_clinical_timeline import _dedupe_progress_notes
+
+		clinical_notes = _dedupe_progress_notes(clinical_notes)
+		total_count = len(clinical_notes)
+		start = int(offset or 0)
+		end = start + int(limit or 50)
+		clinical_notes = clinical_notes[start:end]
+
 	_enrich_clinical_note_rows(clinical_notes)
 	_attach_visit_encounter_dates(clinical_notes)
 
 	return {
-		'data': clinical_notes,
-		'total_count': int(total_count or 0),
+		"data": clinical_notes,
+		"total_count": int(total_count or 0),
 	}
 
 

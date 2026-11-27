@@ -118,7 +118,7 @@ class TestEctDetailsReconcileWorkList(IntegrationTestCase):
 		self.assertEqual([item[0] for item in items], ["550123", "550124", "550300"])
 		self.assertEqual([item[2] for item in items], ["blocked", "blocked", "free"])
 
-	def test_blocked_rows_are_left_out_when_suffix_is_off(self):
+	def test_blocked_rows_are_still_imported_when_suffix_is_off(self):
 		scan = _scan(
 			missing_free=[["550300", "2372"]],
 			missing_blocked=[["550123", "2372", "2356"]],
@@ -126,7 +126,7 @@ class TestEctDetailsReconcileWorkList(IntegrationTestCase):
 
 		items = _work_items(scan, suffix_conflicts=0)
 
-		self.assertEqual([item[0] for item in items], ["550300"])
+		self.assertEqual([item[0] for item in items], ["550123", "550300"])
 
 	def test_limit_keeps_the_first_rows(self):
 		scan = _scan(missing_free=[["550301", "2372"], ["550299", "2372"], ["550300", "2372"]])

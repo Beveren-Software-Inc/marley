@@ -643,11 +643,41 @@ class LongActingMedicine(Document):
 	pass
 
 
+def _resolve_pharmaceutical_form_name(value: str) -> str | None:
+	"""Map a dosage_form string to the real ``Pharmaceutical Form`` name.
+
+	Legacy plan items still store Dosage Form titles (e.g. ``Injection``) while the
+	Link now points at Pharmaceutical Form (``injection``). MySQL link lookups are
+	often case-insensitive, so ``exists("Injection")`` is true even when the
+	stored name is ``injection`` — Frappe then rewrites the case on save and
+	``UpdateAfterSubmitError`` fires on submitted Long Acting Medicine rows.
+	Always return the canonical ``name`` casing from the master.
+	"""
+	value = (value or "").strip()
+	if not value:
+		return None
+	if not frappe.db.exists("DocType", "Pharmaceutical Form"):
+		return value
+	matched = frappe.db.sql(
+		"""
+		select name from `tabPharmaceutical Form`
+		where name = %s or lower(name) = %s
+		order by case when name = %s then 0 else 1 end
+		limit 1
+		""",
+		(value, value.lower(), value),
+	)
+	if matched:
+		return matched[0][0]
+	return None
+
+
 def _sanitize_plan_item_dosage_forms(doc) -> None:
-	"""Clear child dosage_form values that are not valid Pharmaceutical Form links.
+	"""Fix or clear child dosage_form values that are not valid Pharmaceutical Form links.
 
 	Plan items were migrated from Dosage Form → Pharmaceutical Form. Give-out / stop
-	save the whole submitted document; an orphan legacy value would block those actions.
+	/ reconcile save the whole submitted document; an orphan or wrong-case legacy
+	value would block those actions with ``UpdateAfterSubmitError``.
 	"""
 	if not frappe.db.exists("DocType", "Pharmaceutical Form"):
 		return
@@ -655,12 +685,23 @@ def _sanitize_plan_item_dosage_forms(doc) -> None:
 		value = (_row_field(med, "dosage_form") or "").strip()
 		if not value:
 			continue
-		if frappe.db.exists("Pharmaceutical Form", value):
+		resolved = _resolve_pharmaceutical_form_name(value)
+		if resolved == value:
 			continue
+		child_name = _row_field(med, "name")
 		if isinstance(med, dict):
-			med["dosage_form"] = None
+			med["dosage_form"] = resolved
 		else:
-			med.dosage_form = None
+			med.dosage_form = resolved
+		# Keep DB in sync so a submitted save does not see a "change".
+		if child_name and cint(doc.get("docstatus")) == 1:
+			frappe.db.set_value(
+				"Subscription Medication Plan Item",
+				child_name,
+				"dosage_form",
+				resolved,
+				update_modified=False,
+			)
 
 
 @frappe.whitelist()

@@ -10,16 +10,12 @@ the table by hand, so the register drifts from Oracle over time.
 What one run does
 -----------------
 1. Reads ``IP_PATIENT_VITALS`` (live from Oracle, or from its Excel export)
-   and compares it, number by number, with ``tabVital Signs``.
-2. A row counts as imported when a vital-signs document of the *same admission*
-   carries its ``TRANS_NUM``. Rows whose ``TRANS_NUM`` is still free in ERPNext
-   are created via ``upsert_vital_signs_from_row`` (insert-only from this job:
-   existing documents are never updated).
-3. A row whose ``TRANS_NUM`` is already the name of another admission's record
-   is created under ``<TRANS_NUM>-V`` (``-V-2`` if that is taken too).
-4. Before creating, key vitals on the same admission and date are compared
-   (blood pressure, pulse, temperature, SpO2, weight, height). A row whose
-   measures already exist — double-entry from Jul 2 onward — is skipped.
+   and compares **content** with ``tabVital Signs`` (patient, date, ``CR_ID``,
+   BP / pulse / temperature / SpO2 / weight / height) - not ``TRANS_NUM`` alone.
+2. Same content on any ERPNext row is a duplicate: not missing, not imported.
+3. Different content whose ``TRANS_NUM`` is still free is created as that number.
+4. Different content whose ``TRANS_NUM`` is already taken is created under
+   ``<TRANS_NUM>-V`` (``-V-2`` if that is taken too).
 5. Existing vital-signs rows are never edited or deleted.
 
 Execution model matches ``main_nursing_note_reconcile``: site-wide scan, work
@@ -214,14 +210,19 @@ def _sql_text(value: str) -> str:
 
 
 def _norm_measure(value: Any) -> str:
+	"""Normalise a vital measure; blank and zero count as the same."""
 	if value in (None, ""):
 		return ""
 	if isinstance(value, (int, float)):
 		number = flt(value)
+		if number == 0:
+			return ""
 		return str(int(number)) if number == int(number) else str(number)
 	text = str(value).strip().replace(",", "")
 	try:
 		number = flt(text)
+		if number == 0:
+			return ""
 		return str(int(number)) if number == int(number) else str(number)
 	except (TypeError, ValueError):
 		return text.lower()
@@ -240,7 +241,12 @@ def _signs_date_key(row: dict) -> str:
 
 
 def _vitals_fingerprint(row: dict) -> tuple[str, ...]:
-	return (_signs_date_key(row),) + tuple(_norm_measure(row.get(field)) for field in _VITAL_FINGERPRINT_FIELDS)
+	"""Content key: patient + date + CR_ID + vital measures (not TRANS_NUM)."""
+	return (
+		_clean_oracle_num(row.get("patient_file_no") or row.get("patient")),
+		_signs_date_key(row),
+		_clean_oracle_num(row.get("cr_id")),
+	) + tuple(_norm_measure(row.get(field)) for field in _VITAL_FINGERPRINT_FIELDS)
 
 
 def _vitals_fingerprint_from_doc(row: dict) -> tuple[str, ...]:
@@ -250,14 +256,32 @@ def _vitals_fingerprint_from_doc(row: dict) -> tuple[str, ...]:
 			date_key = str(getdate(row.get("signs_date")))
 		except Exception:
 			date_key = str(row.get("signs_date"))[:10]
-	return (date_key,) + tuple(_norm_measure(row.get(field)) for field in _VITAL_FINGERPRINT_FIELDS)
+	return (
+		_clean_oracle_num(row.get("patient")),
+		date_key,
+		_clean_oracle_num(row.get("cr_id")),
+	) + tuple(_norm_measure(row.get(field)) for field in _VITAL_FINGERPRINT_FIELDS)
+
+
+def _content_has_signal(fingerprint: tuple[str, ...]) -> bool:
+	"""True when there is enough content to recognise a duplicate (not blank)."""
+	if not fingerprint:
+		return False
+	# patient, date, cr_id, then measures
+	return any(fingerprint[1:])  # date / cr_id / any measure
+
+
+def _vitals_body(fingerprint: tuple[str, ...]) -> tuple[str, ...]:
+	"""Content without patient - Oracle often leaves PATIENT_FILE_NO blank."""
+	return fingerprint[1:] if fingerprint else fingerprint
 
 
 def _erpnext_admission_num(old_admission_no: str, inpatient_record: str) -> str:
-	num = _clean_oracle_num(old_admission_no)
+	# Prefer the live inpatient link; fall back to the Oracle admission text.
+	num = _clean_oracle_num(inpatient_record)
 	if num:
 		return num
-	return _clean_oracle_num(inpatient_record)
+	return _clean_oracle_num(old_admission_no)
 
 
 # ---------------------------------------------------------------------------
@@ -265,18 +289,13 @@ def _erpnext_admission_num(old_admission_no: str, inpatient_record: str) -> str:
 # ---------------------------------------------------------------------------
 
 
-def _oracle_vital_index() -> dict[str, str]:
-	rows = _query(
-		f"select TRANS_NUM, ADMISSION_NUM from {oracle_schema()}.{ORACLE_TABLE} "
-		"where TRANS_NUM is not null"
-	)
-	index: dict[str, str] = {}
-	for row in rows or []:
-		num = _clean_oracle_num(row.get("TRANS_NUM"))
-		if not num:
-			continue
-		index[num] = _clean_oracle_num(row.get("ADMISSION_NUM"))
-	return index
+def _oracle_vital_rows() -> list[dict]:
+	"""Every Oracle vital with the fields used for content matching."""
+	return _query(
+		"select TRANS_NUM, ADMISSION_NUM, PATIENT_FILE_NO, RECORD_DATE, CR_DATE, CR_ID, "
+		"BP_SYSTOLIC, BP_DIASTOLIC, PULSE, TEMPERATURE, SPO2, WEIGHT, HEIGHT "
+		f"from {oracle_schema()}.{ORACLE_TABLE} where TRANS_NUM is not null"
+	) or []
 
 
 def _oracle_totals() -> dict:
@@ -291,65 +310,115 @@ def _oracle_totals() -> dict:
 	}
 
 
-def _erpnext_page(after: str = "", limit: int = ERP_PAGE) -> list[tuple]:
-	return frappe.db.sql(
+def _erpnext_page(after: str = "", limit: int = ERP_PAGE) -> list[dict]:
+	rows = frappe.db.sql(
 		"""
-		select name, trans_no, ifnull(old_admission_no, ''), ifnull(inpatient_record, '')
+		select name, trans_no,
+			ifnull(patient, '') as patient,
+			ifnull(cr_id, '') as cr_id,
+			ifnull(old_admission_no, '') as old_admission_no,
+			ifnull(inpatient_record, '') as inpatient_record,
+			signs_date,
+			bp_systolic, bp_diastolic, pulse, temperature, spo2, weight, height
 		from `tabVital Signs`
 		where name > %s
 		order by name asc
 		limit %s
 		""",
 		(after, limit),
+		as_dict=True,
 	)
+	return rows or []
 
 
 def _scan() -> dict:
-	totals = _oracle_totals()
-	oracle = _oracle_vital_index()
+	"""Content-based compare: duplicates are not missing.
 
-	missing = set(oracle)
-	blocked: dict[str, str] = {}
-	matched = 0
-	foreign_vitals = 0
-	extra_vitals = 0
+	A row is missing only when no ERPNext vital has the same patient / date /
+	CR_ID / measures. If that content is absent but the plain ``TRANS_NUM`` is
+	already used, it is ``missing_blocked`` (create under a suffix).
+	"""
+	totals = _oracle_totals()
+	erp_contents: set[tuple[str, ...]] = set()
+	erp_bodies: set[tuple[str, ...]] = set()
+	erp_trans: dict[str, tuple[str, ...]] = {}
+	erp_trans_owner: dict[str, str] = {}
 	erp_total = 0
 	after = ""
 	while True:
 		rows = _erpnext_page(after)
 		if not rows:
 			break
-		for _name, trans_no, old_admission_no, inpatient_record in rows:
-			after = _name
+		for row in rows:
+			after = row.get("name") or after
 			erp_total += 1
-			key = _numeric_key(trans_no)
-			admission = _erpnext_admission_num(old_admission_no, inpatient_record)
-			owner = oracle.get(key)
-			if owner is None:
-				extra_vitals += 1
-				continue
-			if owner == admission:
-				blocked.pop(key, None)
-				if key in missing:
-					missing.discard(key)
-					matched += 1
-				continue
-			foreign_vitals += 1
-			if key in missing:
-				blocked.setdefault(key, admission)
+			fingerprint = _vitals_fingerprint_from_doc(row)
+			if _content_has_signal(fingerprint):
+				erp_contents.add(fingerprint)
+				erp_bodies.add(_vitals_body(fingerprint))
+			key = _numeric_key(row.get("trans_no") or row.get("name"))
+			if key:
+				erp_trans[key] = fingerprint
+				erp_trans_owner[key] = _erpnext_admission_num(
+					row.get("old_admission_no") or "",
+					row.get("inpatient_record") or "",
+				) or "?"
 		if len(rows) < ERP_PAGE:
 			break
 
-	missing_free = [[num, oracle[num]] for num in missing if num not in blocked]
-	missing_blocked = [[num, oracle[num], blocked[num]] for num in blocked if num in missing]
+	def _content_present(fingerprint: tuple[str, ...]) -> bool:
+		if not _content_has_signal(fingerprint):
+			return False
+		if fingerprint in erp_contents:
+			return True
+		# Oracle PATIENT_FILE_NO is often blank; still match on date/cr_id/measures.
+		if not fingerprint[0] and _vitals_body(fingerprint) in erp_bodies:
+			return True
+		return False
+
+	matched = 0
+	duplicate_content = 0
+	missing_free: list[list] = []
+	missing_blocked: list[list] = []
+	oracle_admissions: set[str] = set()
+
+	for raw in _oracle_vital_rows():
+		prepared = _prepare_row(raw)
+		if not prepared:
+			continue
+		num = prepared["trans_num"]
+		admission = prepared.get("admission_num") or ""
+		if admission:
+			oracle_admissions.add(admission)
+		fingerprint = _vitals_fingerprint(prepared)
+		if _content_present(fingerprint):
+			matched += 1
+			duplicate_content += 1
+			continue
+		erp_fp = erp_trans.get(num)
+		if erp_fp is not None and (
+			erp_fp == fingerprint
+			or (
+				_content_has_signal(fingerprint)
+				and _vitals_body(erp_fp) == _vitals_body(fingerprint)
+			)
+		):
+			matched += 1
+			continue
+		if num in erp_trans:
+			# Same number, different content → create a new suffixed row.
+			missing_blocked.append([num, admission, erp_trans_owner.get(num, "?")])
+			continue
+		missing_free.append([num, admission])
 
 	return {
-		"oracle_rows": totals["oracle_rows"],
-		"oracle_admissions": totals["oracle_admissions"],
+		"oracle_rows": totals["oracle_rows"] or (matched + len(missing_free) + len(missing_blocked)),
+		"oracle_admissions": totals["oracle_admissions"] or len(oracle_admissions),
 		"erpnext_vitals": erp_total,
 		"matched_vitals": matched,
-		"extra_vitals": extra_vitals,
-		"foreign_vitals": foreign_vitals,
+		"duplicate_content": duplicate_content,
+		"extra_vitals": 0,
+		"foreign_vitals": len(missing_blocked),
 		"missing_free": missing_free,
 		"missing_blocked": missing_blocked,
 	}
@@ -400,16 +469,26 @@ def _resolve_admission(row: dict) -> str | None:
 	return None
 
 
-def _existing_vitals(admission: str) -> tuple[set[str], set[tuple[str, ...]]]:
+def _existing_vitals(admission: str, patient: str = "") -> set[tuple[str, ...]]:
+	"""Content fingerprints already stored for this admission (or patient)."""
+	filters: dict[str, str] = {}
+	if admission:
+		filters["inpatient_record"] = admission
+	elif patient:
+		filters["patient"] = patient
+	else:
+		return set()
 	rows = frappe.get_all(
 		DOCTYPE,
-		filters={"inpatient_record": admission},
-		fields=["trans_no", *_VITAL_FINGERPRINT_FIELDS, "signs_date"],
+		filters=filters,
+		fields=["patient", "cr_id", *_VITAL_FINGERPRINT_FIELDS, "signs_date"],
 		limit_page_length=0,
 	)
-	numbers = {_numeric_key(row.get("trans_no")) for row in rows if row.get("trans_no")}
-	fingerprints = {_vitals_fingerprint_from_doc(row) for row in rows}
-	return numbers, fingerprints
+	return {
+		_vitals_fingerprint_from_doc(row)
+		for row in rows
+		if _content_has_signal(_vitals_fingerprint_from_doc(row))
+	}
 
 
 def _free_suffixed_trans_no(trans_num: str) -> str:
@@ -440,39 +519,40 @@ def _process_chunk(
 	dry_run: int = 0,
 	suffix_conflicts: int = 1,
 ) -> None:
+	"""Create only when content is not already present; suffix when TRANS_NUM is taken."""
+	_ = suffix_conflicts
 	numbers = [item[0] for item in items]
 	prepared = [row for row in (_prepare_row(raw) for raw in _oracle_rows_by_numbers(numbers)) if row]
 
-	by_admission: dict[str, list[dict]] = {}
+	by_scope: dict[tuple[str, str], list[dict]] = {}
 	for row in prepared:
-		admission = _resolve_admission(row)
-		if not admission:
+		admission = _resolve_admission(row) or ""
+		patient = _clean_oracle_num(row.get("patient_file_no"))
+		if not admission and not patient:
 			progress["skipped_no_admission"] = cint(progress.get("skipped_no_admission")) + 1
 			_record_samples(
 				progress,
-				[f"{row['trans_num']}: no Inpatient Admission for {row.get('admission_num') or '?'}"],
+				[f"{row['trans_num']}: no Inpatient Admission / Patient for {row.get('admission_num') or '?'}"],
 			)
 			continue
-		by_admission.setdefault(admission, []).append(row)
+		by_scope.setdefault((admission, patient), []).append(row)
 
-	for admission, rows in by_admission.items():
-		existing_numbers, fingerprints = _existing_vitals(admission)
+	for (admission, patient), rows in by_scope.items():
+		fingerprints = _existing_vitals(admission, patient)
+		bodies = {_vitals_body(fp) for fp in fingerprints}
 		for row in rows:
 			trans_num = row["trans_num"]
-			if trans_num in existing_numbers:
-				progress["skipped_existing"] = cint(progress.get("skipped_existing")) + 1
-				continue
 			fingerprint = _vitals_fingerprint(row)
-			if fingerprint[0] and fingerprint in fingerprints:
+			same = _content_has_signal(fingerprint) and (
+				fingerprint in fingerprints
+				or (not fingerprint[0] and _vitals_body(fingerprint) in bodies)
+			)
+			if same:
 				progress["skipped_same_content"] = cint(progress.get("skipped_same_content")) + 1
 				continue
 
 			create_num = trans_num
 			if frappe.db.exists(DOCTYPE, trans_num):
-				if not cint(suffix_conflicts):
-					progress["skipped_conflict"] = cint(progress.get("skipped_conflict")) + 1
-					_record_samples(progress, [f"{_row_label(row)} (trans no taken)"])
-					continue
 				create_num = _free_suffixed_trans_no(trans_num)
 
 			if frappe.db.exists(DOCTYPE, create_num):
@@ -482,10 +562,11 @@ def _process_chunk(
 			progress["created"] = cint(progress.get("created")) + 1
 			if create_num != trans_num:
 				progress["suffixed_trans_nos"] = cint(progress.get("suffixed_trans_nos")) + 1
-			_record_samples(progress, [f"{create_num} · admission {admission} · {_row_label(row)}"])
+			scope = admission or patient
+			_record_samples(progress, [f"{create_num} · {scope} · {_row_label(row)}"])
 			if cint(dry_run):
-				fingerprints.add(fingerprint)
-				existing_numbers.add(trans_num)
+				if _content_has_signal(fingerprint):
+					fingerprints.add(fingerprint)
 				continue
 
 			try:
@@ -501,15 +582,17 @@ def _process_chunk(
 			elif status == "skip_no_patient":
 				progress["skipped_no_patient"] = cint(progress.get("skipped_no_patient")) + 1
 				progress["created"] = cint(progress.get("created")) - 1
-			elif status == "updated":
-				progress["skipped_existing"] = cint(progress.get("skipped_existing")) + 1
+			elif status in ("skip_duplicate", "updated"):
+				progress["skipped_same_content" if status == "skip_duplicate" else "skipped_existing"] = (
+					cint(progress.get("skipped_same_content" if status == "skip_duplicate" else "skipped_existing"))
+					+ 1
+				)
 				progress["created"] = cint(progress.get("created")) - 1
 			elif status != "created":
 				_record_errors(progress, [f"{create_num}: {status or 'unexpected result'}"])
 				progress["created"] = cint(progress.get("created")) - 1
-			else:
+			elif _content_has_signal(fingerprint):
 				fingerprints.add(fingerprint)
-				existing_numbers.add(_numeric_key(create_num))
 
 
 # ---------------------------------------------------------------------------
@@ -544,12 +627,12 @@ def _work_items(
 	limit: int = 0,
 	suffix_conflicts: int = 1,
 ) -> list[list[str]]:
+	_ = suffix_conflicts
 	items = [[num, admission_num, "free"] for num, admission_num in scan.get("missing_free") or []]
-	if cint(suffix_conflicts):
-		items.extend(
-			[num, admission_num, "blocked"]
-			for num, admission_num, _claimant in scan.get("missing_blocked") or []
-		)
+	items.extend(
+		[num, admission_num, "blocked"]
+		for num, admission_num, _claimant in scan.get("missing_blocked") or []
+	)
 
 	allowed = _allowed_admissions(patient, admission)
 	if allowed is not None:
@@ -570,9 +653,9 @@ def _summary_message(progress: dict) -> str:
 		_("Vital-signs rows in Oracle: {0}").format(cint(progress.get("oracle_rows"))),
 		_("Admissions in Oracle: {0}").format(cint(progress.get("oracle_admissions"))),
 		_("Vital Signs in ERPNext: {0}").format(cint(progress.get("erpnext_vitals"))),
-		_("Rows already matched by trans number: {0}").format(cint(progress.get("matched_vitals"))),
-		_("Missing - trans number still free: {0}").format(cint(progress.get("missing_free"))),
-		_("Missing - trans number used by another admission: {0}").format(
+		_("Rows already matched by content: {0}").format(cint(progress.get("matched_vitals"))),
+		_("Missing - new content, trans number free: {0}").format(cint(progress.get("missing_free"))),
+		_("Missing - new content, trans number taken (will suffix): {0}").format(
 			cint(progress.get("missing_blocked"))
 		),
 		"",
@@ -786,6 +869,7 @@ def preview_vital_signs_reconcile(
 			"oracle_admissions": scan["oracle_admissions"],
 			"erpnext_vitals": scan["erpnext_vitals"],
 			"matched_vitals": scan["matched_vitals"],
+			"duplicate_content": scan.get("duplicate_content") or 0,
 			"extra_vitals": scan["extra_vitals"],
 			"foreign_vitals": scan["foreign_vitals"],
 			"missing_free": sum(1 for item in items if item[2] == "free"),

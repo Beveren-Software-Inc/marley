@@ -164,21 +164,29 @@ def _apply_detail_rows(doc, row: dict) -> int:
 
 
 def _build_morse_fall_scale_fields(row: dict) -> tuple[dict[str, Any], dict[str, int]]:
-	stats = {"patients_created": 0}
-	admission_num = row.get("admission_num") or ""
-	admission = _resolve_inpatient_admission(admission_num, row.get("patient_num"))
-	if not admission:
-		return {}, {"skip_no_admission": 1}
+	"""Build Morse Fall Scale fields even when admission / patient links are missing.
 
-	patient, patients_created = _resolve_patient(row, admission)
+	Oracle ADMISSION_NUM is always kept on ``written_admission``. When the
+	Inpatient Admission cannot be resolved (often because that admission is
+	also absent in Oracle / ERPNext), the Link stays empty and the scale is
+	still created so every MORSE_FALL_SCALE_01 row can import.
+	"""
+	stats = {"patients_created": 0, "unresolved_admission": 0, "unresolved_patient": 0}
+	admission_num = _clean_oracle_num(row.get("admission_num")) or ""
+	admission = (
+		_resolve_inpatient_admission(admission_num, row.get("patient_num")) if admission_num else None
+	)
+	if admission_num and not admission:
+		stats["unresolved_admission"] = 1
+
+	patient, patients_created = _resolve_patient(row, admission or "")
 	stats["patients_created"] = patients_created
 	if not patient:
-		return {}, {"skip_no_patient": 1}
+		stats["unresolved_patient"] = 1
 
 	fields: dict[str, Any] = {
 		"trans_no": row["trans_num"],
-		"admission_no": admission,
-		"patient_no": patient,
+		# Always store the Oracle admission number for orphan / missing links.
 		"written_admission": admission_num or None,
 		"date": _parse_trans_date(row.get("trans_date")),
 		"orderer_number": row.get("order_num") or None,
@@ -187,6 +195,10 @@ def _build_morse_fall_scale_fields(row: dict) -> tuple[dict[str, Any], dict[str,
 		"cr_id": row.get("cr_id") or None,
 		"up_id": row.get("up_id") or None,
 	}
+	if admission:
+		fields["admission_no"] = admission
+	if patient:
+		fields["patient_no"] = patient
 	cr_date = _legacy_data_datetime(row.get("cr_date"))
 	if cr_date:
 		fields["cr_date"] = cr_date
@@ -215,11 +227,7 @@ def upsert_morse_fall_scale_from_row(row: dict) -> dict:
 		return {"status": "skip_no_trans_num"}
 
 	fields, side_stats = _build_morse_fall_scale_fields(row)
-	if side_stats.get("skip_no_admission"):
-		return {"status": "skip_no_admission", "trans_num": trans_num}
-	if side_stats.get("skip_no_patient"):
-		return {"status": "skip_no_patient", "trans_num": trans_num}
-	if not fields:
+	if not fields or not fields.get("trans_no"):
 		return {"status": "skip_error", "trans_num": trans_num}
 
 	existing_name = frappe.db.exists("Morse Fall Scale", trans_num)
@@ -234,12 +242,14 @@ def upsert_morse_fall_scale_from_row(row: dict) -> dict:
 	else:
 		doc = frappe.new_doc("Morse Fall Scale")
 		doc.update(fields)
+		# Autoname is field:trans_no; set name explicitly so reconcile matching
+		# works even when admission / patient links are empty.
+		doc.name = trans_num
 		action = "created"
 		existing = False
 
+	# Always create/update the parent even when TEXT_MESSAGE_1..7 are blank.
 	detail_count = _apply_detail_rows(doc, row)
-	if detail_count == 0:
-		return {"status": "skip_empty_details", "trans_num": trans_num}
 
 	_persist_morse_fall_scale(doc, existing=existing)
 	return {
@@ -248,6 +258,8 @@ def upsert_morse_fall_scale_from_row(row: dict) -> dict:
 		"name": doc.name,
 		"detail_rows": detail_count,
 		"patients_created": side_stats.get("patients_created", 0),
+		"unresolved_admission": cint(side_stats.get("unresolved_admission")),
+		"unresolved_patient": cint(side_stats.get("unresolved_patient")),
 	}
 
 
@@ -334,7 +346,8 @@ def run_morse_fall_scale_import_batch(*, offset: int = 0) -> dict:
 	if not batch_keys:
 		return {"processed": offset, "done": True, "batch_count": 0}
 
-	created = updated = skip_no_admission = skip_no_patient = skip_empty_details = patients_created = 0
+	created = updated = patients_created = 0
+	unresolved_admission = unresolved_patient = empty_details = 0
 	errors: list[str] = []
 
 	for key in batch_keys:
@@ -346,13 +359,11 @@ def run_morse_fall_scale_import_batch(*, offset: int = 0) -> dict:
 				created += 1
 			elif status == "updated":
 				updated += 1
-			elif status == "skip_no_admission":
-				skip_no_admission += 1
-			elif status == "skip_no_patient":
-				skip_no_patient += 1
-			elif status == "skip_empty_details":
-				skip_empty_details += 1
 			patients_created += cint(result.get("patients_created"))
+			unresolved_admission += cint(result.get("unresolved_admission"))
+			unresolved_patient += cint(result.get("unresolved_patient"))
+			if cint(result.get("detail_rows")) == 0:
+				empty_details += 1
 		except Exception:
 			errors.append(f"{key}: {frappe.get_traceback()}")
 			frappe.log_error(title=f"MORSE_FALL_SCALE_01 import failed: {key}")
@@ -365,9 +376,13 @@ def run_morse_fall_scale_import_batch(*, offset: int = 0) -> dict:
 		"batch_count": len(batch_keys),
 		"created": created,
 		"updated": updated,
-		"skip_no_admission": skip_no_admission,
-		"skip_no_patient": skip_no_patient,
-		"skip_empty_details": skip_empty_details,
+		# Kept for older poll messages; admission/patient gaps no longer block create.
+		"skip_no_admission": 0,
+		"skip_no_patient": 0,
+		"skip_empty_details": 0,
+		"unresolved_admission": unresolved_admission,
+		"unresolved_patient": unresolved_patient,
+		"empty_details": empty_details,
 		"patients_created": patients_created,
 		"errors": len(errors),
 	}

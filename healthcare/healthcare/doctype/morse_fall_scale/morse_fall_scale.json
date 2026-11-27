@@ -39,12 +39,12 @@
   },
   {
    "fetch_from": "admission_no.patient",
+   "fetch_if_empty": 1,
    "fieldname": "patient_no",
    "fieldtype": "Link",
    "in_list_view": 1,
    "label": "Patient No",
-   "options": "Patient",
-   "read_only": 1
+   "options": "Patient"
   },
   {
    "fieldname": "column_break_patient",
@@ -120,9 +120,12 @@
    "label": "UP Date"
   },
   {
+   "description": "Oracle ADMISSION_NUM. Kept even when Admission No cannot be linked (admission missing in ERPNext / Oracle).",
    "fieldname": "written_admission",
    "fieldtype": "Data",
-   "label": "Written Admission"
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Missing / Oracle Admission"
   },
   {
    "fieldname": "date",

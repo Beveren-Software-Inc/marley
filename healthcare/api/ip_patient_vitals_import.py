@@ -29,6 +29,18 @@ CACHE_KEYS = {
 	"rows": "healthcare:data_migration:ip_patient_vitals_import:rows",
 }
 
+# When TRANS_NUM is already used for different content, create under this suffix.
+CONFLICT_SUFFIX = "-V"
+_VITAL_FINGERPRINT_FIELDS = (
+	"bp_systolic",
+	"bp_diastolic",
+	"pulse",
+	"temperature",
+	"spo2",
+	"weight",
+	"height",
+)
+
 EXCEL_HEADER_MAP = {
 	"TRANS_NUM": "trans_num",
 	"PATIENT_FILE_NO": "patient_file_no",
@@ -329,7 +341,109 @@ def _persist_and_submit_vital_signs(doc, *, existing: bool) -> bool:
 		return False
 
 
+def _norm_measure(value: Any) -> str:
+	"""Blank and zero count as the same for content matching."""
+	if value in (None, ""):
+		return ""
+	if isinstance(value, (int, float)):
+		number = flt(value)
+		if number == 0:
+			return ""
+		return str(int(number)) if number == int(number) else str(number)
+	text = str(value).strip().replace(",", "")
+	try:
+		number = flt(text)
+		if number == 0:
+			return ""
+		return str(int(number)) if number == int(number) else str(number)
+	except (TypeError, ValueError):
+		return text.lower()
+
+
+def _vitals_content_key(fields: dict) -> tuple[str, ...]:
+	"""Patient + date + CR_ID + measures — not TRANS_NUM."""
+	date_key = ""
+	if fields.get("signs_date"):
+		try:
+			date_key = str(getdate(fields.get("signs_date")))
+		except Exception:
+			date_key = str(fields.get("signs_date"))[:10]
+	return (
+		_clean_oracle_num(fields.get("patient")),
+		date_key,
+		_clean_oracle_num(fields.get("cr_id")),
+	) + tuple(_norm_measure(fields.get(field)) for field in _VITAL_FINGERPRINT_FIELDS)
+
+
+def _content_has_signal(fingerprint: tuple[str, ...]) -> bool:
+	if not fingerprint:
+		return False
+	return any(fingerprint[1:])
+
+
+def _vitals_body(fingerprint: tuple[str, ...]) -> tuple[str, ...]:
+	return fingerprint[1:] if fingerprint else fingerprint
+
+
+def _free_suffixed_trans_no(trans_num: str) -> str:
+	candidate = f"{trans_num}{CONFLICT_SUFFIX}"
+	index = 2
+	while frappe.db.exists("Vital Signs", candidate):
+		candidate = f"{trans_num}{CONFLICT_SUFFIX}-{index}"
+		index += 1
+	return candidate
+
+
+def _admission_content_sets(admission: str, patient: str = "") -> tuple[set[tuple[str, ...]], set[tuple[str, ...]]]:
+	filters: dict[str, str] = {}
+	if admission:
+		filters["inpatient_record"] = admission
+	elif patient:
+		filters["patient"] = patient
+	else:
+		return set(), set()
+	rows = frappe.get_all(
+		"Vital Signs",
+		filters=filters,
+		fields=["patient", "cr_id", "signs_date", *_VITAL_FINGERPRINT_FIELDS],
+		limit_page_length=0,
+	)
+	contents: set[tuple[str, ...]] = set()
+	bodies: set[tuple[str, ...]] = set()
+	for row in rows:
+		fp = _vitals_content_key(row)
+		if _content_has_signal(fp):
+			contents.add(fp)
+			bodies.add(_vitals_body(fp))
+	return contents, bodies
+
+
+def _content_already_present(fields: dict) -> bool:
+	fingerprint = _vitals_content_key(fields)
+	if not _content_has_signal(fingerprint):
+		return False
+	contents, bodies = _admission_content_sets(
+		fields.get("inpatient_record") or "",
+		fields.get("patient") or "",
+	)
+	if fingerprint in contents:
+		return True
+	# Oracle often leaves PATIENT_FILE_NO blank; match on date/cr_id/measures alone.
+	if not fingerprint[0] and _vitals_body(fingerprint) in bodies:
+		return True
+	if _vitals_body(fingerprint) in bodies and fingerprint[0]:
+		# Same reading already stored (possibly under blank/other patient resolution).
+		return True
+	return False
+
+
 def upsert_vital_signs_from_row(row: dict) -> dict:
+	"""Create Vital Signs from a legacy row.
+
+	Never overwrite a different reading that already owns ``TRANS_NUM``.
+	If that number is taken and the content is new, insert under ``-V`` (then ``-V-2``…).
+	Skip when the same patient/date/CR_ID/measures are already on the admission.
+	"""
 	trans_num = row.get("trans_num")
 	if not trans_num:
 		return {"status": "skip_no_trans_num"}
@@ -342,25 +456,30 @@ def upsert_vital_signs_from_row(row: dict) -> dict:
 	if not fields:
 		return {"status": "skip_error", "trans_num": trans_num}
 
-	existing = frappe.db.exists("Vital Signs", trans_num)
-	if existing:
-		doc = frappe.get_doc("Vital Signs", trans_num)
-		for key, value in fields.items():
-			if key == "trans_no":
-				continue
-			doc.set(key, value)
-		action = "updated"
-	else:
-		doc = frappe.new_doc("Vital Signs")
-		doc.update(fields)
-		action = "created"
+	if _content_already_present(fields):
+		return {
+			"status": "skip_duplicate",
+			"trans_num": trans_num,
+			**side_stats,
+		}
 
-	submitted = _persist_and_submit_vital_signs(doc, existing=bool(existing))
+	create_num = trans_num
+	suffixed = False
+	if frappe.db.exists("Vital Signs", create_num):
+		create_num = _free_suffixed_trans_no(trans_num)
+		suffixed = True
+
+	fields["trans_no"] = create_num
+	doc = frappe.new_doc("Vital Signs")
+	doc.update(fields)
+
+	submitted = _persist_and_submit_vital_signs(doc, existing=False)
 	return {
-		"status": action,
+		"status": "created",
 		"trans_num": trans_num,
 		"name": doc.name,
 		"submitted": submitted,
+		"suffixed": suffixed,
 		**side_stats,
 	}
 
@@ -447,7 +566,8 @@ def run_ip_patient_vitals_import_batch(*, offset: int = 0) -> dict:
 	if not batch_keys:
 		return {"processed": offset, "done": True, "batch_count": 0}
 
-	created = updated = submitted = skip_no_admission = skip_no_patient = patients_created = 0
+	created = updated = submitted = skip_no_admission = skip_no_patient = 0
+	skip_duplicate = suffixed = patients_created = 0
 	errors: list[str] = []
 
 	for key in batch_keys:
@@ -457,8 +577,12 @@ def run_ip_patient_vitals_import_batch(*, offset: int = 0) -> dict:
 			status = result.get("status")
 			if status == "created":
 				created += 1
+				if result.get("suffixed"):
+					suffixed += 1
 			elif status == "updated":
 				updated += 1
+			elif status == "skip_duplicate":
+				skip_duplicate += 1
 			elif status == "skip_no_admission":
 				skip_no_admission += 1
 			elif status == "skip_no_patient":
@@ -478,6 +602,8 @@ def run_ip_patient_vitals_import_batch(*, offset: int = 0) -> dict:
 		"batch_count": len(batch_keys),
 		"created": created,
 		"updated": updated,
+		"suffixed": suffixed,
+		"skip_duplicate": skip_duplicate,
 		"submitted": submitted,
 		"skip_no_admission": skip_no_admission,
 		"skip_no_patient": skip_no_patient,
