@@ -4129,15 +4129,20 @@ def admit_patient(
 			record.patient_ip_category = patient_category
 
 	if pricing_mode:
-		from healthcare.api.room_package_pricing import resolve_room_package_price
+		from healthcare.api.room_package_pricing import (
+			ensure_quotation_pricing_fields,
+			resolve_room_package_price,
+		)
+		ensure_quotation_pricing_fields()
 		pricing = resolve_room_package_price(pricing_mode, inpatient_package, 1, record.company, service_unit_type)
 		inpatient_package = pricing["package_name"]
-		quotes = frappe.get_all("Quotation", filters={"custom_inpatient_admission": name,
-			"custom_package": inpatient_package, "docstatus": ["<", 2]}, pluck="name", order_by="modified desc")
-		quote = frappe.get_doc("Quotation", quotes[0]) if quotes else None
-		if not quote or quote.get("custom_package_pricing_mode") != pricing_mode:
+		quote = _quotation_for_room_pricing(name, inpatient_package, pricing_mode)
+		if not quote:
 			frappe.throw(_("Create a quotation for the selected room pricing before admitting."))
 		rate_per_day = flt(quote.get("custom_package_daily_rate"))
+		if rate_per_day <= 0:
+			# Older drafts only kept the package rate on the item row.
+			rate_per_day = _quotation_package_daily_rate(quote.get("name"))
 		if rate_per_day <= 0:
 			frappe.throw(_("Quotation daily rate must be positive."))
 		record.package_pricing_mode = pricing_mode
@@ -4487,9 +4492,11 @@ def create_admission_quotation(
 			line.rate = discounted_package_daily_rate(pricing, days, total_amount, discount_percentage)
 			line.price_list_rate = line.rate
 			line.description = f"Inpatient Package: {package.package_name} - Room type: {info['type_label']} ({cint(days)} days @ {line.rate:.2f}/day)"
-			existing_quotation.custom_package_pricing_mode = pricing_mode
-			existing_quotation.custom_package_daily_rate = line.rate
-			from healthcare.api.room_package_pricing import preserve_room_rate_precision
+			from healthcare.api.room_package_pricing import (
+				preserve_room_rate_precision,
+				set_quotation_package_pricing,
+			)
+			set_quotation_package_pricing(existing_quotation, pricing_mode, line.rate)
 			preserve_room_rate_precision(existing_quotation)
 
 		if enhanced_workflow:
@@ -4555,10 +4562,12 @@ def create_admission_quotation(
 	if pricing:
 		if flt(total_amount) > pricing["program_price"] + 0.001:
 			frappe.throw(_("Room pricing total exceeds the configured price."))
-		from healthcare.api.room_package_pricing import discounted_package_daily_rate
+		from healthcare.api.room_package_pricing import (
+			discounted_package_daily_rate,
+			set_quotation_package_pricing,
+		)
 		daily_rate = discounted_package_daily_rate(pricing, days, total_amount, discount_percentage)
-		quotation.custom_package_pricing_mode = pricing_mode
-		quotation.custom_package_daily_rate = daily_rate
+		set_quotation_package_pricing(quotation, pricing_mode, daily_rate)
 
 	if daily_rate <= 0:
 		frappe.throw(_("Package daily rate must be greater than zero."))
@@ -4639,6 +4648,59 @@ def _active_admission_quotation_filters(admission_name, package_name):
     if active:
         filters["name"] = active
     return filters
+
+
+def _quotation_for_room_pricing(admission_name, package_name, pricing_mode):
+	"""Return the quotation drafted for the selected room pricing, if any."""
+	from healthcare.api.room_package_pricing import ensure_quotation_pricing_fields
+
+	ensure_quotation_pricing_fields()
+	quotes = frappe.get_all(
+		"Quotation",
+		filters={
+			"custom_inpatient_admission": admission_name,
+			"custom_package": package_name,
+			"docstatus": ["<", 2],
+		},
+		fields=["name", "custom_package_pricing_mode", "custom_package_daily_rate"],
+		order_by="modified desc",
+		limit_page_length=0,
+	)
+	return next(
+		(row for row in quotes if row.get("custom_package_pricing_mode") == pricing_mode),
+		None,
+	)
+
+
+def _quotation_package_daily_rate(quotation_name):
+	"""Return the package line rate of a quotation (older drafts kept it on the row)."""
+	return flt(
+		frappe.db.get_value(
+			"Quotation Item",
+			{
+				"parent": quotation_name,
+				"parenttype": "Quotation",
+				"description": ["like", "Inpatient Package:%"],
+			},
+			"rate",
+			order_by="idx asc",
+		)
+	)
+
+
+def _quotation_pricing_mode(quotation):
+	"""Return the room pricing mode of a quotation, inferring it for older drafts."""
+	mode = quotation.get("custom_package_pricing_mode")
+	if mode or not quotation.get("custom_package"):
+		return mode
+	from healthcare.api.room_package_pricing import infer_package_pricing_mode
+
+	rate = flt(quotation.get("custom_package_daily_rate")) or _quotation_package_daily_rate(
+		quotation.name
+	)
+	return infer_package_pricing_mode(
+		quotation.get("custom_package"), rate, quotation.get("company")
+	)
 
 
 @frappe.whitelist()
@@ -4722,7 +4784,7 @@ def check_admission_quotation(admission_name, package_name, admission_quotation=
             "exists": True,
             "quotation_name": existing.name,
             "docstatus": existing.docstatus,
-            "pricing_mode": quotation.get("custom_package_pricing_mode"),
+            "pricing_mode": _quotation_pricing_mode(quotation),
             "package_name": quotation.get("custom_package") or "__custom__",
             "include_lab_tests": cint(quotation.get("custom_include_lab_tests")),
             "include_observation": cint(quotation.get("custom_include_observation")),

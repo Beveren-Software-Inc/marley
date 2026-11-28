@@ -61,3 +61,5 @@ healthcare.patches.v16_0.fix_orphaned_company_restriction_doctype
 healthcare.patches.v16_0.revert_non_ip_medication_auto_stop
 
 healthcare.patches.v16_0.mark_legacy_insurance_patient_registers
+
+healthcare.patches.v16_0.ensure_quotation_package_pricing_fields

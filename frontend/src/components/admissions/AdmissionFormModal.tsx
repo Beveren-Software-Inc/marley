@@ -363,6 +363,7 @@ export const AdmissionFormModal = ({
     identity: string
     request: ReturnType<typeof checkAdmissionQuotation>
   } | null>(null)
+  const draftPricingModeKey = useRef<string | null>(null)
   const [quotationInclusions, setQuotationInclusions] = useState<{
     identity: string
     exists: boolean
@@ -934,8 +935,25 @@ export const AdmissionFormModal = ({
       try {
         setCheckingQuotation(true)
         const result = await loadInitialQuotation()
-        if (!cancelled) onQuotationInclusionsChange(result)
-        if (!cancelled && result.exists && result.quotation_name && (!pricingMode || result.pricing_mode === pricingMode)) {
+        if (cancelled) return
+        onQuotationInclusionsChange(result)
+        const draftMode = result.pricing_mode
+        const draftKey = `${admissionNo}:${selectedPackage.name}`
+        // Re-open the pricing mode the draft was created with, otherwise the
+        // selector default hides the draft and admission asks for a new one.
+        if (
+          result.exists &&
+          result.quotation_name &&
+          draftMode &&
+          draftMode !== pricingMode &&
+          pricingModes.includes(draftMode) &&
+          draftPricingModeKey.current !== draftKey
+        ) {
+          draftPricingModeKey.current = draftKey
+          setPricingMode(draftMode)
+          return
+        }
+        if (result.exists && result.quotation_name && (!pricingMode || draftMode === pricingMode)) {
           setExistingQuotation(result.quotation_name)
           setSalesOrderCreated(result.quotation_name)
         }
@@ -947,7 +965,7 @@ export const AdmissionFormModal = ({
     }
     if (admissionNo && selectedPackage.name && canCheckQuotation) checkQuotation()
     return () => { cancelled = true }
-  }, [admissionNo, selectedPackage.name, canCheckQuotation, loadInitialQuotation, onQuotationInclusionsChange, otherServicesRefresh, pricingMode, activeRoomType])
+  }, [admissionNo, selectedPackage.name, canCheckQuotation, loadInitialQuotation, onQuotationInclusionsChange, otherServicesRefresh, pricingMode, pricingModes, activeRoomType])
 
   // ── Service unit toggle (FIX: no longer replaces query on select) ─────────
 

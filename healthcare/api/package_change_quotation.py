@@ -299,7 +299,10 @@ def create_package_change_quotation(
     from healthcare.api.package_charge_to_today import (
         _package_line_from_quotation,
     )
-    from healthcare.api.room_package_pricing import preserve_room_rate_precision
+    from healthcare.api.room_package_pricing import (
+        preserve_room_rate_precision,
+        set_quotation_package_pricing,
+    )
 
     changes = get_package_changes(admission.name)
     source = _select_change_quotation(admission, previous_package, changes)
@@ -362,8 +365,7 @@ def create_package_change_quotation(
     quotation.custom_reference_type = "Inpatient Admission"
     quotation.custom_reference_name = admission.name
     quotation.custom_package = package_name if package_name != "__custom__" else None
-    quotation.custom_package_pricing_mode = mode
-    quotation.custom_package_daily_rate = rate
+    set_quotation_package_pricing(quotation, mode, rate)
     if source:
         quotation.custom_include_lab_tests = cint(
             source.get("custom_include_lab_tests")
