@@ -228,3 +228,50 @@ def preserve_room_rate_precision(doc, method=None):
                 < 0.001
             ):
                 row.price_list_rate = source.price_list_rate
+
+
+QUOTATION_PRICING_MODE_FIELD = "custom_package_pricing_mode"
+QUOTATION_PRICING_RATE_FIELD = "custom_package_daily_rate"
+
+
+def ensure_quotation_pricing_fields():
+    """Fail with an actionable message when the quotation pricing fields are missing."""
+    meta = frappe.get_meta("Quotation")
+    missing = [
+        field
+        for field in (QUOTATION_PRICING_MODE_FIELD, QUOTATION_PRICING_RATE_FIELD)
+        if not meta.has_field(field)
+    ]
+    if missing:
+        frappe.throw(
+            _(
+                "Quotation room pricing fields are missing ({0}). "
+                "Run bench migrate to sync the healthcare custom fields."
+            ).format(", ".join(missing))
+        )
+
+
+def set_quotation_package_pricing(quotation, pricing_mode, daily_rate):
+    """Record the room pricing the quotation was drafted for (system managed)."""
+    ensure_quotation_pricing_fields()
+    quotation.set(QUOTATION_PRICING_MODE_FIELD, pricing_mode)
+    quotation.set(QUOTATION_PRICING_RATE_FIELD, daily_rate)
+
+
+def infer_package_pricing_mode(package_name, daily_rate, company=None, tolerance=0.005):
+    """Return the pricing mode whose configured rate matches ``daily_rate``.
+
+    Quotations drafted before the pricing mode was stored can still be matched to
+    the selected room pricing when their daily rate identifies exactly one mode.
+    """
+    matches = []
+    for mode, period_days in MODES.items():
+        try:
+            pricing = resolve_room_package_price(
+                mode, package_name, period_days, company
+            )
+        except (frappe.ValidationError, frappe.DoesNotExistError):
+            continue
+        if abs(flt(pricing["daily_rate"]) - flt(daily_rate)) <= tolerance:
+            matches.append(mode)
+    return matches[0] if len(matches) == 1 else None
